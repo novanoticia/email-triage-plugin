@@ -1,0 +1,171 @@
+# ═══════════════════════════════════════════════════════════════
+# EMAIL TRIAGE — Configuración del usuario
+# ═══════════════════════════════════════════════════════════════
+#
+# Este archivo define quién eres, qué te importa y cómo se
+# organizan tus carpetas de correo. El skill lo usa como ancla
+# para evaluar cada correo contra tu perfil real.
+#
+# Instrucciones:
+# 1. Copia este archivo como config.yaml en la carpeta del skill
+# 2. Rellena tus datos en la sección "usuario"
+# 3. Ajusta los nombres de carpetas a los tuyos
+# 4. Los campos marcados con (opcional) pueden dejarse vacíos
+#
+# ═══════════════════════════════════════════════════════════════
+
+usuario:
+  nombre: ""
+  # Tu nombre. El skill lo usa para dirigirse a ti en los resúmenes.
+
+  perfil: |
+    # Describe tu rol, formación e intereses en 2-4 líneas.
+    # Esto es lo que el skill usa para decidir si un correo
+    # "cambiaría algo concreto para ti".
+    # 
+    # Ejemplo: "Diseñadora UX en startup fintech, con formación
+    # en psicología cognitiva. Interesada en accesibilidad web,
+    # design systems y regulación financiera europea."
+
+  proyectos_activos:
+    # Lista de proyectos, herramientas o plataformas que usas
+    # activamente. Correos que afecten a estos se priorizan.
+    - "" # ej: "Rediseño de la app móvil (Figma + React Native)"
+    - "" # ej: "Blog personal en WordPress"
+    - "" # ej: "Curso de certificación AWS"
+
+  idioma: "es"
+  # Idioma para los resúmenes: "es", "en", "fr", "de", etc.
+
+# ───────────────────────────────────────────────────────────────
+# Proveedor de correo
+# ───────────────────────────────────────────────────────────────
+
+correo:
+  proveedor: "icloud"
+  # Opciones: "icloud", "gmail", "otro"
+  #
+  # - icloud: usa Mail.app vía AppleScript (requiere Control your Mac)
+  # - gmail: usa Gmail MCP (requiere conector Gmail en Claude)
+  # - otro: el skill preguntará qué conectores están disponibles
+
+  cuenta: ""
+  # (opcional) Nombre de la cuenta en Mail.app o dirección de Gmail.
+  # Para iCloud: nombre tal como aparece en Mail.app (ej: "iCloud")
+  # Para Gmail: dirección de correo (ej: "usuario@gmail.com")
+
+# ───────────────────────────────────────────────────────────────
+# Estructura de carpetas
+# ───────────────────────────────────────────────────────────────
+
+carpetas:
+  entrada: "INBOX"
+  # Carpeta de bandeja de entrada.
+  # Para Mail.app/iCloud: normalmente "INBOX" o "Entrada"
+  # Para Gmail: "INBOX"
+
+  pendiente: "Leer Después"
+  # Carpeta donde acumulas correos que quieres revisar.
+  # Si no usas una carpeta así, puedes apuntar a INBOX
+  # y el skill tratará todo como triaje directo.
+
+  destino: "Leer Después/IMPORTANTES"
+  # Subcarpeta donde se mueven los correos de alto valor.
+  # Debe existir antes de ejecutar el skill.
+  # Para Gmail, usa el nombre de la etiqueta equivalente.
+
+  historial: "Conservar"
+  # (opcional) Carpeta con correos que has decidido conservar
+  # en el pasado. Se usa para calibración.
+  # Déjala vacía si no tienes una carpeta así.
+
+# ───────────────────────────────────────────────────────────────
+# Modo de interacción
+# ───────────────────────────────────────────────────────────────
+
+interaccion:
+  modo: "confirmacion"
+  # Opciones:
+  # - "confirmacion": te pregunta uno a uno antes de mover (recomendado al inicio)
+  # - "lote": presenta todos y pide confirmación global
+  # - "silencioso": mueve automáticamente (solo tras varias ejecuciones exitosas)
+
+  limite_por_sesion: 30
+  # Máximo de correos a procesar por ejecución.
+  # Si hay más, el skill procesa en lotes y prioriza los más recientes.
+
+  mostrar_calibracion: false
+  # Si true, muestra los patrones detectados en la fase de calibración
+  # en lugar de ocultarlos. Útil para depuración.
+
+# ───────────────────────────────────────────────────────────────
+# Filtros adicionales (opcional)
+# ───────────────────────────────────────────────────────────────
+
+filtros:
+  remitentes_prioritarios: []
+  # Direcciones de correo que siempre se evalúan con umbral bajo.
+  # No se mueven automáticamente, pero se les da ventaja en caso de duda.
+  # Ejemplo:
+  # - "newsletter@interesante.com"
+  # - "jefe@empresa.com"
+
+  remitentes_ignorar: []
+  # Direcciones que se saltan completamente (ni se evalúan).
+  # Ejemplo:
+  # - "noreply@spam.com"
+
+  palabras_clave_boost: []
+  # Términos en asunto o cuerpo que aumentan probabilidad de MOVER.
+  # Ejemplo:
+  # - "deadline"
+  # - "breaking change"
+
+  palabras_clave_penalizar: []
+  # Términos que reducen probabilidad de MOVER.
+  # Ejemplo:
+  # - "unsubscribe"
+  # - "weekly digest"
+
+
+# ═══════════════════════════════════════════════════════════════
+# EJEMPLOS DE PERFILES (borra estos antes de usar)
+# ═══════════════════════════════════════════════════════════════
+#
+# EJEMPLO A — Desarrollador frontend:
+#
+#   nombre: "Laura"
+#   perfil: |
+#     Desarrolladora frontend senior en empresa SaaS B2B.
+#     Stack principal: React, TypeScript, Tailwind.
+#     Intereses: rendimiento web, accesibilidad, design tokens.
+#   proyectos_activos:
+#     - "Migración a Next.js 15"
+#     - "Component library interna (Storybook)"
+#     - "Charla para JSConf Colombia"
+#
+# EJEMPLO B — Investigador académico:
+#
+#   nombre: "Carlos"
+#   perfil: |
+#     Doctorando en neurociencia computacional, Universidad de Barcelona.
+#     Trabajo con modelos de redes neuronales biológicamente plausibles.
+#     Intereses: aprendizaje predictivo, psicofarmacología, open science.
+#   proyectos_activos:
+#     - "Tesis: modelos de corteza prefrontal (Python/JAX)"
+#     - "Artículo en revisión para Nature Neuroscience"
+#     - "Seminario mensual del grupo de investigación"
+#
+# EJEMPLO C — Gestor de proyectos culturales:
+#
+#   nombre: "Marta"
+#   perfil: |
+#     Gestora cultural freelance en Madrid.
+#     Coordina exposiciones, festivales y residencias artísticas.
+#     Intereses: financiación pública europea, arte digital, mediación cultural.
+#   proyectos_activos:
+#     - "Festival de arte sonoro (octubre 2026)"
+#     - "Solicitud de subvención Europa Creativa"
+#     - "Comisariado de exposición colectiva en Matadero"
+#
+# ═══════════════════════════════════════════════════════════════

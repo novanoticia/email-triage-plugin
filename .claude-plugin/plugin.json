@@ -1,0 +1,6 @@
+{
+  "name": "email-triage",
+  "description": "Intelligent email triage using a differential-value criterion: not 'is it important?' but 'would reading this change anything concrete for me?' Supports iCloud (Mail.app), Gmail (MCP), and other providers. Includes optional calibration from conserved mail history.",
+  "version": "1.0.0",
+  "author": "Pablo Rodríguez López (mindandhealth.org)"
+}

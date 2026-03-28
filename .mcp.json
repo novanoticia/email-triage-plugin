@@ -1,0 +1,12 @@
+{
+  "~~email": {
+    "name": "Email provider",
+    "description": "Connect to your email provider. For Gmail, use the Gmail MCP connector. For iCloud, use Control your Mac (AppleScript via Mail.app).",
+    "options": [
+      {
+        "name": "Gmail",
+        "url": "https://gmail.mcp.claude.com/mcp"
+      }
+    ]
+  }
+}

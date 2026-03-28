@@ -1,0 +1,15 @@
+{
+  "name": "email-triage-plugin",
+  "owner": {
+    "name": "Pablo Rodríguez López",
+    "url": "https://mindandhealth.org"
+  },
+  "plugins": [
+    {
+      "name": "email-triage",
+      "source": ".",
+      "description": "Intelligent email triage using differential-value criterion. Supports iCloud, Gmail, and other providers.",
+      "version": "1.0.0"
+    }
+  ]
+}
