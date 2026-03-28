@@ -5,8 +5,8 @@ description: >
   de lectura pendiente para identificar correos de alto valor usando un criterio
   de "valor diferencial" (¿leer esto cambiaría algo concreto para el usuario?).
   Soporta iCloud (Mail.app vía AppleScript), Gmail (vía MCP) y cualquier cliente
-  compatible con Cowork. Incluye calibración opcional basada en historial de correos
-  conservados.
+  compatible con Cowork. Incluye calibración estadística basada en historial y
+  sistema de puntuación ponderada por categoría.
   Actívalo cuando el usuario diga "filtra mi correo", "revisa mi bandeja",
   "triaje de emails", "qué correos son importantes", "email triage",
   "clasifica mis correos", "qué debería leer", "hay algo urgente en mi correo",
@@ -16,253 +16,339 @@ description: >
   en relevancia o importancia.
 ---
 
-# Email Triage — Filtrado inteligente de correo por valor diferencial
+# Email Triage v2.0 — Filtrado inteligente por valor diferencial
 
 ## Qué hace este skill
 
 Evalúa correos electrónicos usando un criterio epistémico: no "¿es importante?"
-sino **"¿leer esto cambiaría algo concreto para el usuario?"**. Es la diferencia
-entre un filtro de relevancia y un filtro de impacto real.
+sino **"¿leer esto cambiaría algo concreto para el usuario?"**.
 
-El skill opera en tres fases opcionales (calibración, urgentes, triaje profundo)
-y se adapta a cualquier perfil profesional y proveedor de correo.
+Opera en fases modulares (calibración, urgentes, triaje profundo) y se adapta
+a cualquier perfil profesional y proveedor de correo.
+
+### Cambios en v2.0
+
+- **Acceso al cuerpo del email** — lectura de contenido real, no solo asunto
+- **Puntuación ponderada** — pesos configurables por keyword y categoría
+- **Calibración estadística real** — extracción de patrones con frecuencias
+- **Lotes optimizados** — procesamiento de hasta 50 correos por lote
 
 ---
 
-## PASO 0 — Leer la configuración del usuario
+## PASO 0 — Leer configuración
 
-Antes de ejecutar cualquier fase, lee el archivo `config.yaml` que acompaña
-a este skill. Contiene el perfil del usuario y la configuración de carpetas.
+Lee `config.yaml` antes de cualquier fase. Contiene perfil, carpetas y pesos.
 
-Si no existe `config.yaml`, pide al usuario que configure estos campos mínimos
-antes de continuar:
+Si no existe, pide al usuario estos campos mínimos:
+1. **nombre** y **perfil** (rol, formación, intereses)
+2. **proyectos_activos**
+3. **proveedor** de correo y **carpetas**
+4. **modo** de interacción
 
-1. **nombre**: cómo dirigirse al usuario
-2. **perfil**: descripción breve de su rol, formación e intereses (2-3 líneas)
-3. **proyectos_activos**: lista de proyectos, herramientas o plataformas que usa
-4. **proveedor_correo**: `icloud`, `gmail` u `otro`
-5. **carpetas**: nombres de las carpetas del usuario (ver estructura en config.yaml)
-6. **modo_interaccion**: `confirmacion` (uno a uno), `lote` (todos de golpe) o `silencioso`
-
-El perfil del usuario es la referencia contra la que se evalúa cada correo.
 Sin perfil, el criterio de valor diferencial no tiene ancla.
 
 ---
 
-## PASO 1 — Detectar el proveedor de correo y conectar
+## PASO 1 — Conectar al proveedor de correo
 
 ### iCloud / Mail.app (macOS)
 
-Usa el conector "Control your Mac" (osascript) para acceder a Mail.app.
+Usa "Control your Mac" (osascript) para acceder a Mail.app.
 
-Para listar correos de una carpeta:
+#### Listar correos con metadatos y extracto del cuerpo
+
 ```applescript
 tell application "Mail"
-    set targetMailbox to mailbox "NOMBRE_CARPETA" of account "iCloud"
+    set acct to account "NOMBRE_CUENTA"
+    set targetMailbox to mailbox "NOMBRE_CARPETA" of acct
     set msgs to messages of targetMailbox
-    -- Leer asunto, remitente, fecha, extracto del cuerpo
+    set msgCount to count of msgs
+
+    -- Procesar en lote (hasta 50 por ejecución)
+    set batchSize to 50
+    if msgCount < batchSize then set batchSize to msgCount
+
+    set resultList to {}
+    repeat with i from 1 to batchSize
+        set msg to item i of msgs
+        set msgSubject to subject of msg
+        set msgSender to sender of msg
+        set msgDate to date received of msg
+
+        -- ACCESO AL CUERPO: extraer primeras líneas del contenido
+        try
+            set msgContent to content of msg
+            -- Truncar a primeros 500 caracteres para eficiencia
+            if length of msgContent > 500 then
+                set msgContent to text 1 thru 500 of msgContent
+            end if
+        on error
+            set msgContent to "(sin acceso al cuerpo)"
+        end try
+
+        set end of resultList to "---EMAIL " & i & "---" & ¬
+            linefeed & "Asunto: " & msgSubject & ¬
+            linefeed & "De: " & msgSender & ¬
+            linefeed & "Fecha: " & (msgDate as string) & ¬
+            linefeed & "Extracto: " & msgContent
+    end repeat
+
+    -- Devolver como texto concatenado
+    set AppleScript's text item delimiters to linefeed & linefeed
+    set output to resultList as string
+    set AppleScript's text item delimiters to ""
+    return output
 end tell
 ```
 
-Para mover un correo entre carpetas:
+**Nota sobre `content` de Mail.app**: La propiedad `content` devuelve el texto
+plano del correo. Si el correo es solo HTML sin parte text/plain, puede devolver
+el HTML en bruto. En ese caso, el modelo debe extraer el texto relevante
+ignorando las etiquetas HTML. Si `content` falla (error de permisos o formato),
+el bloque `try/on error` asegura que el triaje continúa solo con asunto y remitente.
+
+#### Mover un correo
+
 ```applescript
 tell application "Mail"
-    set targetMailbox to mailbox "DESTINO" of account "iCloud"
-    move theMessage to targetMailbox
+    set acct to account "NOMBRE_CUENTA"
+    set destMailbox to mailbox "CARPETA_DESTINO" of acct
+    set sourceMailbox to mailbox "CARPETA_ORIGEN" of acct
+    set msgs to messages of sourceMailbox
+
+    -- Mover por índice (o por message id si se guardó)
+    move message i of sourceMailbox to destMailbox
 end tell
 ```
+
+#### Mover múltiples correos por índice (lote)
+
+```applescript
+tell application "Mail"
+    set acct to account "NOMBRE_CUENTA"
+    set sourceMailbox to mailbox "CARPETA_ORIGEN" of acct
+    set destMailbox to mailbox "CARPETA_DESTINO" of acct
+
+    -- Lista de índices a mover (de mayor a menor para no alterar posiciones)
+    set indicesToMove to {45, 32, 18, 7, 3}
+    repeat with idx in indicesToMove
+        move message idx of sourceMailbox to destMailbox
+    end repeat
+end tell
+```
+
+**IMPORTANTE**: Al mover en lote, procesar los índices de mayor a menor.
+Mover un mensaje altera los índices posteriores si se procesan de menor a mayor.
 
 ### Gmail (vía MCP)
 
-Usa las herramientas Gmail MCP disponibles en Cowork. Flujo verificado:
+Flujo verificado con herramientas Gmail MCP:
 
-**Paso 1 — Listar correos** con `gmail_search_messages`:
-- Acepta query con sintaxis Gmail estándar (ej: `label:Leer-Despues`)
-- Devuelve: `messageId`, `threadId`, `snippet` (extracto breve), headers
-  (From, Date, Subject, To) y `sizeEstimate`
-- El `snippet` es suficiente para un primer filtro por asunto/remitente
-- Soporta paginación con `nextPageToken` y `maxResults` (hasta 500)
-
-**Paso 2 — Leer cuerpo completo** con `gmail_read_message`:
-- Requiere el `messageId` obtenido en el paso anterior
-- Devuelve el campo `body` con el texto completo del correo (plaintext)
-- También devuelve `attachments` con nombre, tipo MIME y tamaño
-- No hay límite práctico de longitud en el cuerpo devuelto
-- IMPORTANTE: usa este paso solo para correos que pasan el filtro
-  inicial por snippet/asunto, para no sobrecargar la sesión
-
-**Paso 3 — Mover correos** entre etiquetas:
-- Gmail no tiene carpetas; usa etiquetas (labels)
-- Para "mover": añade la etiqueta destino y elimina la de origen
-- El usuario debe crear las etiquetas previamente en Gmail
+1. **Listar** con `gmail_search_messages` — query Gmail estándar, paginación
+   con `nextPageToken`, `maxResults` hasta 500
+2. **Leer cuerpo** con `gmail_read_message` — solo para correos que pasan
+   el filtro inicial por snippet/asunto (evita sobrecargar la sesión)
+3. **Mover** entre etiquetas — añadir destino, eliminar origen
 
 ### Otro proveedor
 
-Si el conector disponible es distinto, adapta el acceso usando las herramientas
-MCP o AppleScript que el usuario tenga configuradas. El skill debe preguntar
-qué conectores están disponibles si no puede determinarlos automáticamente.
+Preguntar al usuario qué conectores MCP o AppleScript tiene disponibles.
 
 ---
 
-## PASO 2 — CALIBRACIÓN (opcional, recomendada la primera ejecución)
+## PASO 2 — CALIBRACIÓN ESTADÍSTICA
 
-La calibración construye un perfil de preferencias a partir del historial
-del usuario. Funciona con cualquier carpeta que contenga correos que el
-usuario haya decidido conscientemente conservar.
+La calibración extrae patrones reales del historial del usuario. No es una
+descripción conceptual: es un análisis cuantitativo que produce datos usables.
 
-### Procedimiento
+### Procedimiento concreto
 
-1. Accede a la carpeta definida como `carpeta_historial` en la configuración.
-2. Analiza los últimos 100 correos (o los disponibles, si hay menos).
-3. Extrae patrones silenciosamente:
-   - Remitentes que aparecen 3+ veces (señal de fuente de confianza)
-   - Temáticas recurrentes (palabras clave, dominios)
-   - Tipos de contenido (newsletters, notificaciones, comunicaciones directas)
-   - Ventanas horarias habituales
-4. Almacena el perfil internamente como referencia adicional para las fases
-   siguientes. No lo muestres salvo que el usuario pida `mostrar_calibracion`.
-5. Confirma: "He revisado X correos en '[nombre_carpeta]'. Calibración lista."
+1. Accede a `carpetas.historial` (por defecto "Conservar").
+
+2. Lee los últimos 100 correos con asunto, remitente y fecha.
+
+3. **Extrae estas métricas exactas**:
+
+   **a) Remitentes frecuentes** (top 10 por apariciones):
+   ```
+   remitente@ejemplo.com — 12 correos (12%)
+   otro@dominio.org — 8 correos (8%)
+   ...
+   ```
+
+   **b) Dominios de remitente frecuentes** (top 5):
+   ```
+   @substack.com — 23 correos
+   @gmail.com — 18 correos
+   ...
+   ```
+
+   **c) Palabras clave en asuntos** (top 15, excluyendo stopwords):
+   ```
+   "AI" — 14 apariciones
+   "update" — 11 apariciones
+   ...
+   ```
+
+   **d) Distribución temporal**:
+   ```
+   Correos más antiguos: DD/MM/YYYY
+   Correos más recientes: DD/MM/YYYY
+   Pico de conservación: [mañana/tarde/noche]
+   ```
+
+   **e) Tipos detectados**:
+   ```
+   Newsletters: ~45%
+   Comunicaciones directas: ~30%
+   Notificaciones de servicio: ~15%
+   Otros: ~10%
+   ```
+
+4. **Almacena el perfil** como contexto interno para las fases siguientes.
+   Úsalo para:
+   - Dar +2 puntos a remitentes que aparecen 5+ veces en historial
+   - Dar +1 punto a dominios frecuentes
+   - Dar +1 punto a correos cuyo asunto contiene keywords del top 15
+
+5. Si `mostrar_calibracion: true`, presenta las métricas al usuario.
+   Si no, solo confirma: "Calibración lista: X correos analizados, Y remitentes
+   frecuentes, Z keywords identificadas."
 
 ### Cuándo recalibrar
 
-- Si el usuario lo pide explícitamente
-- Si el skill detecta que sus recomendaciones no coinciden con las decisiones
-  del usuario (más de 3 "No" consecutivos en modo confirmación)
+- A petición del usuario
+- Si más de 3 "No" consecutivos en modo confirmación
+- Si la carpeta de historial ha cambiado significativamente (>50 correos nuevos)
 
-### Nota sobre la calidad de la calibración
+### Calidad de la calibración
 
-Si la carpeta de historial contiene correos conservados por razones muy
-heterogéneas (fiscales, sentimentales, profesionales), el perfil resultante
-puede ser ruidoso. En ese caso, informa al usuario y sugiere acotar por
-rango de fechas o excluir ciertos remitentes.
+Si la carpeta tiene contenido muy heterogéneo, informa y sugiere acotar
+por rango de fechas o excluir ciertos dominios del análisis.
 
 ---
 
-## PASO 3 — BANDEJA DE ENTRADA (detección de urgentes)
+## PASO 3 — BANDEJA DE ENTRADA (urgentes)
 
-Accede a la carpeta definida como `carpeta_entrada` en la configuración.
-Revisa los correos recientes (últimas 48-72 horas).
+Revisa `carpetas.entrada` (últimas 48-72 horas).
 
 ### Criterio de urgencia
 
-Un correo es urgente si cumple AMBAS condiciones:
-1. Tiene una ventana de tiempo corta (deadline, evento próximo, oferta que expira)
-2. Es relevante para el perfil del usuario (no cualquier deadline)
+Urgente = AMBAS condiciones:
+1. Ventana temporal corta (deadline, evento, expiración)
+2. Relevante para el perfil del usuario
 
-### Formato de presentación
-
-Para cada candidato urgente:
+### Formato
 
 ```
 📬 [Asunto]
    De: [Remitente]
-📝 Resumen: [2-3 líneas del contenido real]
-⚡ Por qué ahora: [1 línea — qué ventana temporal tiene]
+📝 Resumen: [2-3 líneas del contenido]
+⚡ Por qué ahora: [ventana temporal]
 🔵 Recomendación: LEER AHORA / PUEDE ESPERAR
 ```
 
-En modo `confirmacion`: espera respuesta antes de pasar al siguiente.
-En modo `lote`: presenta todos juntos y pide confirmación global.
-En modo `silencioso`: actúa según la recomendación sin preguntar.
+Según modo: espera confirmación, presenta en lote, o actúa directamente.
 
-Si no hay nada urgente:
-"Nada en la bandeja requiere atención inmediata."
+Si no hay urgentes: "Nada en la bandeja requiere atención inmediata."
 
 ---
 
-## PASO 4 — TRIAJE PROFUNDO (carpeta de lectura pendiente)
+## PASO 4 — TRIAJE PROFUNDO (puntuación ponderada)
 
-Esta es la fase principal. Revisa la carpeta definida como `carpeta_pendiente`.
+Esta es la fase principal. Revisa `carpetas.pendiente`.
 
-### El criterio de valor diferencial
+### Sistema de puntuación
 
-La pregunta central NO es "¿es importante?" sino:
+Cada correo recibe una puntuación numérica. El umbral para MOVER es
+configurable en `config.yaml` (por defecto: **3 puntos**).
 
-**¿Leer esto cambiaría algo concreto para el usuario?
-¿Lo diferenciaría de alguien de su entorno que no lo haya leído?**
+#### Fuentes de puntuación
 
-Para evaluar cada correo, sigue esta secuencia de preguntas en orden.
-Detente en la primera que responda "sí":
+| Fuente | Puntos | Condición |
+|--------|--------|-----------|
+| **Remitente prioritario** | +3 | Está en `remitentes_prioritarios` |
+| **Remitente en historial** (5+ veces) | +2 | Detectado en calibración |
+| **Dominio en historial** | +1 | Dominio frecuente en calibración |
+| **Keyword boost (alta)** | +3 | Palabra en `palabras_clave_boost` con peso `alto` |
+| **Keyword boost (media)** | +2 | Palabra en `palabras_clave_boost` con peso `medio` |
+| **Keyword boost (baja)** | +1 | Palabra en `palabras_clave_boost` con peso `bajo` o sin peso |
+| **Keyword en cuerpo** | +1 | Keyword encontrada en extracto del cuerpo (no solo asunto) |
+| **Keyword penalizar** | -2 | Palabra en `palabras_clave_penalizar` |
+| **Remitente ignorar** | -99 | Está en `remitentes_ignorar` (skip total) |
+| **Criterio valor diferencial** | +2 | El modelo determina que cumple uno de los 5 criterios (ver abajo) |
 
-```
-1. ¿Requiere acción con fecha límite real?
-   → SÍ: MOVER (categoría: ACCIÓN)
+#### Los 5 criterios de valor diferencial
 
-2. ¿Modifica una decisión o plan activo del usuario?
-   → SÍ: MOVER (categoría: OPERATIVO)
+Evalúa en orden. Si alguno aplica, suma +2 al score y asigna categoría:
 
-3. ¿Contiene conocimiento técnico o conceptual aplicable
-   a sus proyectos activos?
-   → SÍ: MOVER (categoría: ESTRATÉGICO)
+1. **ACCIÓN** — ¿Requiere acción con fecha límite real?
+2. **OPERATIVO** — ¿Modifica una decisión o plan activo del usuario?
+3. **ESTRATÉGICO** — ¿Contiene conocimiento técnico/conceptual aplicable?
+4. **HERRAMIENTAS** — ¿Afecta a herramientas o plataformas que usa?
+5. **VENTAJA** — ¿Ofrece perspectiva que daría ventaja real al usuario?
 
-4. ¿Afecta a herramientas o plataformas que usa directamente?
-   → SÍ: MOVER (categoría: HERRAMIENTAS)
+#### Señales de DEJAR (no mover)
 
-5. ¿Ofrece perspectiva analítica que le daría ventaja real
-   sobre alguien que no lo ha leído?
-   → SÍ: MOVER (categoría: VENTAJA)
+- Información recuperable con una búsqueda web
+- Confirmaciones, recibos o notificaciones sin acción
+- Eco de algo que el usuario ya conoce
+- Valor que caduca antes de que el usuario pueda actuar
+- Newsletter genérica sin contenido aplicable
 
-6. ¿El remitente tiene peso histórico (aparece frecuentemente
-   en la carpeta de historial, si se calibró)?
-   → SÍ: evalúa con umbral más bajo, pero no mueve automáticamente.
-   Solo inclina la balanza si hay duda.
+### Evaluación con acceso al cuerpo
 
-7. Ninguna de las anteriores.
-   → DEJAR
-```
+Cuando se dispone del extracto del cuerpo (propiedad `content` de Mail.app
+o `body` de Gmail MCP), el skill debe:
 
-### Señales claras de DEJAR (no mover)
+1. **Primer filtro rápido** — Evaluar asunto + remitente (puntuación parcial)
+2. **Si score parcial >= 1** — Analizar también el extracto del cuerpo:
+   - Buscar keywords de boost/penalización en el texto
+   - Evaluar criterios de valor diferencial con contexto completo
+3. **Si score parcial < 1 y remitente no está en ignorar** — Leer el extracto
+   igualmente, pero con umbral más exigente (el cuerpo debe aportar >= 2 puntos
+   para alcanzar el umbral de MOVER)
 
-- Información general fácilmente recuperable con una búsqueda web
-- Confirmaciones, recibos o notificaciones de estado sin acción requerida
-- Eco de algo que el usuario ya conoce (repetición de otra fuente)
-- El valor del contenido caducaría antes de que el usuario pudiera actuar
-- Newsletter genérica sin contenido aplicable a sus proyectos
+Este enfoque en dos pasadas evita procesar en profundidad correos que
+claramente no son relevantes, pero no descarta correos con asuntos vagos
+que podrían tener contenido valioso.
 
 ### Formato de presentación
-
-Para cada correo evaluado:
 
 ```
 📧 [Asunto]
    De: [Remitente] | Fecha: [DD/MM]
-📝 Resumen: [2-3 líneas del contenido real, no del asunto]
-⚖️ Razón: [1-2 líneas — criterio que aplica y por qué]
+📝 Resumen: [2-3 líneas del contenido real]
+📊 Puntuación: X/umbral (desglose: remitente +N, keywords +N, criterio +N)
 🏷️ Categoría: [ACCIÓN | OPERATIVO | ESTRATÉGICO | HERRAMIENTAS | VENTAJA]
 🔵 Recomendación: MOVER / DEJAR
 ```
 
-### Control de flujo según modo de interacción
+### Control de flujo según modo
 
 **Modo `confirmacion`** (por defecto):
-- Presenta un correo a la vez
-- Pregunta: "¿Lo muevo a '[carpeta_destino]'? → Sí / No"
-- Solo mueve si el usuario responde "Sí", "S", "sí" o equivalente
-- Espera respuesta antes de continuar con el siguiente
+- Un correo a la vez, espera Sí/No antes de mover
 
 **Modo `lote`**:
-- Presenta todos los correos con sus recomendaciones
-- Al final, lista los recomendados para mover con número
-- Pregunta: "¿Muevo los marcados? Puedes excluir por número (ej: 'todos menos 3 y 7')"
+- Presenta todos con recomendaciones, pide confirmación global
+- "¿Muevo los marcados? Puedes excluir por número"
 
 **Modo `silencioso`**:
-- Mueve automáticamente los que recomienda
-- Al final, presenta un resumen de lo movido y lo dejado
-- PRECAUCIÓN: solo usar si el usuario confía en la calibración tras varias ejecuciones
+- Mueve automáticamente los que superan el umbral
+- Presenta resumen al final con desglose
 
 ### Gestión de escala
 
-Si la carpeta de lectura pendiente tiene más de 30 correos:
-- Informa al usuario del volumen
-- Sugiere procesar en lotes de 15
-- Prioriza correos más recientes primero (los más antiguos tienen mayor
-  probabilidad de haber perdido vigencia)
+- **Lote estándar**: hasta 50 correos por ejecución (configurable con `limite_por_sesion`)
+- Si hay más de 50: informar volumen, procesar por lotes, priorizar recientes
+- **Índices en orden descendente** al mover para no alterar posiciones
+- Si la carpeta tiene >200 correos: sugerir un primer pase rápido solo por
+  remitente/asunto (sin leer cuerpos) para descartar el ruido evidente,
+  seguido de un segundo pase con lectura de cuerpo para los supervivientes
 
 ---
 
 ## PASO 5 — RESUMEN DE SESIÓN
-
-Al finalizar, presenta un resumen:
 
 ```
 ───────────────────────────────────
@@ -278,6 +364,10 @@ RESUMEN DE TRIAJE
 Categorías de lo movido:
    ACCIÓN: N | OPERATIVO: N | ESTRATÉGICO: N
    HERRAMIENTAS: N | VENTAJA: N
+
+📊 Estadísticas de puntuación:
+   Puntuación media: X.X | Máxima: X | Mínima: X
+   Correos sobre umbral: N (X%)
 ───────────────────────────────────
 ```
 
@@ -285,37 +375,33 @@ Categorías de lo movido:
 
 ## Errores comunes a evitar
 
-- No asumas que todo lo que tiene "urgente" en el asunto es realmente urgente.
-  Muchas newsletters usan esa palabra como clickbait.
-- No muevas correos sin confirmación en modo `confirmacion`, ni siquiera
-  si estás muy seguro. El usuario es quien decide.
-- Si no puedes acceder a una carpeta (permisos, nombre incorrecto), informa
-  y pide al usuario que verifique el nombre exacto.
-- No confundas "interesante" con "valioso". El criterio es impacto, no curiosidad.
-- Si la calibración da un perfil incoherente, dilo. Es mejor recalibrar
-  con un rango más estrecho que operar con datos ruidosos.
+- No asumas que "urgente" en el asunto = urgente real (clickbait de newsletters)
+- No muevas sin confirmación en modo `confirmacion`
+- Si no puedes acceder a una carpeta, informa y pide verificar el nombre
+- No confundas "interesante" con "valioso" — el criterio es impacto, no curiosidad
+- Si `content` devuelve HTML crudo, extrae el texto ignorando tags
+- Si `content` falla, continúa el triaje solo con asunto/remitente (modo degradado)
+- Al mover en lote, procesa índices de mayor a menor
+- Si la calibración da un perfil incoherente, informa y sugiere acotar
 
 ---
 
 ## Dependencias
 
-El skill se adapta a los conectores disponibles:
-
 | Proveedor | Conector necesario | Notas |
 |-----------|-------------------|-------|
-| iCloud    | Control your Mac (osascript) | Mail.app debe tener la cuenta configurada |
-| Gmail     | Gmail MCP | Disponible como conector en Claude |
-| Otro      | Depende del cliente | El skill preguntará qué herramientas hay disponibles |
+| iCloud    | Control your Mac (osascript) | Mail.app con cuenta configurada |
+| Gmail     | Gmail MCP | Conector en Claude/Cowork |
+| Otro      | Según disponibilidad | El skill preguntará |
 
 ---
 
-## Personalización avanzada
+## Personalización (ver config.yaml)
 
-El usuario puede añadir en `config.yaml`:
-
-- `remitentes_prioritarios`: lista de direcciones que siempre se evalúan con umbral bajo
-- `remitentes_ignorar`: lista de direcciones que se saltan siempre
-- `palabras_clave_boost`: términos que aumentan la probabilidad de MOVER
-- `palabras_clave_penalizar`: términos que la reducen
-- `limite_por_sesion`: máximo de correos a procesar por ejecución (default: 30)
-- `idioma_resumen`: idioma para los resúmenes (default: mismo que el perfil)
+- `remitentes_prioritarios` — umbral bajo (+3)
+- `remitentes_ignorar` — skip total (-99)
+- `palabras_clave_boost` — con peso: `alto` (+3), `medio` (+2), `bajo` (+1)
+- `palabras_clave_penalizar` — reducen puntuación (-2)
+- `umbral_mover` — puntuación mínima para recomendar MOVER (default: 3)
+- `limite_por_sesion` — máximo por ejecución (default: 50)
+- `leer_cuerpo` — `true`/`false`, activa lectura del contenido del email

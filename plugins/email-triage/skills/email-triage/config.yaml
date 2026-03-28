@@ -1,16 +1,16 @@
 # ═══════════════════════════════════════════════════════════════
-# EMAIL TRIAGE — Configuración del usuario
+# EMAIL TRIAGE v2.0 — Configuración del usuario
 # ═══════════════════════════════════════════════════════════════
 #
 # Este archivo define quién eres, qué te importa y cómo se
 # organizan tus carpetas de correo. El skill lo usa como ancla
 # para evaluar cada correo contra tu perfil real.
 #
-# Instrucciones:
-# 1. Copia este archivo como config.yaml en la carpeta del skill
-# 2. Rellena tus datos en la sección "usuario"
-# 3. Ajusta los nombres de carpetas a los tuyos
-# 4. Los campos marcados con (opcional) pueden dejarse vacíos
+# Novedades en v2.0:
+# - Puntuación ponderada por keyword (alto/medio/bajo)
+# - Umbral configurable para mover correos
+# - Lectura del cuerpo del email (no solo asunto)
+# - Lotes de hasta 50 correos
 #
 # ═══════════════════════════════════════════════════════════════
 
@@ -22,17 +22,10 @@ usuario:
     # Describe tu rol, formación e intereses en 2-4 líneas.
     # Esto es lo que el skill usa para decidir si un correo
     # "cambiaría algo concreto para ti".
-    # 
-    # Ejemplo: "Diseñadora UX en startup fintech, con formación
-    # en psicología cognitiva. Interesada en accesibilidad web,
-    # design systems y regulación financiera europea."
 
   proyectos_activos:
-    # Lista de proyectos, herramientas o plataformas que usas
-    # activamente. Correos que afecten a estos se priorizan.
     - "" # ej: "Rediseño de la app móvil (Figma + React Native)"
     - "" # ej: "Blog personal en WordPress"
-    - "" # ej: "Curso de certificación AWS"
 
   idioma: "es"
   # Idioma para los resúmenes: "es", "en", "fr", "de", etc.
@@ -50,7 +43,7 @@ correo:
   # - otro: el skill preguntará qué conectores están disponibles
 
   cuenta: ""
-  # (opcional) Nombre de la cuenta en Mail.app o dirección de Gmail.
+  # Nombre de la cuenta en Mail.app o dirección de Gmail.
   # Para iCloud: nombre tal como aparece en Mail.app (ej: "iCloud")
   # Para Gmail: dirección de correo (ej: "usuario@gmail.com")
 
@@ -60,24 +53,10 @@ correo:
 
 carpetas:
   entrada: "INBOX"
-  # Carpeta de bandeja de entrada.
-  # Para Mail.app/iCloud: normalmente "INBOX" o "Entrada"
-  # Para Gmail: "INBOX"
-
   pendiente: "Leer Después"
-  # Carpeta donde acumulas correos que quieres revisar.
-  # Si no usas una carpeta así, puedes apuntar a INBOX
-  # y el skill tratará todo como triaje directo.
-
   destino: "Leer Después/IMPORTANTES"
-  # Subcarpeta donde se mueven los correos de alto valor.
-  # Debe existir antes de ejecutar el skill.
-  # Para Gmail, usa el nombre de la etiqueta equivalente.
-
   historial: "Conservar"
-  # (opcional) Carpeta con correos que has decidido conservar
-  # en el pasado. Se usa para calibración.
-  # Déjala vacía si no tienes una carpeta así.
+  # historial es opcional. Se usa para calibración estadística.
 
 # ───────────────────────────────────────────────────────────────
 # Modo de interacción
@@ -86,86 +65,117 @@ carpetas:
 interaccion:
   modo: "confirmacion"
   # Opciones:
-  # - "confirmacion": te pregunta uno a uno antes de mover (recomendado al inicio)
+  # - "confirmacion": pregunta uno a uno antes de mover (recomendado al inicio)
   # - "lote": presenta todos y pide confirmación global
   # - "silencioso": mueve automáticamente (solo tras varias ejecuciones exitosas)
 
-  limite_por_sesion: 30
-  # Máximo de correos a procesar por ejecución.
-  # Si hay más, el skill procesa en lotes y prioriza los más recientes.
+  limite_por_sesion: 50
+  # Máximo de correos a procesar por ejecución (v2.0 soporta hasta 50).
 
   mostrar_calibracion: false
-  # Si true, muestra los patrones detectados en la fase de calibración
-  # en lugar de ocultarlos. Útil para depuración.
+  # Si true, muestra las métricas de calibración al usuario.
 
 # ───────────────────────────────────────────────────────────────
-# Filtros adicionales (opcional)
+# Puntuación y umbrales (NUEVO en v2.0)
+# ───────────────────────────────────────────────────────────────
+
+puntuacion:
+  umbral_mover: 3
+  # Puntuación mínima para recomendar MOVER un correo.
+  # Ajusta según tu experiencia:
+  # - 2 = más permisivo (mueve más correos)
+  # - 3 = equilibrado (recomendado)
+  # - 5 = muy selectivo (solo lo más relevante)
+
+  leer_cuerpo: true
+  # Si true, el skill lee los primeros ~500 caracteres del cuerpo
+  # del email para evaluar keywords y criterios de valor.
+  # Si false, solo usa asunto y remitente (más rápido, menos preciso).
+  # Si Mail.app no puede acceder al cuerpo, el skill continúa
+  # en modo degradado (solo asunto/remitente) automáticamente.
+
+# ───────────────────────────────────────────────────────────────
+# Filtros y pesos
 # ───────────────────────────────────────────────────────────────
 
 filtros:
   remitentes_prioritarios: []
-  # Direcciones de correo que siempre se evalúan con umbral bajo.
-  # No se mueven automáticamente, pero se les da ventaja en caso de duda.
+  # Direcciones que reciben +3 puntos automáticos.
   # Ejemplo:
   # - "newsletter@interesante.com"
   # - "jefe@empresa.com"
 
   remitentes_ignorar: []
-  # Direcciones que se saltan completamente (ni se evalúan).
+  # Direcciones que se saltan completamente (puntuación -99).
   # Ejemplo:
   # - "noreply@spam.com"
 
-  palabras_clave_boost: []
-  # Términos en asunto o cuerpo que aumentan probabilidad de MOVER.
-  # Ejemplo:
-  # - "deadline"
-  # - "breaking change"
+  palabras_clave_boost:
+  # Términos que aumentan la puntuación. Cada entrada puede tener
+  # un peso: "alto" (+3), "medio" (+2), "bajo" (+1, por defecto).
+  #
+  # Formato con peso:
+  #   - palabra: "Claude"
+  #     peso: "alto"
+  #
+  # Formato simple (peso "bajo" por defecto):
+  #   - "deadline"
+  #
+  # Ejemplo completo:
+  #   - palabra: "breaking change"
+  #     peso: "alto"
+  #   - palabra: "release notes"
+  #     peso: "medio"
+  #   - "weekly update"
+    []
 
-  palabras_clave_penalizar: []
-  # Términos que reducen probabilidad de MOVER.
+  palabras_clave_penalizar:
+  # Términos que restan puntuación (-2 cada uno).
   # Ejemplo:
   # - "unsubscribe"
   # - "weekly digest"
+    []
 
 
 # ═══════════════════════════════════════════════════════════════
-# EJEMPLOS DE PERFILES (borra estos antes de usar)
+# EJEMPLOS DE PERFILES
 # ═══════════════════════════════════════════════════════════════
 #
-# EJEMPLO A — Desarrollador frontend:
+# EJEMPLO A — Investigador en salud mental y tecnología:
+#
+#   nombre: "Pablo"
+#   perfil: |
+#     Investigador y escritor con formación en informática,
+#     intereses en psicología, ética de la IA, humanidades
+#     y salud mental comunitaria.
+#   proyectos_activos:
+#     - "sapamegranada.org — asociación de salud mental"
+#     - "mindandhealth.org — divulgación salud mental y tecnología"
+#     - "Token Calculator Suite — plugin para Claude Code/Cowork"
+#   palabras_clave_boost:
+#     - palabra: "Claude"
+#       peso: "alto"
+#     - palabra: "salud mental"
+#       peso: "alto"
+#     - palabra: "ética IA"
+#       peso: "medio"
+#     - "LLM"
+#     - "Anthropic"
+#
+# EJEMPLO B — Desarrolladora frontend:
 #
 #   nombre: "Laura"
 #   perfil: |
 #     Desarrolladora frontend senior en empresa SaaS B2B.
 #     Stack principal: React, TypeScript, Tailwind.
-#     Intereses: rendimiento web, accesibilidad, design tokens.
-#   proyectos_activos:
-#     - "Migración a Next.js 15"
-#     - "Component library interna (Storybook)"
-#     - "Charla para JSConf Colombia"
-#
-# EJEMPLO B — Investigador académico:
-#
-#   nombre: "Carlos"
-#   perfil: |
-#     Doctorando en neurociencia computacional, Universidad de Barcelona.
-#     Trabajo con modelos de redes neuronales biológicamente plausibles.
-#     Intereses: aprendizaje predictivo, psicofarmacología, open science.
-#   proyectos_activos:
-#     - "Tesis: modelos de corteza prefrontal (Python/JAX)"
-#     - "Artículo en revisión para Nature Neuroscience"
-#     - "Seminario mensual del grupo de investigación"
-#
-# EJEMPLO C — Gestor de proyectos culturales:
-#
-#   nombre: "Marta"
-#   perfil: |
-#     Gestora cultural freelance en Madrid.
-#     Coordina exposiciones, festivales y residencias artísticas.
-#     Intereses: financiación pública europea, arte digital, mediación cultural.
-#   proyectos_activos:
-#     - "Festival de arte sonoro (octubre 2026)"
-#     - "Solicitud de subvención Europa Creativa"
-#     - "Comisariado de exposición colectiva en Matadero"
+#   palabras_clave_boost:
+#     - palabra: "breaking change"
+#       peso: "alto"
+#     - palabra: "security advisory"
+#       peso: "alto"
+#     - palabra: "React"
+#       peso: "medio"
+#     - "TypeScript"
+#     - "Tailwind"
 #
 # ═══════════════════════════════════════════════════════════════

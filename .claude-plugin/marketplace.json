@@ -8,8 +8,8 @@
     {
       "name": "email-triage",
       "source": "./plugins/email-triage",
-      "description": "Intelligent email triage using differential-value criterion. Supports iCloud, Gmail, and other providers.",
-      "version": "1.0.0"
+      "description": "Intelligent email triage v2.0: weighted scoring, email body access, statistical calibration. Supports iCloud, Gmail, and other providers.",
+      "version": "2.0.0"
     }
   ]
 }
