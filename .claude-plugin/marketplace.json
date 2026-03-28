@@ -7,7 +7,7 @@
   "plugins": [
     {
       "name": "email-triage",
-      "source": ".",
+      "source": "./plugins/email-triage",
       "description": "Intelligent email triage using differential-value criterion. Supports iCloud, Gmail, and other providers.",
       "version": "1.0.0"
     }
