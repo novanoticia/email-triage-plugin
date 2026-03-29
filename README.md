@@ -1,24 +1,108 @@
-# Email Triage Plugin v2.0
+# Email Triage Plugin v3.0
 
-Filtrado inteligente de correo electrónico para Claude Cowork y Claude Code.
+Filtrado epistémico de correo electrónico para Claude Cowork y Claude Code.
 
 ## Qué hace
 
-Evalúa correos electrónicos usando un criterio de **valor diferencial**:
+Evalúa correos electrónicos usando un marco de **racionalidad bayesiana**
+inspirado en las [LessWrong Sequences](https://www.lesswrong.com/rationality):
 no "¿es importante?" sino "¿leer esto cambiaría algo concreto para mí?"
 
-Analiza tu bandeja de entrada y carpetas de lectura pendiente, puntúa
-cada correo con un sistema ponderado y mueve los de alto valor a una
-carpeta de prioridad.
+Analiza cada correo con **30 criterios epistémicos**, genera una puntuación
+multi-eje (valor decisional, calidad epistémica, riesgo de manipulación,
+coste cognitivo, presión de acción) y clasifica en **4 tiers** con una
+explicación legible de cada decisión.
 
-## Novedades en v2.0
+## Filosofía
 
-- **Lectura del cuerpo del email** — evalúa contenido real, no solo asuntos
-- **Puntuación ponderada** — keywords con pesos configurables (alto/medio/bajo)
-- **Calibración estadística** — extrae patrones reales del historial
-- **Lotes de hasta 50 correos** — procesamiento más eficiente
-- **Umbral configurable** — ajusta la selectividad según tu experiencia
-- **Modo degradado** — si no puede leer el cuerpo, continúa con asunto/remitente
+La mayoría de clasificadores de correo preguntan "¿es urgente?". Este plugin
+pregunta algo distinto:
+
+- **¿Cambia una decisión?** (Value of Information)
+- **¿Actualiza mis predicciones?** (Bayesian Surprise)
+- **¿La evidencia es genuina o filtrada?** (Filtered Evidence)
+- **¿Explora o racionaliza?** (Forward vs Backward Flow)
+- **¿Es urgencia real o teatro?** (Urgencia fabricada)
+- **¿Está anclado a hechos verificables?** (Entangled Truths)
+
+El resultado no es un simple "urgente/no urgente" sino un filtro de:
+**valor decisional, calidad epistémica, coste cognitivo y riesgo de manipulación**.
+
+## Novedades en v3.0
+
+- **30 criterios epistémicos** — inspirados en LessWrong Sequences, organizados
+  en 4 grupos: valor base, actualización bayesiana, diseño atencional, anti-sesgo
+- **Scoring multi-eje** — 5 ejes independientes en lugar de una puntuación plana
+- **4 tiers de routing** — `reply_needed`, `review`, `reading_later`, `archive`
+  (en lugar del binario MOVER/DEJAR)
+- **Explicación obligatoria** — top 3 razones positivas, top 3 negativas, rationale
+  en español llano por cada correo
+- **12 criterios core** — siempre evaluados; 18 adicionales activados por contexto
+- **Hard rules expandidas** — pregunta directa (+4), deadline (+4), hilo blocker (+5),
+  bulk sender (-4)
+- **Telemetría** — registro de vectores, scores, explicaciones y correcciones
+  del usuario para mejora continua
+- **Compatible con v2.0** — mantiene acceso al cuerpo, calibración estadística,
+  puntuación por keywords y lotes optimizados
+
+## Los 5 ejes de scoring
+
+| Eje | Rango | Qué mide |
+|-----|-------|----------|
+| **Valor decisional** | 0..10 | ¿Cambia una decisión, predicción o acción? |
+| **Calidad epistémica** | -10..10 | ¿La evidencia es nueva, verificable, bien razonada? |
+| **Riesgo de manipulación** | -10..0 | ¿El remitente optimiza para influir, no para informar? |
+| **Coste cognitivo** | -5..0 | ¿Cuánto esfuerzo mental requiere procesarlo? |
+| **Presión de acción** | 0..10 | ¿Requiere respuesta/acción con consecuencias reales? |
+
+## Los 4 tiers
+
+| Tier | Score | Significado |
+|------|-------|-------------|
+| `reply_needed` | ≥ 10 | Requiere respuesta o acción directa |
+| `review` | 4–9 | Vale la pena leer con atención |
+| `reading_later` | 0–3 | Interesante pero no urgente |
+| `archive` | < 0 | Ruido, ritual o manipulación |
+
+## Los 30 criterios epistémicos
+
+### Grupo A — Valor base
+1. **Cambia algo concreto** — ¿Leer esto cambiaría algo que vaya a hacer?
+
+### Grupo B — Actualización bayesiana
+2. **Cambio de predicciones** — ¿Altera mis predicciones?
+3. **Sorpresa bayesiana** — ¿Qué tan inesperada es?
+4. **Evidencia filtrada** — ¿Cuál es el algoritmo del remitente?
+5. **Forward vs backward flow** — ¿Explora o racionaliza?
+
+### Grupo C — Diseño atencional y utilidad
+6. **Retorno atencional** — ¿Buena inversión de 2 minutos?
+7. **Confusión productiva** — ¿Revela discrepancia importante?
+8. **Impacto causal real** — ¿Cuánto cambia el resultado?
+9. **Ruido social** — ¿Señal o ritual?
+10. **Apertura de opciones** — ¿Abre opciones nuevas?
+11. **Distancia inferencial** — ¿Cuánto cuesta entenderlo?
+12. **Agente estratégico** — ¿Optimiza para verdad o influencia?
+13. **Densidad informativa** — ¿Cuánta info nueva por línea?
+14. **Urgencia real vs fabricada** — ¿Consecuencias o solo tono?
+15. **Relevancia longitudinal** — ¿Mi yo futuro lo agradecerá?
+
+### Grupo D — Anti-sesgo y calidad argumentativa
+16. **Motivated stopping** — ¿Cierre prematuro?
+17. **Motivated continuation** — ¿Decisión artificialmente prolongada?
+18. **True rejection** — ¿Objeción real o excusa?
+19. **Third alternative** — ¿Falsa dicotomía?
+20. **Privileging the hypothesis** — ¿Hipótesis sin evidencia?
+21. **Proper humility** — ¿Duda operativa o paralizante?
+22. **Positive bias** — ¿Solo casos a favor?
+23. **Argument screens off authority** — ¿Evidencia o cargo?
+24. **Hug the query** — ¿Pegado a la decisión real?
+25. **Semantic stopsigns** — ¿Jerga que cierra investigación?
+26. **Fake justification** — ¿Conclusión anterior al razonamiento?
+27. **Fake optimization criteria** — ¿Criterio oportunista?
+28. **Entangled truths** — ¿Anclado a hechos verificables?
+29. **Cached thought** — ¿Original o plantilla?
+30. **Absence of expected evidence** — ¿Falta algo que debería estar?
 
 ## Instalación
 
@@ -53,11 +137,23 @@ Edita `skills/email-triage/config.yaml` antes del primer uso:
 - **lote**: presenta todos y pide confirmación global
 - **silencioso**: mueve automáticamente (tras validar el criterio)
 
-### Puntuación (nuevo en v2.0)
-- **umbral_mover**: puntuación mínima para recomendar MOVER (default: 3)
-- **leer_cuerpo**: activar/desactivar lectura del contenido del email
+### Tiers y umbrales (v3.0)
+- **tiers**: umbrales configurables para cada tier
+- **hard_rules**: puntos fijos por señales deterministas
+
+### Criterios epistémicos (v3.0)
+- **criterios_epistemicos**: 30 criterios con pesos ajustables
+- Cada criterio se puede activar/desactivar con `activo: true/false`
+- 12 marcados como `core: true` se evalúan siempre
+
+### Explicación y telemetría (v3.0)
+- **explicacion**: cuántas razones positivas/negativas mostrar
+- **telemetria**: qué registrar (vector, score, explicación, correcciones)
+
+### Filtros (heredados de v2.0)
 - **palabras_clave_boost**: con peso `alto` (+3), `medio` (+2) o `bajo` (+1)
 - **palabras_clave_penalizar**: restan -2 por aparición
+- **remitentes_prioritarios / ignorar**: hard rules de +3 / -99
 
 ## Conectores necesarios
 
@@ -73,7 +169,7 @@ Edita `skills/email-triage/config.yaml` antes del primer uso:
 email-triage-plugin/
 ├── .claude-plugin/
 │   ├── marketplace.json    # Registro del marketplace
-│   └── plugin.json         # Manifest del plugin
+│   └── plugin.json         # Manifest del plugin (v3.0.0)
 ├── plugins/
 │   └── email-triage/
 │       ├── .claude-plugin/
@@ -81,16 +177,28 @@ email-triage-plugin/
 │       ├── .mcp.json       # Configuración de conectores
 │       └── skills/
 │           └── email-triage/
-│               ├── SKILL.md     # Lógica de triaje
-│               └── config.yaml  # Perfil del usuario
+│               ├── SKILL.md     # Lógica de triaje epistémico
+│               └── config.yaml  # Perfil + criterios + telemetría
 ├── LICENSE
 └── README.md
 ```
 
+## Historial de versiones
+
+| Versión | Cambio principal |
+|---------|-----------------|
+| v3.0.0 | Scoring epistémico multi-eje, 30 criterios LessWrong, 4 tiers, explicaciones, telemetría |
+| v2.0.0 | Puntuación ponderada, acceso al cuerpo, calibración estadística, lotes |
+| v1.0.0 | Triaje básico con criterio de valor diferencial |
+
 ## Créditos
 
-Diseñado por Pablo Rodríguez López (mindandhealth.org) con asistencia de Claude.
+Diseñado por Pablo Rodríguez López ([mindandhealth.org](https://mindandhealth.org))
+con asistencia de Claude.
+
+Criterios epistémicos basados en las [Sequences](https://www.lesswrong.com/rationality)
+de Eliezer Yudkowsky (LessWrong).
 
 ## Licencia
 
-Apache 2.0 — Uso libre, atribución apreciada.
+Apache 2.0 — ver [LICENSE](LICENSE).
