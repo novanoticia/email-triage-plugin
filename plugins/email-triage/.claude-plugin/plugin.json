@@ -1,7 +1,7 @@
 {
   "name": "email-triage",
-  "description": "Intelligent email triage using a differential-value criterion: not 'is it important?' but 'would reading this change anything concrete for me?' Supports iCloud (Mail.app), Gmail (MCP), and other providers.",
-  "version": "2.0.0",
+  "description": "Epistemic email triage with 30 Bayesian rationality criteria (LessWrong Sequences). Multi-axis scoring: decisional value, epistemic quality, manipulation risk, cognitive cost, action pressure. 4-tier routing with explanations. Supports iCloud (Mail.app), Gmail (MCP), and other providers.",
+  "version": "3.0.0",
   "author": {
     "name": "Pablo Rodríguez López",
     "url": "https://mindandhealth.org"

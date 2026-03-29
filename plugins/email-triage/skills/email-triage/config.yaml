@@ -1,16 +1,20 @@
 # ═══════════════════════════════════════════════════════════════
-# EMAIL TRIAGE v2.0 — Configuración del usuario
+# EMAIL TRIAGE v3.0 — Configuración del usuario
 # ═══════════════════════════════════════════════════════════════
 #
-# Este archivo define quién eres, qué te importa y cómo se
-# organizan tus carpetas de correo. El skill lo usa como ancla
-# para evaluar cada correo contra tu perfil real.
+# Este archivo define quién eres, qué te importa, cómo se
+# organizan tus carpetas de correo, y los criterios epistémicos
+# que el skill usa para evaluar cada correo.
 #
-# Novedades en v2.0:
-# - Puntuación ponderada por keyword (alto/medio/bajo)
-# - Umbral configurable para mover correos
-# - Lectura del cuerpo del email (no solo asunto)
-# - Lotes de hasta 50 correos
+# Novedades en v3.0:
+# - 30 criterios epistémicos inspirados en LessWrong Sequences
+# - Scoring multi-eje (decisional, epistémico, manipulación,
+#   cognitivo, acción)
+# - 4 tiers de routing (reply_needed, review, reading_later, archive)
+# - Explicación por correo (razones positivas y negativas)
+# - Telemetría y registro de correcciones del usuario
+#
+# Compatible con v2.0: mantiene keywords, calibración y lotes.
 #
 # ═══════════════════════════════════════════════════════════════
 
@@ -37,15 +41,9 @@ usuario:
 correo:
   proveedor: "icloud"
   # Opciones: "icloud", "gmail", "otro"
-  #
-  # - icloud: usa Mail.app vía AppleScript (requiere Control your Mac)
-  # - gmail: usa Gmail MCP (requiere conector Gmail en Claude)
-  # - otro: el skill preguntará qué conectores están disponibles
 
   cuenta: ""
   # Nombre de la cuenta en Mail.app o dirección de Gmail.
-  # Para iCloud: nombre tal como aparece en Mail.app (ej: "iCloud")
-  # Para Gmail: dirección de correo (ej: "usuario@gmail.com")
 
 # ───────────────────────────────────────────────────────────────
 # Estructura de carpetas
@@ -70,71 +68,387 @@ interaccion:
   # - "silencioso": mueve automáticamente (solo tras varias ejecuciones exitosas)
 
   limite_por_sesion: 50
-  # Máximo de correos a procesar por ejecución (v2.0 soporta hasta 50).
-
   mostrar_calibracion: false
-  # Si true, muestra las métricas de calibración al usuario.
 
 # ───────────────────────────────────────────────────────────────
-# Puntuación y umbrales (NUEVO en v2.0)
+# Puntuación y lectura del cuerpo
 # ───────────────────────────────────────────────────────────────
 
 puntuacion:
-  umbral_mover: 3
-  # Puntuación mínima para recomendar MOVER un correo.
-  # Ajusta según tu experiencia:
-  # - 2 = más permisivo (mueve más correos)
-  # - 3 = equilibrado (recomendado)
-  # - 5 = muy selectivo (solo lo más relevante)
-
   leer_cuerpo: true
-  # Si true, el skill lee los primeros ~500 caracteres del cuerpo
-  # del email para evaluar keywords y criterios de valor.
+  # Si true, lee los primeros ~500 caracteres del cuerpo.
   # Si false, solo usa asunto y remitente (más rápido, menos preciso).
-  # Si Mail.app no puede acceder al cuerpo, el skill continúa
-  # en modo degradado (solo asunto/remitente) automáticamente.
 
 # ───────────────────────────────────────────────────────────────
-# Filtros y pesos
+# Tiers y umbrales de routing (NUEVO en v3.0)
+# ───────────────────────────────────────────────────────────────
+
+tiers:
+  reply_needed: 10
+  # Score mínimo para tier de respuesta urgente.
+  # También se activa por: pregunta directa, deadline explícito,
+  # hilo donde el usuario es blocker.
+
+  review: 4
+  # Score mínimo para "vale la pena leer con atención".
+
+  reading_later: 0
+  # Score mínimo para "interesante pero no urgente".
+
+  archive: -1
+  # Todo lo que quede por debajo va a archive.
+
+# ───────────────────────────────────────────────────────────────
+# Hard rules (reglas deterministas antes del scoring epistémico)
+# ───────────────────────────────────────────────────────────────
+
+hard_rules:
+  pregunta_directa_boost: 4
+  deadline_explicito_boost: 4
+  mencion_directa_boost: 3
+  hilo_esperando_respuesta_boost: 5
+  sender_bulk_penalizacion: -4
+  sin_accion_sin_info_penalizacion: -5
+
+# ───────────────────────────────────────────────────────────────
+# Filtros y pesos (heredados de v2.0)
 # ───────────────────────────────────────────────────────────────
 
 filtros:
   remitentes_prioritarios: []
   # Direcciones que reciben +3 puntos automáticos.
-  # Ejemplo:
-  # - "newsletter@interesante.com"
-  # - "jefe@empresa.com"
 
   remitentes_ignorar: []
-  # Direcciones que se saltan completamente (puntuación -99).
-  # Ejemplo:
-  # - "noreply@spam.com"
+  # Direcciones que se saltan completamente (-99).
 
   palabras_clave_boost:
-  # Términos que aumentan la puntuación. Cada entrada puede tener
-  # un peso: "alto" (+3), "medio" (+2), "bajo" (+1, por defecto).
-  #
   # Formato con peso:
   #   - palabra: "Claude"
   #     peso: "alto"
-  #
   # Formato simple (peso "bajo" por defecto):
   #   - "deadline"
-  #
-  # Ejemplo completo:
-  #   - palabra: "breaking change"
-  #     peso: "alto"
-  #   - palabra: "release notes"
-  #     peso: "medio"
-  #   - "weekly update"
     []
 
   palabras_clave_penalizar:
-  # Términos que restan puntuación (-2 cada uno).
-  # Ejemplo:
-  # - "unsubscribe"
-  # - "weekly digest"
+  # Términos que restan -2 cada uno.
     []
+
+# ═══════════════════════════════════════════════════════════════
+# CRITERIOS EPISTÉMICOS (NUEVO en v3.0)
+# ═══════════════════════════════════════════════════════════════
+#
+# 30 criterios inspirados en racionalidad bayesiana (LessWrong
+# Sequences). Cada criterio tiene:
+# - weight: importancia relativa del criterio
+# - question: pregunta operativa que el modelo evalúa
+# - valores posibles con sus puntuaciones
+# - activo: true/false para activar/desactivar
+#
+# Los 12 criterios marcados como "core: true" se evalúan SIEMPRE.
+# Los demás se evalúan solo cuando el contexto lo amerita.
+#
+# ═══════════════════════════════════════════════════════════════
+
+criterios_epistemicos:
+
+  # ─── GRUPO A: Criterio base ────────────────────────────────
+
+  cambia_algo_concreto:
+    activo: true
+    core: true
+    weight: 5
+    question: "¿Leer esto cambiaría algo concreto que vaya a hacer?"
+    si: 5
+    no: -5
+
+  # ─── GRUPO B: Actualización bayesiana ──────────────────────
+
+  cambio_predicciones:
+    activo: true
+    core: true
+    weight: 4
+    question: "¿Altera mis predicciones sobre hoy/esta semana/este proyecto?"
+    si: 4
+    no: -3
+
+  sorpresa_bayesiana:
+    activo: true
+    core: true
+    weight: 3
+    question: "¿Qué tan inesperada es esta información?"
+    baja: -2
+    media: 1
+    alta: 3
+
+  evidencia_filtrada:
+    activo: true
+    core: true
+    weight: -3
+    question: "¿Cuál es el algoritmo del remitente al enviarme esto?"
+    neutral: 0
+    selectivamente_persuasivo: -2
+    newsletter_marketing_burocratico: -3
+
+  forward_backward_flow:
+    activo: true
+    core: true
+    weight: 3
+    question: "¿Explora una solución o valida una decisión ya tomada?"
+    forward: 3
+    mixto: 0
+    backward: -2
+
+  # ─── GRUPO C: Diseño atencional y utilidad ─────────────────
+
+  retorno_atencional:
+    activo: true
+    core: false
+    weight: 2
+    question: "¿Es buena inversión de mis próximos 2 minutos?"
+    alto: 2
+    medio: 0
+    bajo: -2
+
+  confusion_productiva:
+    activo: true
+    core: false
+    weight: 4
+    question: "¿Revela una discrepancia importante entre lo esperado y lo real?"
+    si: 4
+    no: 0
+
+  impacto_causal_real:
+    activo: true
+    core: true
+    weight: 4
+    question: "Si actúo por este correo, ¿cuánto cambia realmente el resultado?"
+    alto: 4
+    medio: 2
+    bajo: 0
+
+  ruido_social:
+    activo: true
+    core: false
+    weight: -3
+    question: "¿Es señal real o ritual social/burocrático?"
+    senal_real: 0
+    mixto: -1
+    ritual: -3
+
+  abre_opciones:
+    activo: true
+    core: false
+    weight: 3
+    question: "¿Abre una opción valiosa futura que antes no tenía?"
+    si: 3
+    no: 0
+
+  distancia_inferencial:
+    activo: true
+    core: false
+    weight: -2
+    question: "¿Cuánto trabajo mental me cuesta entenderlo de verdad?"
+    baja: 0
+    media: -1
+    alta: -2
+
+  agente_estrategico:
+    activo: true
+    core: false
+    weight: -3
+    question: "¿El remitente optimiza para verdad o para influirme?"
+    no: 0
+    quiza: -1
+    si: -3
+
+  densidad_informativa:
+    activo: true
+    core: false
+    weight: -2
+    question: "¿Cuánta información nueva por línea aporta?"
+    alta: 1
+    media: 0
+    baja: -2
+
+  urgencia_real_vs_fabricada:
+    activo: true
+    core: true
+    weight: 3
+    question: "¿La urgencia está respaldada por consecuencias verificables?"
+    fabricada: -3
+    neutral: 0
+    real: 3
+
+  relevancia_longitudinal:
+    activo: true
+    core: false
+    weight: 4
+    question: "¿Mi yo de dentro de un mes agradecerá haber leído esto?"
+    si: 4
+    quiza: 1
+    no: 0
+
+  # ─── GRUPO D: Anti-sesgo y calidad argumentativa ───────────
+
+  motivated_stopping:
+    activo: true
+    core: false
+    weight: -2
+    question: "¿Me empuja a cerrar demasiado pronto una cuestión?"
+    si: -2
+    no: 0
+
+  motivated_continuation:
+    activo: true
+    core: false
+    weight: -2
+    question: "¿Prolonga artificialmente una decisión que ya podría cerrarse?"
+    si: -2
+    no: 0
+
+  true_rejection:
+    activo: true
+    core: false
+    weight: 2
+    question: "¿La objeción que aparece es sustantiva o solo excusa elegante?"
+    superficial: -2
+    mixta: 0
+    real: 2
+
+  third_alternative:
+    activo: true
+    core: false
+    weight: 3
+    question: "¿Detecta una tercera alternativa útil más allá de A o B?"
+    si: 3
+    no: 0
+
+  privileging_the_hypothesis:
+    activo: true
+    core: false
+    weight: -3
+    question: "¿Eleva una hipótesis sin evidencia suficiente?"
+    si: -3
+    no: 0
+
+  proper_humility:
+    activo: true
+    core: false
+    weight: 3
+    question: "¿La duda viene con mitigación/verificación concreta?"
+    duda_vaga: -2
+    neutral: 0
+    humildad_operativa: 3
+
+  positive_bias:
+    activo: true
+    core: false
+    weight: -2
+    question: "¿Solo aporta ejemplos favorables sin enfrentar objeciones?"
+    si: -2
+    no: 0
+
+  argument_screens_off_authority:
+    activo: true
+    core: true
+    weight: 3
+    question: "¿Trae evidencia/argumento o solo autoridad/rango/cargo?"
+    solo_autoridad: -2
+    mixto: 0
+    argumento_fuerte: 3
+
+  hug_the_query:
+    activo: true
+    core: true
+    weight: 4
+    question: "¿Está pegado a la decisión real o es contexto tangencial?"
+    directo: 4
+    adyacente: 1
+    tangencial: -2
+
+  semantic_stopsigns:
+    activo: true
+    core: true
+    weight: -3
+    question: "¿Usa jerga o etiquetas para cerrar la investigación?"
+    si: -3
+    no: 0
+
+  fake_justification:
+    activo: true
+    core: false
+    weight: -3
+    question: "¿La conclusión parece anterior al razonamiento?"
+    si: -3
+    no: 0
+
+  fake_optimization_criteria:
+    activo: true
+    core: false
+    weight: -2
+    question: "¿El criterio de decisión parece oportunista?"
+    si: -2
+    no: 0
+
+  entangled_truths:
+    activo: true
+    core: true
+    weight: 3
+    question: "¿Está anclado a hechos verificables (tickets, fechas, métricas, personas)?"
+    alto: 3
+    medio: 1
+    flotante: -2
+
+  cached_thought:
+    activo: true
+    core: false
+    weight: -2
+    question: "¿Es pensamiento original o plantilla repetida?"
+    original: 1
+    mixto: 0
+    enlatado: -2
+
+  absence_of_expected_evidence:
+    activo: true
+    core: true
+    weight: -3
+    question: "¿Falta una pieza que debería estar si esto fuese tan importante?"
+    si: -3
+    no: 0
+
+# ───────────────────────────────────────────────────────────────
+# Explicación (NUEVO en v3.0)
+# ───────────────────────────────────────────────────────────────
+
+explicacion:
+  razones_positivas: 3
+  # Cuántas razones positivas incluir en la explicación.
+
+  razones_negativas: 3
+  # Cuántas razones negativas incluir.
+
+  incluir_rationale: true
+  # Si true, incluye una frase en español llano explicando la decisión.
+
+# ───────────────────────────────────────────────────────────────
+# Telemetría y aprendizaje (NUEVO en v3.0)
+# ───────────────────────────────────────────────────────────────
+
+telemetria:
+  guardar_vector: true
+  # Guarda el feature vector por correo (señales extraídas).
+
+  guardar_score: true
+  # Guarda la puntuación final y subpuntuaciones.
+
+  guardar_explicacion: true
+  # Guarda el rationale generado.
+
+  guardar_correccion: true
+  # Registra cuando el usuario corrige un tier.
+
+  exportar_mal_clasificados: true
+  # Marca los correos donde el usuario corrigió para análisis.
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -152,15 +466,6 @@ filtros:
 #     - "sapamegranada.org — asociación de salud mental"
 #     - "mindandhealth.org — divulgación salud mental y tecnología"
 #     - "Token Calculator Suite — plugin para Claude Code/Cowork"
-#   palabras_clave_boost:
-#     - palabra: "Claude"
-#       peso: "alto"
-#     - palabra: "salud mental"
-#       peso: "alto"
-#     - palabra: "ética IA"
-#       peso: "medio"
-#     - "LLM"
-#     - "Anthropic"
 #
 # EJEMPLO B — Desarrolladora frontend:
 #
@@ -168,14 +473,5 @@ filtros:
 #   perfil: |
 #     Desarrolladora frontend senior en empresa SaaS B2B.
 #     Stack principal: React, TypeScript, Tailwind.
-#   palabras_clave_boost:
-#     - palabra: "breaking change"
-#       peso: "alto"
-#     - palabra: "security advisory"
-#       peso: "alto"
-#     - palabra: "React"
-#       peso: "medio"
-#     - "TypeScript"
-#     - "Tailwind"
 #
 # ═══════════════════════════════════════════════════════════════
