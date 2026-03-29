@@ -106,18 +106,23 @@ El resultado no es un simple "urgente/no urgente" sino un filtro de:
 
 ## Instalación
 
-### Cowork (desktop)
+### Cowork (desktop) — recomendado
 
-1. Descarga o clona este repositorio
-2. Comprime como ZIP: `zip -r email-triage.zip email-triage-plugin/`
-3. En Cowork → Plugins → "+" → Upload → selecciona el ZIP
-4. Edita `skills/email-triage/config.yaml` con tus datos
+Instala el ZIP para que el plugin persista entre reinicios:
+
+1. Descarga **[email-triage-v3.0.0.zip](https://github.com/novanoticia/email-triage-plugin/releases/latest)** desde Releases
+2. En Cowork → Plugins → "+" → Upload → selecciona el ZIP
+3. Edita `skills/email-triage/config.yaml` con tus datos
+
+> **¿Por qué ZIP y no URL de GitHub?** Los plugins instalados como ZIP quedan
+> registrados en "My Uploads" y persisten entre reinicios. Los instalados desde
+> URL de GitHub pueden desaparecer al reiniciar Cowork.
 
 ### Claude Code (CLI)
 
 ```bash
 # Desde marketplace
-claude plugin install email-triage@tu-marketplace
+claude plugin install email-triage@email-triage-plugin
 
 # Desde directorio local
 claude plugin install ./email-triage-plugin
