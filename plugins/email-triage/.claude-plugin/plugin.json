@@ -1,9 +1,9 @@
 {
   "name": "email-triage",
   "version": "3.0.0",
-  "description": "Epistemic email triage with 30 Bayesian rationality criteria. Multi-axis scoring, 4-tier routing with explanations. Supports iCloud (Mail.app) and Gmail.",
+  "description": "Epistemic email triage with 30 Bayesian rationality criteria. Multi-axis scoring, 4-tier routing with explanations. Supports iCloud and Gmail.",
   "author": {
-    "name": "Pablo Rodriguez Lopez"
+    "name": "Pablo"
   },
   "keywords": ["email", "triage", "inbox", "gmail", "icloud", "productivity", "epistemic"]
 }
