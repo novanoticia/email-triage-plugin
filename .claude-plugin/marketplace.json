@@ -8,8 +8,8 @@
     {
       "name": "email-triage",
       "source": "./plugins/email-triage",
-      "description": "Intelligent email triage v2.0: weighted scoring, email body access, statistical calibration. Supports iCloud, Gmail, and other providers.",
-      "version": "2.0.0"
+      "description": "Epistemic email triage v3.0: 30 Bayesian rationality criteria, multi-axis scoring, 4-tier routing with explanations. Supports iCloud, Gmail, and other providers.",
+      "version": "3.0.0"
     }
   ]
 }
