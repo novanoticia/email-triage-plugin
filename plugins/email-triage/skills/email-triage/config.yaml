@@ -23,17 +23,20 @@ usuario:
   # ⚠️ OBLIGATORIO — Tu nombre. El skill no arrancará sin él.
   # Se usa para dirigirse a ti y para detectar menciones directas en correos.
 
-  perfil: |
-    # ⚠️ OBLIGATORIO (mínimo 10 caracteres) — Describe tu rol, formación
-    # e intereses en 2-4 líneas. Esto es el ancla del triaje: sin perfil,
-    # el criterio "¿cambiaría algo concreto para ti?" no tiene referencia
-    # y el skill usará un criterio genérico (menos preciso).
+  perfil: ""
+  # ⚠️ OBLIGATORIO (mínimo 10 caracteres) — Describe tu rol, formación
+  # e intereses en 2-4 líneas. Esto es el ancla del triaje: sin perfil,
+  # el criterio "¿cambiaría algo concreto para ti?" no tiene referencia
+  # y el skill usará un criterio genérico (menos preciso).
+  # Ejemplo: "Investigador en salud mental y tecnología. Intereses en IA,
+  # psicología y divulgación científica."
 
-  proyectos_activos:
-    # Lista tus proyectos activos. Los correos relacionados reciben boost.
-    # Si está vacía, el skill funciona pero sin contexto de proyectos.
-    - "" # ej: "Rediseño de la app móvil (Figma + React Native)"
-    - "" # ej: "Blog personal en WordPress"
+  proyectos_activos: []
+  # Lista tus proyectos activos. Los correos relacionados reciben boost.
+  # Si está vacía, el skill funciona pero sin contexto de proyectos.
+  # Ejemplo:
+  #   - "Rediseño de la app móvil (Figma + React Native)"
+  #   - "Blog personal en WordPress"
 
   idioma: "es"
   # Idioma para los resúmenes: "es", "en", "fr", "de", etc.
@@ -113,7 +116,9 @@ tiers:
   # Score mínimo para "interesante pero no urgente".
 
   archive: -1
-  # Todo lo que quede por debajo va a archive.
+  # El tier archive recibe todo correo con score inferior a reading_later (< 0).
+  # Este valor no actúa como umbral de routing adicional; la frontera efectiva
+  # es siempre tiers.reading_later. Se mantiene como referencia de rango.
 
 # ───────────────────────────────────────────────────────────────
 # Hard rules (reglas deterministas antes del scoring epistémico)
@@ -138,17 +143,15 @@ filtros:
   remitentes_ignorar: []
   # Direcciones que se saltan completamente (-99).
 
-  palabras_clave_boost:
+  palabras_clave_boost: []
   # Formato con peso:
   #   - palabra: "Claude"
   #     peso: "alto"
   # Formato simple (peso "bajo" por defecto):
   #   - "deadline"
-    []
 
-  palabras_clave_penalizar:
+  palabras_clave_penalizar: []
   # Términos que restan -2 cada uno.
-    []
 
 # ───────────────────────────────────────────────────────────────
 # Resiliencia (NUEVO en v3.0.1)
@@ -172,7 +175,9 @@ resiliencia:
 #
 # 30 criterios inspirados en racionalidad bayesiana (LessWrong
 # Sequences). Cada criterio tiene:
-# - weight: importancia relativa del criterio
+# - weight: importancia relativa del criterio (referencia conceptual;
+#   algunos criterios con weight negativo tienen un valor "mejor caso"
+#   positivo, como densidad_informativa y cached_thought).
 # - question: pregunta operativa que el modelo evalúa
 # - valores posibles con sus puntuaciones
 # - activo: true/false para activar/desactivar
@@ -192,7 +197,7 @@ criterios_epistemicos:
     weight: 5
     question: "¿Leer esto cambiaría algo concreto que vaya a hacer?"
     si: 5
-    no: -5
+    "no": -5
 
   # ─── GRUPO B: Actualización bayesiana ──────────────────────
 
@@ -202,7 +207,7 @@ criterios_epistemicos:
     weight: 4
     question: "¿Altera mis predicciones sobre hoy/esta semana/este proyecto?"
     si: 4
-    no: -3
+    "no": -3
 
   sorpresa_bayesiana:
     activo: true
@@ -248,7 +253,7 @@ criterios_epistemicos:
     weight: 4
     question: "¿Revela una discrepancia importante entre lo esperado y lo real?"
     si: 4
-    no: 0
+    "no": 0
 
   impacto_causal_real:
     activo: true
@@ -274,7 +279,7 @@ criterios_epistemicos:
     weight: 3
     question: "¿Abre una opción valiosa futura que antes no tenía?"
     si: 3
-    no: 0
+    "no": 0
 
   distancia_inferencial:
     activo: true
@@ -290,7 +295,7 @@ criterios_epistemicos:
     core: false
     weight: -3
     question: "¿El remitente optimiza para verdad o para influirme?"
-    no: 0
+    "no": 0
     quiza: -1
     si: -3
 
@@ -319,7 +324,7 @@ criterios_epistemicos:
     question: "¿Mi yo de dentro de un mes agradecerá haber leído esto?"
     si: 4
     quiza: 1
-    no: 0
+    "no": 0
 
   # ─── GRUPO D: Anti-sesgo y calidad argumentativa ───────────
 
@@ -329,7 +334,7 @@ criterios_epistemicos:
     weight: -2
     question: "¿Me empuja a cerrar demasiado pronto una cuestión?"
     si: -2
-    no: 0
+    "no": 0
 
   motivated_continuation:
     activo: true
@@ -337,7 +342,7 @@ criterios_epistemicos:
     weight: -2
     question: "¿Prolonga artificialmente una decisión que ya podría cerrarse?"
     si: -2
-    no: 0
+    "no": 0
 
   true_rejection:
     activo: true
@@ -354,7 +359,7 @@ criterios_epistemicos:
     weight: 3
     question: "¿Detecta una tercera alternativa útil más allá de A o B?"
     si: 3
-    no: 0
+    "no": 0
 
   privileging_the_hypothesis:
     activo: true
@@ -362,7 +367,7 @@ criterios_epistemicos:
     weight: -3
     question: "¿Eleva una hipótesis sin evidencia suficiente?"
     si: -3
-    no: 0
+    "no": 0
 
   proper_humility:
     activo: true
@@ -379,7 +384,7 @@ criterios_epistemicos:
     weight: -2
     question: "¿Solo aporta ejemplos favorables sin enfrentar objeciones?"
     si: -2
-    no: 0
+    "no": 0
 
   argument_screens_off_authority:
     activo: true
@@ -405,7 +410,7 @@ criterios_epistemicos:
     weight: -3
     question: "¿Usa jerga o etiquetas para cerrar la investigación?"
     si: -3
-    no: 0
+    "no": 0
 
   fake_justification:
     activo: true
@@ -413,7 +418,7 @@ criterios_epistemicos:
     weight: -3
     question: "¿La conclusión parece anterior al razonamiento?"
     si: -3
-    no: 0
+    "no": 0
 
   fake_optimization_criteria:
     activo: true
@@ -421,7 +426,7 @@ criterios_epistemicos:
     weight: -2
     question: "¿El criterio de decisión parece oportunista?"
     si: -2
-    no: 0
+    "no": 0
 
   entangled_truths:
     activo: true
@@ -447,7 +452,7 @@ criterios_epistemicos:
     weight: -3
     question: "¿Falta una pieza que debería estar si esto fuese tan importante?"
     si: -3
-    no: 0
+    "no": 0
 
 # ───────────────────────────────────────────────────────────────
 # Explicación (NUEVO en v3.0)
