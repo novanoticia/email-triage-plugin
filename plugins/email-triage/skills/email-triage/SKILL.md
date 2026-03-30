@@ -1,6 +1,6 @@
 ---
 name: email-triage
-version: "3.0.0"
+version: "3.0.1"
 description: >
   Triaje inteligente de correo electrónico: analiza bandejas de entrada y carpetas
   de lectura pendiente para identificar correos de alto valor usando criterios
@@ -517,6 +517,99 @@ RESUMEN DE TRIAJE v3.0
 - No evalúes los 30 criterios por igual: los 12 core siempre, el resto contextual
 - Si el usuario corrige un tier, registra el override para mejorar futuras sesiones
 - No ignores la ausencia de evidencia (criterio 30) — lo que falta también informa
+
+---
+
+## MANEJO DE ERRORES Y RESILIENCIA
+
+Este skill depende de conectores externos (Mail.app vía osascript, Gmail MCP)
+que pueden fallar por múltiples razones. El skill DEBE ser resiliente y nunca
+dejar al usuario sin feedback.
+
+### Principio general
+
+**Fallar con gracia, informar siempre, degradar sin abortar.**
+
+Si una operación falla, el skill debe:
+1. Informar al usuario qué falló y por qué (si se puede determinar)
+2. Intentar continuar en modo degradado
+3. No dejar la sesión en un estado inconsistente (ej: correos parcialmente movidos)
+
+### Errores de conexión al proveedor
+
+| Error | Causa probable | Acción |
+|-------|---------------|--------|
+| osascript timeout / no responde | Mail.app cerrado o colgado | Informar: "Mail.app no responde. ¿Está abierto?" y ofrecer reintento |
+| Gmail MCP no disponible | Conector no instalado o token expirado | Informar: "No puedo acceder a Gmail. Verifica que el conector Gmail MCP esté activo en Configuración → Conectores" |
+| Carpeta no encontrada | Nombre incorrecto en config.yaml | Listar carpetas disponibles y pedir al usuario que elija |
+| Permiso denegado (osascript) | macOS bloqueó el acceso | Informar: "macOS necesita permiso para controlar Mail.app. Ve a Ajustes del Sistema → Privacidad → Automatización" |
+
+### Retry con backoff para operaciones de lectura
+
+Cuando una llamada al conector falla (lectura de correos o de cuerpo):
+
+1. **Primer intento**: ejecutar normalmente
+2. **Si falla**: esperar 2 segundos, reintentar
+3. **Si falla de nuevo**: esperar 5 segundos, reintentar una última vez
+4. **Si falla 3 veces**: informar al usuario y continuar sin esa operación
+
+**No aplicar retry a operaciones de escritura/mover** — el riesgo de duplicación
+es peor que fallar. Si mover un correo falla, informar y pasar al siguiente.
+
+### Protección contra emails enormes
+
+El truncado a 500 caracteres del cuerpo (PASO 1) es la primera línea de defensa,
+pero no es suficiente si el volumen total es alto.
+
+**Reglas adicionales:**
+- Si el cuerpo extraído supera 2000 caracteres tras truncado (ej: por HTML
+  expandido), truncar a 2000 y añadir `[truncado]`
+- Si un correo tiene más de 50 líneas de texto plano visible, usar solo
+  las primeras 30 líneas para el análisis epistémico
+- Si el lote total supera 30 correos con cuerpo, procesar en sublotes de 15
+  para evitar saturar la ventana de contexto
+- **Nunca cargar adjuntos** — el skill opera solo sobre metadatos y texto
+
+### Timeout y feedback al usuario
+
+Si una operación tarda más de lo esperado:
+
+- **Lectura de buzón (>30 correos)**: informar al usuario cada 10 correos
+  procesados con un mensaje breve: "Procesados 10/45..."
+- **Análisis epistémico**: si el lote es grande (>20), avisar al inicio:
+  "Analizando N correos, esto puede tardar un momento"
+- **Mover correos en lote**: confirmar cada movimiento exitoso si el modo
+  es `confirmacion`; en modo `lote` o `silencioso`, informar al final con
+  el conteo de éxitos y fallos
+
+### Modo degradado
+
+Si el skill no puede acceder al cuerpo del correo (fallo de `content` en
+Mail.app, o imposibilidad de llamar a `gmail_read_message`):
+
+1. **No abortar** — continuar con asunto + remitente + fecha
+2. Marcar los correos afectados con `[solo metadatos]` en la explicación
+3. Aplicar solo los criterios evaluables sin cuerpo: hard rules, criterios
+   1-5 del Grupo B, y criterio 28 (entangled truths por metadatos)
+4. Advertir al usuario: "N correos analizados sin acceso al cuerpo.
+   La precisión del triaje puede ser menor para estos."
+
+### Validación de config.yaml al inicio
+
+Antes de ejecutar cualquier fase, validar:
+
+1. `usuario.nombre` no está vacío → si lo está, pedir al usuario
+2. `usuario.perfil` contiene al menos 10 caracteres → si no, advertir
+   que el triaje será genérico
+3. `correo.proveedor` es uno de: "icloud", "gmail", "otro" → si no, preguntar
+4. `correo.cuenta` no está vacía → si lo está, pedir al usuario
+5. `carpetas.entrada` y `carpetas.pendiente` no están vacías → si lo están,
+   usar "INBOX" y "Leer Después" como fallback e informar
+6. `tiers` tiene los 4 valores → si falta alguno, usar defaults
+   (reply_needed: 10, review: 4, reading_later: 0, archive: -1)
+
+Si faltan campos críticos (nombre, cuenta, proveedor), no continuar hasta
+que el usuario los proporcione. Presentar un setup guiado breve.
 
 ---
 

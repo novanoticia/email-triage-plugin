@@ -8,8 +8,8 @@
     {
       "name": "email-triage",
       "source": "./plugins/email-triage",
-      "description": "Epistemic email triage v3.0: 30 Bayesian rationality criteria, multi-axis scoring, 4-tier routing with explanations. Supports iCloud, Gmail, and other providers.",
-      "version": "3.0.0"
+      "description": "Epistemic email triage v3.0.1: 30 Bayesian rationality criteria, multi-axis scoring, 4-tier routing with explanations. Error resilience with retry/backoff and graceful degradation. Supports iCloud, Gmail, and other providers.",
+      "version": "3.0.1"
     }
   ]
 }

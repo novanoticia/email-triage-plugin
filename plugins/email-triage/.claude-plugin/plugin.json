@@ -1,9 +1,11 @@
 {
   "name": "email-triage",
-  "version": "3.0.0",
-  "description": "Epistemic email triage with 30 Bayesian rationality criteria. Multi-axis scoring, 4-tier routing with explanations. Supports iCloud and Gmail.",
+  "version": "3.0.1",
+  "description": "Epistemic email triage with 30 Bayesian rationality criteria (LessWrong Sequences). Multi-axis scoring, 4-tier routing with explanations. Supports iCloud (Mail.app), Gmail (MCP), and other providers. Includes error resilience, retry with backoff, and graceful degradation.",
   "author": {
-    "name": "Pablo"
+    "name": "Pablo Rodríguez López",
+    "url": "https://mindandhealth.org"
   },
-  "keywords": ["email", "triage", "inbox", "gmail", "icloud", "productivity", "epistemic"]
+  "license": "Apache-2.0",
+  "keywords": ["email", "triage", "inbox", "gmail", "icloud", "productivity", "epistemic", "bayesian", "rationality", "lesswrong", "mail", "filter", "priority"]
 }

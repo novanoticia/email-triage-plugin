@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.0
+# Email Triage Plugin v3.0.1
 
 Filtrado epistémico de correo electrónico para Claude Cowork y Claude Code.
 
@@ -110,7 +110,7 @@ El resultado no es un simple "urgente/no urgente" sino un filtro de:
 
 Instala el ZIP para que el plugin persista entre reinicios:
 
-1. Descarga **[email-triage-v3.0.0.zip](https://github.com/novanoticia/email-triage-plugin/releases/latest)** desde Releases
+1. Descarga **[email-triage-v3.0.1.zip](https://github.com/novanoticia/email-triage-plugin/releases/latest)** desde Releases
 2. En Cowork → Plugins → "+" → Upload → selecciona el ZIP
 3. Edita `skills/email-triage/config.yaml` con tus datos
 
@@ -174,7 +174,7 @@ Edita `skills/email-triage/config.yaml` antes del primer uso:
 email-triage-plugin/
 ├── .claude-plugin/
 │   ├── marketplace.json    # Registro del marketplace
-│   └── plugin.json         # Manifest del plugin (v3.0.0)
+│   └── plugin.json         # Manifest del plugin (v3.0.1)
 ├── plugins/
 │   └── email-triage/
 │       ├── .claude-plugin/
@@ -188,10 +188,60 @@ email-triage-plugin/
 └── README.md
 ```
 
+## Troubleshooting
+
+### "Mail.app no responde" o timeout en osascript
+
+Mail.app debe estar abierto para que el skill acceda al correo. Si está
+abierto y sigue fallando, comprueba en **Ajustes del Sistema → Privacidad
+y Seguridad → Automatización** que Claude/Cowork tenga permiso para
+controlar Mail.app. El skill reintentará hasta 3 veces con backoff
+antes de informar del error.
+
+### "No puedo acceder a Gmail" o conector no disponible
+
+Verifica que el conector Gmail MCP esté activo en **Configuración → Conectores**
+de Cowork. Si el token ha expirado, desconéctalo y vuelve a conectar.
+
+### Carpeta no encontrada
+
+Los nombres de carpeta en `config.yaml` deben coincidir exactamente con los
+de tu cliente de correo (incluyendo mayúsculas). Si no estás seguro, el
+skill listará las carpetas disponibles y te pedirá que elijas.
+
+### El triaje parece impreciso
+
+Asegúrate de que `usuario.perfil` en `config.yaml` describe bien tu rol
+e intereses (mínimo 2-3 líneas). Sin perfil, el criterio "¿cambiaría algo
+concreto para ti?" no tiene ancla y los resultados serán genéricos. También
+puedes ajustar los pesos de los criterios epistémicos en la sección
+`criterios_epistemicos` del config.
+
+### Correos muy largos causan lentitud
+
+Reduce `puntuacion.max_caracteres_cuerpo` a 300 o desactiva `leer_cuerpo`
+si prefieres velocidad sobre precisión. El skill también procesa en sublotes
+automáticamente cuando hay muchos correos con cuerpo.
+
+## Novedades en v3.0.1
+
+- **Manejo de errores explícito** — errores de conexión, permisos y timeouts
+  informados al usuario con acciones sugeridas
+- **Retry con backoff** — hasta 3 reintentos para operaciones de lectura,
+  con esperas de 2s y 5s entre intentos
+- **Protección contra emails enormes** — límites configurables de caracteres
+  y líneas, procesamiento en sublotes
+- **Modo degradado** — si no se puede leer el cuerpo, continúa con metadatos
+  y advierte al usuario
+- **Validación de config.yaml** — campos obligatorios marcados, setup guiado
+  si faltan datos críticos
+- **Metadata mejorada** — keywords, licencia y repositorio en plugin.json
+
 ## Historial de versiones
 
 | Versión | Cambio principal |
 |---------|-----------------|
+| v3.0.1 | Resiliencia: manejo de errores, retry/backoff, modo degradado, validación de config, protección contra emails enormes |
 | v3.0.0 | Scoring epistémico multi-eje, 30 criterios LessWrong, 4 tiers, explicaciones, telemetría |
 | v2.0.0 | Puntuación ponderada, acceso al cuerpo, calibración estadística, lotes |
 | v1.0.0 | Triaje básico con criterio de valor diferencial |

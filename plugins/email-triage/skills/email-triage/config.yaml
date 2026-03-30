@@ -20,14 +20,18 @@
 
 usuario:
   nombre: ""
-  # Tu nombre. El skill lo usa para dirigirse a ti en los resúmenes.
+  # ⚠️ OBLIGATORIO — Tu nombre. El skill no arrancará sin él.
+  # Se usa para dirigirse a ti y para detectar menciones directas en correos.
 
   perfil: |
-    # Describe tu rol, formación e intereses en 2-4 líneas.
-    # Esto es lo que el skill usa para decidir si un correo
-    # "cambiaría algo concreto para ti".
+    # ⚠️ OBLIGATORIO (mínimo 10 caracteres) — Describe tu rol, formación
+    # e intereses en 2-4 líneas. Esto es el ancla del triaje: sin perfil,
+    # el criterio "¿cambiaría algo concreto para ti?" no tiene referencia
+    # y el skill usará un criterio genérico (menos preciso).
 
   proyectos_activos:
+    # Lista tus proyectos activos. Los correos relacionados reciben boost.
+    # Si está vacía, el skill funciona pero sin contexto de proyectos.
     - "" # ej: "Rediseño de la app móvil (Figma + React Native)"
     - "" # ej: "Blog personal en WordPress"
 
@@ -40,10 +44,14 @@ usuario:
 
 correo:
   proveedor: "icloud"
-  # Opciones: "icloud", "gmail", "otro"
+  # ⚠️ OBLIGATORIO — Opciones: "icloud", "gmail", "otro"
+  # - icloud: usa Mail.app vía AppleScript (requiere "Control your Mac")
+  # - gmail: usa Gmail MCP (requiere conector Gmail activo)
+  # - otro: el skill preguntará qué conectores tienes disponibles
 
   cuenta: ""
-  # Nombre de la cuenta en Mail.app o dirección de Gmail.
+  # ⚠️ OBLIGATORIO — Nombre de la cuenta en Mail.app (ej: "iCloud")
+  # o dirección de Gmail (ej: "miusuario@gmail.com").
 
 # ───────────────────────────────────────────────────────────────
 # Estructura de carpetas
@@ -78,6 +86,15 @@ puntuacion:
   leer_cuerpo: true
   # Si true, lee los primeros ~500 caracteres del cuerpo.
   # Si false, solo usa asunto y remitente (más rápido, menos preciso).
+
+  max_caracteres_cuerpo: 500
+  # Máximo de caracteres a extraer del cuerpo de cada correo.
+  # Valores recomendados: 300 (rápido), 500 (equilibrado), 1000 (profundo).
+  # El skill truncará a 2000 como máximo absoluto aunque pongas más.
+
+  max_lineas_cuerpo: 30
+  # Si el texto plano extraído supera este número de líneas,
+  # el skill usa solo las primeras N para el análisis epistémico.
 
 # ───────────────────────────────────────────────────────────────
 # Tiers y umbrales de routing (NUEVO en v3.0)
@@ -132,6 +149,22 @@ filtros:
   palabras_clave_penalizar:
   # Términos que restan -2 cada uno.
     []
+
+# ───────────────────────────────────────────────────────────────
+# Resiliencia (NUEVO en v3.0.1)
+# ───────────────────────────────────────────────────────────────
+
+resiliencia:
+  max_reintentos: 3
+  # Intentos máximos para operaciones de lectura (listar, leer cuerpo).
+  # No aplica a operaciones de escritura/mover (esas no se reintentan).
+
+  sublote_con_cuerpo: 15
+  # Si el lote tiene más de 30 correos con lectura de cuerpo activa,
+  # procesar en sublotes de este tamaño para no saturar contexto.
+
+  feedback_cada_n: 10
+  # En lotes grandes, informar al usuario cada N correos procesados.
 
 # ═══════════════════════════════════════════════════════════════
 # CRITERIOS EPISTÉMICOS (NUEVO en v3.0)
