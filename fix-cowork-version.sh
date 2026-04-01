@@ -8,7 +8,7 @@ set -euo pipefail
 # Ejecutar después de cada reinstalación o actualización.
 # ═══════════════════════════════════════════════════════════════
 
-VERSION="3.0.1"
+VERSION="3.1.0"
 REPO="$HOME/email-triage-plugin/plugins/email-triage"
 SESSION_BASE="$HOME/Library/Application Support/Claude/local-agent-mode-sessions"
 CLAUDE_CACHE="$HOME/.claude/plugins/cache/email-triage-plugin/email-triage/$VERSION"
@@ -79,6 +79,18 @@ mkdir -p "$CLAUDE_CACHE"
 cp -r "$REPO/." "$CLAUDE_CACHE/" && \
 echo "✅ Claude Code (caché): actualizado a v$VERSION" || \
 echo "❌ Error al copiar archivos a caché de Claude Code"
+
+# ── 3. GENERAR ZIP PARA COWORK (opcional) ─────────────────────────
+# Si se pasa --zip, genera el zip con la estructura correcta para
+# instalación manual en Cowork (sin el envoltorio del repo).
+if [[ "${1:-}" == "--zip" ]]; then
+  ZIP_NAME="email-triage-v${VERSION}.zip"
+  ZIP_PATH="$(dirname "$REPO")/../$ZIP_NAME"
+  (cd "$REPO" && zip -r "$ZIP_PATH" . -x "*.DS_Store") && \
+  echo "📦 Zip generado: $ZIP_PATH" && \
+  echo "   Estructura: .claude-plugin/, skills/, .mcp.json (raíz del plugin)" || \
+  echo "❌ Error al generar zip"
+fi
 
 echo ""
 echo "Reinicia Cowork y Claude Code para que tomen los cambios."

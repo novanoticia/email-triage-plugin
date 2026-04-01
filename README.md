@@ -114,6 +114,13 @@ Instala el ZIP para que el plugin persista entre reinicios:
 2. En Cowork → Plugins → "+" → Upload → selecciona el ZIP
 3. Edita `skills/email-triage/config.yaml` con tus datos
 
+> **Estructura del ZIP**: el archivo `.zip` para Cowork debe contener
+> `.claude-plugin/plugin.json` en la raíz (NO dentro de una carpeta del repo).
+> El zip de Releases ya tiene la estructura correcta. Si generas el zip desde
+> el repo local, usa `./fix-cowork-version.sh --zip` para obtener el formato
+> correcto. **No uses** `git archive` ni el zip autogenerado de GitHub (Source
+> code), que incluyen la carpeta del repo completo y Cowork no los reconoce.
+
 > **¿Por qué ZIP y no URL de GitHub?** Los plugins instalados como ZIP quedan
 > registrados en "My Uploads" y persisten entre reinicios. Los instalados desde
 > URL de GitHub pueden desaparecer al reiniciar Cowork.
