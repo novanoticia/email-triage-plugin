@@ -60,9 +60,19 @@ correo:
 carpetas:
   entrada: "INBOX"
   pendiente: "Leer Después"
-  destino: "Leer Después/IMPORTANTES"
+  destino: "Urgentes Claude"
+  # Carpeta a la que se mueven los correos REVIEW.
+  # Si no existe, el skill la creará automáticamente.
+
+  destino_reply_needed: "INBOX"
+  # Carpeta a la que se mueven los correos REPLY_NEEDED.
+  # Por defecto INBOX: los correos que requieren respuesta se quedan
+  # visibles en la bandeja principal.
+  # Si solo puedes usar un destino, pon el mismo valor que "destino".
+
   historial: "Conservar"
-  # historial es opcional. Se usa para calibración estadística.
+  # Opcional. Se usa para calibración estadística.
+  # Debe contener correos que has decidido conservar manualmente.
 
 # ───────────────────────────────────────────────────────────────
 # Modo de interacción

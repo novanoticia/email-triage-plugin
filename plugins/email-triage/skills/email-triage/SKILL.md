@@ -1,6 +1,6 @@
 ---
 name: email-triage
-version: "3.0.1"
+version: "3.1.0"
 description: >
   Triaje inteligente de correo electrónico: analiza bandejas de entrada y carpetas
   de lectura pendiente para identificar correos de alto valor usando criterios
@@ -21,7 +21,7 @@ description: >
   en relevancia o importancia.
 ---
 
-# Email Triage v3.0 — Filtrado epistémico por valor diferencial
+# Email Triage v3.1 — Filtrado epistémico por valor diferencial
 
 ## Qué hace este skill
 
@@ -134,7 +134,14 @@ tell application "Mail"
 end tell
 ```
 
-#### Mover múltiples correos por índice (lote)
+#### Mover múltiples correos por índice (lote) — PATRÓN SEGURO
+
+⚠️ **NO uses el patrón de iterar índices de mayor a menor**. Aunque la
+documentación clásica lo recomienda, en producción falla cuando hay más
+de un lote o movimientos previos en la misma sesión.
+
+**Patrón verificado en producción**: capturar las referencias a los objetos
+mensaje ANTES de mover ninguno, y luego mover las referencias:
 
 ```applescript
 tell application "Mail"
@@ -142,16 +149,67 @@ tell application "Mail"
     set sourceMailbox to mailbox "CARPETA_ORIGEN" of acct
     set destMailbox to mailbox "CARPETA_DESTINO" of acct
 
-    -- Lista de índices a mover (de mayor a menor para no alterar posiciones)
+    -- 1. Capturar TODOS los mensajes como lista de referencias
+    set todosMsg to every message of sourceMailbox
+
+    -- 2. Seleccionar los que queremos mover por sus índices originales
     set indicesToMove to {45, 32, 18, 7, 3}
+    set mensajesAMover to {}
     repeat with idx in indicesToMove
-        move message idx of sourceMailbox to destMailbox
+        set end of mensajesAMover to (item idx of todosMsg)
     end repeat
+
+    -- 3. Mover las referencias (el orden ya no importa)
+    set movidos to 0
+    repeat with m in mensajesAMover
+        try
+            move m to destMailbox
+            set movidos to movidos + 1
+        end try
+    end repeat
+
+    return "Movidos: " & movidos & " de " & (count of mensajesAMover)
 end tell
 ```
 
-**IMPORTANTE**: Al mover en lote, procesar los índices de mayor a menor.
-Mover un mensaje altera los índices posteriores si se procesan de menor a mayor.
+**Por qué funciona**: al capturar `every message` como lista, AppleScript
+mantiene referencias internas a cada objeto mensaje. Cuando mueves uno,
+las referencias de los demás siguen apuntando al mensaje correcto, no a
+una posición numérica que haya cambiado.
+
+**IMPORTANTE**: Si previamente se han movido correos de la misma carpeta
+en la misma sesión, los índices originales habrán cambiado. Siempre
+recaptura `every message` antes de cada lote de movimientos.
+
+#### Caracteres especiales en nombres de carpeta (bug conocido)
+
+⚠️ Los nombres de carpeta con acentos u otros caracteres no-ASCII
+(ej: "Leer Después", "Correo sí deseado") **fallan** cuando se pasan
+como AppleScript inline al conector osascript.
+
+**Solución verificada**: escribir el script completo a un fichero temporal
+usando Desktop Commander (`write_file` a `/tmp/`) y ejecutarlo con
+`do shell script "osascript /tmp/nombre.scpt"`, o alternativamente
+buscar la carpeta por iteración:
+
+```applescript
+tell application "Mail"
+    set acct to account "NOMBRE_CUENTA"
+    set allBoxes to every mailbox of acct
+    set targetBox to missing value
+    repeat with mb in allBoxes
+        if name of mb is "Leer Después" then
+            set targetBox to mb
+            exit repeat
+        end if
+    end repeat
+    -- targetBox ya es una referencia válida
+end tell
+```
+
+Cuando se usa `start_process` de Desktop Commander, el fichero `.scpt`
+se escribe correctamente en UTF-8 y osascript lo interpreta sin problemas.
+Este patrón es más robusto que el acceso inline.
 
 ### Gmail (vía MCP)
 
@@ -392,14 +450,20 @@ solo aplica si el correo propone cerrar una cuestión abierta).
 
 ### 4.C — Routing por tiers
 
-El score final determina el tier. Los umbrales son configurables en `config.yaml`:
+El score final determina el tier. Los umbrales son configurables en `config.yaml`.
+Cada tier tiene un **indicador de color** (banderita) para identificación visual rápida:
 
-| Tier | Score mínimo | Qué significa | Acción |
-|------|-------------|---------------|--------|
-| **reply_needed** | ≥ 10 | Requiere respuesta o acción directa | Mover a `carpetas.destino` + marcar |
-| **review** | 4–9 | Vale la pena leer con atención | Mover a `carpetas.destino` |
-| **reading_later** | 0–3 | Interesante pero no urgente | Dejar en `carpetas.pendiente` |
-| **archive** | < 0 | Ruido, ritual o manipulación | Archivar o dejar (según modo) |
+| Tier | Indicador | Score mínimo | Qué significa | Acción |
+|------|-----------|-------------|---------------|--------|
+| **REPLY_NEEDED** | 🔴 (rojo) | ≥ 10 | Requiere respuesta o acción directa | Mover a `carpetas.destino_reply_needed` (o `destino`) + marcar |
+| **REVIEW** | 🟡 (amarillo) | 4–9 | Vale la pena leer con atención | Mover a `carpetas.destino` |
+| **READING_LATER** | 🔵 (azul) | 0–3 | Interesante pero no urgente | Dejar en `carpetas.pendiente` |
+| **ARCHIVE** | ⚪ (gris) | < 0 | Ruido, ritual o manipulación | Archivar o dejar (según modo) |
+
+**Uso obligatorio de indicadores**: En TODA presentación de resultados (correo
+individual, tabla resumen, resumen de sesión), el tier DEBE ir acompañado de
+su indicador de color. Esto permite al usuario escanear visualmente la prioridad
+sin leer el texto.
 
 **Condiciones especiales para reply_needed** (cualquiera dispara el tier):
 - Pregunta directa al usuario
@@ -438,12 +502,18 @@ Esto no es opcional: sin explicación, el scoring se vuelve opaco.
    De: [Remitente] | Fecha: [DD/MM]
 📝 Resumen: [2-3 líneas del contenido real]
 📊 Puntuación: X (desglose: decisional +N, epistémica +N, manipulación N, cognitivo N, acción +N)
-🏷️ Tier: [REPLY_NEEDED | REVIEW | READING_LATER | ARCHIVE]
+[🔴|🟡|🔵|⚪] Tier: [REPLY_NEEDED | REVIEW | READING_LATER | ARCHIVE]
    ▲ [razón positiva 1] | [razón positiva 2] | [razón positiva 3]
    ▼ [razón negativa 1] | [razón negativa 2] | [razón negativa 3]
 💬 [Rationale en español llano: 1-2 frases]
 🔵 Recomendación: MOVER → [destino] / DEJAR / ARCHIVAR
 ```
+
+Los colores de tier en el formato de presentación:
+- `🔴 REPLY_NEEDED` — rojo: acción urgente
+- `🟡 REVIEW` — amarillo: leer con atención
+- `🔵 READING_LATER` — azul: lectura futura
+- `⚪ ARCHIVE` — gris: descartable
 
 ### 4.G — Control de flujo según modo
 
@@ -511,7 +581,7 @@ RESUMEN DE TRIAJE v3.0
 - No confundas "interesante" con "valioso" — el criterio es impacto, no curiosidad
 - Si `content` devuelve HTML crudo, extrae el texto ignorando tags
 - Si `content` falla, continúa el triaje solo con asunto/remitente (modo degradado)
-- Al mover en lote, procesa índices de mayor a menor
+- Al mover en lote, captura las referencias antes de mover (ver patrón seguro en PASO 1)
 - Si la calibración da un perfil incoherente, informa y sugiere acotar
 - **SIEMPRE incluir explicación** — un score sin rationale es teatro, no triage
 - No evalúes los 30 criterios por igual: los 12 core siempre, el resto contextual
@@ -582,6 +652,25 @@ Si una operación tarda más de lo esperado:
   es `confirmacion`; en modo `lote` o `silencioso`, informar al final con
   el conteo de éxitos y fallos
 
+### Validación de contenido HTML y basura
+
+Cuando `content` de Mail.app o `body` de Gmail MCP devuelve HTML en bruto
+(tags, entidades, estilos inline), el análisis epistémico se degrada porque
+la "densidad informativa" y otros criterios evalúan texto basura como contenido.
+
+**Reglas de limpieza antes del análisis:**
+
+1. **Detección**: Si el extracto contiene más de 3 tags HTML (`<div>`, `<table>`,
+   `<span>`, etc.) en los primeros 200 caracteres, marcarlo como `[HTML detectado]`
+2. **Limpieza**: El modelo debe extraer el texto visible ignorando tags, pero
+   NO invertir esfuerzo en parsear HTML complejo — si el texto limpio resultante
+   tiene menos de 50 caracteres útiles, tratar como `[cuerpo no legible]`
+3. **Scoring ajustado**: Correos marcados como `[cuerpo no legible]` o
+   `[HTML detectado]` reciben automáticamente -1 en `densidad_informativa`
+   y se evalúan en modo degradado (solo hard rules + criterios 1-5 del Grupo B)
+4. **Feedback**: Informar al usuario: "N correos tenían HTML sin texto plano.
+   Se analizaron solo por metadatos."
+
 ### Modo degradado
 
 Si el skill no puede acceder al cuerpo del correo (fallo de `content` en
@@ -610,6 +699,40 @@ Antes de ejecutar cualquier fase, validar:
 
 Si faltan campos críticos (nombre, cuenta, proveedor), no continuar hasta
 que el usuario los proporcione. Presentar un setup guiado breve.
+
+---
+
+## Errores reales observados en producción (v3.0.1)
+
+Documentación de bugs encontrados en sesiones reales con Mail.app/iCloud:
+
+1. **"Buzones de entrada" no es un buzón real** — Es un grupo visual de macOS
+   Mail, no un mailbox. El buzón real se llama `INBOX`. Usar siempre los
+   nombres reales que devuelve `name of every mailbox of account`.
+
+2. **Índice shifting al mover en bucle** — Mover el mensaje en índice 9 hace
+   que el que estaba en 10 pase a 9, el de 11 a 10, etc. Si se procesan
+   los índices de menor a mayor, se mueven mensajes incorrectos. La solución
+   no es "de mayor a menor" (también falla en sesiones con múltiples lotes),
+   sino **capturar referencias a objetos antes de mover** (ver PASO 1).
+
+3. **osascript inline con caracteres UTF-8** — Nombres de carpeta como
+   "Leer Después" provocan errores de sintaxis cuando se pasan como
+   AppleScript inline al conector osascript. Solución: escribir el script
+   a `/tmp/` con Desktop Commander y ejecutar con `start_process`.
+
+4. **`do shell script "osascript /path"` desde osascript** — El patrón de
+   anidar osascript dentro de `do shell script` funciona para scripts cortos,
+   pero falla silenciosamente con scripts largos o con output extenso.
+   Preferir `start_process` + `read_process_output` de Desktop Commander.
+
+5. **Creación de carpetas** — Si `carpetas.destino` no existe, hay que crearla
+   explícitamente con `make new mailbox with properties {name:"X"} at acct`.
+   Mail.app no la crea implícitamente al mover.
+
+6. **Timeouts en lotes grandes (>100 correos)** — La lectura de metadatos de
+   150+ correos puede superar el timeout de osascript. Procesarlos en lotes
+   de 25-50 con scripts separados.
 
 ---
 
