@@ -197,6 +197,20 @@ email-triage-plugin/
 
 ## Troubleshooting
 
+### "Plugin validation failed" al instalar el ZIP en Cowork
+
+El backend de Anthropic rechaza zips que contengan archivos `.yaml` o SKILL.md
+de más de ~30 KB. Para instalar o actualizar el plugin en Cowork:
+
+1. Descarga **`email-triage-v3.1.0-minimal.zip`** (solo `plugin.json` + `SKILL.md`
+   de prueba) — o usa el zip minimal del repo.
+2. Instálalo desde Cowork → Plugins → "+" → Upload.
+3. Una vez instalado, **copia manualmente** el SKILL.md real y el config.yaml
+   al directorio `rpm/plugin_XXXXXX/skills/email-triage/` dentro de la sesión
+   activa de Cowork (ver ruta en Troubleshooting avanzado).
+
+Este comportamiento es una limitación del validador del backend, no del plugin.
+
 ### "Mail.app no responde" o timeout en osascript
 
 Mail.app debe estar abierto para que el skill acceda al correo. Si está
