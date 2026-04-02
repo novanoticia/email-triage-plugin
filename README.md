@@ -106,34 +106,56 @@ El resultado no es un simple "urgente/no urgente" sino un filtro de:
 
 ## Instalación
 
-### Cowork (desktop) — recomendado
+### Claude Code (CLI) — recomendado
 
-Instala el ZIP para que el plugin persista entre reinicios:
-
-1. Descarga **[email-triage-v3.1.0.zip](https://github.com/novanoticia/email-triage-plugin/releases/latest)** desde Releases
-2. En Cowork → Plugins → "+" → Upload → selecciona el ZIP
-3. Edita `skills/email-triage/config.yaml` con tus datos
-
-> **Estructura del ZIP**: el archivo `.zip` para Cowork debe contener
-> `.claude-plugin/plugin.json` en la raíz (NO dentro de una carpeta del repo).
-> El zip de Releases ya tiene la estructura correcta. Si generas el zip desde
-> el repo local, usa `./fix-cowork-version.sh --zip` para obtener el formato
-> correcto. **No uses** `git archive` ni el zip autogenerado de GitHub (Source
-> code), que incluyen la carpeta del repo completo y Cowork no los reconoce.
-
-> **¿Por qué ZIP y no URL de GitHub?** Los plugins instalados como ZIP quedan
-> registrados en "My Uploads" y persisten entre reinicios. Los instalados desde
-> URL de GitHub pueden desaparecer al reiniciar Cowork.
-
-### Claude Code (CLI)
+Dos comandos en tu terminal. Solo funciona en Claude Code (no sincroniza
+con Cowork — para Cowork usa el método de abajo).
 
 ```bash
-# Desde marketplace
-claude plugin install email-triage@email-triage-plugin
+# 1. Registra el repo como marketplace
+claude plugin marketplace add novanoticia/email-triage-plugin
 
-# Desde directorio local
-claude plugin install ./email-triage-plugin
+# 2. Instala el plugin
+claude plugin install email-triage@email-triage-plugin
 ```
+
+> **¿No tienes Claude Code?** Instálalo con `npm install -g @anthropic-ai/claude-code`
+> o consulta [code.claude.com](https://code.claude.com).
+
+> **Instalación local** (para desarrollo):
+> ```bash
+> claude plugin install ./email-triage-plugin
+> ```
+
+### Cowork (desktop) — alternativa
+
+Si no tienes Claude Code instalado, sigue estos pasos:
+
+```bash
+# 1. Clona el repo (en cualquier carpeta)
+git clone https://github.com/novanoticia/email-triage-plugin
+
+# 2. Ejecuta el script de instalación
+cd email-triage-plugin
+bash fix-cowork-version.sh
+```
+
+El script busca automáticamente la sesión activa de Cowork y copia
+los archivos correctos. Solo necesitas tener instalado el ZIP en Cowork
+previamente (paso 3 abajo). Si el script dice `⚠️ plugin no encontrado en rpm`,
+es porque aún no has hecho ese paso.
+
+**Paso previo obligatorio** — instalar el ZIP en Cowork:
+
+1. Descarga **[email-triage-v3.1.0-cowork-install.zip](https://github.com/novanoticia/email-triage-plugin/releases/download/v3.1.0/email-triage-v3.1.0-cowork-install.zip)**
+2. En Cowork → Plugins → "+" → Upload → selecciona el ZIP
+3. Vuelve a la terminal y ejecuta `bash fix-cowork-version.sh`
+4. Reinicia Cowork
+
+> **¿Por qué dos pasos?** El backend de Anthropic rechaza archivos `.yaml`
+> en ZIPs subidos, así que el ZIP de instalación solo contiene el manifest.
+> El script copia el SKILL.md completo y el `config.yaml` real una vez que
+> Cowork ha registrado el plugin.
 
 ## Configuración
 
@@ -199,15 +221,17 @@ email-triage-plugin/
 
 ### "Plugin validation failed" al instalar el ZIP en Cowork
 
-El backend de Anthropic rechaza zips que contengan archivos `.yaml` o SKILL.md
-de más de ~30 KB. Para instalar o actualizar el plugin en Cowork:
+El validador del backend de Anthropic rechaza archivos `.yaml` dentro de
+plugins subidos por ZIP. Esto afecta al `config.yaml` del plugin (el tamaño
+no es el problema — el límite real es 100 MB).
 
-1. Descarga **[email-triage-v3.1.0-cowork-install.zip](https://github.com/novanoticia/email-triage-plugin/releases/download/v3.1.0/email-triage-v3.1.0-cowork-install.zip)**
-   (zip minimal compatible con el validador de Cowork).
-2. Instálalo desde Cowork → Plugins → "+" → Upload.
-3. Una vez instalado, **copia manualmente** el SKILL.md real y el config.yaml
-   al directorio `rpm/plugin_XXXXXX/skills/email-triage/` dentro de la sesión
-   activa de Cowork (ver ruta en Troubleshooting avanzado).
+**Solución recomendada**: instala desde Claude Code (ver [Instalación](#instalación)),
+que usa git clone en el servidor y no pasa por el validador de ZIP.
+
+**Si necesitas usar ZIP igualmente**: usa el flujo de la sección
+[Cowork (desktop)](#cowork-desktop--alternativa) — el script
+`fix-cowork-version.sh` localiza automáticamente el directorio correcto
+y copia los archivos sin que tengas que identificar ninguna ruta interna.
 
 Este comportamiento es una limitación del validador del backend, no del plugin.
 

@@ -9,16 +9,19 @@ set -euo pipefail
 # ═══════════════════════════════════════════════════════════════
 
 VERSION="3.1.0"
-REPO="$HOME/email-triage-plugin/plugins/email-triage"
+# Deriva la ruta del plugin desde la ubicación del propio script
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO="$SCRIPT_DIR/plugins/email-triage"
 SESSION_BASE="$HOME/Library/Application Support/Claude/local-agent-mode-sessions"
 CLAUDE_CACHE="$HOME/.claude/plugins/cache/email-triage-plugin/email-triage/$VERSION"
 
 echo "=== Fix email-triage version v$VERSION ==="
+echo "   Repo: $SCRIPT_DIR"
 
 # ── Validar que el repo local existe ─────────────────────────────
 if [ ! -d "$REPO" ]; then
-  echo "❌ Error: no se encuentra el repo local en $REPO"
-  echo "   Clona el repo primero: git clone https://github.com/novanoticia/email-triage-plugin ~/email-triage-plugin"
+  echo "❌ Error: no se encuentra la carpeta plugins/email-triage en $SCRIPT_DIR"
+  echo "   Asegúrate de ejecutar el script desde dentro del repo clonado."
   exit 1
 fi
 
