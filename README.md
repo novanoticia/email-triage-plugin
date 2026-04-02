@@ -202,8 +202,8 @@ email-triage-plugin/
 El backend de Anthropic rechaza zips que contengan archivos `.yaml` o SKILL.md
 de más de ~30 KB. Para instalar o actualizar el plugin en Cowork:
 
-1. Descarga **`email-triage-v3.1.0-minimal.zip`** (solo `plugin.json` + `SKILL.md`
-   de prueba) — o usa el zip minimal del repo.
+1. Descarga **[email-triage-v3.1.0-cowork-install.zip](https://github.com/novanoticia/email-triage-plugin/releases/download/v3.1.0/email-triage-v3.1.0-cowork-install.zip)**
+   (zip minimal compatible con el validador de Cowork).
 2. Instálalo desde Cowork → Plugins → "+" → Upload.
 3. Una vez instalado, **copia manualmente** el SKILL.md real y el config.yaml
    al directorio `rpm/plugin_XXXXXX/skills/email-triage/` dentro de la sesión
