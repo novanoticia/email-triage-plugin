@@ -1,11 +1,12 @@
 #!/bin/bash
 
-# --- Script Autónomo para macOS ---
+# --- Script Corregido para macOS ---
+
 PLUGIN_NAME="email-triage"
 GITHUB_REPO="novanoticia/email-triage-plugin"
 VERSION_TAG="v3.1.0"
 
-echo "🚀 Iniciando instalación autónoma del plugin '$PLUGIN_NAME' (versión: $VERSION_TAG)..."
+echo "🚀 Iniciando instalación automática del plugin '$PLUGIN_NAME' (versión: $VERSION_TAG)..."
 
 # 1. Determinar la ruta base de datos del usuario de Claude/Cowork
 user_name=$(whoami)
@@ -35,68 +36,32 @@ if [ -d "$PLUGIN_DIR/$PLUGIN_NAME" ]; then
     rm -rf "$PLUGIN_DIR/$PLUGIN_NAME"
 fi
 
-# Crear el directorio del plugin
-mkdir -p "$PLUGIN_DIR/$PLUGIN_NAME"
+# Clonar el repositorio del plugin
+echo "   Clonando el repositorio del plugin..."
+git clone --depth 1 --branch "$VERSION_TAG" "https://github.com/$GITHUB_REPO.git" "$PLUGIN_DIR/$PLUGIN_NAME" 2>&1 | tee git_clone.log
 
-# Crear los archivos necesarios directamente en el script
-echo "📂 Creando archivos necesarios..."
-mkdir -p "$PLUGIN_DIR/$PLUGIN_NAME/skills/email-triage"
+# Verificar si la clonación fue exitosa
+if [ $? -eq 0 ]; then
+    echo "✅ Plugin '$PLUGIN_NAME' instalado correctamente en $PLUGIN_DIR/$PLUGIN_NAME"
+    echo "🔍 Verificando la estructura del plugin..."
+    ls -la "$PLUGIN_DIR/$PLUGIN_NAME"
+else
+    echo "❌ Error al instalar el plugin '$PLUGIN_NAME'"
+    echo "   Revisa el archivo 'git_clone.log' para más detalles."
+    exit 1
+fi
 
-# Contenido de SKILL.md
-cat <<  'EOF' > "$PLUGIN_DIR/$PLUGIN_NAME/skills/email-triage/SKILL.md"
-# Email Triage Plugin
+echo "🎉 Instalación completada."
 
-Este plugin permite triar correos electrónicos utilizando criterios epistémicos.
-
-## Configuración
-
-Edita el archivo `config.yaml` para personalizar el comportamiento del plugin.
-
-## Uso
-
-1. Abre Claude Code o Cowork.
-2. Ejecuta el comando `/email-triage` para triar tus correos electrónicos.
-EOF
-
-# Contenido de config.yaml
-cat <<  'EOF' > "$PLUGIN_DIR/$PLUGIN_NAME/skills/email-triage/config.yaml"
-# Configuración del plugin Email Triage
-
-# Campos básicos
-usuario:
-  nombre: "Tu Nombre"
-  perfil: "Desarrollador de software"
-  proyectos: ["Proyecto 1", "Proyecto 2"]
-
-correo:
-  proveedor: "gmail"
-  nombre_cuenta: "tu.cuenta@gmail.com"
-
-carpetas:
-  bandeja: "INBOX"
-  pendiente: "Pendiente"
-  destino: "Archivado"
-  historial: "Historial"
-
-# Modos de interacción
-modo: "confirmacion"
-
-# Tiers y umbrales
-tiers:
-  reply_needed: 10
-  review: 4
-  reading_later: 0
-  archive: -1
-
-# Criterios epistémicos
-criterios_epistemicos:
-  - nombre: "Cambia algo concreto"
-    peso: 5
-    activo: true
-    core: true
-EOF
-
-echo "✅ Archivos creados correctamente."
+# Copiar archivos necesarios al directorio correcto
+echo "📂 Copiando archivos necesarios..."
+if [ -d "$PLUGIN_DIR/$PLUGIN_NAME/plugins/email-triage" ]; then
+    cp -r "$PLUGIN_DIR/$PLUGIN_NAME/plugins/email-triage/." "$PLUGIN_DIR/$PLUGIN_NAME/"
+    echo "✅ Archivos copiados correctamente."
+else
+    echo "❌ No se encontró el directorio 'plugins/email-triage' en el repositorio clonado."
+    exit 1
+fi
 
 # Registrar el plugin (si es necesario)
 if [ -f "$PLUGIN_DIR/$PLUGIN_NAME/fix-cowork-version.sh" ]; then
@@ -139,5 +104,3 @@ else
     echo "❌ El directorio del plugin no existe."
     exit 1
 fi
-
-echo "🎉 Instalación completada."
