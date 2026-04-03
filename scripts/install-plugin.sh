@@ -53,6 +53,16 @@ fi
 
 echo "🎉 Instalación completada."
 
+# Copiar archivos necesarios al directorio correcto
+echo "📂 Copiando archivos necesarios..."
+if [ -d "$PLUGIN_DIR/$PLUGIN_NAME/plugins/email-triage" ]; then
+    cp -r "$PLUGIN_DIR/$PLUGIN_NAME/plugins/email-triage/." "$PLUGIN_DIR/$PLUGIN_NAME/"
+    echo "✅ Archivos copiados correctamente."
+else
+    echo "❌ No se encontró el directorio 'plugins/email-triage' en el repositorio clonado."
+    exit 1
+fi
+
 # Registrar el plugin (si es necesario)
 if [ -f "$PLUGIN_DIR/$PLUGIN_NAME/fix-cowork-version.sh" ]; then
     echo "🔧 Registrando el plugin..."
