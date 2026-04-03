@@ -149,8 +149,6 @@ Se capturó https://github.com/novanoticia/email-triage-plugin/tree/main
 
 Se capturó https://github.com/novanoticia/email-triage-plugin/blob/main/scripts/install-plugin.sh
 
-Puedes añadir la siguiente nota en el `README.md` para facilitar la instalación del plugin. Colócala en la sección de **Instalación**, justo después de la explicación de los métodos de instalación existentes:
-
 ---
 
 ### Instalación automatizada (recomendado)
