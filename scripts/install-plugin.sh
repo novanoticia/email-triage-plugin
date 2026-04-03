@@ -83,7 +83,7 @@ echo "🔍 Verificando la estructura del plugin..."
 if [ -d "$PLUGIN_DIR/$PLUGIN_NAME" ]; then
     echo "   Contenido del directorio del plugin:"
     ls -la "$PLUGIN_DIR/$PLUGIN_NAME"
-    if [ -f "$PLUGIN_DIR/$PLUGIN_NAME/SKILL.md" ] && [ -f "$PLUGIN_DIR/$PLUGIN_NAME/config.yaml" ]; then
+    if [ -f "$PLUGIN_DIR/$PLUGIN_NAME/skills/email-triage/SKILL.md" ] && [ -f "$PLUGIN_DIR/$PLUGIN_NAME/skills/email-triage/config.yaml" ]; then
         echo "✅ Los archivos SKILL.md y config.yaml están presentes."
     else
         echo "❌ Faltan archivos necesarios en el directorio del plugin."
