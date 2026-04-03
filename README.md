@@ -141,6 +141,40 @@ El script busca automáticamente la sesión activa de Cowork y copia los archivo
 
 > **¿Por qué dos pasos?** El backend de Anthropic rechaza archivos `.yaml` en ZIPs subidos, así que el ZIP de instalación solo contiene el manifest. El script copia el SKILL.md completo y el `config.yaml` real una vez que Cowork ha registrado el plugin.
 
+
+
+
+
+Se capturó https://github.com/novanoticia/email-triage-plugin/tree/main
+
+Se capturó https://github.com/novanoticia/email-triage-plugin/blob/main/scripts/install-plugin.sh
+
+Puedes añadir la siguiente nota en el `README.md` para facilitar la instalación del plugin. Colócala en la sección de **Instalación**, justo después de la explicación de los métodos de instalación existentes:
+
+---
+
+### Instalación automatizada (recomendado)
+
+Para facilitar la instalación del plugin, puedes utilizar el script `install-plugin.sh`. Este script automatiza el proceso de clonación del repositorio y configuración del plugin en tu sistema.
+
+1. **Descarga el script**:
+   ```bash
+   curl -O https://raw.githubusercontent.com/novanoticia/email-triage-plugin/main/scripts/install-plugin.sh
+   ```
+
+2. **Ejecuta el script**:
+   ```bash
+   chmod +x install-plugin.sh
+   ./install-plugin.sh
+   ```
+
+El script se encargará de:
+- Clonar el repositorio del plugin.
+- Configurar el plugin en el directorio correcto.
+- Registrar el plugin si es necesario.
+
+---
+
 ## Configuración
 
 Edita `skills/email-triage/config.yaml` antes del primer uso:
