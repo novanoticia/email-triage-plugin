@@ -80,13 +80,24 @@ fi
 
 # Verificar la estructura del plugin
 echo "🔍 Verificando la estructura del plugin..."
+SKILLS_DIR="$PLUGIN_DIR/$PLUGIN_NAME/skills/email-triage"
 if [ -d "$PLUGIN_DIR/$PLUGIN_NAME" ]; then
     echo "   Contenido del directorio del plugin:"
     ls -la "$PLUGIN_DIR/$PLUGIN_NAME"
-    if [ -f "$PLUGIN_DIR/$PLUGIN_NAME/skills/email-triage/SKILL.md" ] && [ -f "$PLUGIN_DIR/$PLUGIN_NAME/skills/email-triage/config.yaml" ]; then
-        echo "✅ Los archivos SKILL.md y config.yaml están presentes."
+    if [ -d "$SKILLS_DIR" ]; then
+        echo "   Directorio skills/email-triage encontrado."
+        echo "   Verificando archivos en: $SKILLS_DIR/"
+        ls -la "$SKILLS_DIR/"
+        if [ -f "$SKILLS_DIR/SKILL.md" ] && [ -f "$SKILLS_DIR/config.yaml" ]; then
+            echo "✅ Los archivos SKILL.md y config.yaml están presentes."
+        else
+            echo "❌ Faltan archivos necesarios en el directorio del plugin."
+            echo "   Archivos esperados: SKILL.md y config.yaml"
+            exit 1
+        fi
     else
-        echo "❌ Faltan archivos necesarios en el directorio del plugin."
+        echo "❌ El directorio skills/email-triage no existe."
+        echo "   Ruta esperada: $SKILLS_DIR/"
         exit 1
     fi
 else
