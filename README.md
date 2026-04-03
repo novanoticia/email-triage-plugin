@@ -145,10 +145,6 @@ El script busca automáticamente la sesión activa de Cowork y copia los archivo
 
 
 
-Se capturó https://github.com/novanoticia/email-triage-plugin/tree/main
-
-Se capturó https://github.com/novanoticia/email-triage-plugin/blob/main/scripts/install-plugin.sh
-
 ---
 
 ### Instalación automatizada (recomendado)
