@@ -116,9 +116,10 @@ end tell
 
 **Nota sobre `content` de Mail.app**: La propiedad `content` devuelve el texto
 plano del correo. Si el correo es solo HTML sin parte text/plain, puede devolver
-el HTML en bruto. En ese caso, el modelo debe extraer el texto relevante
-ignorando las etiquetas HTML. Si `content` falla (error de permisos o formato),
-el bloque `try/on error` asegura que el triaje continúa solo con asunto y remitente.
+el HTML en bruto. **ANTES de usar el extracto para cualquier evaluación, DEBE
+pasar por el pipeline de sanitización descrito en "PASO 1.B — Sanitización del
+cuerpo"**. Si `content` falla (error de permisos o formato), el bloque
+`try/on error` asegura que el triaje continúa solo con asunto y remitente.
 
 #### Mover un correo
 
@@ -224,6 +225,95 @@ Flujo verificado con herramientas Gmail MCP:
 ### Otro proveedor
 
 Preguntar al usuario qué conectores MCP o AppleScript tiene disponibles.
+
+---
+
+## PASO 1.B — SANITIZACIÓN DEL CUERPO (obligatorio antes de evaluar)
+
+Todo extracto de cuerpo (`content` de Mail.app, `body` de Gmail MCP, o cualquier
+otra fuente) **DEBE** pasar por este pipeline de limpieza ANTES de llegar al
+motor de evaluación epistémica. Sin esta sanitización, los criterios como
+`densidad_informativa`, `hug_the_query` o `sorpresa_bayesiana` evaluarán basura
+(CSS, HTML, Base64, firmas corporativas) como si fuera contenido real, generando
+falsos positivos y desperdiciando tokens.
+
+### Pipeline de sanitización (aplicar en orden)
+
+**Paso S1 — Eliminar cadenas de respuestas (reply chains)**
+
+Cortar el texto en la PRIMERA ocurrencia de cualquiera de estos marcadores:
+- `On ... wrote:` / `El ... escribió:`
+- `---------- Forwarded message ----------`
+- `> ` al inicio de 3+ líneas consecutivas (quoted text)
+- `From:` seguido de una dirección de email (cabecera de reenvío)
+- `_____` (5+ guiones bajos, separador típico de Outlook)
+
+Quedarse SOLO con el mensaje más reciente. El contexto histórico del hilo no
+aporta al triaje y puede multiplicar los tokens por 5-10x.
+
+**Paso S2 — Strip HTML**
+
+Si el extracto contiene etiquetas HTML (`<div>`, `<table>`, `<span>`, `<style>`,
+`<head>`, `<!DOCTYPE`, etc.):
+
+1. Eliminar completamente bloques `<style>...</style>` y `<script>...</script>`
+2. Eliminar todas las etiquetas HTML, conservando solo el texto entre ellas
+3. Convertir entidades HTML comunes: `&nbsp;` → espacio, `&amp;` → `&`,
+   `&lt;` → `<`, `&gt;` → `>`, `&#39;` → `'`, `&quot;` → `"`
+4. Colapsar múltiples espacios/líneas vacías consecutivas en un solo salto de línea
+
+Si tras la limpieza el texto útil tiene menos de 30 caracteres, marcar como
+`[cuerpo no legible — HTML sin texto plano]`.
+
+**Paso S3 — Decodificar Base64**
+
+Si el extracto contiene bloques de texto que parecen Base64 (líneas largas de
+caracteres alfanuméricos+/= sin espacios, típicamente >76 caracteres por línea):
+
+- No intentar decodificar — marcar como `[contenido codificado Base64]`
+- Tratar el correo como `[solo metadatos]` para la evaluación epistémica
+- Es preferible evaluar sin cuerpo que evaluar basura codificada
+
+**Paso S4 — Eliminar firmas y disclaimers**
+
+Cortar el texto en la PRIMERA ocurrencia de:
+- `--` al inicio de línea seguido de contenido de firma (nombre, cargo, teléfono)
+- `Enviado desde mi iPhone` / `Sent from my iPhone` / variantes de dispositivo
+- `Este mensaje es confidencial` / `This email is confidential` / disclaimers legales
+- Bloques con 3+ líneas consecutivas que solo contienen: nombre, cargo, empresa,
+  teléfono, dirección, URL, o iconos de redes sociales
+
+**Paso S5 — Validación final**
+
+Tras aplicar S1-S4, verificar:
+- Si el texto resultante tiene menos de 30 caracteres útiles → `[cuerpo no legible]`
+- Si el texto resultante supera 1500 caracteres → truncar a 1500 + `[truncado]`
+- Si el texto resultante tiene ratio de caracteres especiales (no alfanuméricos
+  ni espacios) > 40% → `[cuerpo corrupto]` y usar solo metadatos
+
+### Etiquetas de estado del cuerpo
+
+Cada correo procesado DEBE llevar una de estas etiquetas internas:
+
+| Etiqueta | Significado | Evaluación |
+|----------|-------------|------------|
+| `[texto limpio]` | Cuerpo sanitizado con éxito | Evaluación completa (30 criterios) |
+| `[HTML detectado]` | Se extrajo texto de HTML | Evaluación completa, -1 en densidad_informativa |
+| `[cuerpo no legible]` | HTML sin texto plano extraíble | Solo hard rules + criterios 1-5 |
+| `[contenido codificado Base64]` | Cuerpo codificado | Solo metadatos |
+| `[cuerpo corrupto]` | Ratio de basura > 40% | Solo metadatos |
+| `[solo metadatos]` | No se pudo leer el cuerpo | Solo hard rules + criterios 1-5 + criterio 28 |
+| `[sin acceso al cuerpo]` | Error de permisos/timeout | Solo metadatos |
+
+### Feedback al usuario
+
+Al final de cada sesión de triaje, si hubo correos con cuerpos problemáticos,
+informar una sola vez:
+
+> "N correos tenían cuerpo HTML/codificado sin texto plano extraíble.
+> Se analizaron por metadatos. Si quieres mejor precisión para estos remitentes,
+> configura tu cliente de correo para solicitar text/plain o añádelos a
+> `remitentes_prioritarios` para forzar lectura detallada en futuras sesiones."
 
 ---
 
@@ -473,8 +563,12 @@ sin leer el texto.
 
 ### 4.D — Evaluación con acceso al cuerpo
 
-Cuando se dispone del extracto del cuerpo (propiedad `content` de Mail.app
-o `body` de Gmail MCP):
+**Prerrequisito**: el extracto del cuerpo DEBE haber pasado por el pipeline
+de sanitización del PASO 1.B antes de llegar aquí. La evaluación epistémica
+opera SOLO sobre texto sanitizado y etiquetado.
+
+Cuando se dispone del extracto sanitizado del cuerpo (propiedad `content` de
+Mail.app o `body` de Gmail MCP, tras PASO 1.B):
 
 1. **Primer filtro rápido** — Evaluar asunto + remitente (hard rules + criterios 1-5)
 2. **Si score parcial >= 1** — Analizar extracto del cuerpo con los 12 criterios core
@@ -579,7 +673,7 @@ RESUMEN DE TRIAJE v3.0
 - No muevas sin confirmación en modo `confirmacion`
 - Si no puedes acceder a una carpeta, informa y pide verificar el nombre
 - No confundas "interesante" con "valioso" — el criterio es impacto, no curiosidad
-- Si `content` devuelve HTML crudo, extrae el texto ignorando tags
+- Si `content` devuelve HTML crudo, aplicar pipeline de sanitización PASO 1.B completo
 - Si `content` falla, continúa el triaje solo con asunto/remitente (modo degradado)
 - Al mover en lote, captura las referencias antes de mover (ver patrón seguro en PASO 1)
 - Si la calibración da un perfil incoherente, informa y sugiere acotar
@@ -652,24 +746,18 @@ Si una operación tarda más de lo esperado:
   es `confirmacion`; en modo `lote` o `silencioso`, informar al final con
   el conteo de éxitos y fallos
 
-### Validación de contenido HTML y basura
+### Validación de contenido HTML, Base64 y basura
 
-Cuando `content` de Mail.app o `body` de Gmail MCP devuelve HTML en bruto
-(tags, entidades, estilos inline), el análisis epistémico se degrada porque
-la "densidad informativa" y otros criterios evalúan texto basura como contenido.
+**Esta sección queda cubierta por el PASO 1.B — Sanitización del cuerpo.**
 
-**Reglas de limpieza antes del análisis:**
+El pipeline completo de sanitización (strip reply chains → strip HTML → detectar
+Base64 → eliminar firmas → validación final) se aplica SIEMPRE antes de que el
+cuerpo llegue al motor epistémico. Ver PASO 1.B para el procedimiento detallado
+y la tabla de etiquetas de estado del cuerpo.
 
-1. **Detección**: Si el extracto contiene más de 3 tags HTML (`<div>`, `<table>`,
-   `<span>`, etc.) en los primeros 200 caracteres, marcarlo como `[HTML detectado]`
-2. **Limpieza**: El modelo debe extraer el texto visible ignorando tags, pero
-   NO invertir esfuerzo en parsear HTML complejo — si el texto limpio resultante
-   tiene menos de 50 caracteres útiles, tratar como `[cuerpo no legible]`
-3. **Scoring ajustado**: Correos marcados como `[cuerpo no legible]` o
-   `[HTML detectado]` reciben automáticamente -1 en `densidad_informativa`
-   y se evalúan en modo degradado (solo hard rules + criterios 1-5 del Grupo B)
-4. **Feedback**: Informar al usuario: "N correos tenían HTML sin texto plano.
-   Se analizaron solo por metadatos."
+**Regla cardinal**: nunca evaluar criterios epistémicos sobre texto que no haya
+pasado por el pipeline S1-S5. HTML en bruto, CSS, Base64, firmas corporativas y
+reply chains son basura para el motor de inferencia y generan falsos positivos.
 
 ### Modo degradado
 
