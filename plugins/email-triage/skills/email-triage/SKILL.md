@@ -173,6 +173,13 @@ tell application "Mail"
         set msgSender to sender of msg
         set msgDate to date received of msg
 
+        -- Extraer message id para agrupación de hilos
+        try
+            set msgID to message id of msg
+        on error
+            set msgID to "unknown-" & i
+        end try
+
         -- ACCESO AL CUERPO: extraer primeras líneas del contenido
         try
             set msgContent to content of msg
@@ -188,6 +195,7 @@ tell application "Mail"
             linefeed & "Asunto: " & msgSubject & ¬
             linefeed & "De: " & msgSender & ¬
             linefeed & "Fecha: " & (msgDate as string) & ¬
+            linefeed & "MessageID: " & msgID & ¬
             linefeed & "<email-body-data>" & ¬
             linefeed & msgContent & ¬
             linefeed & "</email-body-data>"
@@ -432,6 +440,78 @@ informar una sola vez:
 > Se analizaron por metadatos. Si quieres mejor precisión para estos remitentes,
 > configura tu cliente de correo para solicitar text/plain o añádelos a
 > `remitentes_prioritarios` para forzar lectura detallada en futuras sesiones."
+
+---
+
+## PASO 1.C — DETECCIÓN Y AGRUPACIÓN DE HILOS
+
+Ejecutar DESPUÉS del PASO 1.B (sanitización) y ANTES del PASO 2.
+Transforma la lista plana de mensajes en unidades de evaluación: mensajes
+individuales o hilos agrupados. Esto es lo que garantiza que `presion_accion`
+y `hilo_esperando_respuesta` se evalúen sobre el hilo completo, no sobre
+un fragmento aislado.
+
+### Algoritmo de agrupación
+
+**1. Normalizar el asunto de cada mensaje**
+
+Eliminar prefijos de respuesta/reenvío para obtener el asunto raíz:
+- Eliminar: `Re:`, `RE:`, `Fwd:`, `FWD:`, `RV:`, `Aw:`, `SV:`, `TR:`
+  (y sus variantes con espacios o combinadas, ej: `Re: Fwd:`)
+- Trim de espacios y normalizar a minúsculas
+- El resultado es la `clave_hilo`
+
+**2. Agrupar por clave_hilo + participante común**
+
+Dos mensajes pertenecen al mismo hilo si:
+- Tienen la misma `clave_hilo`, Y
+- Comparten al menos un participante (el dominio del remitente de uno
+  aparece como dominio del remitente del otro, o el mismo remitente exacto)
+
+Esto evita falsos positivos con asuntos genéricos como "Hola" o "Reunión"
+entre remitentes sin relación.
+
+**3. Clasificar el resultado**
+
+- Grupo de 1 mensaje → `tipo: individual`
+- Grupo de 2+ mensajes → `tipo: hilo`, ordenar por fecha (más antiguo primero)
+
+### Estructura del hilo
+
+Para cada hilo detectado, construir este objeto interno:
+
+```
+HILO [clave_hilo]
+  mensajes: [lista ordenada por fecha, más antiguo primero]
+  count: N
+  primer_mensaje: {from, date, subject original}
+  ultimo_mensaje: {from, date, body_sanitizado}
+  participantes: [lista de remitentes únicos]
+  usuario_es_ultimo_en_responder: true/false
+    → true si el último mensaje es del usuario (requiere comparar
+      `from` con el campo `correo.cuenta` del config)
+    → false si el último mensaje es de otro participante
+```
+
+`usuario_es_ultimo_en_responder: false` es la condición clave para
+activar la hard rule `hilo_esperando_respuesta_del_usuario` (+5).
+
+### Casos especiales
+
+- **Asunto vacío o solo prefijos**: tratar como `tipo: individual`
+  (no se puede agrupar de forma fiable)
+- **Hilo con >10 mensajes**: procesar solo los últimos 5 para el análisis
+  del cuerpo; el `count` real se refleja en el score (+1 por profundidad)
+- **Mensajes de distintas carpetas en el mismo hilo**: posible si el usuario
+  archivó parte del hilo. No agrupar entre carpetas — evaluar solo los
+  mensajes presentes en la carpeta actual del triaje
+
+### Impacto en el lote
+
+Contar cada **hilo** como una unidad para el límite de `limite_por_sesion`,
+no cada mensaje. Un hilo de 5 mensajes cuenta como 1 unidad del lote.
+Informar al usuario: "N unidades procesadas (X mensajes individuales +
+Y hilos con Z mensajes en total)."
 
 ---
 
@@ -786,6 +866,69 @@ Los colores de tier en el formato de presentación:
 - Mueve automáticamente según tier
 - Presenta resumen al final con desglose por tier
 
+### 4.J — Evaluación de hilos como unidad
+
+Cuando PASO 1.C clasifica una unidad como `tipo: hilo`, aplicar este
+procedimiento en lugar de evaluar cada mensaje por separado.
+
+#### Qué se evalúa
+
+- **Cuerpo**: usar el `body_sanitizado` del `ultimo_mensaje` (el más reciente
+  es lo que el usuario necesita procesar ahora)
+- **Metadatos de contexto**: usar `count`, `participantes`, y
+  `usuario_es_ultimo_en_responder` para informar criterios específicos
+- **Asunto**: usar el asunto del `ultimo_mensaje`
+- **Remitente**: usar el remitente del `ultimo_mensaje`
+
+#### Hard rules específicas de hilo (añadir a las de 4.A)
+
+| Fuente | Puntos | Condición |
+|--------|--------|-----------|
+| **Hilo esperando respuesta** | +5 | `usuario_es_ultimo_en_responder: false` |
+| **Profundidad de hilo** | +1 | `count >= 3` (conversación activa) |
+| **Hilo muy largo** | -1 | `count >= 10` (posible ruido acumulado) |
+| **Único participante externo** | +1 | Solo hay un remitente externo (conversación directa, no lista) |
+
+#### Criterios epistémicos afectados por el contexto de hilo
+
+Estos criterios deben considerar el hilo completo, no solo el último mensaje:
+
+- **`presion_accion`**: evaluar si hay una pregunta o acción pendiente del
+  último mensaje *y* si el usuario no ha respondido aún. Si
+  `usuario_es_ultimo_en_responder: true`, bajar `presion_accion` (ya respondió)
+- **`urgencia_real_vs_fabricada`**: un hilo largo con múltiples intercambios
+  sin resolución es evidencia de urgencia real, no fabricada
+- **`sorpresa_bayesiana`**: si el hilo muestra un cambio de posición o nueva
+  información respecto al mensaje inicial, sube este criterio
+- **`relevancia_longitudinal`**: hilos con ≥3 participantes distintos suelen
+  tener mayor relevancia longitudinal
+
+#### Tier y movimiento del hilo
+
+El tier se asigna al **hilo completo**. Al mover, mover **todos los mensajes
+del hilo** juntos usando el patrón de referencias del PASO 1. Nunca mover
+un mensaje de un hilo sin mover el resto — dejaría el hilo partido entre
+carpetas.
+
+En el session log (PASO 4.I), registrar una entrada por mensaje del hilo,
+todas con el mismo `thread_id: [clave_hilo]`, para que el undo revierta
+el hilo completo.
+
+#### Formato de presentación de hilo
+
+```
+🧵 [Asunto raíz] — hilo de N mensajes
+   Participantes: [remitente1], [remitente2]... | Último: [DD/MM] de [remitente]
+   ⏳ Esperando tu respuesta: [Sí / No]
+📝 Resumen del último mensaje: [2-3 líneas]
+📊 Puntuación: X (decisional +N, epistémica +N, manipulación N, cognitivo N, acción +N, hilo +N)
+[🔴|🟡|🔵|⚪] Tier: [REPLY_NEEDED | REVIEW | READING_LATER | ARCHIVE]
+   ▲ [razón positiva 1] | [razón positiva 2] | [razón positiva 3]
+   ▼ [razón negativa 1] | [razón negativa 2] | [razón negativa 3]
+💬 [Rationale: 1-2 frases que mencionan explícitamente si hay respuesta pendiente]
+🔵 Recomendación: MOVER hilo completo (N mensajes) → [destino] / DEJAR / ARCHIVAR
+```
+
 ### 4.H — Gestión de escala
 
 - **Lote estándar**: hasta 50 correos por ejecución (configurable con `limite_por_sesion`)
@@ -994,6 +1137,8 @@ Se activa cuando el usuario dice "deshaz el triaje", "undo", "revierte los movim
 - Si `content` devuelve HTML crudo, aplicar pipeline de sanitización PASO 1.B completo
 - Si `content` falla, continúa el triaje solo con asunto/remitente (modo degradado)
 - Al mover en lote, captura las referencias antes de mover (ver patrón seguro en PASO 1)
+- Nunca mover un mensaje de un hilo sin mover el hilo completo — deja conversaciones partidas entre carpetas
+- `hilo_esperando_respuesta` solo aplica si `usuario_es_ultimo_en_responder: false` — verificar antes de aplicar el +5
 - Registra cada movimiento en el session log (PASO 4.I) ANTES de ejecutarlo — sin log no hay undo
 - Si el log falla, avisa al usuario pero no abortes el triaje
 - Si la calibración da un perfil incoherente, informa y sugiere acotar
