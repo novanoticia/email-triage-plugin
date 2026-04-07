@@ -70,6 +70,12 @@ carpetas:
   # visibles en la bandeja principal.
   # Si solo puedes usar un destino, pon el mismo valor que "destino".
 
+  destino_archive: ""
+  # Carpeta a la que se mueven los correos ARCHIVE.
+  # Si está vacío, el skill archiva nativamente (quita del inbox sin borrar).
+  # Si se especifica (ej: "Archivo" o "Claude/Descartados"), mueve a esa carpeta.
+  # Si la carpeta no existe, el skill la creará automáticamente.
+
   historial: "Conservar"
   # Opcional. Se usa para calibración estadística.
   # Debe contener correos que has decidido conservar manualmente.

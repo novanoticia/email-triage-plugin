@@ -548,7 +548,7 @@ Cada tier tiene un **indicador de color** (banderita) para identificación visua
 | **REPLY_NEEDED** | 🔴 (rojo) | ≥ 10 | Requiere respuesta o acción directa | Mover a `carpetas.destino_reply_needed` (o `destino`) + marcar |
 | **REVIEW** | 🟡 (amarillo) | 4–9 | Vale la pena leer con atención | Mover a `carpetas.destino` |
 | **READING_LATER** | 🔵 (azul) | 0–3 | Interesante pero no urgente | Dejar en `carpetas.pendiente` |
-| **ARCHIVE** | ⚪ (gris) | < 0 | Ruido, ritual o manipulación | Archivar o dejar (según modo) |
+| **ARCHIVE** | ⚪ (gris) | < 0 | Ruido, ritual o manipulación | Mover a `carpetas.destino_archive` si está definido; si no, archivar nativamente (según modo) |
 
 **Uso obligatorio de indicadores**: En TODA presentación de resultados (correo
 individual, tabla resumen, resumen de sesión), el tier DEBE ir acompañado de
@@ -649,7 +649,7 @@ RESUMEN DE TRIAJE v3.0
    🔴 REPLY_NEEDED: N correos → movidos a [destino]
    🟡 REVIEW:       N correos → movidos a [destino]
    🔵 READING_LATER: N correos → dejados en [pendiente]
-   ⚪ ARCHIVE:       N correos → archivados / dejados
+   ⚪ ARCHIVE:       N correos → movidos a [destino_archive] / archivados / dejados
 
 📊 Scoring:
    Puntuación media: X.X | Máxima: X | Mínima: X
