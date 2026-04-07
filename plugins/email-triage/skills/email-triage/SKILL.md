@@ -62,6 +62,91 @@ Sin perfil, el criterio de valor diferencial no tiene ancla.
 
 ---
 
+## PASO 0.B — Cargar ajustes aprendidos de correcciones anteriores
+
+Ejecutar DESPUÉS de leer `config.yaml` y ANTES de conectar al proveedor.
+Lee `~/.email-triage/correcciones.jsonl` con Desktop Commander y calcula
+ajustes dinámicos que se superpondrán a los pesos estáticos del config
+durante esta sesión.
+
+Si el archivo no existe o está vacío: continuar sin ajustes aprendidos.
+No es un error — simplemente no hay historial de correcciones todavía.
+
+### 1. Leer y filtrar correcciones
+
+Leer todas las entradas de `correcciones.jsonl`. Aplicar decay temporal:
+- Correcciones de los últimos 30 días → peso completo (×1.0)
+- Entre 31 y 90 días → peso reducido (×0.5)
+- Más de 90 días → ignorar
+
+Cada entrada tiene este formato:
+```json
+{"session_id":"...","ts":"ISO8601","message_id":"<id>","subject":"...","from":"remitente@dominio.com","tier_asignado":"ARCHIVE","tier_corregido":"REVIEW","score_final":-2}
+```
+
+### 2. Calcular dirección de cada corrección
+
+Mapear `tier_asignado` → `tier_corregido` a una dirección numérica:
+
+| Corrección | Dirección |
+|------------|-----------|
+| ARCHIVE → READING_LATER | +1 |
+| ARCHIVE → REVIEW | +2 |
+| ARCHIVE → REPLY_NEEDED | +3 |
+| READING_LATER → REVIEW | +1 |
+| READING_LATER → REPLY_NEEDED | +2 |
+| REVIEW → REPLY_NEEDED | +1 |
+| REPLY_NEEDED → REVIEW | -1 |
+| REVIEW → READING_LATER | -1 |
+| REVIEW → ARCHIVE | -2 |
+| READING_LATER → ARCHIVE | -1 |
+| REPLY_NEEDED → READING_LATER | -2 |
+| REPLY_NEEDED → ARCHIVE | -3 |
+
+### 3. Construir tabla de ajustes dinámicos
+
+Agrupar las correcciones (con decay aplicado) por tres dimensiones:
+
+**a) Por remitente** (`from` exacto):
+- Sumar direcciones ponderadas de todas sus correcciones
+- Si suma ≥ +3 → `ajuste_remitente: +2`
+- Si suma ≥ +5 → `ajuste_remitente: +3`
+- Si suma ≤ -3 → `ajuste_remitente: -2`
+- Si suma ≤ -5 → `ajuste_remitente: -3`
+- Entre -2 y +2 → sin ajuste (ruido estadístico)
+
+**b) Por dominio** (parte `@dominio.com` del `from`):
+- Misma lógica, umbrales el doble de estrictos (necesita ≥ 6 / ≤ -6 para ajustar)
+- Ajuste máximo: ±1
+
+**c) Por keywords en asunto**:
+- Extraer palabras del `subject` de cada corrección (excluyendo stopwords)
+- Si una keyword aparece en ≥ 3 correcciones UP con peso total ≥ +3 → `ajuste_keyword: +1`
+- Si una keyword aparece en ≥ 3 correcciones DOWN con peso total ≤ -3 → `ajuste_keyword: -1`
+
+### 4. Detectar deriva de umbrales
+
+Si en las últimas 20 correcciones (con decay), más del 70% van en la misma
+dirección, el modelo tiene un sesgo sistemático. Alertar al usuario:
+
+> "⚠️ Ajuste sugerido: el 75% de tus últimas correcciones suben el tier
+> asignado. Considera bajar el umbral de `review` de 4 a 3 en config.yaml
+> para que el modelo sea menos conservador."
+
+No aplicar el cambio automáticamente — solo sugerirlo.
+
+### 5. Mostrar resumen de ajustes cargados
+
+Si `mostrar_calibracion: true` en config, mostrar la tabla completa.
+Si no, confirmar brevemente:
+
+> "Ajustes aprendidos: N remitentes con boost/penalización, M keywords
+> ajustadas, basados en X correcciones de los últimos 90 días."
+
+Si no hay ajustes: no mostrar nada (no hay nada que reportar).
+
+---
+
 ## PASO 1 — Conectar al proveedor de correo
 
 ### iCloud / Mail.app (macOS)
@@ -454,7 +539,11 @@ Esta es la fase principal. Revisa `carpetas.pendiente`.
 
 ### 4.A — Reglas duras (hard rules)
 
-Antes de evaluar criterios epistémicos, aplica reglas deterministas:
+Antes de evaluar criterios epistémicos, aplica reglas deterministas.
+Las reglas se aplican en dos capas: primero las **reglas estáticas** del
+config, luego los **ajustes aprendidos** calculados en PASO 0.B.
+
+#### Reglas estáticas (config.yaml)
 
 | Fuente | Puntos | Condición |
 |--------|--------|-----------|
@@ -473,6 +562,37 @@ Antes de evaluar criterios epistémicos, aplica reglas deterministas:
 | **Hilo esperando respuesta del usuario** | +5 | El usuario es el blocker |
 | **Sender bulk / unsubscribe** | -4 | Header unsubscribe o sender masivo |
 | **Sin acción y sin info nueva** | -5 | No pide nada y no aporta novedad |
+
+#### Ajustes aprendidos (PASO 0.B) — aplicar después de las reglas estáticas
+
+Si PASO 0.B produjo una tabla de ajustes dinámicos, aplicarlos ahora:
+
+| Fuente | Puntos | Condición |
+|--------|--------|-----------|
+| **Remitente aprendido (boost)** | +2 o +3 | Corregido consistentemente hacia arriba |
+| **Remitente aprendido (penalización)** | -2 o -3 | Corregido consistentemente hacia abajo |
+| **Dominio aprendido (boost)** | +1 | Dominio con patrón de subida |
+| **Dominio aprendido (penalización)** | -1 | Dominio con patrón de bajada |
+| **Keyword aprendida (boost)** | +1 | Keyword correlacionada con correcciones UP |
+| **Keyword aprendida (penalización)** | -1 | Keyword correlacionada con correcciones DOWN |
+
+**Reglas de precedencia**:
+- Un ajuste aprendido NO puede convertir un remitente de `ignorar` (-99) en
+  evaluable — las reglas de bloqueo total son inmunes al aprendizaje
+- Un ajuste aprendido puede sobrepasar a `remitentes_prioritarios` si hay
+  suficiente evidencia contraria (≥ 5 correcciones DOWN con peso ≥ -5)
+- Los ajustes aprendidos se muestran en el desglose del score como
+  `[aprendido]` para distinguirlos de las reglas estáticas
+
+**En el desglose de puntuación**, mostrar los ajustes aprendidos
+explícitamente:
+
+```
+📊 Puntuación: 6
+   Hard rules: +1 (dominio frecuente)
+   Aprendido:  +2 (remitente corregido 4 veces hacia arriba)
+   Epistémico: +3 (valor_decisional +2, calidad_epistemica +1)
+```
 
 ### 4.B — Criterios epistémicos (30 criterios, 5 ejes)
 
@@ -740,6 +860,12 @@ RESUMEN DE TRIAJE v3.0
    ▼ [criterio negativo 2]: N veces
 
 🔄 Correcciones del usuario: N (si hubo overrides)
+
+🧠 Ajustes aprendidos aplicados:
+   Remitentes con boost: N | con penalización: N
+   Keywords ajustadas: N
+   Basado en X correcciones de los últimos 90 días
+   [Omitir esta línea si no hubo ajustes aprendidos]
 ───────────────────────────────────
 ```
 
@@ -874,6 +1000,7 @@ Se activa cuando el usuario dice "deshaz el triaje", "undo", "revierte los movim
 - **SIEMPRE incluir explicación** — un score sin rationale es teatro, no triage
 - No evalúes los 30 criterios por igual: los 12 core siempre, el resto contextual
 - Si el usuario corrige un tier, registra el override inmediatamente en `correcciones.jsonl` (no esperes al PASO 5.B)
+- El PASO 0.B no es opcional si existe `correcciones.jsonl` — saltárselo significa ignorar lo que el usuario ya enseñó al plugin
 - No omitas el PASO 5.B si `telemetria` tiene algún flag en `true` — los flags sin escritura son teatro
 - No ignores la ausencia de evidencia (criterio 30) — lo que falta también informa
 
