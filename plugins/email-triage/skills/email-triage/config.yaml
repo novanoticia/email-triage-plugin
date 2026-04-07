@@ -504,17 +504,16 @@ telemetria:
 # EJEMPLOS DE PERFILES
 # ═══════════════════════════════════════════════════════════════
 #
-# EJEMPLO A — Investigador en salud mental y tecnología:
+# EJEMPLO A — Investigador / divulgador:
 #
-#   nombre: "Pablo"
+#   nombre: "Ana"
 #   perfil: |
-#     Investigador y escritor con formación en informática,
-#     intereses en psicología, ética de la IA, humanidades
-#     y salud mental comunitaria.
+#     Investigadora y escritora con formación en biología molecular.
+#     Intereses en comunicación científica, ética de la IA y políticas
+#     de salud pública. Colabora con varias revistas de divulgación.
 #   proyectos_activos:
-#     - "sapamegranada.org — asociación de salud mental"
-#     - "mindandhealth.org — divulgación salud mental y tecnología"
-#     - "Token Calculator Suite — plugin para Claude Code/Cowork"
+#     - "ciencia-cercana.org — blog de divulgación científica"
+#     - "Informe anual sobre sesgos en ensayos clínicos (editorial)"
 #
 # EJEMPLO B — Desarrolladora frontend:
 #
