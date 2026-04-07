@@ -632,6 +632,41 @@ Los colores de tier en el formato de presentación:
   remitente/asunto (sin leer cuerpos) para descartar el ruido evidente,
   seguido de un segundo pase con lectura de cuerpo para los supervivientes
 
+### 4.I — Registro de sesión (session log)
+
+**CADA movimiento real de un correo DEBE quedar registrado ANTES de ejecutarse.**
+Esto es la base del rollback. Sin registro previo, el undo es imposible.
+
+#### Cuándo registrar
+
+Registrar una entrada por cada correo que se vaya a mover, inmediatamente
+antes de ejecutar el `move` (no después, para capturar fallos durante el movimiento).
+
+#### Formato de entrada
+
+```
+{"session_id":"YYYYMMDD-HHMMSS","ts":"ISO8601","message_id":"<id>","subject":"...","from":"...","from_folder":"...","to_folder":"...","tier":"REVIEW","score":7,"status":"pending"}
+```
+
+Tras confirmar que el `move` tuvo éxito, actualizar `status` a `moved`.
+Si el `move` falla, marcar `status: failed` e informar al usuario.
+
+#### Dónde escribir
+
+Usar Desktop Commander (`write_file`) para añadir líneas al fichero:
+```
+~/.email-triage/session_log.jsonl
+```
+
+Si el directorio no existe, crearlo con `create_directory` antes de la primera escritura.
+Si `write_file` falla (disco lleno, permisos), avisar al usuario y continuar el triaje
+igualmente — el log es una red de seguridad, no un requisito para operar.
+
+#### Retención
+
+El log crece indefinidamente. Cada vez que se lea el log para un undo, eliminar
+entradas con más de 30 días. Informar al usuario si hay entradas purgadas.
+
 ---
 
 ## PASO 5 — RESUMEN DE SESIÓN
@@ -667,6 +702,52 @@ RESUMEN DE TRIAJE v3.0
 
 ---
 
+## PASO 6 — DESHACER ÚLTIMA SESIÓN
+
+Se activa cuando el usuario dice "deshaz el triaje", "undo", "revierte los movimientos",
+"vuelve a como estaba", o similar.
+
+### Procedimiento
+
+1. **Leer el log**: acceder a `~/.email-triage/session_log.jsonl` con Desktop Commander.
+   Si no existe o está vacío, informar: "No hay sesiones anteriores registradas."
+
+2. **Identificar la última sesión**: agrupar las entradas por `session_id` y mostrar
+   las 3 más recientes para que el usuario elija cuál deshacer:
+
+   ```
+   Sesiones disponibles para deshacer:
+   1. 20250407-143022 — 12 correos movidos (hace 2 horas)
+   2. 20250406-091500 — 8 correos movidos (ayer)
+   3. 20250405-162300 — 23 correos movidos (hace 2 días)
+   ¿Cuál quieres deshacer? (1/2/3 o "cancelar")
+   ```
+
+3. **Confirmar siempre**, incluso en modo `silencioso`:
+   ```
+   Voy a revertir N correos: [lista de asuntos].
+   ¿Confirmas? (sí/no)
+   ```
+
+4. **Ejecutar el undo**: para cada entrada con `status: moved`, mover el correo
+   de `to_folder` de vuelta a `from_folder` usando el patrón de referencias seguro
+   del PASO 1 (capturar referencias antes de mover).
+
+5. **Resultado parcial**: si algún correo no puede revertirse (ya fue movido a otra
+   carpeta manualmente, eliminado, etc.), informar cuáles fallaron y marcarlos como
+   `status: undo_failed` en el log. No abortar — revertir los que sí se pueda.
+
+6. **Actualizar el log**: marcar las entradas revertidas con éxito como
+   `status: undone` y añadir `undone_at: ISO8601`.
+
+### Qué NO hace el undo
+
+- No revierte cambios de tier ni overrides manuales del usuario
+- No recupera correos eliminados permanentemente
+- No puede deshacer sesiones sin registro (anteriores a esta versión del plugin)
+
+---
+
 ## Errores comunes a evitar
 
 - No asumas que "urgente" en el asunto = urgente real (criterio 14: urgencia fabricada)
@@ -676,6 +757,8 @@ RESUMEN DE TRIAJE v3.0
 - Si `content` devuelve HTML crudo, aplicar pipeline de sanitización PASO 1.B completo
 - Si `content` falla, continúa el triaje solo con asunto/remitente (modo degradado)
 - Al mover en lote, captura las referencias antes de mover (ver patrón seguro en PASO 1)
+- Registra cada movimiento en el session log (PASO 4.I) ANTES de ejecutarlo — sin log no hay undo
+- Si el log falla, avisa al usuario pero no abortes el triaje
 - Si la calibración da un perfil incoherente, informa y sugiere acotar
 - **SIEMPRE incluir explicación** — un score sin rationale es teatro, no triage
 - No evalúes los 30 criterios por igual: los 12 core siempre, el resto contextual
