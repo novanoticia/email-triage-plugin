@@ -1,106 +1,121 @@
 #!/bin/bash
+set -euo pipefail
 
-# --- Script Corregido para macOS ---
+# ═══════════════════════════════════════════════════════════════
+# install-plugin.sh — email-triage-plugin
+# Instalación / actualización automática para macOS
+#
+# Flujo:
+#   1. Verifica dependencias (git, python3).
+#   2. Clona (o actualiza con `git pull`) el marketplace en la
+#      ruta correcta que Claude Code/Cowork esperan:
+#        ~/.claude/plugins/marketplaces/email-triage-plugin/
+#   3. Lee la versión dinámicamente desde plugin.json.
+#   4. Ejecuta fix-cowork-version.sh para sincronizar el plugin
+#      con la caché de Claude Code y con el rpm de Cowork.
+#   5. Crea ~/.email-triage/ para logs de sesión y telemetría.
+#   6. Imprime instrucciones claras de siguiente paso.
+# ═══════════════════════════════════════════════════════════════
 
 PLUGIN_NAME="email-triage"
 GITHUB_REPO="novanoticia/email-triage-plugin"
-VERSION_TAG="v3.1.0"
+BRANCH="main"
+MARKETPLACE_DIR="$HOME/.claude/plugins/marketplaces/email-triage-plugin"
+TELEMETRY_DIR="$HOME/.email-triage"
 
-echo "🚀 Iniciando instalación automática del plugin '$PLUGIN_NAME' (versión: $VERSION_TAG)..."
+echo "🚀 Instalando/actualizando '$PLUGIN_NAME'..."
+echo "   Destino: $MARKETPLACE_DIR"
+echo ""
 
-# 1. Determinar la ruta base de datos del usuario de Claude/Cowork
-user_name=$(whoami)
-user_name_escaped=$(printf '%s\n' "$user_name" | sed 's/[[\.\*^$()+?{|]/\\&/g')
-home_dir_escaped=$(printf '%s\n' "$HOME" | sed 's/[[\.\*^$()+?{|]/\\&/g')
+# ── 1. Verificar dependencias ──────────────────────────────────
+missing_deps=()
+for cmd in git python3; do
+  if ! command -v "$cmd" >/dev/null 2>&1; then
+    missing_deps+=("$cmd")
+  fi
+done
 
-# Buscar el proceso principal de Claude.app
-claude_process=$(ps aux | grep "/Applications/Claude\.app/Contents/MacOS/Claude" | grep -v grep | head -n 1)
+if [ ${#missing_deps[@]} -gt 0 ]; then
+  echo "❌ Faltan dependencias: ${missing_deps[*]}"
+  echo "   Instálalas y vuelve a ejecutar este script."
+  echo "   En macOS con Homebrew: brew install ${missing_deps[*]}"
+  exit 1
+fi
 
-if [ -z "$claude_process" ]; then
-    echo "⚠️ No se encontró ningún proceso activo de Claude."
+# ── 2. Clonar o actualizar el repo ─────────────────────────────
+mkdir -p "$(dirname "$MARKETPLACE_DIR")"
+
+if [ -d "$MARKETPLACE_DIR/.git" ]; then
+  echo "📥 Repo existente detectado. Actualizando con git pull..."
+  if ! git -C "$MARKETPLACE_DIR" fetch origin "$BRANCH" 2>&1; then
+    echo "❌ Error al hacer fetch del repositorio."
     exit 1
-fi
-
-# 2. Instalar el plugin
-echo "📦 Instalando el plugin '$PLUGIN_NAME'..."
-
-# Ruta donde se instalan los plugins de Claude
-PLUGIN_DIR="$HOME/Library/Application Support/Claude/Claude Extensions"
-
-# Crear el directorio si no existe
-mkdir -p "$PLUGIN_DIR"
-
-# Eliminar el directorio existente si ya existe
-if [ -d "$PLUGIN_DIR/$PLUGIN_NAME" ]; then
-    echo "   Eliminando la instalación existente del plugin..."
-    rm -rf "$PLUGIN_DIR/$PLUGIN_NAME"
-fi
-
-# Clonar el repositorio del plugin
-echo "   Clonando el repositorio del plugin..."
-git clone --depth 1 --branch "$VERSION_TAG" "https://github.com/$GITHUB_REPO.git" "$PLUGIN_DIR/$PLUGIN_NAME" 2>&1 | tee git_clone.log
-
-# Verificar si la clonación fue exitosa
-if [ $? -eq 0 ]; then
-    echo "✅ Plugin '$PLUGIN_NAME' instalado correctamente en $PLUGIN_DIR/$PLUGIN_NAME"
-    echo "🔍 Verificando la estructura del plugin..."
-    ls -la "$PLUGIN_DIR/$PLUGIN_NAME"
-else
-    echo "❌ Error al instalar el plugin '$PLUGIN_NAME'"
-    echo "   Revisa el archivo 'git_clone.log' para más detalles."
+  fi
+  # Resetear a origin/main para garantizar estado limpio
+  if ! git -C "$MARKETPLACE_DIR" reset --hard "origin/$BRANCH" 2>&1; then
+    echo "❌ Error al resetear a origin/$BRANCH."
     exit 1
-fi
-
-echo "🎉 Instalación completada."
-
-# Copiar archivos necesarios al directorio correcto
-echo "📂 Copiando archivos necesarios..."
-if [ -d "$PLUGIN_DIR/$PLUGIN_NAME/plugins/email-triage" ]; then
-    cp -r "$PLUGIN_DIR/$PLUGIN_NAME/plugins/email-triage/." "$PLUGIN_DIR/$PLUGIN_NAME/"
-    echo "✅ Archivos copiados correctamente."
+  fi
+  echo "✅ Repo actualizado a origin/$BRANCH"
 else
-    echo "❌ No se encontró el directorio 'plugins/email-triage' en el repositorio clonado."
+  echo "📦 Clonando repositorio..."
+  if ! git clone --branch "$BRANCH" "https://github.com/$GITHUB_REPO.git" "$MARKETPLACE_DIR"; then
+    echo "❌ Error al clonar el repositorio."
     exit 1
+  fi
+  echo "✅ Repo clonado"
 fi
 
-# Registrar el plugin (si es necesario)
-if [ -f "$PLUGIN_DIR/$PLUGIN_NAME/fix-cowork-version.sh" ]; then
-    echo "🔧 Registrando el plugin..."
-    chmod +x "$PLUGIN_DIR/$PLUGIN_NAME/fix-cowork-version.sh"
-    "$PLUGIN_DIR/$PLUGIN_NAME/fix-cowork-version.sh"
-    if [ $? -eq 0 ]; then
-        echo "✅ Plugin registrado correctamente."
-    else
-        echo "❌ Error al registrar el plugin."
-        exit 1
-    fi
-else
-    echo "ℹ️ No se encontró un script de registro para el plugin."
+# ── 3. Leer versión dinámicamente desde plugin.json ────────────
+PLUGIN_JSON="$MARKETPLACE_DIR/plugins/$PLUGIN_NAME/.claude-plugin/plugin.json"
+if [ ! -f "$PLUGIN_JSON" ]; then
+  echo "❌ No se encuentra $PLUGIN_JSON"
+  echo "   La estructura del repo es inesperada."
+  exit 1
 fi
 
-# Verificar la estructura del plugin
-echo "🔍 Verificando la estructura del plugin..."
-SKILLS_DIR="$PLUGIN_DIR/$PLUGIN_NAME/skills/email-triage"
-if [ -d "$PLUGIN_DIR/$PLUGIN_NAME" ]; then
-    echo "   Contenido del directorio del plugin:"
-    ls -la "$PLUGIN_DIR/$PLUGIN_NAME"
-    if [ -d "$SKILLS_DIR" ]; then
-        echo "   Directorio skills/email-triage encontrado."
-        echo "   Verificando archivos en: $SKILLS_DIR/"
-        ls -la "$SKILLS_DIR/"
-        if [ -f "$SKILLS_DIR/SKILL.md" ] && [ -f "$SKILLS_DIR/config.yaml" ]; then
-            echo "✅ Los archivos SKILL.md y config.yaml están presentes."
-        else
-            echo "❌ Faltan archivos necesarios en el directorio del plugin."
-            echo "   Archivos esperados: SKILL.md y config.yaml"
-            exit 1
-        fi
-    else
-        echo "❌ El directorio skills/email-triage no existe."
-        echo "   Ruta esperada: $SKILLS_DIR/"
-        exit 1
-    fi
-else
-    echo "❌ El directorio del plugin no existe."
-    exit 1
+VERSION=$(python3 -c "import json; print(json.load(open('$PLUGIN_JSON'))['version'])" 2>/dev/null || true)
+if [ -z "$VERSION" ]; then
+  echo "❌ No se pudo leer la versión desde $PLUGIN_JSON"
+  exit 1
 fi
+echo "📋 Versión detectada: v$VERSION"
+
+# ── 4. Ejecutar fix-cowork-version.sh ──────────────────────────
+FIX_SCRIPT="$MARKETPLACE_DIR/fix-cowork-version.sh"
+if [ -f "$FIX_SCRIPT" ]; then
+  echo ""
+  echo "🔧 Sincronizando con Claude Code y Cowork..."
+  chmod +x "$FIX_SCRIPT"
+  if "$FIX_SCRIPT"; then
+    echo "✅ Sincronización completada"
+  else
+    echo "⚠️  fix-cowork-version.sh devolvió errores (revísalos arriba)"
+  fi
+else
+  echo "⚠️  fix-cowork-version.sh no encontrado — omitiendo sync"
+fi
+
+# ── 5. Crear directorio de telemetría/sesión ───────────────────
+if [ ! -d "$TELEMETRY_DIR" ]; then
+  mkdir -p "$TELEMETRY_DIR"
+  echo "📂 Creado: $TELEMETRY_DIR (para session logs y telemetría)"
+fi
+
+# ── 6. Mensaje final ───────────────────────────────────────────
+echo ""
+echo "🎉 Instalación de $PLUGIN_NAME v$VERSION completada."
+echo ""
+echo "Siguientes pasos:"
+echo "  1. Edita tu config personal:"
+echo "     $MARKETPLACE_DIR/plugins/$PLUGIN_NAME/skills/$PLUGIN_NAME/config.yaml"
+echo "     (rellena usuario.nombre, usuario.perfil, correo.cuenta, carpetas)"
+echo ""
+echo "  2. Reinicia Claude Code y/o Cowork."
+echo ""
+echo "  3. En Cowork: si ya tenías el plugin activo, desactívalo y vuelve"
+echo "     a activarlo para que cargue la versión nueva."
+echo ""
+echo "  4. Primera vez: activa el skill con '/email-triage' o pide"
+echo "     al agente 'filtra mi correo' / 'revisa mi bandeja'."
+echo ""

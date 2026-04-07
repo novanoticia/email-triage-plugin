@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.1.0
+# Email Triage Plugin v3.2.0
 
 Filtrado epistémico de correo electrónico para Claude Cowork y Claude Code.
 
@@ -18,6 +18,16 @@ La mayoría de clasificadores de correo preguntan "¿es urgente?". Este plugin p
 
 El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decisional, calidad epistémica, coste cognitivo y riesgo de manipulación.
 
+## Novedades en v3.2
+- **Modo dry-run (simulación)**: previsualiza el triaje sin mover nada — propaga como flag por PASO 0/4.G/5, con resumen agregado al final
+- **Sanitización de entrada**: PASO 1.B normaliza HTML/base64/caracteres de control y detecta payloads de prompt injection antes de scoring
+- **Defensa prompt injection (3 capas)**: delimitadores `<email-body-data>`, detector S0 sobre el cuerpo sanitizado, framing como *datos no instrucciones*
+- **Detección de hilos**: PASO 1.C normaliza `Re:`/`Fwd:` y cruza participantes; PASO 4.J aplica peso al hilo completo en lugar de scoring mensaje a mensaje
+- **Undo / rollback**: PASO 4.I escribe log de sesión y PASO 6 permite deshacer el último batch movido
+- **Feedback loop**: PASO 0.B lee reglas aprendidas del historial; PASO 4.A las aplica con decaimiento temporal
+- **Telemetría persistente real**: PASO 5.B escribe JSONL en `~/.email-triage/` (antes la telemetría nunca tocaba disco)
+- **Instalador reescrito**: instala en `~/.claude/plugins/marketplaces/`, lee versión dinámicamente, chequea dependencias, crea directorio de sesión
+
 ## Novedades en v3.1
 - Indicadores de color por tier
 - Patrón seguro de movimiento en lote
@@ -36,37 +46,38 @@ El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decis
 ## Instalación
 ### Instalación automatizada (recomendado)
 
-1. Descarga el script de instalación:
-   ```bash
-   curl -O https://raw.githubusercontent.com/novanoticia/email-triage-plugin/main/scripts/install-plugin.sh
-   ```
+El instalador clona el repo en `~/.claude/plugins/marketplaces/email-triage-plugin/`,
+lee la versión desde `plugin.json`, sincroniza la caché de Claude Code y el rpm de
+Cowork, y crea `~/.email-triage/` para los logs de sesión y telemetría.
 
-2. Ejecuta el script:
-   ```bash
-   chmod +x install-plugin.sh
-   ./install-plugin.sh
-   ```
+```bash
+curl -O https://raw.githubusercontent.com/novanoticia/email-triage-plugin/main/scripts/install-plugin.sh
+chmod +x install-plugin.sh
+./install-plugin.sh
+```
 
-### Instalación manual
+Requiere `git` y `python3` disponibles en `PATH`.
+
+### Actualización
+Ejecuta el mismo script: detecta el repo ya clonado y hace `git fetch` + `reset --hard origin/main`.
+
+```bash
+./install-plugin.sh
+```
+
+> **Nota Cowork**: tras actualizar, desactiva y vuelve a activar el plugin en
+> Cowork para forzar la resincronización de versión.
+
+### Instalación manual (solo si no quieres usar el script)
 1. **Claude Code**:
-   - Ve a "Personalizar" en Claude Code.
-   - Haz clic en "Explorar Plugin".
-   - Busca el plugin "Email-triage-plugin" en la sección "Personal".
+   - Abre "Personalizar" → "Explorar Plugin".
+   - Busca "Email-triage-plugin" en la sección "Personal".
    - Haz clic en "Gestionar" para activar el plugin.
 
 2. **Cowork**:
-   - Ve a "Personalizar" en Cowork.
-   - Haz clic en "Explorar Plugin".
-   - Busca el plugin "Email-triage-plugin" en la sección "Personal".
+   - Abre "Personalizar" → "Explorar Plugin".
+   - Busca "Email-triage-plugin" en la sección "Personal".
    - Haz clic en el botón "+" para agregar el plugin.
-
-### Actualización del plugin
-1. Ejecuta el script de instalación nuevamente:
-   ```bash
-   ./install-plugin.sh
-   ```
-
-2. **Cowork**: Desactiva y vuelve a activar el plugin para asegurarte de que se cargue la versión correcta.
 
 ## Configuración
 Edita `skills/email-triage/config.yaml` antes del primer uso:

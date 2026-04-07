@@ -8,11 +8,24 @@ set -euo pipefail
 # Ejecutar después de cada reinstalación o actualización.
 # ═══════════════════════════════════════════════════════════════
 
-VERSION="3.1.0"
 # Deriva la ruta del plugin desde la ubicación del propio script
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$SCRIPT_DIR/plugins/email-triage"
 SESSION_BASE="$HOME/Library/Application Support/Claude/local-agent-mode-sessions"
+
+# Leer VERSION dinámicamente desde plugin.json (fuente única de verdad)
+PLUGIN_JSON="$REPO/.claude-plugin/plugin.json"
+if [ ! -f "$PLUGIN_JSON" ]; then
+  echo "❌ Error: no se encuentra $PLUGIN_JSON"
+  echo "   Ejecuta este script desde dentro del repo clonado."
+  exit 1
+fi
+VERSION=$(python3 -c "import json; print(json.load(open('$PLUGIN_JSON'))['version'])" 2>/dev/null || true)
+if [ -z "$VERSION" ]; then
+  echo "❌ Error: no se pudo leer 'version' de $PLUGIN_JSON"
+  exit 1
+fi
+
 CLAUDE_CACHE="$HOME/.claude/plugins/cache/email-triage-plugin/email-triage/$VERSION"
 
 echo "=== Fix email-triage version v$VERSION ==="
