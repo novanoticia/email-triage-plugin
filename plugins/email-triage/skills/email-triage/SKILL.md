@@ -182,7 +182,7 @@ tell application "Mail"
     set msgs to messages of targetMailbox
     set msgCount to count of msgs
 
-    -- Procesar en lote (hasta 50 por ejecución)
+    -- Procesar en lote (usa limite_por_sesion de config.yaml; default 50)
     set batchSize to 50
     if msgCount < batchSize then set batchSize to msgCount
 
@@ -1332,7 +1332,7 @@ Mail.app, o imposibilidad de llamar a `gmail_read_message`):
 Antes de ejecutar cualquier fase, validar:
 
 1. `usuario.nombre` no está vacío → si lo está, pedir al usuario
-2. `usuario.perfil` contiene al menos 10 caracteres → si no, advertir
+2. `usuario.perfil` contiene al menos 10 caracteres **y no es el placeholder vacío por defecto** → si no, advertir
    que el triaje será genérico
 3. `correo.proveedor` es uno de: "icloud", "gmail", "otro" → si no, preguntar
 4. `correo.cuenta` no está vacía → si lo está, pedir al usuario
@@ -1340,6 +1340,10 @@ Antes de ejecutar cualquier fase, validar:
    usar "INBOX" y "Leer Después" como fallback e informar
 6. `tiers` tiene los 4 valores → si falta alguno, usar defaults
    (reply_needed: 10, review: 4, reading_later: 0, archive: -1)
+7. Los umbrales de routing siguen el orden correcto: `reading_later < review < reply_needed`.
+   Si no se cumple (ej: `review` ≥ `reply_needed`), advertir al usuario y usar defaults
+   para evitar routing incorrecto. (`archive` no es un umbral de routing y no participa
+   en esta validación.)
 
 Si faltan campos críticos (nombre, cuenta, proveedor), no continuar hasta
 que el usuario los proporcione. Presentar un setup guiado breve.

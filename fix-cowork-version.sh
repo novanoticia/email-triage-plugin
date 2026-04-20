@@ -6,6 +6,7 @@ set -euo pipefail
 # Actualiza los archivos del email-triage en el rpm de Cowork
 # Y en la caché de Claude Code con la versión correcta del repo local.
 # Ejecutar después de cada reinstalación o actualización.
+# Solo compatible con macOS (requiere Cowork y Claude Code para macOS).
 # ═══════════════════════════════════════════════════════════════
 
 # Deriva la ruta del plugin desde la ubicación del propio script
@@ -30,6 +31,13 @@ CLAUDE_CACHE="$HOME/.claude/plugins/cache/email-triage-plugin/email-triage/$VERS
 
 echo "=== Fix email-triage version v$VERSION ==="
 echo "   Repo: $SCRIPT_DIR"
+
+# ── Verificar plataforma (solo macOS) ────────────────────────────
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  echo "⚠️  Advertencia: este script está diseñado para macOS."
+  echo "   Cowork y Claude Code (desktop) solo están disponibles en macOS."
+  echo "   Continuando de todas formas para la caché de Claude Code CLI..."
+fi
 
 # ── Validar que el repo local existe ─────────────────────────────
 if [ ! -d "$REPO" ]; then
@@ -57,7 +65,12 @@ RPM_PLUGIN=""
 if [ -d "$SESSION_BASE" ]; then
   while IFS= read -r -d '' file; do
     if [[ "$file" == */rpm/* ]]; then
-      if python3 -c "import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if d.get('name')=='email-triage' else 1)" "$file" 2>/dev/null; then
+      if python3 -c "
+import json, sys
+with open(sys.argv[1]) as fh:
+    d = json.load(fh)
+sys.exit(0 if d.get('name') == 'email-triage' else 1)
+" "$file" 2>/dev/null; then
         RPM_PLUGIN="$(dirname "$(dirname "$file")")"
         break
       fi
@@ -84,8 +97,12 @@ fi
 CACHE_PARENT="$(dirname "$CLAUDE_CACHE")"
 if [ -d "$CACHE_PARENT" ]; then
   for old_version in "$CACHE_PARENT"/*/; do
-    if [ "$old_version" != "$CLAUDE_CACHE/" ] && [ -d "$old_version" ]; then
-      echo "🧹 Limpiando caché antigua: $(basename "$old_version")"
+    # Guard: skip if the glob matched a literal unexpanded pattern (no directories found)
+    [ -d "$old_version" ] || continue
+    # Guard: only remove directories directly inside CACHE_PARENT, never empty paths
+    old_basename="$(basename "$old_version")"
+    if [ -n "$old_basename" ] && [ "$old_version" != "$CLAUDE_CACHE/" ]; then
+      echo "🧹 Limpiando caché antigua: $old_basename"
       rm -rf "$old_version"
     fi
   done
