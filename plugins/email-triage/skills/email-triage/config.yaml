@@ -1,10 +1,17 @@
 # ═══════════════════════════════════════════════════════════════
-# EMAIL TRIAGE v3.0 — Configuración del usuario
+# EMAIL TRIAGE v3.3 — Configuración del usuario
 # ═══════════════════════════════════════════════════════════════
 #
 # Este archivo define quién eres, qué te importa, cómo se
 # organizan tus carpetas de correo, y los criterios epistémicos
 # que el skill usa para evaluar cada correo.
+#
+# Novedades en v3.3:
+# - Bloque `interaccion.rutina` para ejecuciones desde scheduled task
+# - Modo silencioso con umbral: mueve solo lo claramente actionable
+# - Lista separada de "candidatos dudosos" para revisión humana
+# - Notificación de macOS al terminar (sonido configurable)
+# - Timestamps automáticos de inicio/fin con duración total
 #
 # Novedades en v3.0:
 # - 30 criterios epistémicos inspirados en LessWrong Sequences
@@ -90,9 +97,53 @@ interaccion:
   # - "confirmacion": pregunta uno a uno antes de mover (recomendado al inicio)
   # - "lote": presenta todos y pide confirmación global
   # - "silencioso": mueve automáticamente (solo tras varias ejecuciones exitosas)
+  # - "simulacion": dry-run, no mueve nada (alias: dry-run desde la petición)
 
   limite_por_sesion: 50
   mostrar_calibracion: false
+
+  # ─── Modo rutina (NUEVO en v3.3) ─────────────────────────────
+  # Cuando el skill se ejecuta desde una scheduled task / rutina
+  # (el contexto incluye la etiqueta <scheduled-task>), los
+  # parámetros de este bloque sobrescriben a `modo` para esa
+  # ejecución concreta. Las invocaciones manuales NO se ven
+  # afectadas. Ver PASO 0 y PASO 4.G del SKILL.md.
+  rutina:
+    activo: true
+    # Si false, las scheduled tasks usan `modo` como cualquier
+    # otra ejecución. Útil para volver al comportamiento previo
+    # sin tocar el resto del bloque.
+
+    modo: "silencioso"
+    # Comportamiento durante la rutina. Recomendado: "silencioso".
+
+    umbral_mover: 10
+    # Score mínimo para mover automáticamente a `carpetas.destino`.
+    # Por defecto = tiers.reply_needed. Subir para ser más conservador.
+
+    umbral_dudoso_min: 4
+    # Score mínimo para listar como "candidato dudoso".
+    # Por defecto = tiers.review.
+
+    umbral_dudoso_max: 9
+    # Score máximo para "candidato dudoso" (justo por debajo de
+    # umbral_mover). Los dudosos NO se mueven; quedan listados
+    # en el resumen final para revisión humana posterior.
+
+    archivar_automaticamente: false
+    # Si true, mueve a `carpetas.archivo` los correos con score
+    # ≤ tiers.archive. Mantener false hasta validar precisión.
+
+    notificacion_macos: true
+    # Al terminar, lanzar `display notification` con resumen breve
+    # ("N movidos, M dudosos en T min"). Solo aplica en macOS.
+
+    sonido_notificacion: "Glass"
+    # Sonido del system. Otros: "Ping", "Pop", "Submarine", "Tink".
+
+    incluir_timestamps: true
+    # Marca hora de inicio (HH:MM:SS) en la primera línea de la
+    # respuesta y hora de fin antes del resumen, con duración total.
 
 # ───────────────────────────────────────────────────────────────
 # Puntuación y lectura del cuerpo

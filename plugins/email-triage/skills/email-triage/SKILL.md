@@ -80,6 +80,33 @@ Cuando `modo_simulacion: true`, anunciarlo antes de cualquier otra acción:
 > 🧪 **Modo simulación activo** — analizaré y clasificaré todos los correos
 > pero NO moveré ninguno. Al final verás exactamente qué habría ocurrido.
 
+### Detección de modo rutina (scheduled task) — NUEVO en v3.3
+
+Al leer la petición del usuario, determinar si la sesión es una ejecución
+desde una scheduled task. La señal canónica es la etiqueta `<scheduled-task>`
+en el contexto del prompt.
+
+- **Si existe `<scheduled-task>` en el contexto** Y `interaccion.rutina.activo`
+  es `true` en `config.yaml`: activar `modo_rutina: true` para toda la
+  sesión. El bloque `interaccion.rutina` sobrescribe `interaccion.modo`.
+- **Si existe `<scheduled-task>` pero `rutina.activo` es `false`**: usar
+  `interaccion.modo` como en cualquier otra ejecución.
+- **Si NO existe `<scheduled-task>`**: ignorar el bloque `rutina` completamente.
+  Las invocaciones manuales nunca activan modo rutina.
+- **Por defecto**: `modo_rutina: false`.
+
+Cuando `modo_rutina: true`:
+1. Anunciar al inicio el timestamp y el modo:
+   > ⏱️ **Inicio:** HH:MM:SS — modo rutina (silencioso con umbral)
+2. Saltar todas las preguntas de confirmación.
+3. Aplicar la lógica de PASO 4.G — Modo rutina.
+4. Al terminar, marcar timestamp de fin y lanzar notificación de macOS
+   (ver PASO 5 — sección rutina).
+
+`modo_simulacion` y `modo_rutina` son compatibles: si la rutina se ejecuta
+con `modo_simulacion: true` (porque el config lo marca o porque el prompt
+lo pide), se hace dry-run notificando los movimientos hipotéticos.
+
 ---
 
 ## PASO 0.B — Cargar ajustes aprendidos de correcciones anteriores
@@ -886,6 +913,23 @@ Los colores de tier en el formato de presentación:
 - Mueve automáticamente según tier
 - Presenta resumen al final con desglose por tier
 
+**Modo `rutina`** (NUEVO en v3.3 — activo cuando `modo_rutina: true`):
+- El usuario NO está presente. Cero preguntas, cero confirmaciones.
+- Sobrescribe `interaccion.modo` con los parámetros de
+  `interaccion.rutina` durante esta ejecución.
+- **Mover** (a `carpetas.destino`): correos con `score_final >= rutina.umbral_mover`.
+- **Listar como dudoso** (sin mover): correos con
+  `rutina.umbral_dudoso_min <= score_final <= rutina.umbral_dudoso_max`.
+  Quedan en su carpeta original, listados en el resumen final para que
+  el humano decida cuando abra la conversación.
+- **Dejar sin tocar**: el resto (incluido lo que normalmente iría a archive,
+  salvo que `rutina.archivar_automaticamente: true`).
+- **NO** preguntar nunca. Si surge una duda de implementación, decidir
+  autónomamente y dejar nota breve en el resumen.
+- Registrar movimientos en `session_log.jsonl` y telemetría como cualquier
+  sesión real (a diferencia de `simulacion`).
+- Al terminar, ver PASO 5 — sección rutina (notificación macOS + timestamps).
+
 **Modo `simulacion`** (dry-run):
 - Ejecuta TODO el pipeline completo (PASO 0.B ajustes aprendidos, PASO 1.C
   detección de hilos, PASO 1.B sanitización, PASO 4 scoring epistémico)
@@ -1098,6 +1142,60 @@ El encabezado y pie deben dejar claro que NADA se ha movido.
 🧪 FIN DE SIMULACIÓN — tu bandeja no ha cambiado
 ───────────────────────────────────
 ```
+
+### Resumen de sesión en modo rutina (NUEVO en v3.3)
+
+Cuando `modo_rutina: true`, sustituir el resumen anterior por este formato.
+La diferencia clave respecto al modo `silencioso` normal: aparece un bloque
+explícito de **CANDIDATOS DUDOSOS** que el humano revisará después, y se
+marcan timestamps de inicio/fin con duración total.
+
+```
+⏱️ Inicio: HH:MM:SS — modo rutina
+⏱️ Fin:    HH:MM:SS — duración: M min S s
+
+───────────────────────────────────
+RUTINA DE TRIAJE — [fecha YYYY-MM-DD]
+───────────────────────────────────
+📥 Bandeja de entrada: X correos analizados
+📂 [Carpeta pendiente]: X correos analizados
+
+✅ MOVIDOS automáticamente a [destino] (score ≥ umbral_mover):
+   N. [Asunto] — [Remitente] — score X — [razón breve, 1 línea]
+   ...
+   Total: N
+
+🟡 CANDIDATOS DUDOSOS (sin mover, requieren tu decisión):
+   N. [Asunto] — [Remitente] — score X — recomendación tentativa: MOVER/DEJAR
+   ...
+   Total: M
+
+⚪ DEJADOS sin tocar: T correos
+   Desglose por motivo:
+   - Newsletter genérica: N
+   - Información recuperable: N
+   - Sin acción ni info útil: N
+   - Otros: N
+
+📝 Decisiones autónomas tomadas (si las hubo):
+   - [nota breve sobre cualquier ambigüedad resuelta sin preguntar]
+───────────────────────────────────
+```
+
+Tras imprimir el resumen, lanzar la notificación de macOS si
+`rutina.notificacion_macos: true`. Usar `osascript` vía el conector
+"Control your Mac":
+
+```applescript
+display notification "Triaje: N movidos, M dudosos en T min" ¬
+    with title "Email-Triage" ¬
+    sound name "Glass"
+```
+
+(Sustituir `Glass` por el valor de `rutina.sonido_notificacion`.)
+
+Si la notificación falla (permisos, conector no disponible), continuar
+sin error — el resumen ya está impreso en la conversación.
 
 ---
 

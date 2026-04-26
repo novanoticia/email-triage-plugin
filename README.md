@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.2.0
+# Email Triage Plugin v3.3.0
 
 Filtrado epistémico de correo electrónico para Claude Cowork y Claude Code.
 
@@ -17,6 +17,14 @@ La mayoría de clasificadores de correo preguntan "¿es urgente?". Este plugin p
 - ¿Está anclado a hechos verificables? (Entangled Truths)
 
 El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decisional, calidad epistémica, coste cognitivo y riesgo de manipulación.
+
+## Novedades en v3.3
+- **Modo rutina (scheduled task)**: nuevo bloque `interaccion.rutina` en `config.yaml` que sobrescribe `interaccion.modo` cuando el skill se invoca desde una rutina programada (etiqueta `<scheduled-task>` en el contexto)
+- **Silencioso con umbral**: en rutina, mueve solo lo claramente actionable (score ≥ `umbral_mover`) y lista como **candidatos dudosos** lo que está entre `umbral_dudoso_min` y `umbral_dudoso_max` para revisión humana posterior
+- **Notificación macOS al terminar**: lanza `display notification` vía osascript con resumen breve ("N movidos, M dudosos en T min"), sonido configurable
+- **Timestamps automáticos**: marca hora de inicio en la primera línea y hora de fin antes del resumen, con duración total
+- **Cero preguntas en rutina**: el modo está diseñado para ejecuciones desautendidas; cualquier ambigüedad se resuelve autónomamente y se nota brevemente en el resumen
+- **Compatible con `simulacion`**: si la rutina se ejecuta en dry-run, notifica los movimientos hipotéticos sin tocar nada
 
 ## Novedades en v3.2
 - **Modo dry-run (simulación)**: previsualiza el triaje sin mover nada — propaga como flag por PASO 0/4.G/5, con resumen agregado al final
@@ -91,6 +99,32 @@ Edita `skills/email-triage/config.yaml` antes del primer uso:
 - `confirmacion`: pregunta uno a uno (recomendado al inicio)
 - `lote`: presenta todos y pide confirmación global
 - `silencioso`: mueve automáticamente (tras validar el criterio)
+- `simulacion`: dry-run, no mueve nada (también activable diciendo "simula" / "qué movería")
+- **rutina** (v3.3): activado solo cuando el skill se ejecuta desde una scheduled task. Configura el bloque `interaccion.rutina` para definir umbral de movimiento, lista de candidatos dudosos y notificación macOS al terminar.
+
+### Configuración del modo rutina
+```yaml
+interaccion:
+  modo: "confirmacion"           # modo manual habitual
+  rutina:
+    activo: true                 # respetar este bloque en scheduled tasks
+    modo: "silencioso"
+    umbral_mover: 10             # score mínimo para mover
+    umbral_dudoso_min: 4         # rango de "dudosos" (no se mueven)
+    umbral_dudoso_max: 9
+    archivar_automaticamente: false
+    notificacion_macos: true
+    sonido_notificacion: "Glass"
+    incluir_timestamps: true
+```
+
+Instrucción recomendada para la scheduled task:
+```
+Ejecuta el skill `email-triage` siguiendo el bloque
+`interaccion.rutina` del config.yaml. Marca timestamps de
+inicio/fin. Al terminar, envía notificación de macOS con
+resumen breve. Decide autónomamente cualquier ambigüedad.
+```
 
 ### Tiers y umbrales
 - `tiers`: umbrales configurables para cada tier
