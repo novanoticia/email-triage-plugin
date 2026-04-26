@@ -52,11 +52,20 @@ El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decis
 - Telemetría
 
 ## Instalación
-### Instalación automatizada (recomendado)
 
-El instalador clona el repo en `~/.claude/plugins/marketplaces/email-triage-plugin/`,
-lee la versión desde `plugin.json`, sincroniza la caché de Claude Code y el rpm de
-Cowork, y crea `~/.email-triage/` para los logs de sesión y telemetría.
+El proceso tiene **dos pasos obligatorios** tanto en instalación como en
+actualización: (1) sincronizar los archivos del repo localmente y
+(2) registrar/refrescar el plugin desde la interfaz gráfica de la app.
+
+> ⚠️ **Importante**: el script `install-plugin.sh` solo prepara los archivos
+> en disco. Claude Code y Cowork **no detectan el plugin ni la nueva versión**
+> hasta que pasas por **"Explorar plugins"** y haces clic en "+" (instalación)
+> o desactivas/reactivas (actualización). Saltarse el paso 2 es la causa más
+> común de "instalé la nueva versión pero sigue saliendo la antigua".
+
+### Paso 1 — Sincronizar el repo local
+
+**Opción A (recomendada): script automatizado.**
 
 ```bash
 curl -O https://raw.githubusercontent.com/novanoticia/email-triage-plugin/main/scripts/install-plugin.sh
@@ -64,28 +73,29 @@ chmod +x install-plugin.sh
 ./install-plugin.sh
 ```
 
-Requiere `git` y `python3` disponibles en `PATH`.
+El script clona en `~/.claude/plugins/marketplaces/email-triage-plugin/`,
+lee la versión desde `plugin.json`, sincroniza la caché y crea
+`~/.email-triage/` para logs de sesión y telemetría. En instalaciones
+existentes hace `git fetch` + `reset --hard origin/main`. Requiere
+`git` y `python3` en `PATH`.
 
-### Actualización
-Ejecuta el mismo script: detecta el repo ya clonado y hace `git fetch` + `reset --hard origin/main`.
+**Opción B: manual.** Clona el repo en
+`~/.claude/plugins/marketplaces/email-triage-plugin/` (o `git pull`
+para actualizar).
 
-```bash
-./install-plugin.sh
-```
+### Paso 2 — Registrar / refrescar en la app (obligatorio)
 
-> **Nota Cowork**: tras actualizar, desactiva y vuelve a activar el plugin en
-> Cowork para forzar la resincronización de versión.
+Tanto en **Claude Code** como en **Cowork**:
 
-### Instalación manual (solo si no quieres usar el script)
-1. **Claude Code**:
-   - Abre "Personalizar" → "Explorar Plugin".
-   - Busca "Email-triage-plugin" en la sección "Personal".
-   - Haz clic en "Gestionar" para activar el plugin.
-
-2. **Cowork**:
-   - Abre "Personalizar" → "Explorar Plugin".
-   - Busca "Email-triage-plugin" en la sección "Personal".
-   - Haz clic en el botón "+" para agregar el plugin.
+1. Abre **"Personalizar" → "Explorar plugins"**.
+2. Busca **"Email-triage-plugin"** en la sección **"Personal"**.
+3. Según el caso:
+   - **Primera instalación**: haz clic en **"+"** para añadirlo.
+   - **Actualización a nueva versión**: haz clic en **"Gestionar"**,
+     **desactívalo** y vuelve a **activarlo** para forzar la
+     resincronización de versión. Sin este paso la app seguirá usando
+     la versión cacheada anterior, aunque el repo local ya esté en
+     la nueva.
 
 ## Configuración
 Edita `skills/email-triage/config.yaml` antes del primer uso:
