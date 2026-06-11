@@ -1,10 +1,16 @@
 # ═══════════════════════════════════════════════════════════════
-# EMAIL TRIAGE v3.3 — Configuración del usuario
+# EMAIL TRIAGE v3.4 — Configuración del usuario
 # ═══════════════════════════════════════════════════════════════
 #
 # Este archivo define quién eres, qué te importa, cómo se
 # organizan tus carpetas de correo, y los criterios epistémicos
 # que el skill usa para evaluar cada correo.
+#
+# Novedades en v3.4:
+# - El config personal vive en ~/.email-triage/config.yaml (fuera del
+#   repo): sobrevive a actualizaciones y no puede filtrarse a git.
+#   Este archivo del repo es solo la PLANTILLA — no pongas datos aquí.
+# - El comando /triage se carga desde dentro del plugin
 #
 # Novedades en v3.3:
 # - Bloque `interaccion.rutina` para ejecuciones desde scheduled task
@@ -120,6 +126,10 @@ interaccion:
     umbral_mover: 10
     # Score mínimo para mover automáticamente a `carpetas.destino`.
     # Por defecto = tiers.reply_needed. Subir para ser más conservador.
+    # ⚠️ Nota: en rutina, los correos que en sesión manual irían a
+    # `destino_reply_needed` (INBOX) también se mueven a `carpetas.destino`
+    # — decisión deliberada para concentrar lo actionable en una sola
+    # carpeta cuando no hay humano presente. Ver PASO 4.G del SKILL.md.
 
     umbral_dudoso_min: 4
     # Score mínimo para listar como "candidato dudoso".
@@ -131,8 +141,9 @@ interaccion:
     # en el resumen final para revisión humana posterior.
 
     archivar_automaticamente: false
-    # Si true, mueve a `carpetas.archivo` los correos con score
-    # ≤ tiers.archive. Mantener false hasta validar precisión.
+    # Si true, mueve a `carpetas.destino_archive` los correos con score
+    # ≤ tiers.archive (si destino_archive está vacío, archiva nativamente).
+    # Mantener false hasta validar precisión.
 
     notificacion_macos: true
     # Al terminar, lanzar `display notification` con resumen breve

@@ -26,6 +26,14 @@ if [ -z "$VERSION" ]; then
   exit 1
 fi
 
+# Coherencia de versiones: plugin.json es la fuente de verdad, pero el
+# frontmatter del SKILL.md no debe contradecirla (genera confusión al depurar).
+SKILL_VERSION=$(grep -m1 '^version:' "$REPO/skills/email-triage/SKILL.md" | sed 's/version:[[:space:]]*"\{0,1\}\([0-9.]*\)"\{0,1\}.*/\1/' || true)
+if [ -n "$SKILL_VERSION" ] && [ "$SKILL_VERSION" != "$VERSION" ]; then
+  echo "⚠️  Deriva de versiones: plugin.json=v$VERSION pero SKILL.md=v$SKILL_VERSION"
+  echo "   Sincroniza el frontmatter de SKILL.md antes del próximo release."
+fi
+
 CLAUDE_CACHE="$HOME/.claude/plugins/cache/email-triage-plugin/email-triage/$VERSION"
 
 echo "=== Fix email-triage version v$VERSION ==="

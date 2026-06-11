@@ -102,14 +102,28 @@ if [ ! -d "$TELEMETRY_DIR" ]; then
   echo "📂 Creado: $TELEMETRY_DIR (para session logs y telemetría)"
 fi
 
+# ── 5b. Config personal persistente (NUEVO en v3.4) ────────────
+# El config del usuario vive FUERA del repo para sobrevivir a
+# `git reset --hard` en actualizaciones y no acabar en git.
+USER_CONFIG="$TELEMETRY_DIR/config.yaml"
+TEMPLATE_CONFIG="$MARKETPLACE_DIR/plugins/$PLUGIN_NAME/skills/$PLUGIN_NAME/config.yaml"
+if [ -f "$USER_CONFIG" ]; then
+  echo "🔒 Config personal preservado: $USER_CONFIG (no se ha tocado)"
+else
+  cp "$TEMPLATE_CONFIG" "$USER_CONFIG"
+  echo "📝 Creado config personal desde plantilla: $USER_CONFIG"
+fi
+
 # ── 6. Mensaje final ───────────────────────────────────────────
 echo ""
 echo "🎉 Instalación de $PLUGIN_NAME v$VERSION completada."
 echo ""
 echo "Siguientes pasos:"
-echo "  1. Edita tu config personal:"
-echo "     $MARKETPLACE_DIR/plugins/$PLUGIN_NAME/skills/$PLUGIN_NAME/config.yaml"
+echo "  1. Edita tu config personal (sobrevive a las actualizaciones):"
+echo "     $USER_CONFIG"
 echo "     (rellena usuario.nombre, usuario.perfil, correo.cuenta, carpetas)"
+echo "     ⚠️  NO edites el config.yaml de dentro del repo: es solo la"
+echo "     plantilla y se sobrescribe en cada actualización."
 echo ""
 echo "  2. Reinicia Claude Code y/o Cowork."
 echo ""

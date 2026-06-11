@@ -1,6 +1,6 @@
 ---
 name: email-triage
-version: "3.2.0"
+version: "3.4.0"
 description: >
   Triaje inteligente de correo electrónico: analiza bandejas de entrada y carpetas
   de lectura pendiente para identificar correos de alto valor usando criterios
@@ -25,7 +25,7 @@ description: >
   cualquier petición que implique ejecutar el análisis pero sin efectos reales.
 ---
 
-# Email Triage v3.1 — Filtrado epistémico por valor diferencial
+# Email Triage v3.4 — Filtrado epistémico por valor diferencial
 
 ## Qué hace este skill
 
@@ -54,9 +54,24 @@ a cualquier perfil profesional y proveedor de correo.
 
 ## PASO 0 — Leer configuración
 
-Lee `config.yaml` antes de cualquier fase. Contiene perfil, carpetas y pesos.
+Lee la configuración antes de cualquier fase. Contiene perfil, carpetas y pesos.
 
-Si no existe, pide al usuario estos campos mínimos:
+**Orden de resolución del config (NUEVO en v3.4):**
+
+1. `~/.email-triage/config.yaml` — **config personal del usuario**. Si existe,
+   usar este y SOLO este. Vive fuera del repositorio: las actualizaciones del
+   plugin (`git reset --hard` del instalador) nunca lo tocan, y nunca puede
+   acabar publicado en git por accidente.
+2. `config.yaml` junto a este SKILL.md — **plantilla del plugin**. Usarla solo
+   si no existe el config personal. En ese caso, antes de continuar, ofrecer
+   al usuario copiarla: "He encontrado solo la plantilla. ¿Quieres que cree tu
+   config personal en `~/.email-triage/config.yaml` para que sobreviva a las
+   actualizaciones?" Si acepta, copiar con Desktop Commander y editar la copia.
+
+Nunca guardar datos personales (nombre, perfil, remitentes) en la plantilla
+del repositorio — siempre en la copia de `~/.email-triage/`.
+
+Si no existe ninguno de los dos, pide al usuario estos campos mínimos:
 1. **nombre** y **perfil** (rol, formación, intereses)
 2. **proyectos_activos**
 3. **proveedor** de correo y **carpetas**
@@ -918,6 +933,13 @@ Los colores de tier en el formato de presentación:
 - Sobrescribe `interaccion.modo` con los parámetros de
   `interaccion.rutina` durante esta ejecución.
 - **Mover** (a `carpetas.destino`): correos con `score_final >= rutina.umbral_mover`.
+  **Nota de diseño**: en rutina TODO lo movido va a `carpetas.destino`,
+  incluidos los correos que en sesión manual irían a
+  `carpetas.destino_reply_needed` (por defecto INBOX). Es deliberado: sin
+  humano presente, una sola carpeta-bandeja ("Urgentes Claude") concentra
+  lo actionable y evita que la rutina reordene el INBOX. Si prefieres
+  conservar el routing por tiers también en rutina, sube `umbral_mover`
+  por encima de `tiers.reply_needed` y revisa los dudosos a mano.
 - **Listar como dudoso** (sin mover): correos con
   `rutina.umbral_dudoso_min <= score_final <= rutina.umbral_dudoso_max`.
   Quedan en su carpeta original, listados en el resumen final para que
