@@ -18,6 +18,12 @@ La mayoría de clasificadores de correo preguntan "¿es urgente?". Este plugin p
 
 El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decisional, calidad epistémica, coste cognitivo y riesgo de manipulación.
 
+## Novedades en v3.4
+- **Config personal persistente**: vive en `~/.email-triage/config.yaml`, fuera del repo — sobrevive a las actualizaciones (`git reset --hard`) y no puede filtrarse a git. El `config.yaml` del repo pasa a ser solo plantilla
+- **Lógica determinista en `scripts/triage_helpers.py`**: el decay y la agregación de correcciones (PASO 0.B) y la sanitización del cuerpo (S0–S5) se ejecutan ahora en Python, no como aritmética mental del modelo. La defensa anti-injection pasa de instrucción a mecanismo: el modelo solo ve texto ya filtrado. El procedimiento manual del SKILL.md queda como fallback
+- **`/triage` dentro del plugin**: el comando se carga desde `plugins/email-triage/commands/`
+- **Versiones unificadas**: plugin.json como fuente de verdad, con aviso de deriva en `fix-cowork-version.sh`
+
 ## Novedades en v3.3
 - **Modo rutina (scheduled task)**: nuevo bloque `interaccion.rutina` en `config.yaml` que sobrescribe `interaccion.modo` cuando el skill se invoca desde una rutina programada (etiqueta `<scheduled-task>` en el contexto)
 - **Silencioso con umbral**: en rutina, mueve solo lo claramente actionable (score ≥ `umbral_mover`) y lista como **candidatos dudosos** lo que está entre `umbral_dudoso_min` y `umbral_dudoso_max` para revisión humana posterior
@@ -98,7 +104,10 @@ Tanto en **Claude Code** como en **Cowork**:
      la nueva.
 
 ## Configuración
-Edita `skills/email-triage/config.yaml` antes del primer uso:
+Desde v3.4 tu config personal vive en `~/.email-triage/config.yaml`
+(el instalador lo crea desde la plantilla si no existe). Edítalo ahí
+antes del primer uso — **no** edites el `config.yaml` de dentro del
+repo: es solo la plantilla y se sobrescribe en cada actualización.
 
 ### Campos básicos
 - `usuario`: nombre, perfil profesional, proyectos activos
