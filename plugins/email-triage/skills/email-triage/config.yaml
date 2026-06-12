@@ -167,9 +167,11 @@ puntuacion:
   # Si true, lee los primeros ~500 caracteres del cuerpo.
   # Si false, solo usa asunto y remitente (más rápido, menos preciso).
 
-  max_caracteres_cuerpo: 500
-  # Máximo de caracteres a extraer del cuerpo de cada correo.
-  # Valores recomendados: 300 (rápido), 500 (equilibrado), 1000 (profundo).
+  max_caracteres_cuerpo: 1500
+  # Presupuesto de caracteres del cuerpo DESPUÉS de la limpieza (v3.5):
+  # el sanitizador lo recibe vía --max-chars y trunca el texto YA limpio.
+  # La extracción cruda previa es de 4000 y la fija el SKILL (PASO 1).
+  # Valores recomendados: 800 (rápido), 1500 (equilibrado), 2500 (profundo).
   # El skill truncará a 2000 como máximo absoluto aunque pongas más.
 
   max_lineas_cuerpo: 30

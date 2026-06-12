@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.4).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.5).
 
 Extrae a código las dos partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -9,7 +9,7 @@ aritmética mental del modelo:
 
 Uso:
   python3 triage_helpers.py ajustes [--correcciones RUTA]
-  python3 triage_helpers.py sanitizar [--archivo RUTA] [--max-chars 1500]
+  python3 triage_helpers.py sanitizar [--archivo RUTA] [--max-chars 1500] [--asunto TXT]
                             (sin --archivo lee de stdin)
 
 Salida: JSON por stdout. Solo stdlib (Python >= 3.9). Sin efectos laterales:
@@ -38,13 +38,19 @@ STOPWORDS = {
 # PASO 0.B — ajustes aprendidos
 # ════════════════════════════════════════════════════════════════
 
-def _decay(ts_iso, ahora):
-    """×1.0 (<=30 días), ×0.5 (31-90), None (>90 o fecha ilegible)."""
+def _parse_ts(ts_iso):
+    """Datetime tz-aware desde ISO-8601 (acepta sufijo Z), o None."""
     try:
         ts = datetime.fromisoformat(ts_iso.replace("Z", "+00:00"))
-        if ts.tzinfo is None:
-            ts = ts.replace(tzinfo=timezone.utc)
+        return ts if ts.tzinfo else ts.replace(tzinfo=timezone.utc)
     except (ValueError, AttributeError, TypeError):
+        return None
+
+
+def _decay(ts_iso, ahora):
+    """×1.0 (<=30 días), ×0.5 (31-90), None (>90 o fecha ilegible)."""
+    ts = _parse_ts(ts_iso)
+    if ts is None:
         return None
     dias = (ahora - ts).days
     if dias < 0:
@@ -99,7 +105,8 @@ def cmd_ajustes(ruta):
         if direccion == 0:
             continue
         ponderada = direccion * peso
-        usadas.append({"ts": e.get("ts"), "direccion": direccion, "peso": peso})
+        usadas.append({"ts_dt": _parse_ts(e.get("ts", "")),
+                       "direccion": direccion, "peso": peso})
         remitente = (e.get("from") or "").strip().lower()
         if remitente:
             por_remitente[remitente] += ponderada
@@ -126,7 +133,9 @@ def cmd_ajustes(ruta):
         elif kw_count_down[k] >= 3 and s <= -3:
             aj_kw[k] = -1
     deriva = None
-    ultimas = sorted(usadas, key=lambda x: x["ts"] or "")[-20:]
+    # orden cronológico real: con zonas horarias mixtas, el orden
+    # lexicográfico del string ISO no es cronológico (3.10b)
+    ultimas = sorted(usadas, key=lambda x: x["ts_dt"])[-20:]
     if len(ultimas) >= 10:
         arriba = sum(1 for u in ultimas if u["direccion"] > 0)
         pct = arriba / len(ultimas)
@@ -227,15 +236,31 @@ def _vista_decodificada(texto):
     return re.sub(r"<[^>]+>", "", html_mod.unescape(texto))
 
 
-def cmd_sanitizar(texto, max_chars=1500):
-    original = len(texto)
-    vistas = (texto, _vista_decodificada(texto))      # S0 en doble vista
-    flags = sorted({nombre for nombre, pat in S0_PATRONES
-                    for v in vistas if pat.search(v)})
-    injection = bool(flags)
+def _detectar_s0(texto):
+    """Patrones S0 sobre el texto crudo y su vista decodificada."""
+    vistas = (texto, _vista_decodificada(texto))
+    return sorted({nombre for nombre, pat in S0_PATRONES
+                   for v in vistas if pat.search(v)})
 
-    # S3 primero como detección (no decodificar nunca)
-    base64_block = re.search(r"(?:^[A-Za-z0-9+/=]{76,}\s*$\n?){2,}", texto, re.M)
+
+def cmd_sanitizar(texto, max_chars=1500, asunto=None):
+    original = len(texto)
+    flags = _detectar_s0(texto)                       # S0 en doble vista
+    injection_cuerpo = bool(flags)
+
+    # S0 también sobre el asunto (v3.5): los metadatos puntúan hard rules
+    # (+4 pregunta, +4 deadline, +3 mención), así que el asunto es una
+    # superficie de ataque tan válida como el cuerpo.
+    flags_asunto = _detectar_s0(asunto) if asunto else []
+    injection_asunto = bool(flags_asunto)
+    injection = injection_cuerpo or injection_asunto
+
+    # S3 primero como detección (no decodificar nunca). Cubre bloques
+    # multilínea (>=2 líneas de 76+) y monolínea (una sola línea de 200+,
+    # p. ej. data-URIs o payloads sin saltos cada 76 caracteres).
+    base64_block = re.search(
+        r"(?:^[A-Za-z0-9+/=]{76,}\s*$\n?){2,}|^[A-Za-z0-9+/=]{200,}\s*$",
+        texto, re.M)
 
     texto = _primer_corte(texto, S1_CORTES)                       # S1
     html_detectado = bool(re.search(
@@ -273,7 +298,13 @@ def cmd_sanitizar(texto, max_chars=1500):
         "etiqueta": etiqueta,
         "texto": texto + (" [truncado]" if truncado and texto else ""),
         "injection": injection,
+        "injection_cuerpo": injection_cuerpo,
+        "injection_asunto": injection_asunto if asunto is not None else None,
         "patrones_detectados": flags,
+        "patrones_asunto": flags_asunto,
+        "asunto_evaluable": (("" if injection_asunto else asunto)
+                             if asunto is not None else None),
+        "tier_maximo": "REVIEW" if injection else None,
         "ajuste_score": -3 if injection else 0,
         "longitud_original": original,
         "longitud_final": len(texto),
@@ -289,6 +320,8 @@ def main():
     ps = sub.add_parser("sanitizar")
     ps.add_argument("--archivo")
     ps.add_argument("--max-chars", type=int, default=1500)
+    ps.add_argument("--asunto", default=None,
+                    help="asunto del correo; también se escanea con S0")
     args = p.parse_args()
     if args.cmd == "ajustes":
         out = cmd_ajustes(args.correcciones)
@@ -298,7 +331,7 @@ def main():
                 texto = fh.read()
         else:
             texto = sys.stdin.read()
-        out = cmd_sanitizar(texto, args.max_chars)
+        out = cmd_sanitizar(texto, args.max_chars, asunto=args.asunto)
     json.dump(out, sys.stdout, ensure_ascii=False, indent=2)
     print()
 
