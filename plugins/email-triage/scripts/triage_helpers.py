@@ -146,20 +146,45 @@ def cmd_ajustes(ruta):
 # ════════════════════════════════════════════════════════════════
 
 _CTX_INSTR = r"(instruc\w+|instruction\w*|prompt\w*|previous|anterior\w*|reglas?|rules?|system)"
+_ROL_IA = (r"(assistant|asistente|ai|llm|chatbot|model\w*|"
+           r"clasificador\w*|classifier|agente?s?|skill)")
+_TIER = r"(reply[_ ]?needed|review|reading[_ ]?later|archive)"
+
 S0_PATRONES = [
     ("ignorar_instrucciones",
      re.compile(r"\b(ignore|forget|disregard|override|ignora|olvida|descarta)\b"
                 r".{0,40}\b" + _CTX_INSTR + r"\b", re.I | re.S)),
+    # Asignación de rol al modelo. Las frases genéricas ("you are", "eres",
+    # "act as") solo disparan si en <=40 chars aparece un rol de IA; los
+    # marcadores técnicos (system:, <system>, [INST]...) disparan por sí
+    # solos. "you are receiving/subscrib..." queda excluido: es la fórmula
+    # estándar de newsletters legítimas (falso positivo real en v3.4.0).
+    # Trade-off documentado en tests: "you are the system administrator"
+    # NO se marca ("system" se excluyó de los roles para no penalizar
+    # correo legítimo de IT).
     ("rol_sistema",
-     re.compile(r"(\byou are\b|\beres un\b|\bact as\b|\bact[uú]a como\b|"
-                r"^\s*system:|^\s*assistant:|<system>|\[INST\]|### ?Instruction)",
-                re.I | re.M)),
+     re.compile(r"(?:\byou are\b(?! receiving| subscrib)|\beres\b|"
+                r"\bact as\b|\bact[uú]a como\b).{0,40}?\b" + _ROL_IA + r"\b"
+                r"|^\s*system:|^\s*assistant:|<system>|\[INST\]|### ?Instruction",
+                re.I | re.M | re.S)),
+    # Solo delimitadores reales del protocolo. "^PASO \d" y "^score:" se
+    # retiraron en v3.4.1: aparecen en correo legítimo (instrucciones de
+    # trámites, resultados deportivos) y su valor defensivo era marginal.
+    # "tier:" se mantiene anclado a los valores del protocolo.
     ("escape_delimitador",
-     re.compile(r"(</email-body-data>|---EMAIL|^PASO \d|^tier:|^score:)",
+     re.compile(r"</?email-body-data>|---EMAIL|^tier:\s*" + _TIER,
                 re.I | re.M)),
+    # Comandos al clasificador: anclados a objetos del dominio (carpeta,
+    # inbox, tier, email) para no marcar usos humanos legítimos ("move
+    # this to Thursday", "rate this support interaction").
     ("comando_directo",
-     re.compile(r"\b(mark this as|move this to|rate this|m[aá]rcalo como|"
-                r"mu[eé]velo a|dale un score de)\b", re.I)),
+     re.compile(r"\bmark (?:this|it)\b.{0,15}\bas\b.{0,15}" + _TIER +
+                r"|\bmove (?:this|it)\b.{0,25}\b(?:folder|inbox|" + _TIER + r")\b"
+                r"|\brate this (?:email|message|correo|mensaje)\b"
+                r"|\bm[aá]rcalo como\b.{0,15}\b(?:urgente|" + _TIER + r")\b"
+                r"|\bmu[eé]velo a\b.{0,25}\b(?:carpeta|bandeja|inbox|urgentes|"
+                + _TIER + r")\b"
+                r"|\bdale un score de\b", re.I)),
 ]
 
 S1_CORTES = [
@@ -188,9 +213,20 @@ def _primer_corte(texto, patrones):
     return texto[:pos]
 
 
+def _vista_decodificada(texto):
+    """Vista solo-para-detección: entidades HTML decodificadas y tags
+    eliminados. Caza payloads ofuscados (&#105;gnore, ig<b>nore</b>)
+    que el texto crudo esconde. No sustituye al crudo en la detección:
+    los marcadores posicionales (^system:) y el escape de delimitador
+    (</email-body-data>) solo son visibles en el crudo."""
+    return re.sub(r"<[^>]+>", "", html_mod.unescape(texto))
+
+
 def cmd_sanitizar(texto, max_chars=1500):
     original = len(texto)
-    flags = [nombre for nombre, pat in S0_PATRONES if pat.search(texto)]
+    vistas = (texto, _vista_decodificada(texto))      # S0 en doble vista
+    flags = sorted({nombre for nombre, pat in S0_PATRONES
+                    for v in vistas if pat.search(v)})
     injection = bool(flags)
 
     # S3 primero como detección (no decodificar nunca)

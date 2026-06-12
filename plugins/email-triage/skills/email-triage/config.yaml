@@ -270,7 +270,7 @@ criterios_epistemicos:
     weight: 5
     question: "¿Leer esto cambiaría algo concreto que vaya a hacer?"
     si: 5
-    no: -5
+    "no": -5
 
   # ─── GRUPO B: Actualización bayesiana ──────────────────────
 
@@ -280,7 +280,7 @@ criterios_epistemicos:
     weight: 4
     question: "¿Altera mis predicciones sobre hoy/esta semana/este proyecto?"
     si: 4
-    no: -3
+    "no": -3
 
   sorpresa_bayesiana:
     activo: true
@@ -326,7 +326,7 @@ criterios_epistemicos:
     weight: 4
     question: "¿Revela una discrepancia importante entre lo esperado y lo real?"
     si: 4
-    no: 0
+    "no": 0
 
   impacto_causal_real:
     activo: true
@@ -352,7 +352,7 @@ criterios_epistemicos:
     weight: 3
     question: "¿Abre una opción valiosa futura que antes no tenía?"
     si: 3
-    no: 0
+    "no": 0
 
   distancia_inferencial:
     activo: true
@@ -368,7 +368,7 @@ criterios_epistemicos:
     core: false
     weight: -3
     question: "¿El remitente optimiza para verdad o para influirme?"
-    no: 0
+    "no": 0
     quiza: -1
     si: -3
 
@@ -397,7 +397,7 @@ criterios_epistemicos:
     question: "¿Mi yo de dentro de un mes agradecerá haber leído esto?"
     si: 4
     quiza: 1
-    no: 0
+    "no": 0
 
   # ─── GRUPO D: Anti-sesgo y calidad argumentativa ───────────
 
@@ -407,7 +407,7 @@ criterios_epistemicos:
     weight: -2
     question: "¿Me empuja a cerrar demasiado pronto una cuestión?"
     si: -2
-    no: 0
+    "no": 0
 
   motivated_continuation:
     activo: true
@@ -415,7 +415,7 @@ criterios_epistemicos:
     weight: -2
     question: "¿Prolonga artificialmente una decisión que ya podría cerrarse?"
     si: -2
-    no: 0
+    "no": 0
 
   true_rejection:
     activo: true
@@ -432,7 +432,7 @@ criterios_epistemicos:
     weight: 3
     question: "¿Detecta una tercera alternativa útil más allá de A o B?"
     si: 3
-    no: 0
+    "no": 0
 
   privileging_the_hypothesis:
     activo: true
@@ -440,7 +440,7 @@ criterios_epistemicos:
     weight: -3
     question: "¿Eleva una hipótesis sin evidencia suficiente?"
     si: -3
-    no: 0
+    "no": 0
 
   proper_humility:
     activo: true
@@ -457,7 +457,7 @@ criterios_epistemicos:
     weight: -2
     question: "¿Solo aporta ejemplos favorables sin enfrentar objeciones?"
     si: -2
-    no: 0
+    "no": 0
 
   argument_screens_off_authority:
     activo: true
@@ -483,7 +483,7 @@ criterios_epistemicos:
     weight: -3
     question: "¿Usa jerga o etiquetas para cerrar la investigación?"
     si: -3
-    no: 0
+    "no": 0
 
   fake_justification:
     activo: true
@@ -491,7 +491,7 @@ criterios_epistemicos:
     weight: -3
     question: "¿La conclusión parece anterior al razonamiento?"
     si: -3
-    no: 0
+    "no": 0
 
   fake_optimization_criteria:
     activo: true
@@ -499,7 +499,7 @@ criterios_epistemicos:
     weight: -2
     question: "¿El criterio de decisión parece oportunista?"
     si: -2
-    no: 0
+    "no": 0
 
   entangled_truths:
     activo: true
@@ -525,7 +525,7 @@ criterios_epistemicos:
     weight: -3
     question: "¿Falta una pieza que debería estar si esto fuese tan importante?"
     si: -3
-    no: 0
+    "no": 0
 
 # ───────────────────────────────────────────────────────────────
 # Explicación (NUEVO en v3.0)
