@@ -92,7 +92,7 @@ if [ ! -f "$PLUGIN_JSON" ]; then
   exit 1
 fi
 
-VERSION=$(python3 -c "import json; print(json.load(open('$PLUGIN_JSON'))['version'])" 2>/dev/null || true)
+VERSION=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['version'])" "$PLUGIN_JSON" 2>/dev/null || true)
 if [ -z "$VERSION" ]; then
   echo "❌ No se pudo leer la versión desde $PLUGIN_JSON"
   exit 1

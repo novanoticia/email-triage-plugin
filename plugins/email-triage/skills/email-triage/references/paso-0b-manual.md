@@ -9,6 +9,9 @@ Leer todas las entradas de `correcciones.jsonl`. Aplicar decay temporal:
 - Correcciones de los últimos 30 días → peso completo (×1.0)
 - Entre 31 y 90 días → peso reducido (×0.5)
 - Más de 90 días → ignorar
+- Adicionalmente, las entradas con `"simulacion": true` (overrides hechos
+  durante un dry-run) multiplican su peso por ×0.5 extra: suelen producirse
+  probando pesos experimentales y no deben pesar como sesiones reales.
 
 Cada entrada tiene este formato:
 ```json

@@ -115,10 +115,12 @@ interaccion:
   # ejecución concreta. Las invocaciones manuales NO se ven
   # afectadas. Ver PASO 0 y PASO 4.G del SKILL.md.
   rutina:
-    activo: true
-    # Si false, las scheduled tasks usan `modo` como cualquier
-    # otra ejecución. Útil para volver al comportamiento previo
-    # sin tocar el resto del bloque.
+    activo: false
+    # DESACTIVADO por defecto desde v3.4.3: una plantilla recién
+    # instalada no debe mover correos de forma desatendida sin que
+    # el usuario lo haya decidido. Cambia a true para que las
+    # scheduled tasks usen este bloque; con false usan `modo` como
+    # cualquier otra ejecución.
 
     modo: "silencioso"
     # Comportamiento durante la rutina. Recomendado: "silencioso".

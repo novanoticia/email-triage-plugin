@@ -90,6 +90,11 @@ def cmd_ajustes(ruta):
         ta, tc = e.get("tier_asignado"), e.get("tier_corregido")
         if peso is None or ta not in TIER_ORDEN or tc not in TIER_ORDEN:
             continue
+        if e.get("simulacion"):
+            # Correcciones hechas durante un dry-run: a menudo se producen
+            # probando pesos o umbrales experimentales, así que aprenden
+            # a medio peso para no contaminar el perfil de producción.
+            peso *= 0.5
         direccion = TIER_ORDEN[tc] - TIER_ORDEN[ta]
         if direccion == 0:
             continue

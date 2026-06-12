@@ -1,6 +1,6 @@
 ---
 name: email-triage
-version: "3.4.2"
+version: "3.4.3"
 description: >
   Triaje inteligente de correo electrónico: analiza bandejas de entrada y carpetas
   de lectura pendiente para identificar correos de alto valor usando criterios
@@ -790,7 +790,11 @@ Los colores de tier en el formato de presentación:
   los datos simulados contaminarían el historial real
 - **SÍ registra los overrides del usuario** en `correcciones.jsonl` si el
   usuario corrige un tier durante la revisión del dry-run — esas correcciones
-  son datos de aprendizaje válidos aunque no haya movimiento real
+  son datos de aprendizaje válidos aunque no haya movimiento real. Cada
+  entrada escrita en simulación DEBE llevar el campo `"simulacion": true`:
+  el PASO 0.B les aplica peso reducido (×0.5), porque los dry-runs suelen
+  hacerse probando pesos o umbrales experimentales y no deben contaminar
+  el perfil de producción con peso completo
 - Al final presenta el resumen de simulación (ver PASO 5) con un diff claro
   de qué habría movido, a dónde, y con qué score
 
@@ -1092,8 +1096,12 @@ Solo se escribe cuando el usuario cambia el tier asignado (override). Se registr
 en el momento en que el usuario da la corrección, no al final de la sesión:
 
 ```json
-{"session_id":"YYYYMMDD-HHMMSS","ts":"ISO8601","message_id":"<id>","subject":"...","from":"...","tier_asignado":"ARCHIVE","tier_corregido":"REVIEW","score_final":-2,"rationale_usuario":"(si el usuario da explicación)"}
+{"session_id":"YYYYMMDD-HHMMSS","ts":"ISO8601","message_id":"<id>","subject":"...","from":"...","tier_asignado":"ARCHIVE","tier_corregido":"REVIEW","score_final":-2,"rationale_usuario":"(si el usuario da explicación)","simulacion":false}
 ```
+
+El campo `simulacion` es opcional: su ausencia equivale a `false` (sesión
+real). En modo simulación DEBE escribirse a `true` (ver PASO 4.G) — el
+PASO 0.B pondera esas correcciones a la mitad.
 
 #### `exportar_mal_clasificados: true` → `mal_clasificados.jsonl`
 

@@ -20,7 +20,7 @@ if [ ! -f "$PLUGIN_JSON" ]; then
   echo "   Ejecuta este script desde dentro del repo clonado."
   exit 1
 fi
-VERSION=$(python3 -c "import json; print(json.load(open('$PLUGIN_JSON'))['version'])" 2>/dev/null || true)
+VERSION=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['version'])" "$PLUGIN_JSON" 2>/dev/null || true)
 if [ -z "$VERSION" ]; then
   echo "❌ Error: no se pudo leer 'version' de $PLUGIN_JSON"
   exit 1
@@ -32,6 +32,14 @@ SKILL_VERSION=$(grep -m1 '^version:' "$REPO/skills/email-triage/SKILL.md" | sed 
 if [ -n "$SKILL_VERSION" ] && [ "$SKILL_VERSION" != "$VERSION" ]; then
   echo "⚠️  Deriva de versiones: plugin.json=v$VERSION pero SKILL.md=v$SKILL_VERSION"
   echo "   Sincroniza el frontmatter de SKILL.md antes del próximo release."
+fi
+
+# El título del README también declara versión y derivó en el pasado
+# (quedó en v3.3.0 durante todo v3.4.0). Mismo aviso, misma fuente de verdad.
+README_VERSION=$(grep -m1 '^# Email Triage Plugin v' "$SCRIPT_DIR/README.md" | sed 's/.*v\([0-9.]*\).*/\1/' || true)
+if [ -n "$README_VERSION" ] && [ "$README_VERSION" != "$VERSION" ]; then
+  echo "⚠️  Deriva de versiones: plugin.json=v$VERSION pero README.md=v$README_VERSION"
+  echo "   Actualiza el título del README antes del próximo release."
 fi
 
 CLAUDE_CACHE="$HOME/.claude/plugins/cache/email-triage-plugin/email-triage/$VERSION"

@@ -206,6 +206,19 @@ class TestAjustes(unittest.TestCase):
         self.assertEqual(out["ajustes_dominio"].get("@x.com"), 1)
         self.assertEqual(out["ajustes_keyword"].get("presupuesto"), 1)
 
+    def test_simulacion_pesa_la_mitad(self):
+        # 3 correcciones ARCHIVE->REVIEW (+2) recientes hechas en dry-run:
+        # ponderada = 2 * 1.0(decay) * 0.5(simulacion) = 1.0 cada una
+        # -> suma 3.0 -> ajuste +2. Las mismas SIN flag suman 6.0 -> +3
+        # (cubierto por test_remitente_boost_fuerte).
+        e = [{"ts": self._ts(2), "from": "sim@x.com", "subject": "x",
+              "tier_asignado": "ARCHIVE", "tier_corregido": "REVIEW",
+              "simulacion": True} for _ in range(3)]
+        out = self._con_jsonl(e)
+        self.assertEqual(out["ajustes_remitente"].get("sim@x.com"), 2)
+        # y con suma 3.0 < 6, el dominio no llega a ajustarse
+        self.assertNotIn("@x.com", out["ajustes_dominio"])
+
     def test_lineas_corruptas_ignoradas(self):
         with tempfile.NamedTemporaryFile(
                 "w", suffix=".jsonl", delete=False,
