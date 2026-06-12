@@ -1,0 +1,38 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  unittest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Tests de triage_helpers (S0-S5 y PASO 0.B)
+        run: python3 -m unittest discover -s plugins/email-triage/scripts -v
+
+      - name: config.yaml parsea sin trampas YAML 1.1
+        run: |
+          pip install --quiet pyyaml
+          python3 - <<'EOF'
+          import yaml
+          cfg = yaml.safe_load(open(
+              'plugins/email-triage/skills/email-triage/config.yaml',
+              encoding='utf-8'))
+          crits = cfg['criterios_epistemicos']
+          # 'no:'/'si:' sin comillas se convierten en booleanos en YAML 1.1
+          # (regresión del fix de v3.4.1) — las claves deben ser strings.
+          bools = [k for k, v in crits.items()
+                   if False in v or True in v]
+          assert not bools, (
+              f"claves booleanas en criterios (¿'no:' sin comillas?): {bools}")
+          assert len(crits) == 30, f"se esperaban 30 criterios, hay {len(crits)}"
+          print(f"OK: {len(crits)} criterios, 0 claves booleanas")
+          EOF

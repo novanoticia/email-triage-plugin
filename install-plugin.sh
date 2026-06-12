@@ -7,7 +7,7 @@ set -euo pipefail
 #
 # Flujo:
 #   1. Verifica dependencias (git, python3).
-#   2. Clona (o actualiza con fetch + reset) el marketplace en la
+#   2. Clona (o actualiza con `git pull`) el marketplace en la
 #      ruta correcta que Claude Code/Cowork esperan:
 #        ~/.claude/plugins/marketplaces/email-triage-plugin/
 #   3. Lee la versión dinámicamente desde plugin.json.
@@ -46,25 +46,7 @@ fi
 mkdir -p "$(dirname "$MARKETPLACE_DIR")"
 
 if [ -d "$MARKETPLACE_DIR/.git" ]; then
-  echo "📥 Repo existente detectado. Actualizando (fetch + reset a origin/$BRANCH)..."
-
-  # ── 2-pre. Rescatar config personalizado (migración v3.3 → v3.4+) ──
-  # En v3.3 el config del usuario vivía DENTRO del repo; el reset --hard
-  # de abajo lo destruiría sin aviso. Si todavía no existe el config
-  # personal de v3.4+ y el del repo difiere de su plantilla original
-  # (HEAD local), rescatarlo ANTES de tocar nada.
-  RESCATE_USER_CONFIG="$TELEMETRY_DIR/config.yaml"
-  RESCATE_REPO_CONFIG="plugins/$PLUGIN_NAME/skills/$PLUGIN_NAME/config.yaml"
-  if [ ! -f "$RESCATE_USER_CONFIG" ] && [ -f "$MARKETPLACE_DIR/$RESCATE_REPO_CONFIG" ]; then
-    if ! git -C "$MARKETPLACE_DIR" diff HEAD --quiet -- "$RESCATE_REPO_CONFIG" 2>/dev/null; then
-      mkdir -p "$TELEMETRY_DIR"
-      cp "$MARKETPLACE_DIR/$RESCATE_REPO_CONFIG" "$RESCATE_USER_CONFIG"
-      echo "🛟 Config personalizado detectado en el repo (formato v3.3)."
-      echo "   Rescatado a: $RESCATE_USER_CONFIG"
-      echo "   (sobrevivirá a esta y a todas las actualizaciones futuras)"
-    fi
-  fi
-
+  echo "📥 Repo existente detectado. Actualizando con git pull..."
   if ! git -C "$MARKETPLACE_DIR" fetch origin "$BRANCH" 2>&1; then
     echo "❌ Error al hacer fetch del repositorio."
     exit 1

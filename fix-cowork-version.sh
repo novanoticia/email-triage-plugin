@@ -74,14 +74,15 @@ if [ -d "$SESSION_BASE" ]; then
 fi
 
 if [ -n "$RPM_PLUGIN" ]; then
-  # Crear directorios destino si no existen
-  mkdir -p "$RPM_PLUGIN/.claude-plugin"
-  mkdir -p "$RPM_PLUGIN/skills/email-triage"
-
-  cp "$REPO/.claude-plugin/plugin.json"      "$RPM_PLUGIN/.claude-plugin/plugin.json" && \
-  cp "$REPO/skills/email-triage/SKILL.md"    "$RPM_PLUGIN/skills/email-triage/SKILL.md" && \
-  cp "$REPO/skills/email-triage/config.yaml" "$RPM_PLUGIN/skills/email-triage/config.yaml" && \
-  echo "✅ Cowork (rpm): actualizado a v$VERSION" || \
+  # Copiar el ÁRBOL COMPLETO del plugin, no archivos sueltos. Hasta
+  # v3.4.1 solo se copiaban plugin.json, SKILL.md y config.yaml, así
+  # que ni scripts/triage_helpers.py ni references/ ni commands/
+  # llegaban a Cowork: en esa plataforma no existía la "vía preferente"
+  # de v3.4 ni el fallback manual documentado. Copiar el árbol evita
+  # además olvidar archivos que se añadan en versiones futuras.
+  mkdir -p "$RPM_PLUGIN"
+  cp -r "$REPO/." "$RPM_PLUGIN/" && \
+  echo "✅ Cowork (rpm): árbol completo del plugin actualizado a v$VERSION" || \
   echo "❌ Error al copiar archivos a Cowork rpm"
 else
   echo "⚠️  Cowork: plugin no encontrado en rpm (¿está instalado en Cowork?)"
