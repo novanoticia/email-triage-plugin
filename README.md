@@ -18,6 +18,16 @@ La mayoría de clasificadores de correo preguntan "¿es urgente?". Este plugin p
 
 El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decisional, calidad epistémica, coste cognitivo y riesgo de manipulación.
 
+## Novedades en v3.5
+- **El asunto también se sanitiza**: el detector de prompt injection (S0) se aplica ahora al asunto además del cuerpo. Tiene sentido porque el asunto alimenta hard rules de peso (+4 pregunta directa, +4 deadline, +3 mención), así que es una vía de ataque tan real como el cuerpo. Si el asunto contiene patrones de manipulación, se descarta y se evalúa solo por remitente y fecha
+- **Cap de tier ante inyección**: un correo con inyección detectada (en cuerpo o asunto) **no puede recibir `REPLY_NEEDED` automáticamente** — su tier máximo es `REVIEW`. Un atacante controla los metadatos que suman puntos, así que un humano debe ver el correo antes de que el sistema lo declare urgente. Siempre puedes subirlo a mano, y esa corrección alimenta el feedback loop
+- **Hilos «esperando respuesta» verificados de verdad**: antes el +5 de «el usuario es el blocker» se aplicaba casi siempre, porque la señal era invisible (tus propios envíos viven en Enviados, no en la bandeja triada). Ahora la señal tiene tres estados —`true`/`false`/`desconocido`— confirmados contra la carpeta de Enviados en iCloud, o leídos del hilo nativo en Gmail. El **+5 solo se aplica con `false` confirmado; +2 si es incierto; 0 si ya respondiste**
+- **Gmail usa el hilo nativo (`threadId`)**: en lugar de la heurística de asunto+participante, se agrupa por el hilo real de Gmail (más fiable, e incluye tus respuestas). La heurística queda solo para iCloud/Mail.app
+- **Log de sesión append-only**: el registro para el undo ya no edita líneas escritas (era frágil y podía corromper justo el archivo que permite revertir). Fallos y reversiones se anotan como eventos nuevos; el undo solo lee. La purga de entradas antiguas (>30 días) se hace al cerrar la sesión, nunca durante un undo
+- **Truncado del cuerpo unificado**: dos únicos números en orden claro — extracción cruda generosa (4000 caracteres) y luego presupuesto final `puntuacion.max_caracteres_cuerpo` aplicado **sobre el texto ya limpio**. Antes se truncaba en corto *antes* de limpiar, lo que destrozaba los correos HTML. La plantilla sube su valor por defecto a 1500
+- **Correcciones de dry-run ponderadas**: los overrides hechos durante una simulación se registran con `simulacion: true` y pesan la mitad en el aprendizaje, para no contaminar el perfil de producción con pruebas de umbrales
+- **Integración continua**: los cambios en Python se validan con una batería de tests (`scripts/test_triage_helpers.py`) que corre en GitHub Actions en cada push
+
 ## Novedades en v3.4
 - **Config personal persistente**: vive en `~/.email-triage/config.yaml`, fuera del repo — sobrevive a las actualizaciones (`git reset --hard`) y no puede filtrarse a git. El `config.yaml` del repo pasa a ser solo plantilla
 - **Lógica determinista en `scripts/triage_helpers.py`**: el decay y la agregación de correcciones (PASO 0.B) y la sanitización del cuerpo (S0–S5) se ejecutan ahora en Python, no como aritmética mental del modelo. La defensa anti-injection pasa de instrucción a mecanismo: el modelo solo ve texto ya filtrado. El procedimiento manual del SKILL.md queda como fallback
@@ -35,7 +45,7 @@ El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decis
 ## Novedades en v3.2
 - **Modo dry-run (simulación)**: previsualiza el triaje sin mover nada — propaga como flag por PASO 0/4.G/5, con resumen agregado al final
 - **Sanitización de entrada**: PASO 1.B normaliza HTML/base64/caracteres de control y detecta payloads de prompt injection antes de scoring
-- **Defensa prompt injection (3 capas)**: delimitadores `<email-body-data>`, detector S0 sobre el cuerpo sanitizado, framing como *datos no instrucciones*
+- **Defensa prompt injection (3 capas)**: delimitadores `<email-body-data>`, detector S0 sobre el cuerpo sanitizado, framing como *datos no instrucciones* (ampliado en v3.4.1 con doble vista crudo/decodificado y en v3.5 al asunto)
 - **Detección de hilos**: PASO 1.C normaliza `Re:`/`Fwd:` y cruza participantes; PASO 4.J aplica peso al hilo completo en lugar de scoring mensaje a mensaje
 - **Undo / rollback**: PASO 4.I escribe log de sesión y PASO 6 permite deshacer el último batch movido
 - **Feedback loop**: PASO 0.B lee reglas aprendidas del historial; PASO 4.A las aplica con decaimiento temporal
@@ -86,8 +96,9 @@ existentes hace `git fetch` + `reset --hard origin/main`. Requiere
 `git` y `python3` en `PATH`.
 
 **Opción B: manual.** Clona el repo en
-`~/.claude/plugins/marketplaces/email-triage-plugin/` (o `git pull`
-para actualizar).
+`~/.claude/plugins/marketplaces/email-triage-plugin/` (para actualizar,
+`git fetch origin && git reset --hard origin/main`, que es lo que hace
+la opción A).
 
 ### Paso 2 — Registrar / refrescar en la app (obligatorio)
 
@@ -119,14 +130,14 @@ repo: es solo la plantilla y se sobrescribe en cada actualización.
 - `lote`: presenta todos y pide confirmación global
 - `silencioso`: mueve automáticamente (tras validar el criterio)
 - `simulacion`: dry-run, no mueve nada (también activable diciendo "simula" / "qué movería")
-- **rutina** (v3.3): activado solo cuando el skill se ejecuta desde una scheduled task. Configura el bloque `interaccion.rutina` para definir umbral de movimiento, lista de candidatos dudosos y notificación macOS al terminar.
+- **rutina** (v3.3): se aplica cuando el skill se ejecuta desde una scheduled task **y** `interaccion.rutina.activo` está en `true`. Desde v3.4.3 viene en `false` por defecto (opt-in consciente): una plantilla recién instalada no mueve correo de forma desatendida hasta que tú lo decides. Configura el bloque `interaccion.rutina` para umbral de movimiento, candidatos dudosos y notificación macOS.
 
 ### Configuración del modo rutina
 ```yaml
 interaccion:
   modo: "confirmacion"           # modo manual habitual
   rutina:
-    activo: true                 # respetar este bloque en scheduled tasks
+    activo: false                # true para respetar este bloque en scheduled tasks (opt-in desde v3.4.3)
     modo: "silencioso"
     umbral_mover: 10             # score mínimo para mover
     umbral_dudoso_min: 4         # rango de "dudosos" (no se mueven)
@@ -166,7 +177,7 @@ Los nombres de carpeta en `config.yaml` deben coincidir exactamente con los de t
 Asegúrate de que `usuario.perfil` en `config.yaml` describa bien tu rol e intereses.
 
 ### Correos muy largos causan lentitud
-Reduce `puntuacion.max_caracteres_cuerpo` a 300 o desactiva `leer_cuerpo` si prefieres velocidad sobre precisión.
+Reduce `puntuacion.max_caracteres_cuerpo` (presupuesto del cuerpo ya limpio; 800 para priorizar velocidad) o desactiva `leer_cuerpo` si prefieres rapidez sobre precisión. La extracción cruda previa (4000) la fija el SKILL y no se toca aquí.
 
 ## Créditos
 Diseñado por Pablo Rodríguez López ([mindandhealth.org](https://mindandhealth.org/)) con asistencia de Claude.
