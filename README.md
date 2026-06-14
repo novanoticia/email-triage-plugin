@@ -32,11 +32,11 @@ El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decis
 - **Log de sesión append-only**: el registro para el undo ya no edita líneas escritas (era frágil y podía corromper justo el archivo que permite revertir). Fallos y reversiones se anotan como eventos nuevos; el undo solo lee. La purga de entradas antiguas (>30 días) se hace al cerrar la sesión, nunca durante un undo
 - **Truncado del cuerpo unificado**: dos únicos números en orden claro — extracción cruda generosa (4000 caracteres) y luego presupuesto final `puntuacion.max_caracteres_cuerpo` aplicado **sobre el texto ya limpio**. Antes se truncaba en corto *antes* de limpiar, lo que destrozaba los correos HTML. La plantilla sube su valor por defecto a 1500
 - **Correcciones de dry-run ponderadas**: los overrides hechos durante una simulación se registran con `simulacion: true` y pesan la mitad en el aprendizaje, para no contaminar el perfil de producción con pruebas de umbrales
-- **Integración continua**: los cambios en Python se validan con una batería de tests (`scripts/test_triage_helpers.py`) que corre en GitHub Actions en cada push
+- **Integración continua**: los cambios en Python se validan con una batería de tests (`skills/email-triage/scripts/test_triage_helpers.py`) que corre en GitHub Actions en cada push
 
 ## Novedades en v3.4
 - **Config personal persistente**: vive en `~/.email-triage/config.yaml`, fuera del repo — sobrevive a las actualizaciones (`git reset --hard`) y no puede filtrarse a git. El `config.yaml` del repo pasa a ser solo plantilla
-- **Lógica determinista en `scripts/triage_helpers.py`**: el decay y la agregación de correcciones (PASO 0.B) y la sanitización del cuerpo (S0–S5) se ejecutan ahora en Python, no como aritmética mental del modelo. La defensa anti-injection pasa de instrucción a mecanismo: el modelo solo ve texto ya filtrado. El procedimiento manual del SKILL.md queda como fallback
+- **Lógica determinista en `skills/email-triage/scripts/triage_helpers.py`**: el decay y la agregación de correcciones (PASO 0.B) y la sanitización del cuerpo (S0–S5) se ejecutan ahora en Python, no como aritmética mental del modelo. La defensa anti-injection pasa de instrucción a mecanismo: el modelo solo ve texto ya filtrado. El procedimiento manual del SKILL.md queda como fallback
 - **`/triage` dentro del plugin**: el comando se carga desde `plugins/email-triage/commands/`
 - **Versiones unificadas**: plugin.json como fuente de verdad, con aviso de deriva en `fix-cowork-version.sh`
 
@@ -72,6 +72,32 @@ El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decis
 - Explicación obligatoria
 - Hard rules expandidas
 - Telemetría
+
+## Requisitos
+
+- **`git` y `python3`** en el `PATH` (Python 3.9+).
+- **PyYAML** — necesario **solo** para el subcomando `scoring` del modo
+  *determinista* (`scripts/triage_helpers.py scoring`). Sin él, el skill
+  detecta la ausencia y cae automáticamente al **modo mental** (sin romperse),
+  pero el scoring deja de ser reproducible por script. Instálalo con:
+
+  ```bash
+  python3 -m pip install --user pyyaml
+  # En entornos con PEP 668 ("externally-managed-environment"):
+  python3 -m pip install --break-system-packages pyyaml
+  ```
+
+  Verifica con `python3 -c "import yaml; print(yaml.__version__)"`. Instálalo
+  para el **mismo** `python3` que ejecuta el skill (en macOS suele ser
+  `/usr/bin/python3`; comprueba con `which -a python3`).
+
+- **macOS — permiso para instalación automática**: si dejas que Claude/Cowork
+  instale PyYAML por ti (en lugar de ejecutar tú el `pip` de arriba), macOS
+  pedirá autorización. Debes concederla en **Ajustes del Sistema → Privacidad
+  y seguridad** (control de la app/Terminal e instalación de paquetes); fue
+  necesario habilitarlo para que el asistente pudiera instalar dependencias.
+  Si prefieres no dar ese permiso, instala PyYAML **a mano** con el comando
+  anterior: es la única dependencia externa.
 
 ## Instalación
 

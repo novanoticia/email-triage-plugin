@@ -16,7 +16,7 @@ jobs:
           python-version: "3.12"
 
       - name: Tests de triage_helpers (S0-S5 y PASO 0.B)
-        run: python3 -m unittest discover -s plugins/email-triage/scripts -v
+        run: python3 -m unittest discover -s plugins/email-triage/skills/email-triage/scripts -v
 
       - name: config.yaml parsea sin trampas YAML 1.1
         run: |

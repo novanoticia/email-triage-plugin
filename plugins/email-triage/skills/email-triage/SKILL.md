@@ -114,12 +114,12 @@ lo pide), se hace dry-run notificando los movimientos hipotéticos.
 Ejecutar DESPUÉS de leer `config.yaml` y ANTES de conectar al proveedor.
 
 **Vía preferente (NUEVO en v3.4)**: si existe `scripts/triage_helpers.py`
-junto al plugin, ejecutarlo con Desktop Commander y usar su salida JSON
-directamente como tabla de ajustes — el cálculo es determinista y no
+en la carpeta del skill (junto a este SKILL.md), ejecutarlo con Desktop
+Commander y usar su salida JSON directamente como tabla de ajustes — el cálculo es determinista y no
 depende de aritmética mental:
 
 ```bash
-python3 "<ruta-del-plugin>/scripts/triage_helpers.py" ajustes
+python3 "<ruta-del-skill>/scripts/triage_helpers.py" ajustes
 ```
 
 Devuelve `ajustes_remitente`, `ajustes_dominio`, `ajustes_keyword` y
@@ -338,7 +338,7 @@ sanitizar cada cuerpo ejecutando el script ANTES de que el texto crudo
 entre en el contexto de evaluación:
 
 ```bash
-python3 "<ruta-del-plugin>/scripts/triage_helpers.py" sanitizar \
+python3 "<ruta-del-skill>/scripts/triage_helpers.py" sanitizar \
   --archivo /tmp/cuerpo.txt \
   --asunto "ASUNTO DEL CORREO" \
   --max-chars <valor de puntuacion.max_caracteres_cuerpo del config>
@@ -737,7 +737,7 @@ los criterios, pasa los veredictos al script:
 echo '{"verdicts": {"cambia_algo_concreto": "si", "hug_the_query": "directo", ...},
        "hard_rules": ["pregunta_directa_boost"], "extra_points": 0,
        "forzar_reply_needed": false, "tier_maximo": null}' \
-  | python3 "<ruta-del-plugin>/scripts/triage_helpers.py" scoring \
+  | python3 "<ruta-del-skill>/scripts/triage_helpers.py" scoring \
       --config ~/.email-triage/config.yaml
 ```
 
