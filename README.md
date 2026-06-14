@@ -120,6 +120,42 @@ Desde v3.4 tu config personal vive en `~/.email-triage/config.yaml`
 antes del primer uso — **no** edites el `config.yaml` de dentro del
 repo: es solo la plantilla y se sobrescribe en cada actualización.
 
+### Actualizar cuando cambia la estructura del config
+
+El instalador **preserva** tu `~/.email-triage/config.yaml`: no lo
+sobrescribe en las actualizaciones, para no perder tus ajustes. Eso tiene
+una contrapartida importante que conviene tener clara como norma general:
+
+> **Siempre que una versión cambia la _estructura_ del `config.yaml`**
+> (campos o bloques nuevos, claves renombradas), tu config antiguo se queda
+> desincronizado con la plantilla nueva — al respetarlo, el instalador **no**
+> le añade los campos nuevos. Tu config viejo sigue siendo válido para lo que
+> ya tenía, pero le faltan las piezas nuevas.
+
+Por qué importa: algunas funciones leen tu config externo y dependen de esos
+campos. Ejemplo real de v3.6: el **modo determinista** necesita el campo
+`eje:` en cada criterio y el bloque `scoring`; con un config anterior a v3.6
+esos campos no existen, así que el scoring determinista ignoraría criterios y
+devolvería 0 — un fallo silencioso, difícil de diagnosticar.
+
+**Procedimiento recomendado** cuando las notas de versión indiquen un cambio
+de estructura del config (las migraciones de datos —`correcciones.jsonl`,
+logs— NO se ven afectadas; esto es solo el `config.yaml`):
+
+1. **Backup** del config actual:
+   ```bash
+   cp ~/.email-triage/config.yaml ~/.email-triage/config.backup-$(date +%Y%m%d).yaml
+   ```
+2. **Elimina** el config existente para que el instalador regenere uno limpio
+   desde la plantilla nueva (recuerda: solo lo crea si **no** existe):
+   ```bash
+   rm ~/.email-triage/config.yaml
+   ```
+3. **Reinstala / actualiza** y vuelve a introducir tus datos personales
+   (`usuario`, `correo`, `carpetas`, `filtros`, umbrales…) en el config fresco
+   — a mano comparando con tu backup, o pidiéndoselo a la IA con el backup
+   delante. Así obtienes la estructura nueva **con** tus datos de siempre.
+
 ### Campos básicos
 - `usuario`: nombre, perfil profesional, proyectos activos
 - `correo`: proveedor (icloud/gmail/otro), nombre de cuenta
@@ -179,6 +215,90 @@ Asegúrate de que `usuario.perfil` en `config.yaml` describa bien tu rol e inter
 ### Correos muy largos causan lentitud
 Reduce `puntuacion.max_caracteres_cuerpo` (presupuesto del cuerpo ya limpio; 800 para priorizar velocidad) o desactiva `leer_cuerpo` si prefieres rapidez sobre precisión. La extracción cruda previa (4000) la fija el SKILL y no se toca aquí.
 
+## Decisiones de diseño
+
+Esta sección recoge las decisiones de fondo del plugin: no *qué* hace cada
+versión (eso está en las «Novedades»), sino **por qué** se eligió un camino y
+qué alternativas se descartaron (al menos de momento). Las decisiones de v3.6
+se tomaron de forma explícita y discutida; las anteriores están reconstruidas
+a partir del registro del repo (Novedades, commits, comentarios del código),
+así que su *racional* es una lectura razonada del rastro documentado, no
+necesariamente las palabras exactas de quien las tomó.
+
+1. **Triaje por valor diferencial, no por urgencia** (v3.0). La pregunta no es
+   «¿es urgente?» sino «¿leer esto cambiaría algo que vaya a hacer?». Se eligió
+   porque para una sola persona el cuello de botella no es la urgencia sino la
+   atención mal gastada. _Alternativa descartada_: un clasificador clásico
+   urgente/no-urgente — más simple y estándar, pero ciego al valor de la
+   información.
+
+2. **30 criterios epistémicos sobre 5 ejes acotados** (v3.0). Descomponer el
+   juicio en dimensiones auditables (valor decisional, calidad epistémica,
+   riesgo de manipulación, coste cognitivo, presión de acción) en vez de un
+   número opaco. _Alternativa descartada_: un score monolítico — más simple,
+   pero no explicable ni corregible criterio a criterio.
+
+3. **El config personal vive fuera del repo** (v3.4). En `~/.email-triage/`,
+   para sobrevivir al `git reset --hard` de las actualizaciones y no filtrarse
+   a git. _Alternativa descartada_ (la vieja, v3.3): el config dentro del repo
+   — se abandonó porque el reset lo borraba. Su cara B aparece arriba en
+   «Actualizar cuando cambia la estructura del config».
+
+4. **Lo mecánico, en Python; lo de juicio, en el modelo** (v3.4). El decay de
+   correcciones y la sanitización S0–S5 pasaron de aritmética mental a código.
+   El motivo de seguridad es clave: la defensa anti-inyección deja de ser una
+   *instrucción* al modelo y pasa a ser un *mecanismo* (el modelo solo ve texto
+   ya filtrado). _Alternativa descartada_: seguir confiando en que el modelo
+   recuerde no obedecer al cuerpo del correo.
+
+5. **Scoring: mental por defecto, determinista bajo petición** (v3.6). El
+   reparto elegido es «el modelo juzga cada criterio, el script hace el
+   recuento». Por defecto se queda en **mental** para conservar el matiz que
+   ninguna tabla captura; el modo **determinista** se activa a voluntad cuando
+   quieres reproducibilidad (auditar, comparar pesos). _Alternativas no tomadas
+   (de momento)_: (a) determinista total por defecto — máxima reproducibilidad,
+   pero quita al modelo la corrección «de bulto»; (b) híbrido ancla+ajuste — el
+   script fija un ancla y el modelo la mueve dentro de una banda con
+   justificación — más fino, pero más complejo de especificar. El **mapeo de
+   cada criterio a un solo eje** es otra decisión revisable: se prefirió un eje
+   primario por criterio (razonable y testeable) frente a permitir que un
+   criterio sume a varios ejes (más fiel, más difícil de razonar).
+
+6. **S0 ancla patrones a contexto en vez de ampliar la blocklist** (v3.4.1, y
+   omisión deliberada en v3.6). Más patrones de ataque dan un retorno marginal
+   bajo frente al riesgo de marcar correo legítimo como inyección (falsos
+   positivos que rompen el triaje diario). _Alternativa no tomada_: una
+   blocklist más agresiva — solo valdría la pena si tu modelo de amenaza
+   prioriza ataques dirigidos sobre la fricción cotidiana.
+
+7. **Inyección detectada capa el tier, no solo resta puntos** (v3.5). Un atacante
+   controla los metadatos que suman (pregunta +4, deadline +4, mención +3), así
+   que restar −3 no bastaba: llegaba a `REPLY_NEEDED` igual. Ahora la inyección
+   topa el tier en `REVIEW` y obliga a que un humano lo vea. _Alternativa
+   descartada_: quedarse solo con la penalización numérica.
+
+8. **El +5 de «hilo esperando respuesta» se verifica de verdad** (v3.5). La
+   señal era invisible (tus envíos viven en Enviados, fuera de la bandeja
+   triada), así que se disparaba casi siempre. Se eligió **verificar** contra
+   Enviados (iCloud) o leer el hilo nativo (`threadId` en Gmail). _Alternativa
+   no tomada_: rebajar el peso a +2 fijo — se prefirió arreglar la señal antes
+   que degradarla.
+
+9. **Log de sesión append-only** (v3.5). Editar líneas ya escritas del JSONL
+   corrompía justo el archivo que permite revertir; ahora fallos y reversiones
+   se anotan como eventos nuevos y el undo solo lee. _Alternativa descartada_:
+   mutar el `status` en sitio.
+
+10. **Modo rutina opt-in (`activo: false`)** (v3.4.3). Una plantilla recién
+    instalada no debe mover correo de forma desatendida sin consentimiento
+    explícito. _Alternativa descartada_: arrancar en `true` por comodidad.
+
+11. **Rescate del config antes del `reset --hard`** (v3.6). Quien venía de v3.3
+    con su config dentro del repo lo perdía en silencio al actualizar. Ahora,
+    si el config del repo fue editado y aún no hay config externo, se rescata
+    antes del reset. _Alternativa descartada_: dejarlo como estaba (un commit
+    previo lo daba por hecho sin implementarlo realmente).
+
 ## Créditos
 Diseñado por Pablo Rodríguez López ([mindandhealth.org](https://mindandhealth.org/)) con asistencia de Claude.
 
@@ -191,3 +311,10 @@ Apache 2.0 — ver [LICENSE](https://github.com/novanoticia/email-triage-plugin/
 - [Repositorio en GitHub](https://github.com/novanoticia/email-triage-plugin)
 - [Issues](https://github.com/novanoticia/email-triage-plugin/issues)
 - [Releases](https://github.com/novanoticia/email-triage-plugin/releases)
+
+
+---
+
+> _Nota: parte de la documentación y del código de este repositorio se ha
+> elaborado con asistencia de IA (Claude) y requiere revisión humana antes de
+> darse por definitiva._
