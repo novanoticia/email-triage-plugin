@@ -1,6 +1,6 @@
 ---
 name: email-triage
-version: "3.5.0"
+version: "3.6.0"
 description: >
   Triaje inteligente de correo electrónico: analiza bandejas de entrada y carpetas
   de lectura pendiente para identificar correos de alto valor usando criterios
@@ -709,6 +709,50 @@ Cada criterio epistémico contribuye a uno o más de estos ejes:
 
 **Fórmula:**
 `score_final = valor_decisional + calidad_epistemica + riesgo_manipulacion + coste_cognitivo + presion_accion + puntos_hard_rules`
+
+#### Modo de agregación: mental (por defecto) vs determinista (opt-in)
+
+La aritmética de arriba puede hacerse de dos formas, según `scoring.modo`
+en `config.yaml`:
+
+- **`mental` (POR DEFECTO)** — el modelo evalúa cada criterio Y agrega los
+  ejes con su juicio, como hasta ahora. Conserva el matiz que ninguna tabla
+  captura (el "puntúa bajo pero huele a importante"), a cambio de que dos
+  pasadas sobre el mismo correo puedan dar scores algo distintos.
+
+- **`determinista` (bajo petición)** — el modelo SOLO emite el veredicto de
+  cada criterio (la clave del valor: `si`/`no`/`alta`/`media`/`baja`…) y
+  delega la aritmética en el script. Mismo input → mismo output, auditable y
+  testeable. Útil para auditar una sesión o comparar cambios de pesos.
+
+**Cómo se activa el modo determinista** (cualquiera de las dos vías):
+1. Permanente: `scoring.modo: determinista` en `config.yaml`.
+2. Por sesión: el usuario lo pide en el chat ("modo determinista", "scoring
+   determinista"). Esta petición del usuario tiene prioridad sobre el config.
+
+**Cómo se invoca** (solo en modo determinista). Por cada correo, tras evaluar
+los criterios, pasa los veredictos al script:
+
+```bash
+echo '{"verdicts": {"cambia_algo_concreto": "si", "hug_the_query": "directo", ...},
+       "hard_rules": ["pregunta_directa_boost"], "extra_points": 0,
+       "forzar_reply_needed": false, "tier_maximo": null}' \
+  | python3 "<ruta-del-plugin>/scripts/triage_helpers.py" scoring \
+      --config ~/.email-triage/config.yaml
+```
+
+El script mapea cada criterio a su `eje` (campo `eje` del config), suma por
+eje, **clampa cada eje a su rango** (la suma no puede salirse de `0..10`,
+`-10..10`, etc.), añade las `hard_rules` y `extra_points` (ajustes aprendidos
+del PASO 0.B y keywords), y devuelve `score`, `tier` y el desglose completo.
+`forzar_reply_needed` cubre los disparadores especiales (pregunta directa,
+deadline ≤72h, usuario blocker); `tier_maximo` aplica el cap por inyección de
+S0. Si PyYAML no está instalado o el script falla, **cae al modo mental** y se
+avisa en el desglose.
+
+> Nota: el campo `eje` de cada criterio y los rangos de `scoring.ejes` son la
+> fuente única del mapeo criterio→eje. Si editas pesos o reasignas un criterio
+> a otro eje, el modo determinista lo recoge sin tocar código.
 
 #### Catálogo de 30 criterios epistémicos
 

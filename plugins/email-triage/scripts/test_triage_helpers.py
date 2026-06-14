@@ -300,5 +300,87 @@ class TestMenores310(unittest.TestCase):
         self.assertIsNone(th._parse_ts(None))
 
 
+
+def _cfg_scoring():
+    """Config mínima en línea para probar cmd_scoring sin depender de YAML."""
+    return {
+        "criterios_epistemicos": {
+            "cambia_algo_concreto": {"activo": True, "eje": "valor_decisional",
+                                     "si": 5, "no": -5},
+            "abre_opciones": {"activo": True, "eje": "valor_decisional",
+                              "si": 3, "no": 0},
+            "sorpresa_bayesiana": {"activo": True, "eje": "calidad_epistemica",
+                                   "baja": -2, "media": 1, "alta": 3},
+            "agente_estrategico": {"activo": True, "eje": "riesgo_manipulacion",
+                                   "no": 0, "quiza": -1, "si": -3},
+            "distancia_inferencial": {"activo": True, "eje": "coste_cognitivo",
+                                      "baja": 0, "media": -1, "alta": -2},
+            "urgencia_real_vs_fabricada": {"activo": True, "eje": "presion_accion",
+                                           "fabricada": -3, "neutral": 0, "real": 3},
+            "inactivo": {"activo": False, "eje": "valor_decisional", "si": 9},
+        },
+        "scoring": {"ejes": dict(th.EJES_DEFAULT)},
+        "tiers": {"reply_needed": 10, "review": 4, "reading_later": 0, "archive": -1},
+        "hard_rules": {"pregunta_directa_boost": 4, "deadline_explicito_boost": 4},
+    }
+
+
+class TestScoringDeterminista(unittest.TestCase):
+    def test_suma_basica_y_tier(self):
+        out = th.cmd_scoring({"verdicts": {
+            "cambia_algo_concreto": "si",   # valor_decisional +5
+            "abre_opciones": "si",          # valor_decisional +3
+            "sorpresa_bayesiana": "alta",   # calidad +3
+        }}, _cfg_scoring())
+        self.assertEqual(out["ejes"]["valor_decisional"], 8)
+        self.assertEqual(out["ejes"]["calidad_epistemica"], 3)
+        self.assertEqual(out["score"], 11)
+        self.assertEqual(out["tier"], "REPLY_NEEDED")
+
+    def test_clamp_por_eje(self):
+        # valor_decisional sumaría 5+3=8 con 'si','si' — probamos el techo:
+        # dos veces 'si' no es posible por clave única, así que forzamos el
+        # tope con un eje negativo: presion_accion no baja de 0.
+        out = th.cmd_scoring({"verdicts": {
+            "urgencia_real_vs_fabricada": "fabricada",  # presion_accion -3 -> clamp 0
+        }}, _cfg_scoring())
+        self.assertEqual(out["ejes_sin_clampar"]["presion_accion"], -3)
+        self.assertEqual(out["ejes"]["presion_accion"], 0)
+        self.assertEqual(out["score"], 0)
+        self.assertEqual(out["tier"], "READING_LATER")
+
+    def test_hard_rules_y_extra(self):
+        out = th.cmd_scoring({"verdicts": {"abre_opciones": "si"},  # +3
+                              "hard_rules": ["pregunta_directa_boost"],  # +4
+                              "extra_points": 1}, _cfg_scoring())
+        self.assertEqual(out["hard_puntos"], 4)
+        self.assertEqual(out["score"], 8)  # 3 + 4 + 1
+        self.assertEqual(out["tier"], "REVIEW")
+
+    def test_veredicto_invalido_se_ignora(self):
+        out = th.cmd_scoring({"verdicts": {"sorpresa_bayesiana": "altisima"}},
+                             _cfg_scoring())
+        self.assertEqual(out["score"], 0)
+        self.assertTrue(any("no valido" in i.get("motivo", "")
+                            for i in out["ignorados"]))
+
+    def test_criterio_inactivo_se_ignora(self):
+        out = th.cmd_scoring({"verdicts": {"inactivo": "si"}}, _cfg_scoring())
+        self.assertEqual(out["score"], 0)
+
+    def test_forzar_reply_needed(self):
+        out = th.cmd_scoring({"verdicts": {"abre_opciones": "no"},
+                              "forzar_reply_needed": True}, _cfg_scoring())
+        self.assertEqual(out["tier"], "REPLY_NEEDED")
+
+    def test_cap_por_inyeccion(self):
+        # score altísimo pero inyección detectada -> tope REVIEW
+        out = th.cmd_scoring({"verdicts": {"cambia_algo_concreto": "si"},
+                              "hard_rules": ["deadline_explicito_boost"],
+                              "tier_maximo": "REVIEW",
+                              "forzar_reply_needed": True}, _cfg_scoring())
+        self.assertEqual(out["tier"], "REVIEW")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

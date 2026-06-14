@@ -210,6 +210,28 @@ hard_rules:
   sin_accion_sin_info_penalizacion: -5
 
 # ───────────────────────────────────────────────────────────────
+# Scoring (PASO 4) — cómo se agregan los ejes del score epistémico
+# ───────────────────────────────────────────────────────────────
+# modo: mental (POR DEFECTO) — el modelo agrega los 5 ejes con su juicio,
+#         como hasta ahora. Máxima discrecionalidad, sin reproducibilidad
+#         garantizada entre pasadas.
+#       determinista — el modelo SOLO evalúa cada criterio (sí/no/alta…)
+#         y delega la aritmética en triage_helpers.py (subcomando `scoring`):
+#         suma por eje, clampa a los rangos de abajo, añade hard rules y
+#         devuelve score+tier reproducibles. Actívalo cambiando a
+#         "determinista" aquí, o pidiéndolo en el chat ("modo determinista")
+#         para una sesión concreta.
+scoring:
+  modo: mental
+  # Rangos acotados de cada eje (el script clampa la suma a estos límites).
+  ejes:
+    valor_decisional: [0, 10]
+    calidad_epistemica: [-10, 10]
+    riesgo_manipulacion: [-10, 0]
+    coste_cognitivo: [-5, 0]
+    presion_accion: [0, 10]
+
+# ───────────────────────────────────────────────────────────────
 # Filtros y pesos (heredados de v2.0)
 # ───────────────────────────────────────────────────────────────
 
@@ -269,6 +291,7 @@ criterios_epistemicos:
   # ─── GRUPO A: Criterio base ────────────────────────────────
 
   cambia_algo_concreto:
+    eje: valor_decisional
     activo: true
     core: true
     weight: 5
@@ -279,6 +302,7 @@ criterios_epistemicos:
   # ─── GRUPO B: Actualización bayesiana ──────────────────────
 
   cambio_predicciones:
+    eje: valor_decisional
     activo: true
     core: true
     weight: 4
@@ -287,6 +311,7 @@ criterios_epistemicos:
     "no": -3
 
   sorpresa_bayesiana:
+    eje: calidad_epistemica
     activo: true
     core: true
     weight: 3
@@ -296,6 +321,7 @@ criterios_epistemicos:
     alta: 3
 
   evidencia_filtrada:
+    eje: riesgo_manipulacion
     activo: true
     core: true
     weight: -3
@@ -305,6 +331,7 @@ criterios_epistemicos:
     newsletter_marketing_burocratico: -3
 
   forward_backward_flow:
+    eje: calidad_epistemica
     activo: true
     core: true
     weight: 3
@@ -316,6 +343,7 @@ criterios_epistemicos:
   # ─── GRUPO C: Diseño atencional y utilidad ─────────────────
 
   retorno_atencional:
+    eje: valor_decisional
     activo: true
     core: false
     weight: 2
@@ -325,6 +353,7 @@ criterios_epistemicos:
     bajo: -2
 
   confusion_productiva:
+    eje: calidad_epistemica
     activo: true
     core: false
     weight: 4
@@ -333,6 +362,7 @@ criterios_epistemicos:
     "no": 0
 
   impacto_causal_real:
+    eje: presion_accion
     activo: true
     core: true
     weight: 4
@@ -342,6 +372,7 @@ criterios_epistemicos:
     bajo: 0
 
   ruido_social:
+    eje: calidad_epistemica
     activo: true
     core: false
     weight: -3
@@ -351,6 +382,7 @@ criterios_epistemicos:
     ritual: -3
 
   abre_opciones:
+    eje: valor_decisional
     activo: true
     core: false
     weight: 3
@@ -359,6 +391,7 @@ criterios_epistemicos:
     "no": 0
 
   distancia_inferencial:
+    eje: coste_cognitivo
     activo: true
     core: false
     weight: -2
@@ -368,6 +401,7 @@ criterios_epistemicos:
     alta: -2
 
   agente_estrategico:
+    eje: riesgo_manipulacion
     activo: true
     core: false
     weight: -3
@@ -377,6 +411,7 @@ criterios_epistemicos:
     si: -3
 
   densidad_informativa:
+    eje: calidad_epistemica
     activo: true
     core: false
     weight: -2
@@ -386,6 +421,7 @@ criterios_epistemicos:
     baja: -2
 
   urgencia_real_vs_fabricada:
+    eje: presion_accion
     activo: true
     core: true
     weight: 3
@@ -395,6 +431,7 @@ criterios_epistemicos:
     real: 3
 
   relevancia_longitudinal:
+    eje: valor_decisional
     activo: true
     core: false
     weight: 4
@@ -406,6 +443,7 @@ criterios_epistemicos:
   # ─── GRUPO D: Anti-sesgo y calidad argumentativa ───────────
 
   motivated_stopping:
+    eje: calidad_epistemica
     activo: true
     core: false
     weight: -2
@@ -414,6 +452,7 @@ criterios_epistemicos:
     "no": 0
 
   motivated_continuation:
+    eje: calidad_epistemica
     activo: true
     core: false
     weight: -2
@@ -422,6 +461,7 @@ criterios_epistemicos:
     "no": 0
 
   true_rejection:
+    eje: calidad_epistemica
     activo: true
     core: false
     weight: 2
@@ -431,6 +471,7 @@ criterios_epistemicos:
     real: 2
 
   third_alternative:
+    eje: valor_decisional
     activo: true
     core: false
     weight: 3
@@ -439,6 +480,7 @@ criterios_epistemicos:
     "no": 0
 
   privileging_the_hypothesis:
+    eje: calidad_epistemica
     activo: true
     core: false
     weight: -3
@@ -447,6 +489,7 @@ criterios_epistemicos:
     "no": 0
 
   proper_humility:
+    eje: calidad_epistemica
     activo: true
     core: false
     weight: 3
@@ -456,6 +499,7 @@ criterios_epistemicos:
     humildad_operativa: 3
 
   positive_bias:
+    eje: calidad_epistemica
     activo: true
     core: false
     weight: -2
@@ -464,6 +508,7 @@ criterios_epistemicos:
     "no": 0
 
   argument_screens_off_authority:
+    eje: calidad_epistemica
     activo: true
     core: true
     weight: 3
@@ -473,6 +518,7 @@ criterios_epistemicos:
     argumento_fuerte: 3
 
   hug_the_query:
+    eje: valor_decisional
     activo: true
     core: true
     weight: 4
@@ -482,6 +528,7 @@ criterios_epistemicos:
     tangencial: -2
 
   semantic_stopsigns:
+    eje: calidad_epistemica
     activo: true
     core: true
     weight: -3
@@ -490,6 +537,7 @@ criterios_epistemicos:
     "no": 0
 
   fake_justification:
+    eje: calidad_epistemica
     activo: true
     core: false
     weight: -3
@@ -498,6 +546,7 @@ criterios_epistemicos:
     "no": 0
 
   fake_optimization_criteria:
+    eje: riesgo_manipulacion
     activo: true
     core: false
     weight: -2
@@ -506,6 +555,7 @@ criterios_epistemicos:
     "no": 0
 
   entangled_truths:
+    eje: calidad_epistemica
     activo: true
     core: true
     weight: 3
@@ -515,6 +565,7 @@ criterios_epistemicos:
     flotante: -2
 
   cached_thought:
+    eje: calidad_epistemica
     activo: true
     core: false
     weight: -2
@@ -524,6 +575,7 @@ criterios_epistemicos:
     enlatado: -2
 
   absence_of_expected_evidence:
+    eje: calidad_epistemica
     activo: true
     core: true
     weight: -3

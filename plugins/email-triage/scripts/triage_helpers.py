@@ -11,6 +11,8 @@ Uso:
   python3 triage_helpers.py ajustes [--correcciones RUTA]
   python3 triage_helpers.py sanitizar [--archivo RUTA] [--max-chars 1500] [--asunto TXT]
                             (sin --archivo lee de stdin)
+  python3 triage_helpers.py scoring [--config RUTA]    (modo determinista, lee
+                            payload JSON de veredictos por stdin)
 
 Salida: JSON por stdout. Solo stdlib (Python >= 3.9). Sin efectos laterales:
 este script NUNCA escribe ficheros ni mueve correos.
@@ -311,6 +313,123 @@ def cmd_sanitizar(texto, max_chars=1500, asunto=None):
     }
 
 
+# ════════════════════════════════════════════════════════════════
+# PASO 4 — scoring determinista (modo opt-in)
+# ════════════════════════════════════════════════════════════════
+# El modelo evalúa cada criterio (sí/no/alta/media/baja). Este comando
+# SOLO hace la aritmética: suma por eje, clampa cada eje a su rango,
+# añade hard rules y ajustes, y mapea a tier. Mismo input → mismo output.
+
+EJES_DEFAULT = {
+    "valor_decisional": [0, 10],
+    "calidad_epistemica": [-10, 10],
+    "riesgo_manipulacion": [-10, 0],
+    "coste_cognitivo": [-5, 0],
+    "presion_accion": [0, 10],
+}
+_META_CRIT = {"activo", "core", "weight", "question", "eje"}
+
+
+def _tier_por_score(score, tiers):
+    if score >= tiers.get("reply_needed", 10):
+        return "REPLY_NEEDED"
+    if score >= tiers.get("review", 4):
+        return "REVIEW"
+    if score >= tiers.get("reading_later", 0):
+        return "READING_LATER"
+    return "ARCHIVE"
+
+
+def cmd_scoring(payload, cfg):
+    """Agrega veredictos del modelo en un score+tier deterministas.
+
+    payload: {"verdicts": {criterio: valor}, "hard_rules": [clave...],
+              "extra_points": int, "forzar_reply_needed": bool,
+              "tier_maximo": "REVIEW"|None}
+    cfg: config.yaml ya parseado (dict). Devuelve score, tier, ejes y desglose.
+    """
+    criterios = cfg.get("criterios_epistemicos", {}) or {}
+    scfg = cfg.get("scoring", {}) or {}
+    rangos = scfg.get("ejes", EJES_DEFAULT)
+    tiers = cfg.get("tiers", {}) or {}
+    hard_cfg = cfg.get("hard_rules", {}) or {}
+
+    ejes = {nombre: 0 for nombre in rangos}
+    desglose, ignorados = [], []
+
+    for crit, verdict in (payload.get("verdicts") or {}).items():
+        c = criterios.get(crit)
+        if not c or not c.get("activo", True):
+            ignorados.append({"criterio": crit, "motivo": "desconocido o inactivo"})
+            continue
+        eje = c.get("eje")
+        valores = {k: v for k, v in c.items() if k not in _META_CRIT}
+        if verdict not in valores:
+            ignorados.append({"criterio": crit,
+                              "motivo": "veredicto '%s' no valido; opciones: %s"
+                              % (verdict, sorted(valores))})
+            continue
+        if eje not in ejes:
+            ignorados.append({"criterio": crit,
+                              "motivo": "sin eje valido (eje=%r)" % eje})
+            continue
+        pts = valores[verdict]
+        ejes[eje] += pts
+        desglose.append({"criterio": crit, "veredicto": verdict,
+                         "eje": eje, "puntos": pts})
+
+    ejes_clamp = {}
+    for nombre, val in ejes.items():
+        lo, hi = rangos[nombre]
+        ejes_clamp[nombre] = max(lo, min(hi, val))
+
+    hard_puntos, hard_desglose = 0, []
+    for k in (payload.get("hard_rules") or []):
+        v = hard_cfg.get(k)
+        if v is None:
+            ignorados.append({"hard_rule": k, "motivo": "no definida en config"})
+            continue
+        hard_puntos += v
+        hard_desglose.append({"regla": k, "puntos": v})
+
+    extra = payload.get("extra_points", 0) or 0
+    score = sum(ejes_clamp.values()) + hard_puntos + extra
+
+    tier = _tier_por_score(score, tiers)
+    if payload.get("forzar_reply_needed"):
+        tier = "REPLY_NEEDED"
+    # Cap por inyección (v3.5): nunca por encima de tier_maximo.
+    tmax = payload.get("tier_maximo")
+    if tmax in TIER_ORDEN and TIER_ORDEN[tier] > TIER_ORDEN[tmax]:
+        tier = tmax
+
+    return {
+        "modo": "determinista",
+        "score": score,
+        "tier": tier,
+        "ejes": ejes_clamp,
+        "ejes_sin_clampar": ejes,
+        "hard_rules": hard_desglose,
+        "hard_puntos": hard_puntos,
+        "extra_points": extra,
+        "criterios": desglose,
+        "ignorados": ignorados,
+    }
+
+
+def _cargar_config(ruta):
+    try:
+        import yaml
+    except ImportError:
+        raise SystemExit("El modo determinista requiere PyYAML: "
+                         "pip install pyyaml --break-system-packages")
+    if not os.path.exists(ruta):
+        aqui = os.path.dirname(os.path.abspath(__file__))
+        ruta = os.path.join(aqui, "..", "skills", "email-triage", "config.yaml")
+    with open(ruta, encoding="utf-8") as fh:
+        return yaml.safe_load(fh)
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -322,9 +441,15 @@ def main():
     ps.add_argument("--max-chars", type=int, default=1500)
     ps.add_argument("--asunto", default=None,
                     help="asunto del correo; también se escanea con S0")
+    psc = sub.add_parser("scoring")
+    psc.add_argument("--config",
+                     default=os.path.expanduser("~/.email-triage/config.yaml"))
     args = p.parse_args()
     if args.cmd == "ajustes":
         out = cmd_ajustes(args.correcciones)
+    elif args.cmd == "scoring":
+        payload = json.loads(sys.stdin.read() or "{}")
+        out = cmd_scoring(payload, _cargar_config(args.config))
     else:
         if args.archivo:
             with open(args.archivo, encoding="utf-8", errors="replace") as fh:
