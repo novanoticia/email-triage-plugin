@@ -18,6 +18,12 @@ La mayoría de clasificadores de correo preguntan "¿es urgente?". Este plugin p
 
 El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decisional, calidad epistémica, coste cognitivo y riesgo de manipulación.
 
+## Novedades en v3.6
+- **Scoring determinista opt-in**: el modo de agregación del score es ahora configurable (`scoring.modo`). Por defecto sigue en **mental** (el modelo agrega los ejes con su juicio, comportamiento idéntico al anterior). Activando **determinista** —en el config o diciéndolo en el chat— el modelo solo evalúa cada criterio y `triage_helpers.py scoring` hace la aritmética: suma por eje, **clampa** cada eje a su rango, añade hard rules y el cap por inyección, y devuelve `score`+`tier` reproducibles. Pensado para auditar una sesión o comparar cambios de pesos
+- **Campo `eje` en los 30 criterios**: cada criterio declara a qué eje (`valor_decisional`, `calidad_epistemica`, `riesgo_manipulacion`, `coste_cognitivo`, `presion_accion`) contribuye, y el bloque `scoring.ejes` fija sus rangos. Es la fuente única del mapeo criterio→eje que usa el modo determinista; editarlo no toca código
+- **Instalador endurecido**: rescata el `config.yaml` editado de instalaciones v3.3 **antes** del `git reset --hard` que lo destruía; lectura de versión vía `sys.argv` (sin interpolar rutas en Python); y los mensajes dicen «fetch + reset --hard», que es lo que el script hace de verdad
+- **Tests**: la batería sube a 27 (7 nuevos para el scoring determinista: suma por eje, clamp, hard rules, veredictos inválidos, cap por inyección)
+
 ## Novedades en v3.5
 - **El asunto también se sanitiza**: el detector de prompt injection (S0) se aplica ahora al asunto además del cuerpo. Tiene sentido porque el asunto alimenta hard rules de peso (+4 pregunta directa, +4 deadline, +3 mención), así que es una vía de ataque tan real como el cuerpo. Si el asunto contiene patrones de manipulación, se descarta y se evalúa solo por remitente y fecha
 - **Cap de tier ante inyección**: un correo con inyección detectada (en cuerpo o asunto) **no puede recibir `REPLY_NEEDED` automáticamente** — su tier máximo es `REVIEW`. Un atacante controla los metadatos que suman puntos, así que un humano debe ver el correo antes de que el sistema lo declare urgente. Siempre puedes subirlo a mano, y esa corrección alimenta el feedback loop
