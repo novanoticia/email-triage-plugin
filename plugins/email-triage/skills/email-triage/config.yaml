@@ -223,6 +223,21 @@ hard_rules:
 #         para una sesión concreta.
 scoring:
   modo: mental
+
+  # ─── Parche v3.7 ─────────────────────────────────────────────
+  cap_reply_needed_sin_accion: true
+  # Si true (recomendado), REPLY_NEEDED solo se alcanza con una señal de
+  # acción explícita (forzar_reply_needed: pregunta directa, deadline <=72h,
+  # hilo bloqueado). Un score alto por valor/calidad NO basta — se capa a
+  # REVIEW. Evita que newsletters muy interesantes acaben marcadas como
+  # "exige respuesta". Ponlo en false para volver al comportamiento anterior.
+
+  sender_bulk_atenuado_a: -1
+  # Cuando un correo se evalúa con remitente_en_historial=true, la
+  # penalización sender_bulk_penalizacion (-4) se atenúa hasta este valor.
+  # Un remitente que conservas a mano no merece el castigo completo de
+  # "remitente masivo".
+
   # Rangos acotados de cada eje (el script clampa la suma a estos límites).
   ejes:
     valor_decisional: [0, 10]

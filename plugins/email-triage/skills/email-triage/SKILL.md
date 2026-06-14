@@ -56,6 +56,21 @@ Lee la configuración antes de cualquier fase. Contiene perfil, carpetas y pesos
 Nunca guardar datos personales (nombre, perfil, remitentes) en la plantilla
 del repositorio — siempre en la copia de `~/.email-triage/`.
 
+**Validar el YAML antes de operar (NUEVO en v3.7).** Un `config.yaml` con un
+error de sintaxis (p. ej. una clave mal indentada dentro de una lista) tumba el
+modo determinista con un traceback, no con el fallback "mental". Antes de
+cualquier fase, valida el parseo:
+
+```bash
+python3 "<ruta-del-skill>/scripts/triage_helpers.py" validar-config \
+  --config ~/.email-triage/config.yaml
+```
+
+Si devuelve `{"ok": false, ...}`, **detente**: muestra `error` + `linea`/`columna`
+al usuario y ofrece arreglarlo (suele ser una indentación). Si trae `avisos`
+(p. ej. `correo.cuenta` vacío), resuélvelos —para la cuenta, autodetecta las
+cuentas de Mail antes de pedírsela al usuario.
+
 Si no existe ninguno de los dos, pide al usuario estos campos mínimos:
 1. **nombre** y **perfil** (rol, formación, intereses)
 2. **proyectos_activos**
@@ -275,6 +290,28 @@ una posición numérica que haya cambiado.
 **IMPORTANTE**: Si previamente se han movido correos de la misma carpeta
 en la misma sesión, los índices originales habrán cambiado. Siempre
 recaptura `every message` antes de cada lote de movimientos.
+
+**Preferir `whose message id is` + verificación por conteo (NUEVO en v3.7).**
+En iCloud, durante la sincronización, iterar `repeat with m in (every message)`
+puede lanzar `-1728` ("no puede obtenerse item N") a mitad del bucle, y un
+`move` puede fallar en silencio dejando movimiento parcial. Dos reglas:
+
+1. Mueve cada correo localizándolo por su id con un filtro `whose` (robusto),
+   no por índice:
+   ```applescript
+   set hits to (messages of sourceMailbox whose message id is theID)
+   if (count of hits) > 0 then move (item 1 of hits) to destMailbox
+   ```
+2. **Nunca te fíes del valor de retorno de AppleScript como prueba de
+   movimiento.** Verifica SIEMPRE contando: `count of (messages of destMailbox)`
+   y `count of (messages of sourceMailbox)` antes/después. Reintenta una vez los
+   que no hayan llegado.
+
+Y separa **crear** los buzones destino de **mover**: en iCloud `make new mailbox`
+reporta éxito aunque la carpeta tarde en aparecer, así que créalos en su propio
+script, espera ~3 s y verifica que existen antes de mover. Plantillas listas en
+`references/` (lectura en una pasada + crear/verificar + mover/verificar) reducen
+además los round-trips a osascript (cada uno ~60 s).
 
 #### Caracteres especiales en nombres de carpeta (bug conocido)
 
@@ -656,6 +693,7 @@ config, luego los **ajustes aprendidos** calculados en PASO 0.B.
 | **Mención directa al usuario** | +3 | Nombra al usuario por nombre |
 | **Hilo esperando respuesta del usuario** | +5 / +2 | +5 con `usuario_es_ultimo_en_responder: false` CONFIRMADO; +2 si `desconocido`; 0 si `true` |
 | **Sender bulk / unsubscribe** | -4 | Header unsubscribe o sender masivo |
+| **Sender bulk atenuado** (v3.7) | -1 | Si el remitente aparece en el historial conservado, `sender_bulk` pasa de -4 a -1 (pásalo como `remitente_en_historial: true`). Un remitente que el usuario guarda a mano no merece el castigo completo de "masivo" |
 | **Sin acción y sin info nueva** | -5 | No pide nada y no aporta novedad |
 
 #### Ajustes aprendidos (PASO 0.B) — aplicar después de las reglas estáticas
@@ -736,7 +774,8 @@ los criterios, pasa los veredictos al script:
 ```bash
 echo '{"verdicts": {"cambia_algo_concreto": "si", "hug_the_query": "directo", ...},
        "hard_rules": ["pregunta_directa_boost"], "extra_points": 0,
-       "forzar_reply_needed": false, "tier_maximo": null}' \
+       "forzar_reply_needed": false, "tier_maximo": null,
+       "remitente_en_historial": false}' \
   | python3 "<ruta-del-skill>/scripts/triage_helpers.py" scoring \
       --config ~/.email-triage/config.yaml
 ```
@@ -746,9 +785,28 @@ eje, **clampa cada eje a su rango** (la suma no puede salirse de `0..10`,
 `-10..10`, etc.), añade las `hard_rules` y `extra_points` (ajustes aprendidos
 del PASO 0.B y keywords), y devuelve `score`, `tier` y el desglose completo.
 `forzar_reply_needed` cubre los disparadores especiales (pregunta directa,
-deadline ≤72h, usuario blocker); `tier_maximo` aplica el cap por inyección de
-S0. Si PyYAML no está instalado o el script falla, **cae al modo mental** y se
-avisa en el desglose.
+deadline ≤72h, usuario blocker) y es **lo único** que permite alcanzar
+REPLY_NEEDED (ver 4.C); `tier_maximo` aplica el cap por inyección de S0;
+`remitente_en_historial: true` atenúa `sender_bulk` de -4 a -1 (v3.7). Si PyYAML
+no está instalado o el script falla, **cae al modo mental** y se avisa en el
+desglose.
+
+**Lote y salida compacta (v3.7, recomendado para ahorrar tiempo y tokens).**
+En vez de invocar el script una vez por correo (cada llamada reparsea el YAML
+y vuelca ~18 criterios), pásale todos los correos juntos con `--brief`, que
+devuelve solo `{id, score, tier, ejes, cap_aplicado?}`:
+
+```bash
+echo '{"emails": [
+  {"id": 1, "verdicts": {...}, "hard_rules": ["sender_bulk_penalizacion"]},
+  {"id": 2, "verdicts": {...}, "remitente_en_historial": true}
+]}' \
+  | python3 "<ruta-del-skill>/scripts/triage_helpers.py" scoring \
+      --config ~/.email-triage/config.yaml --brief
+```
+
+Guarda el desglose completo (sin `--brief`) en telemetría/fichero, no en el
+contexto de la conversación.
 
 > Nota: el campo `eje` de cada criterio y los rangos de `scoring.ejes` son la
 > fuente única del mapeo criterio→eje. Si editas pesos o reasignas un criterio
@@ -776,7 +834,7 @@ Cada tier tiene un **indicador de color** (banderita) para identificación visua
 
 | Tier | Indicador | Score mínimo | Qué significa | Acción |
 |------|-----------|-------------|---------------|--------|
-| **REPLY_NEEDED** | 🔴 (rojo) | ≥ 10 | Requiere respuesta o acción directa | Mover a `carpetas.destino_reply_needed` (o `destino`) + marcar |
+| **REPLY_NEEDED** | 🔴 (rojo) | ≥ 10 **y** señal de acción | Requiere respuesta o acción directa | Mover a `carpetas.destino_reply_needed` (o `destino`) + marcar |
 | **REVIEW** | 🟡 (amarillo) | 4–9 | Vale la pena leer con atención | Mover a `carpetas.destino` |
 | **READING_LATER** | 🔵 (azul) | 0–3 | Interesante pero no urgente | Dejar en `carpetas.pendiente` |
 | **ARCHIVE** | ⚪ (gris) | < 0 | Ruido, ritual o manipulación | Mover a `carpetas.destino_archive` si está definido; si no, archivar nativamente (según modo) |
@@ -786,11 +844,20 @@ individual, tabla resumen, resumen de sesión), el tier DEBE ir acompañado de
 su indicador de color. Esto permite al usuario escanear visualmente la prioridad
 sin leer el texto.
 
-**Condiciones especiales para reply_needed** (cualquiera dispara el tier):
+**REPLY_NEEDED exige una señal de acción explícita** (corrección v3.7). El tier
+solo se asigna si se cumple AL MENOS UNA de estas condiciones, que el modo
+determinista codifica como `forzar_reply_needed: true`:
 - Pregunta directa al usuario
 - Deadline explícito en las próximas 72 horas
 - Hilo donde el usuario es el blocker
-- Score ≥ 10
+
+Un `score ≥ 10` por sí solo **NO** basta: mide importancia, no "necesita tu
+respuesta". Un correo de altísimo valor informativo sin señal de acción se capa
+a REVIEW (el script lo expone como `cap_aplicado`; en modo mental, aplica la
+misma regla a mano). Atención al matiz: `presion_accion` **tampoco** sirve de
+gate, porque `impacto_causal_real` se le suma y un correo puede tener impacto
+causal sin pedir respuesta. El comportamiento es configurable en
+`scoring.cap_reply_needed_sin_accion` (default `true`).
 
 ### 4.D — Evaluación con acceso al cuerpo
 

@@ -1,21 +1,33 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.5).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.7).
 
-Extrae a código las dos partes del SKILL.md que no deben depender de la
+Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
 
-  ajustes    PASO 0.B — decay temporal y agregación de correcciones.jsonl
-  sanitizar  Pipeline S0–S5 — limpieza del cuerpo ANTES de exponerlo al modelo
+  ajustes         PASO 0.B — decay temporal y agregación de correcciones.jsonl
+  sanitizar       Pipeline S0–S5 — limpieza del cuerpo ANTES de exponerlo al modelo
+  scoring         PASO 4 — agregación determinista de veredictos (single o lote)
+  validar-config  PASO 0 — parseo/validación del YAML antes de operar
+
+Novedades v3.7 (parche de 5 prioridades sobre el scoring determinista de v3.6):
+  1. scoring capa REPLY_NEEDED→REVIEW cuando presion_accion<=0 (salvo
+     forzar_reply_needed). "Muy valioso para leer" != "exige respuesta".
+  2. scoring atenúa sender_bulk_penalizacion cuando remitente_en_historial:
+     un remitente que el usuario conserva no recibe el castigo completo.
+  3. scoring acepta lote {"emails":[...]} y flag --brief (solo score/tier/ejes):
+     1 parse de YAML + salida compacta = mucho menos tiempo y tokens.
+  4. nuevo subcomando validar-config: parsea el YAML y reporta ok/error+línea.
 
 Uso:
   python3 triage_helpers.py ajustes [--correcciones RUTA]
   python3 triage_helpers.py sanitizar [--archivo RUTA] [--max-chars 1500] [--asunto TXT]
                             (sin --archivo lee de stdin)
-  python3 triage_helpers.py scoring [--config RUTA]    (modo determinista, lee
-                            payload JSON de veredictos por stdin)
+  python3 triage_helpers.py scoring [--config RUTA] [--brief]
+                            (lee payload JSON de stdin; single o {"emails":[...]})
+  python3 triage_helpers.py validar-config [--config RUTA]
 
-Salida: JSON por stdout. Solo stdlib (Python >= 3.9). Sin efectos laterales:
-este script NUNCA escribe ficheros ni mueve correos.
+Salida: JSON por stdout. Solo stdlib salvo PyYAML (scoring/validar-config).
+Sin efectos laterales: este script NUNCA escribe ficheros ni mueve correos.
 """
 import argparse
 import html as html_mod
@@ -170,29 +182,14 @@ S0_PATRONES = [
     ("ignorar_instrucciones",
      re.compile(r"\b(ignore|forget|disregard|override|ignora|olvida|descarta)\b"
                 r".{0,40}\b" + _CTX_INSTR + r"\b", re.I | re.S)),
-    # Asignación de rol al modelo. Las frases genéricas ("you are", "eres",
-    # "act as") solo disparan si en <=40 chars aparece un rol de IA; los
-    # marcadores técnicos (system:, <system>, [INST]...) disparan por sí
-    # solos. "you are receiving/subscrib..." queda excluido: es la fórmula
-    # estándar de newsletters legítimas (falso positivo real en v3.4.0).
-    # Trade-off documentado en tests: "you are the system administrator"
-    # NO se marca ("system" se excluyó de los roles para no penalizar
-    # correo legítimo de IT).
     ("rol_sistema",
      re.compile(r"(?:\byou are\b(?! receiving| subscrib)|\beres\b|"
                 r"\bact as\b|\bact[uú]a como\b).{0,40}?\b" + _ROL_IA + r"\b"
                 r"|^\s*system:|^\s*assistant:|<system>|\[INST\]|### ?Instruction",
                 re.I | re.M | re.S)),
-    # Solo delimitadores reales del protocolo. "^PASO \d" y "^score:" se
-    # retiraron en v3.4.1: aparecen en correo legítimo (instrucciones de
-    # trámites, resultados deportivos) y su valor defensivo era marginal.
-    # "tier:" se mantiene anclado a los valores del protocolo.
     ("escape_delimitador",
      re.compile(r"</?email-body-data>|---EMAIL|^tier:\s*" + _TIER,
                 re.I | re.M)),
-    # Comandos al clasificador: anclados a objetos del dominio (carpeta,
-    # inbox, tier, email) para no marcar usos humanos legítimos ("move
-    # this to Thursday", "rate this support interaction").
     ("comando_directo",
      re.compile(r"\bmark (?:this|it)\b.{0,15}\bas\b.{0,15}" + _TIER +
                 r"|\bmove (?:this|it)\b.{0,25}\b(?:folder|inbox|" + _TIER + r")\b"
@@ -231,10 +228,7 @@ def _primer_corte(texto, patrones):
 
 def _vista_decodificada(texto):
     """Vista solo-para-detección: entidades HTML decodificadas y tags
-    eliminados. Caza payloads ofuscados (&#105;gnore, ig<b>nore</b>)
-    que el texto crudo esconde. No sustituye al crudo en la detección:
-    los marcadores posicionales (^system:) y el escape de delimitador
-    (</email-body-data>) solo son visibles en el crudo."""
+    eliminados. Caza payloads ofuscados (&#105;gnore, ig<b>nore</b>)."""
     return re.sub(r"<[^>]+>", "", html_mod.unescape(texto))
 
 
@@ -250,16 +244,10 @@ def cmd_sanitizar(texto, max_chars=1500, asunto=None):
     flags = _detectar_s0(texto)                       # S0 en doble vista
     injection_cuerpo = bool(flags)
 
-    # S0 también sobre el asunto (v3.5): los metadatos puntúan hard rules
-    # (+4 pregunta, +4 deadline, +3 mención), así que el asunto es una
-    # superficie de ataque tan válida como el cuerpo.
     flags_asunto = _detectar_s0(asunto) if asunto else []
     injection_asunto = bool(flags_asunto)
     injection = injection_cuerpo or injection_asunto
 
-    # S3 primero como detección (no decodificar nunca). Cubre bloques
-    # multilínea (>=2 líneas de 76+) y monolínea (una sola línea de 200+,
-    # p. ej. data-URIs o payloads sin saltos cada 76 caracteres).
     base64_block = re.search(
         r"(?:^[A-Za-z0-9+/=]{76,}\s*$\n?){2,}|^[A-Za-z0-9+/=]{200,}\s*$",
         texto, re.M)
@@ -314,11 +302,8 @@ def cmd_sanitizar(texto, max_chars=1500, asunto=None):
 
 
 # ════════════════════════════════════════════════════════════════
-# PASO 4 — scoring determinista (modo opt-in)
+# PASO 4 — scoring determinista (single o lote, opcionalmente brief)
 # ════════════════════════════════════════════════════════════════
-# El modelo evalúa cada criterio (sí/no/alta/media/baja). Este comando
-# SOLO hace la aritmética: suma por eje, clampa cada eje a su rango,
-# añade hard rules y ajustes, y mapea a tier. Mismo input → mismo output.
 
 EJES_DEFAULT = {
     "valor_decisional": [0, 10],
@@ -340,12 +325,39 @@ def _tier_por_score(score, tiers):
     return "ARCHIVE"
 
 
+def _aplica_hard_rules(hard_rules, hard_cfg, en_historial, atenuado_a, ignorados):
+    """Suma las hard rules. Atenúa sender_bulk_penalizacion cuando el
+    remitente está en el historial de conservados (corrección #2): un
+    remitente que el usuario guarda a mano no merece el castigo completo
+    de 'remitente masivo'."""
+    hard_puntos, hard_desglose = 0, []
+    for k in (hard_rules or []):
+        v = hard_cfg.get(k)
+        if v is None:
+            ignorados.append({"hard_rule": k, "motivo": "no definida en config"})
+            continue
+        nota = None
+        if k == "sender_bulk_penalizacion" and en_historial and v < 0:
+            nuevo = max(v, atenuado_a)
+            if nuevo != v:
+                nota = "atenuada por remitente_en_historial (%d->%d)" % (v, nuevo)
+                v = nuevo
+        hard_puntos += v
+        entry = {"regla": k, "puntos": v}
+        if nota:
+            entry["nota"] = nota
+        hard_desglose.append(entry)
+    return hard_puntos, hard_desglose
+
+
 def cmd_scoring(payload, cfg):
     """Agrega veredictos del modelo en un score+tier deterministas.
 
     payload: {"verdicts": {criterio: valor}, "hard_rules": [clave...],
               "extra_points": int, "forzar_reply_needed": bool,
-              "tier_maximo": "REVIEW"|None}
+              "tier_maximo": "REVIEW"|None,
+              "remitente_en_historial": bool,   # corrección #2
+              "id": cualquier}                   # opcional, para lote
     cfg: config.yaml ya parseado (dict). Devuelve score, tier, ejes y desglose.
     """
     criterios = cfg.get("criterios_epistemicos", {}) or {}
@@ -353,6 +365,9 @@ def cmd_scoring(payload, cfg):
     rangos = scfg.get("ejes", EJES_DEFAULT)
     tiers = cfg.get("tiers", {}) or {}
     hard_cfg = cfg.get("hard_rules", {}) or {}
+    # Parámetros configurables del parche (con defaults seguros):
+    cap_no_accion = scfg.get("cap_reply_needed_sin_accion", True)
+    bulk_atenuado_a = scfg.get("sender_bulk_atenuado_a", -1)
 
     ejes = {nombre: 0 for nombre in rangos}
     desglose, ignorados = [], []
@@ -383,27 +398,34 @@ def cmd_scoring(payload, cfg):
         lo, hi = rangos[nombre]
         ejes_clamp[nombre] = max(lo, min(hi, val))
 
-    hard_puntos, hard_desglose = 0, []
-    for k in (payload.get("hard_rules") or []):
-        v = hard_cfg.get(k)
-        if v is None:
-            ignorados.append({"hard_rule": k, "motivo": "no definida en config"})
-            continue
-        hard_puntos += v
-        hard_desglose.append({"regla": k, "puntos": v})
+    en_historial = bool(payload.get("remitente_en_historial"))
+    hard_puntos, hard_desglose = _aplica_hard_rules(
+        payload.get("hard_rules"), hard_cfg, en_historial, bulk_atenuado_a, ignorados)
 
     extra = payload.get("extra_points", 0) or 0
     score = sum(ejes_clamp.values()) + hard_puntos + extra
 
     tier = _tier_por_score(score, tiers)
+    cap_aplicado = None
     if payload.get("forzar_reply_needed"):
         tier = "REPLY_NEEDED"
+    elif cap_no_accion and tier == "REPLY_NEEDED":
+        # Corrección #1: REPLY_NEEDED = "exige TU respuesta/acción". La
+        # única señal fiable de eso es forzar_reply_needed (pregunta
+        # directa, deadline <=72h, hilo bloqueado) que fija el SKILL.
+        # Score, urgencia e impacto_causal_real miden importancia, no
+        # "necesita réplica": por sí solos llegan como mucho a REVIEW.
+        # (presion_accion NO sirve de gate: impacto_causal_real se le
+        # suma, y un correo puede tener impacto sin pedir respuesta.)
+        cap_aplicado = "REPLY_NEEDED->REVIEW (sin señal de acción explícita)"
+        tier = "REVIEW"
+
     # Cap por inyección (v3.5): nunca por encima de tier_maximo.
     tmax = payload.get("tier_maximo")
     if tmax in TIER_ORDEN and TIER_ORDEN[tier] > TIER_ORDEN[tmax]:
         tier = tmax
 
-    return {
+    out = {
         "modo": "determinista",
         "score": score,
         "tier": tier,
@@ -412,9 +434,73 @@ def cmd_scoring(payload, cfg):
         "hard_rules": hard_desglose,
         "hard_puntos": hard_puntos,
         "extra_points": extra,
+        "remitente_en_historial": en_historial,
         "criterios": desglose,
         "ignorados": ignorados,
     }
+    if cap_aplicado:
+        out["cap_aplicado"] = cap_aplicado
+    if "id" in payload:
+        out["id"] = payload["id"]
+    return out
+
+
+def _brief(r):
+    """Vista compacta para ahorrar tokens: solo lo accionable."""
+    out = {"score": r["score"], "tier": r["tier"], "ejes": r["ejes"]}
+    if r.get("cap_aplicado"):
+        out["cap_aplicado"] = r["cap_aplicado"]
+    if r.get("ignorados"):
+        out["ignorados"] = r["ignorados"]
+    if "id" in r:
+        out["id"] = r["id"]
+    return out
+
+
+def cmd_scoring_dispatch(payload, cfg, brief=False):
+    """single o lote. Lote: {"emails":[{id, verdicts, ...}, ...]}."""
+    if isinstance(payload.get("emails"), list):
+        res = [cmd_scoring(item, cfg) for item in payload["emails"]]
+        return {"resultados": [_brief(r) if brief else r for r in res]}
+    r = cmd_scoring(payload, cfg)
+    return _brief(r) if brief else r
+
+
+# ════════════════════════════════════════════════════════════════
+# PASO 0 — validación del config YAML
+# ════════════════════════════════════════════════════════════════
+
+def cmd_validar_config(ruta):
+    """Parsea el YAML y reporta ok/error+línea para que el SKILL pueda
+    abortar con un mensaje claro (y ofrecer autofix) antes de operar."""
+    try:
+        import yaml
+    except ImportError:
+        return {"ok": False, "error": "PyYAML no instalado",
+                "remedio": "pip install pyyaml --break-system-packages"}
+    if not os.path.exists(ruta):
+        return {"ok": False, "error": "no existe: %s" % ruta}
+    try:
+        with open(ruta, encoding="utf-8") as fh:
+            data = yaml.safe_load(fh)
+    except yaml.YAMLError as e:
+        info = {"ok": False, "error": str(e).splitlines()[0]}
+        mark = getattr(e, "problem_mark", None)
+        if mark is not None:
+            info["linea"] = mark.line + 1
+            info["columna"] = mark.column + 1
+        return info
+    if not isinstance(data, dict):
+        return {"ok": False, "error": "el YAML no es un mapeo de claves"}
+    recomendados = ("usuario", "correo", "carpetas", "tiers",
+                    "criterios_epistemicos")
+    faltan = [k for k in recomendados if k not in data]
+    cuenta = ((data.get("correo") or {}).get("cuenta") or "").strip()
+    avisos = []
+    if not cuenta:
+        avisos.append("correo.cuenta vacío: el skill debe autodetectar la cuenta")
+    return {"ok": True, "claves_top": sorted(data.keys()),
+            "campos_recomendados_ausentes": faltan, "avisos": avisos}
 
 
 def _cargar_config(ruta):
@@ -444,12 +530,20 @@ def main():
     psc = sub.add_parser("scoring")
     psc.add_argument("--config",
                      default=os.path.expanduser("~/.email-triage/config.yaml"))
+    psc.add_argument("--brief", action="store_true",
+                     help="salida compacta: solo score/tier/ejes (ahorra tokens)")
+    pv = sub.add_parser("validar-config")
+    pv.add_argument("--config",
+                    default=os.path.expanduser("~/.email-triage/config.yaml"))
     args = p.parse_args()
     if args.cmd == "ajustes":
         out = cmd_ajustes(args.correcciones)
     elif args.cmd == "scoring":
         payload = json.loads(sys.stdin.read() or "{}")
-        out = cmd_scoring(payload, _cargar_config(args.config))
+        out = cmd_scoring_dispatch(payload, _cargar_config(args.config),
+                                   brief=args.brief)
+    elif args.cmd == "validar-config":
+        out = cmd_validar_config(args.config)
     else:
         if args.archivo:
             with open(args.archivo, encoding="utf-8", errors="replace") as fh:

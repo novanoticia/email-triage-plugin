@@ -335,7 +335,52 @@ class TestScoringDeterminista(unittest.TestCase):
         self.assertEqual(out["ejes"]["valor_decisional"], 8)
         self.assertEqual(out["ejes"]["calidad_epistemica"], 3)
         self.assertEqual(out["score"], 11)
-        self.assertEqual(out["tier"], "REPLY_NEEDED")
+        # v3.6 corrección #1: score>=10 SIN presion_accion ya no es
+        # REPLY_NEEDED; "muy valioso para leer" != "exige respuesta".
+        self.assertEqual(out["tier"], "REVIEW")
+        self.assertIn("cap_aplicado", out)
+
+    def test_reply_needed_requiere_senal_de_accion(self):
+        # Score alto + urgencia real, pero SIN forzar_reply_needed -> REVIEW.
+        # La urgencia/impacto no bastan: REPLY_NEEDED exige señal explícita.
+        v = {"verdicts": {
+            "cambia_algo_concreto": "si",          # valor_decisional +5
+            "abre_opciones": "si",                 # valor_decisional +3
+            "urgencia_real_vs_fabricada": "real",  # presion_accion +3
+        }}
+        out = th.cmd_scoring(dict(v), _cfg_scoring())
+        self.assertEqual(out["score"], 11)
+        self.assertEqual(out["tier"], "REVIEW")
+        self.assertIn("cap_aplicado", out)
+        # Con la señal de acción explícita -> sí REPLY_NEEDED.
+        forced = th.cmd_scoring(dict(v, forzar_reply_needed=True), _cfg_scoring())
+        self.assertEqual(forced["tier"], "REPLY_NEEDED")
+        self.assertNotIn("cap_aplicado", forced)
+
+    def test_sender_bulk_atenuado_por_historial(self):
+        cfg = _cfg_scoring()
+        cfg["hard_rules"]["sender_bulk_penalizacion"] = -4
+        base = {"verdicts": {"abre_opciones": "si"},  # +3
+                "hard_rules": ["sender_bulk_penalizacion"]}
+        sin = th.cmd_scoring(dict(base), cfg)
+        self.assertEqual(sin["score"], -1)            # 3 - 4
+        con = th.cmd_scoring(dict(base, remitente_en_historial=True), cfg)
+        self.assertEqual(con["score"], 2)             # 3 - 1 (atenuado)
+        self.assertTrue(con["remitente_en_historial"])
+
+    def test_lote_y_brief(self):
+        cfg = _cfg_scoring()
+        payload = {"emails": [
+            {"id": "a", "verdicts": {"abre_opciones": "si"}},
+            {"id": "b", "verdicts": {"cambia_algo_concreto": "no"}},
+        ]}
+        full = th.cmd_scoring_dispatch(payload, cfg)
+        self.assertEqual(len(full["resultados"]), 2)
+        self.assertEqual(full["resultados"][0]["id"], "a")
+        brief = th.cmd_scoring_dispatch(payload, cfg, brief=True)
+        r0 = brief["resultados"][0]
+        self.assertEqual(set(r0) - {"cap_aplicado", "ignorados"},
+                         {"score", "tier", "ejes", "id"})
 
     def test_clamp_por_eje(self):
         # valor_decisional sumaría 5+3=8 con 'si','si' — probamos el techo:

@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.6.0
+# Email Triage Plugin v3.7.0
 
 Filtrado epistémico de correo electrónico para Claude Cowork y Claude Code.
 
@@ -17,6 +17,15 @@ La mayoría de clasificadores de correo preguntan "¿es urgente?". Este plugin p
 - ¿Está anclado a hechos verificables? (Entangled Truths)
 
 El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decisional, calidad epistémica, coste cognitivo y riesgo de manipulación.
+
+## Novedades en v3.7
+Parche de 5 correcciones sobre el scoring determinista de v3.6, surgido de una sesión real de triaje que destapó los fallos en vivo.
+- **REPLY_NEEDED exige señal de acción, no score alto**: el fallo más visible era que un correo de mucho valor informativo (una newsletter de tips) llegaba a `REPLY_NEEDED` solo por sumar `score ≥ 10`. "Muy valioso para leer" ≠ "exige tu respuesta". Ahora REPLY_NEEDED solo se alcanza con `forzar_reply_needed` (pregunta directa, deadline ≤72h, hilo bloqueado); el score/urgencia por sí solos topan en REVIEW. Matiz que descubrió el test: `presion_accion` **no** sirve de gate, porque `impacto_causal_real` se le suma y un correo puede tener impacto sin pedir respuesta. Configurable en `scoring.cap_reply_needed_sin_accion`
+- **`sender_bulk` atenuado para remitentes que conservas**: la penalización de "remitente masivo" (−4) aplastaba newsletters intelectuales que el usuario guarda a mano (el premio por dominio frecuente era solo +1). Con `remitente_en_historial: true` la penalización pasa a `scoring.sender_bulk_atenuado_a` (−1 por defecto)
+- **Scoring en lote + `--brief`**: `scoring` acepta `{"emails":[...]}` (1 parse de YAML para todo el lote) y el flag `--brief` devuelve solo `{id, score, tier, ejes, cap_aplicado?}`. Volcar los ~18 criterios por correo era el mayor gasto de tokens; el desglose completo se guarda en telemetría, no en contexto
+- **Nuevo subcomando `validar-config`**: parsea el `config.yaml` y devuelve `ok` o `error`+`linea`/`columna`. Motivo: un config con una clave mal indentada tumbaba el modo determinista con un traceback en vez del fallback "mental". Se ejecuta al inicio de PASO 0
+- **Mail más robusto**: plantillas consolidadas (`references/mail-consolidado.applescript`) que leen metadatos+cuerpos en una sola pasada (menos round-trips a osascript, ~60 s cada uno), mueven por `whose message id is` (evita el `-1728` al iterar durante la sincronización) y **verifican por conteo** en vez de fiarse del valor de retorno de AppleScript; crear buzones se separa de mover
+- **Tests**: la batería sube a **30** (cap de REPLY_NEEDED, REPLY_NEEDED solo con señal de acción, atenuación de `sender_bulk`, lote/brief). El contrato del test de tier se actualizó al nuevo comportamiento
 
 ## Novedades en v3.6
 - **Scoring determinista opt-in**: el modo de agregación del score es ahora configurable (`scoring.modo`). Por defecto sigue en **mental** (el modelo agrega los ejes con su juicio, comportamiento idéntico al anterior). Activando **determinista** —en el config o diciéndolo en el chat— el modelo solo evalúa cada criterio y `triage_helpers.py scoring` hace la aritmética: suma por eje, **clampa** cada eje a su rango, añade hard rules y el cap por inyección, y devuelve `score`+`tier` reproducibles. Pensado para auditar una sesión o comparar cambios de pesos
@@ -330,6 +339,17 @@ necesariamente las palabras exactas de quien las tomó.
     si el config del repo fue editado y aún no hay config externo, se rescata
     antes del reset. _Alternativa descartada_: dejarlo como estaba (un commit
     previo lo daba por hecho sin implementarlo realmente).
+
+12. **REPLY_NEEDED es una señal de acción, no un umbral de importancia** (v3.7).
+    Se separó deliberadamente "esto importa mucho" (que ordena REVIEW/READING_LATER
+    por score) de "esto exige tu respuesta" (que es REPLY_NEEDED). Solo las
+    condiciones de acción explícitas (pregunta directa, deadline, hilo bloqueado)
+    suben a REPLY_NEEDED. _Alternativa descartada_: gatear por `presion_accion > 0`
+    — se vio en pruebas que `impacto_causal_real` contamina ese eje y dejaba pasar
+    newsletters de alto impacto pero sin réplica esperada. _Cara B_: algo
+    genuinamente urgente que el modelo no marque con la señal explícita se queda
+    en REVIEW; la corrección manual (que alimenta el aprendizaje) es la vía para
+    subirlo.
 
 ## Créditos
 Diseñado por Pablo Rodríguez López ([mindandhealth.org](https://mindandhealth.org/)) con asistencia de Claude.
