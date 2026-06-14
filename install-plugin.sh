@@ -7,7 +7,7 @@ set -euo pipefail
 #
 # Flujo:
 #   1. Verifica dependencias (git, python3).
-#   2. Clona (o actualiza con `git pull`) el marketplace en la
+#   2. Clona (o actualiza con fetch + reset --hard) el marketplace en la
 #      ruta correcta que Claude Code/Cowork esperan:
 #        ~/.claude/plugins/marketplaces/email-triage-plugin/
 #   3. Lee la versión dinámicamente desde plugin.json.
@@ -46,11 +46,25 @@ fi
 mkdir -p "$(dirname "$MARKETPLACE_DIR")"
 
 if [ -d "$MARKETPLACE_DIR/.git" ]; then
-  echo "📥 Repo existente detectado. Actualizando con git pull..."
+  echo "📥 Repo existente detectado. Actualizando con fetch + reset --hard..."
   if ! git -C "$MARKETPLACE_DIR" fetch origin "$BRANCH" 2>&1; then
     echo "❌ Error al hacer fetch del repositorio."
     exit 1
   fi
+  # ── Rescate de config v3.3 ANTES del reset --hard ──────────────
+  # Hasta v3.3 el config se editaba DENTRO del repo. El reset --hard de
+  # abajo lo destruiría sin aviso, y la plantilla vacía nacería en su
+  # lugar. Si todavía no existe config externo y el del repo difiere del
+  # commit (huella de una edición v3.3), lo rescatamos antes de resetear.
+  REPO_CONFIG_REL="plugins/$PLUGIN_NAME/skills/$PLUGIN_NAME/config.yaml"
+  USER_CONFIG="$TELEMETRY_DIR/config.yaml"
+  if [ ! -f "$USER_CONFIG" ] && [ -f "$MARKETPLACE_DIR/$REPO_CONFIG_REL" ] \
+     && ! git -C "$MARKETPLACE_DIR" diff --quiet HEAD -- "$REPO_CONFIG_REL" 2>/dev/null; then
+    mkdir -p "$TELEMETRY_DIR"
+    cp "$MARKETPLACE_DIR/$REPO_CONFIG_REL" "$USER_CONFIG"
+    echo "🛟 Rescatado tu config editado (v3.3) → $USER_CONFIG antes del reset --hard"
+  fi
+
   # Resetear a origin/main para garantizar estado limpio
   if ! git -C "$MARKETPLACE_DIR" reset --hard "origin/$BRANCH" 2>&1; then
     echo "❌ Error al resetear a origin/$BRANCH."
@@ -74,7 +88,7 @@ if [ ! -f "$PLUGIN_JSON" ]; then
   exit 1
 fi
 
-VERSION=$(python3 -c "import json; print(json.load(open('$PLUGIN_JSON'))['version'])" 2>/dev/null || true)
+VERSION=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['version'])" "$PLUGIN_JSON" 2>/dev/null || true)
 if [ -z "$VERSION" ]; then
   echo "❌ No se pudo leer la versión desde $PLUGIN_JSON"
   exit 1
