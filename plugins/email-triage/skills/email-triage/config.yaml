@@ -291,7 +291,10 @@ resiliencia:
 #
 # 30 criterios inspirados en racionalidad bayesiana (LessWrong
 # Sequences). Cada criterio tiene:
-# - weight: importancia relativa del criterio
+# - weight: referencia conceptual. OJO: en modo determinista NO se usa
+#   (triage_helpers lo excluye vía _META_CRIT); los puntos salen de los
+#   valores (si/no/quiza). Editarlo no cambia el score determinista; solo
+#   orienta al modo mental.
 # - question: pregunta operativa que el modelo evalúa
 # - valores posibles con sus puntuaciones
 # - activo: true/false para activar/desactivar
