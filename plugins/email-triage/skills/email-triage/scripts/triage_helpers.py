@@ -511,7 +511,12 @@ def _cargar_config(ruta):
                          "pip install pyyaml --break-system-packages")
     if not os.path.exists(ruta):
         aqui = os.path.dirname(os.path.abspath(__file__))
-        ruta = os.path.join(aqui, "..", "skills", "email-triage", "config.yaml")
+        # config.yaml vive un nivel por encima de scripts/, junto al SKILL.md.
+        ruta = os.path.join(aqui, "..", "config.yaml")
+    if not os.path.exists(ruta):
+        raise SystemExit(
+            "No se encontro config.yaml: ni el del usuario ni la plantilla "
+            f"del plugin ({ruta}). Reinstala el plugin o usa --config <ruta>.")
     with open(ruta, encoding="utf-8") as fh:
         return yaml.safe_load(fh)
 

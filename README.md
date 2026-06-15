@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.7.0
+# Email Triage Plugin v3.7.1
 
 Filtrado epistémico de correo electrónico para Claude Cowork y Claude Code.
 
@@ -17,6 +17,14 @@ La mayoría de clasificadores de correo preguntan "¿es urgente?". Este plugin p
 - ¿Está anclado a hechos verificables? (Entangled Truths)
 
 El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decisional, calidad epistémica, coste cognitivo y riesgo de manipulación.
+
+## Novedades en v3.7.1
+Release de mantenimiento sobre la 3.7.0: un bug real con causa rastreable más limpieza de fontanería y de release. No cambia el comportamiento del scoring.
+- **Fix del fallback de config (regresión del `git mv` `bbc1019`)**: en modo determinista, si no existía el `config.yaml` del usuario, `_cargar_config` construía una ruta con un nivel `skills/email-triage` de más y reventaba con `FileNotFoundError` en vez de caer a la plantilla del plugin —justo la red de seguridad que aquel commit pretendía garantizar—. Ahora resuelve `../config.yaml` y, si tampoco existe, devuelve un error legible en lugar de un traceback
+- **Coherencia de versiones blindada en CI**: el frontmatter de `SKILL.md` (3.6.0) y la cabecera de `config.yaml` (v3.4) se habían quedado rezagados respecto a `plugin.json`/`marketplace.json`. Sincronizados a 3.7.1, y un nuevo paso de CI falla el build si los 5 sitios de versión completa divergen o si la cabecera de config no cuadra en major.minor
+- **Instalador duplicado eliminado**: había dos `install-plugin.sh` (raíz y `scripts/`) ya divergidos; el canónico es `scripts/` (el que descarga el README), así que se borra la copia muerta de la raíz
+- **AppleScript más higiénico**: la escritura de `/tmp/tbody_N.txt` va envuelta en `try` (cierra el handle ante un fallo de E/S) y se limpian los cuerpos crudos de ejecuciones previas, más una plantilla de limpieza documentada (SCRIPT 4) para no dejar contenido de correo en `/tmp`
+- **Tests**: la batería sube a **32** (2 nuevos que fijan el fallback de `_cargar_config`, sin cobertura hasta ahora)
 
 ## Novedades en v3.7
 Parche de 5 correcciones sobre el scoring determinista de v3.6, surgido de una sesión real de triaje que destapó los fallos en vivo.

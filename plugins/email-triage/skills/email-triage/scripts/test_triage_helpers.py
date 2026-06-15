@@ -427,5 +427,28 @@ class TestScoringDeterminista(unittest.TestCase):
         self.assertEqual(out["tier"], "REVIEW")
 
 
+class TestCargarConfig(unittest.TestCase):
+    """Regresión bbc1019: el fallback de _cargar_config debe resolver a la
+    plantilla del plugin (junto al SKILL.md), no a una ruta inexistente. Un
+    git mv dejó la ruta un nivel 'skills/email-triage' de más y reventaba con
+    FileNotFoundError en lugar de degradar a la plantilla."""
+
+    def test_fallback_resuelve_a_plantilla_existente(self):
+        cfg = th._cargar_config("/ruta/que/no/existe/config.yaml")
+        self.assertIn("criterios_epistemicos", cfg)
+        self.assertEqual(len(cfg["criterios_epistemicos"]), 30)
+
+    def test_ruta_explicita_se_respeta(self):
+        with tempfile.NamedTemporaryFile(
+                "w", suffix=".yaml", delete=False, encoding="utf-8") as fh:
+            fh.write("criterios_epistemicos: {}\n")
+            tmp = fh.name
+        try:
+            self.assertEqual(
+                th._cargar_config(tmp)["criterios_epistemicos"], {})
+        finally:
+            os.unlink(tmp)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -13,6 +13,9 @@
 -- escribe el cuerpo crudo (<=4000) de cada correo a /tmp/tbody_N.txt.
 -- Sustituye a 2 scripts previos (meta + bodies) = 1 round-trip en vez de 2.
 -- ───────────────────────────────────────────────────────────────
+-- Limpieza defensiva: borra cuerpos crudos de ejecuciones anteriores.
+do shell script "rm -f /tmp/tbody_*.txt"
+
 tell application "Mail"
 	set acct to account "<<CUENTA>>"
 	set srcBox to missing value
@@ -56,10 +59,16 @@ tell application "Mail"
 			set c to "(sin acceso al cuerpo)"
 		end try
 		set p to "/tmp/tbody_" & i & ".txt"
-		set fref to open for access (POSIX file p) with write permission
-		set eof of fref to 0
-		write c to fref as «class utf8»
-		close access fref
+		try
+			set fref to open for access (POSIX file p) with write permission
+			set eof of fref to 0
+			write c to fref as «class utf8»
+			close access fref
+		on error errBody
+			try
+				close access (POSIX file p)
+			end try
+		end try
 		set out to out & "#" & i & " ||| " & d & " ||| " & s & " ||| " & subj & " ||| " & mid & linefeed
 	end repeat
 	return out
@@ -141,3 +150,12 @@ tell application "Mail"
 		" movidos_archive:" & okArc & "/" & (count of toArchive) & ¬
 		" | src_restantes:" & (count of (messages of srcBox))
 end tell
+
+
+-- ───────────────────────────────────────────────────────────────
+-- SCRIPT 4 — LIMPIEZA (ejecutar al TERMINAR la consolidación)
+-- Borra los cuerpos crudos /tmp/tbody_N.txt una vez el SKILL los ha
+-- leído. Cierra la fuga de contenido de correo potencialmente sensible
+-- en /tmp (legible por otros usuarios locales del equipo). Idempotente.
+-- ───────────────────────────────────────────────────────────────
+do shell script "rm -f /tmp/tbody_*.txt"

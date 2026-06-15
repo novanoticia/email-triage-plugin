@@ -36,3 +36,28 @@ jobs:
           assert len(crits) == 30, f"se esperaban 30 criterios, hay {len(crits)}"
           print(f"OK: {len(crits)} criterios, 0 claves booleanas")
           EOF
+
+      - name: Coherencia de versiones (plugin.json ↔ marketplace.json ↔ SKILL.md ↔ config)
+        run: |
+          python3 - <<'PY'
+          import json, re, pathlib
+          r = pathlib.Path('.')
+          def jver(p): return json.loads((r/p).read_text(encoding='utf-8'))['version']
+          pj   = jver('.claude-plugin/plugin.json')
+          inn  = jver('plugins/email-triage/.claude-plugin/plugin.json')
+          mk   = re.search(r'"version"\s*:\s*"([^"]+)"',
+                           (r/'.claude-plugin/marketplace.json').read_text(encoding='utf-8')).group(1)
+          sk   = re.search(r'(?m)^version:\s*"?([0-9.]+)"?',
+                           (r/'plugins/email-triage/skills/email-triage/SKILL.md').read_text(encoding='utf-8')).group(1)
+          rd   = re.search(r'(?m)^#\s+Email Triage Plugin v([0-9.]+)',
+                           (r/'README.md').read_text(encoding='utf-8')).group(1)
+          vers = {'plugin.json(root)': pj, 'plugin.json(inner)': inn,
+                  'marketplace.json': mk, 'SKILL.md': sk, 'README.md': rd}
+          assert len(set(vers.values())) == 1, f"versiones divergentes: {vers}"
+          cfg = (r/'plugins/email-triage/skills/email-triage/config.yaml').read_text(encoding='utf-8')
+          m = re.search(r'EMAIL TRIAGE v([0-9]+\.[0-9]+)', cfg)
+          if m:
+              mm = '.'.join(pj.split('.')[:2])
+              assert m.group(1) == mm, f"config.yaml header v{m.group(1)} != v{mm}"
+          print(f"OK: todo en {pj} (config header v{m.group(1) if m else '?'})")
+          PY
