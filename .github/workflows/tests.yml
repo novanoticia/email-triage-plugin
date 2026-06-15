@@ -15,12 +15,14 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Dependencias (PyYAML — lo usan los tests de _cargar_config)
+        run: pip install --quiet pyyaml
+
       - name: Tests de triage_helpers (S0-S5 y PASO 0.B)
         run: python3 -m unittest discover -s plugins/email-triage/skills/email-triage/scripts -v
 
       - name: config.yaml parsea sin trampas YAML 1.1
         run: |
-          pip install --quiet pyyaml
           python3 - <<'EOF'
           import yaml
           cfg = yaml.safe_load(open(
