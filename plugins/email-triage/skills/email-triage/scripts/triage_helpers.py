@@ -37,6 +37,7 @@ import re
 import sys
 from collections import defaultdict
 from datetime import datetime, timezone
+from typing import Optional
 
 TIER_ORDEN = {"ARCHIVE": 0, "READING_LATER": 1, "REVIEW": 2, "REPLY_NEEDED": 3}
 
@@ -89,7 +90,7 @@ def _umbral(suma, fuerte, debil, tope):
     return 0
 
 
-def cmd_ajustes(ruta):
+def cmd_ajustes(ruta: str) -> dict:
     ahora = datetime.now(timezone.utc)
     entradas = []
     if os.path.exists(ruta):
@@ -239,7 +240,14 @@ def _detectar_s0(texto):
                    for v in vistas if pat.search(v)})
 
 
-def cmd_sanitizar(texto, max_chars=1500, asunto=None):
+def cmd_sanitizar(texto: str, max_chars: int = 1500,
+                  asunto: Optional[str] = None) -> dict:
+    # Guarda contra max_chars no positivo (config o --max-chars mal puestos):
+    # texto[:0] vaciaria el cuerpo y texto[:-n] lo cortaria por el final. Ante
+    # un valor invalido se cae al presupuesto por defecto documentado (1500).
+    if isinstance(max_chars, bool) or not isinstance(max_chars, int) \
+            or max_chars <= 0:
+        max_chars = 1500
     original = len(texto)
     flags = _detectar_s0(texto)                       # S0 en doble vista
     injection_cuerpo = bool(flags)
@@ -336,6 +344,10 @@ def _aplica_hard_rules(hard_rules, hard_cfg, en_historial, atenuado_a, ignorados
         if v is None:
             ignorados.append({"hard_rule": k, "motivo": "no definida en config"})
             continue
+        if isinstance(v, bool) or not isinstance(v, (int, float)):
+            ignorados.append({"hard_rule": k,
+                              "motivo": "valor no numerico en config (%r)" % (v,)})
+            continue
         nota = None
         if k == "sender_bulk_penalizacion" and en_historial and v < 0:
             nuevo = max(v, atenuado_a)
@@ -350,7 +362,7 @@ def _aplica_hard_rules(hard_rules, hard_cfg, en_historial, atenuado_a, ignorados
     return hard_puntos, hard_desglose
 
 
-def cmd_scoring(payload, cfg):
+def cmd_scoring(payload: dict, cfg: dict) -> dict:
     """Agrega veredictos del modelo en un score+tier deterministas.
 
     payload: {"verdicts": {criterio: valor}, "hard_rules": [clave...],
@@ -457,7 +469,7 @@ def _brief(r):
     return out
 
 
-def cmd_scoring_dispatch(payload, cfg, brief=False):
+def cmd_scoring_dispatch(payload: dict, cfg: dict, brief: bool = False) -> dict:
     """single o lote. Lote: {"emails":[{id, verdicts, ...}, ...]}."""
     if isinstance(payload.get("emails"), list):
         res = [cmd_scoring(item, cfg) for item in payload["emails"]]
@@ -470,7 +482,7 @@ def cmd_scoring_dispatch(payload, cfg, brief=False):
 # PASO 0 — validación del config YAML
 # ════════════════════════════════════════════════════════════════
 
-def cmd_validar_config(ruta):
+def cmd_validar_config(ruta: str) -> dict:
     """Parsea el YAML y reporta ok/error+línea para que el SKILL pueda
     abortar con un mensaje claro (y ofrecer autofix) antes de operar."""
     try:

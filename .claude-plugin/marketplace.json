@@ -9,7 +9,7 @@
       "name": "email-triage",
       "source": "./plugins/email-triage",
       "description": "Epistemic email triage: 30 Bayesian criteria, multi-axis scoring, 4-tier routing with color indicators (🔴🟡🔵⚪). Adds routine mode for scheduled tasks (silencioso con umbral, candidatos dudosos, notificación macOS). Includes dry-run mode, undo/rollback, prompt-injection defense, feedback loop, thread detection, sanitization pipeline, persistent telemetry. Supports iCloud, Gmail, and more.",
-      "version": "3.7.1"
+      "version": "3.7.2"
     }
   ]
 }

@@ -450,5 +450,34 @@ class TestCargarConfig(unittest.TestCase):
             os.unlink(tmp)
 
 
+class TestRobustezEntradaMaliciosa(unittest.TestCase):
+    """Fixes de auditoria 2026-06-26 (verificacion de propuestas externas).
+
+    Dos huecos reales de validacion de entrada confirmados empiricamente:
+    max_chars<=0 vaciaba/cortaba mal el cuerpo, y una hard rule con valor
+    no numerico en config reventaba el scoring con TypeError.
+    """
+
+    def test_max_chars_no_positivo_cae_a_default(self):
+        cuerpo = "palabra " * 600  # ~4800 chars, supera 1500
+        out0 = th.cmd_sanitizar(cuerpo, max_chars=0)
+        self.assertTrue(out0["texto"], "max_chars=0 no debe vaciar el cuerpo")
+        self.assertEqual(out0["longitud_final"], 1500)
+        outneg = th.cmd_sanitizar(cuerpo, max_chars=-5)
+        self.assertTrue(outneg["texto"], "max_chars<0 no debe cortar por el final")
+        self.assertEqual(outneg["longitud_final"], 1500)
+
+    def test_hard_rule_no_numerica_no_revienta(self):
+        cfg = {"criterios_epistemicos": {}, "scoring": {}, "tiers": {},
+               "hard_rules": {"pregunta_directa_boost": "alto"}}
+        out = th.cmd_scoring(
+            {"verdicts": {}, "hard_rules": ["pregunta_directa_boost"]}, cfg)
+        self.assertEqual(out["hard_puntos"], 0)
+        self.assertTrue(
+            any(i.get("hard_rule") == "pregunta_directa_boost"
+                for i in out["ignorados"]),
+            "la hard rule no numerica debe registrarse en ignorados")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

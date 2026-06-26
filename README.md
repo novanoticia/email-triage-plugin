@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.7.1
+# Email Triage Plugin v3.7.2
 
 Filtrado epistémico de correo electrónico para Claude Cowork y Claude Code.
 
@@ -17,6 +17,13 @@ La mayoría de clasificadores de correo preguntan "¿es urgente?". Este plugin p
 - ¿Está anclado a hechos verificables? (Entangled Truths)
 
 El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decisional, calidad epistémica, coste cognitivo y riesgo de manipulación.
+
+## Novedades en v3.7.2
+Release de mantenimiento: dos guardas de validación de entrada (sin cambios en el comportamiento normal del scoring), surgidas de una revisión externa verificada caso por caso.
+- **`max_chars` no positivo ya no destroza el cuerpo**: en `cmd_sanitizar`, un `max_caracteres_cuerpo` / `--max-chars` con valor `0` vaciaba el cuerpo (`texto[:0]`) y un negativo lo cortaba por el final (`texto[:-n]`). Ahora un valor no entero o ≤0 cae al presupuesto por defecto documentado (1500)
+- **Una hard rule mal configurada ya no tumba el scoring**: en `_aplica_hard_rules`, un valor no numérico en `hard_rules` (p. ej. `pregunta_directa_boost: "alto"`) lanzaba `TypeError`. Ahora se registra en `ignorados` con su motivo y el scoring continúa
+- **Type hints** en las funciones públicas (`cmd_ajustes`, `cmd_sanitizar`, `cmd_scoring`, `cmd_scoring_dispatch`, `cmd_validar_config`)
+- **Tests**: la batería sube a **34** (2 nuevos que fijan ambas guardas)
 
 ## Novedades en v3.7.1
 Release de mantenimiento sobre la 3.7.0: un bug real con causa rastreable más limpieza de fontanería y de release. No cambia el comportamiento del scoring.
