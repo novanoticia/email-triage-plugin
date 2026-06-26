@@ -75,7 +75,7 @@ Parche de 5 correcciones sobre el scoring determinista de v3.6, surgido de una s
 ## Novedades en v3.2
 - **Modo dry-run (simulación)**: previsualiza el triaje sin mover nada — propaga como flag por PASO 0/4.G/5, con resumen agregado al final
 - **Sanitización de entrada**: PASO 1.B normaliza HTML/base64/caracteres de control y detecta payloads de prompt injection antes de scoring
-- **Defensa prompt injection (3 capas)**: delimitadores `<email-body-data>`, detector S0 sobre el cuerpo sanitizado, framing como *datos no instrucciones* (ampliado en v3.4.1 con doble vista crudo/decodificado y en v3.5 al asunto)
+- **Defensa prompt injection (3 capas)**: delimitadores `<email-body-data>`, detector S0 sobre el cuerpo sanitizado, framing como *datos no instrucciones* (ampliado en v3.4.1 con doble vista crudo/decodificado, en v3.5 al asunto y con normalización Unicode —NFKC + strip de caracteres invisibles— contra evasión por ancho cero/fullwidth). Es una defensa **heurística**: reduce el riesgo, no lo elimina. Un payload novedoso o con homóglifos de otro alfabeto puede evadir S0; por eso el correo con inyección se capa a `REVIEW` y lo revisa un humano
 - **Detección de hilos**: PASO 1.C normaliza `Re:`/`Fwd:` y cruza participantes; PASO 4.J aplica peso al hilo completo en lugar de scoring mensaje a mensaje
 - **Undo / rollback**: PASO 4.I escribe log de sesión y PASO 6 permite deshacer el último batch movido
 - **Feedback loop**: PASO 0.B lee reglas aprendidas del historial; PASO 4.A las aplica con decaimiento temporal
