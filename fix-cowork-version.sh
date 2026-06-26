@@ -25,6 +25,12 @@ if [ -z "$VERSION" ]; then
   echo "❌ Error: no se pudo leer 'version' de $PLUGIN_JSON"
   exit 1
 fi
+# Guarda: 'version' debe ser semver (X.Y.Z) ANTES de construir rutas que mas
+# abajo se usan en cp -r y rm -rf. Un valor inesperado no debe llegar a un rm.
+if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.]+)?$ ]]; then
+  echo "❌ Error: 'version' no tiene formato semver (X.Y.Z): '$VERSION'"
+  exit 1
+fi
 
 # Coherencia de versiones: plugin.json es la fuente de verdad, pero el
 # frontmatter del SKILL.md no debe contradecirla (genera confusión al depurar).
