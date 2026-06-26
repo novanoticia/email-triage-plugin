@@ -10,11 +10,15 @@
 -- ───────────────────────────────────────────────────────────────
 -- SCRIPT 1 — LECTURA EN UNA SOLA PASADA
 -- Devuelve metadatos (idx, fecha, remitente, asunto, message-id) Y
--- escribe el cuerpo crudo (<=4000) de cada correo a /tmp/tbody_N.txt.
+-- escribe el cuerpo crudo (<=4000) de cada correo a ~/.email-triage/tmp/tbody_N.txt.
 -- Sustituye a 2 scripts previos (meta + bodies) = 1 round-trip en vez de 2.
 -- ───────────────────────────────────────────────────────────────
--- Limpieza defensiva: borra cuerpos crudos de ejecuciones anteriores.
-do shell script "rm -f /tmp/tbody_*.txt"
+-- Directorio temporal PRIVADO del usuario (700), NO /tmp: en macOS /tmp
+-- es world-readable (sticky 1777) y cualquier usuario/proceso local podria
+-- leer los cuerpos crudos mientras dura el triaje. Se crea aqui, se fija a
+-- 700 y se limpian los cuerpos de ejecuciones anteriores.
+set tbodyDir to (do shell script "d=\"$HOME/.email-triage/tmp\"; mkdir -p \"$d\"; chmod 700 \"$d\"; printf %s \"$d\"")
+do shell script "rm -f " & quoted form of tbodyDir & "/tbody_*.txt"
 
 tell application "Mail"
 	set acct to account "<<CUENTA>>"
@@ -58,7 +62,7 @@ tell application "Mail"
 		on error
 			set c to "(sin acceso al cuerpo)"
 		end try
-		set p to "/tmp/tbody_" & i & ".txt"
+		set p to tbodyDir & "/tbody_" & i & ".txt"
 		try
 			set fref to open for access (POSIX file p) with write permission
 			set eof of fref to 0
@@ -154,8 +158,8 @@ end tell
 
 -- ───────────────────────────────────────────────────────────────
 -- SCRIPT 4 — LIMPIEZA (ejecutar al TERMINAR la consolidación)
--- Borra los cuerpos crudos /tmp/tbody_N.txt una vez el SKILL los ha
--- leído. Cierra la fuga de contenido de correo potencialmente sensible
--- en /tmp (legible por otros usuarios locales del equipo). Idempotente.
+-- Borra los cuerpos crudos ~/.email-triage/tmp/tbody_N.txt una vez el SKILL los ha
+-- leído. El directorio ya es 700, pero el contenido de correo no debe
+-- quedar en disco mas de lo necesario. Idempotente.
 -- ───────────────────────────────────────────────────────────────
-do shell script "rm -f /tmp/tbody_*.txt"
+do shell script "rm -f \"$HOME/.email-triage/tmp\"/tbody_*.txt"
