@@ -35,6 +35,7 @@ import json
 import os
 import re
 import sys
+import unicodedata
 from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Optional
@@ -227,15 +228,29 @@ def _primer_corte(texto, patrones):
     return texto[:pos]
 
 
+_INVISIBLES = re.compile(r"[\u200b-\u200f\u202a-\u202e\u2060\ufeff]")
+
+
 def _vista_decodificada(texto):
     """Vista solo-para-detección: entidades HTML decodificadas y tags
     eliminados. Caza payloads ofuscados (&#105;gnore, ig<b>nore</b>)."""
     return re.sub(r"<[^>]+>", "", html_mod.unescape(texto))
 
 
+def _vista_normalizada(texto):
+    """Vista solo-para-detección: NFKC (colapsa fullwidth y ligaduras) y
+    elimina caracteres invisibles (ancho cero, controles bidi). Caza
+    'ｉｇｎｏｒｅ' y 'ig<U+200B>nore'. NO cubre homoglifos de
+    otros alfabetos (p. ej. la 'a' cirilica): eso exigiria una tabla de
+    confundibles, fuera del alcance actual de S0."""
+    return _INVISIBLES.sub("", unicodedata.normalize("NFKC", texto))
+
+
 def _detectar_s0(texto):
-    """Patrones S0 sobre el texto crudo y su vista decodificada."""
-    vistas = (texto, _vista_decodificada(texto))
+    """Patrones S0 sobre el crudo, su vista decodificada y la normalizada
+    de esa decodificada (cubre combos entidad-HTML + ancho cero)."""
+    decodificada = _vista_decodificada(texto)
+    vistas = (texto, decodificada, _vista_normalizada(decodificada))
     return sorted({nombre for nombre, pat in S0_PATRONES
                    for v in vistas if pat.search(v)})
 
