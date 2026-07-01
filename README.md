@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.7.2
+# Email Triage Plugin v3.8.0
 
 Filtrado epistémico de correo electrónico para Claude Cowork y Claude Code.
 
@@ -17,6 +17,16 @@ La mayoría de clasificadores de correo preguntan "¿es urgente?". Este plugin p
 - ¿Está anclado a hechos verificables? (Entangled Truths)
 
 El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decisional, calidad epistémica, coste cognitivo y riesgo de manipulación.
+
+## Novedades en v3.8
+
+Nuevo **modo veloz** (opt-in): un perfil de bajo consumo de tokens y menor
+latencia, pensado para el barrido diario rápido frente a la revisión semanal
+a fondo. Es un **pre-filtro de ruido**, no el evaluador a fondo de 30 criterios.
+
+- **Modo veloz (`config-veloz.yaml`)**: capa de overrides que se superpone al `config.yaml` normal solo durante la sesión, sin tocar perfil, cuenta ni carpetas. Se activa diciendo "triaje veloz" en el chat (o con `scoring.perfil: veloz`). Recorta a los 12 criterios *core*, fuerza scoring **determinista** en lote (`--brief`), salta la calibración y la verificación contra Enviados, acorta el cuerpo leído (800 car.) y reduce la explicación a 1+1 razones sin rationale
+- **Ahorro estimado**: ~45–60 % de tokens por sesión (~50 correos) frente al perfil por defecto, a cambio de menos matiz. Compatible con `simulacion` y `rutina`
+- **Documentación**: nueva sección *Modo veloz* en Configuración y plantilla `config-veloz.yaml` en `skills/email-triage/`
 
 ## Novedades en v3.7.2
 Release de mantenimiento: dos guardas de validación de entrada (sin cambios en el comportamiento normal del scoring), surgidas de una revisión externa verificada caso por caso.
@@ -247,6 +257,33 @@ Ejecuta el skill `email-triage` siguiendo el bloque
 inicio/fin. Al terminar, envía notificación de macOS con
 resumen breve. Decide autónomamente cualquier ambigüedad.
 ```
+
+### Modo veloz
+
+Perfil **opt-in** de bajo consumo de tokens y menor latencia, a costa de matiz.
+Es un *pre-filtro de ruido* (barrido diario rápido); para la revisión cuidadosa,
+usa el config normal.
+
+**Activación**
+- Por chat: di "triaje veloz" o "modo veloz".
+- Por config: `scoring.perfil: veloz` en `~/.email-triage/config.yaml`.
+
+Al activarse, además del `config.yaml` normal (perfil, cuenta, carpetas, filtros),
+se carga la capa `config-veloz.yaml` —plantilla en `skills/email-triage/`; cópiala
+a `~/.email-triage/config-veloz.yaml` para usarla— que superpone estos ajustes
+**solo durante la sesión**:
+
+| Ajuste | Veloz | Por defecto |
+|---|---|---|
+| Criterios evaluados | 12 *core* | hasta 30 |
+| Scoring | determinista + `--brief` | mental |
+| Calibración | se omite / reutiliza | cada sesión |
+| Verificación contra Enviados | se omite | activa |
+| Cuerpo leído | 800 car. | 1500 car. |
+| Explicación | 1+1 razones, sin rationale | 3+3 + rationale |
+
+Ahorro típico estimado: **~45–60 % de tokens** por sesión (~50 correos).
+Compatible con `simulacion` y `rutina`.
 
 ### Tiers y umbrales
 - `tiers`: umbrales configurables para cada tier
