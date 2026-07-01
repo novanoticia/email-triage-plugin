@@ -1,0 +1,90 @@
+# ═══════════════════════════════════════════════════════════════
+# EMAIL TRIAGE — Capa de overrides "VELOZ"  (v1, para plugin v3.8.x)
+# ═══════════════════════════════════════════════════════════════
+#
+# Qué es: NO es un config completo. Es una CAPA de ajustes que se
+# superpone a tu ~/.email-triage/config.yaml normal SOLO cuando
+# pides "triaje veloz". Tu config habitual (perfil, cuenta, carpetas,
+# filtros, keywords) se usa tal cual; estos valores lo pisan encima
+# únicamente para esa sesión. Tu config normal NO se modifica.
+#
+# Cómo se activa: di en el chat "triaje veloz" o "modo veloz".
+# Claude carga tu config.yaml + esta capa y ejecuta con estos ajustes.
+# El comando /triage normal, sin la palabra "veloz", ignora este fichero.
+#
+# Filosofía: máxima velocidad y mínimo consumo de tokens a costa de
+# matiz. Es un PRE-FILTRO DE RUIDO (barrido diario rápido), no el
+# evaluador a fondo de 30 criterios. Para revisión semanal cuidadosa,
+# usa el config normal.
+#
+# Esto es una PLANTILLA del repo. Para usarla, cópiala a
+# ~/.email-triage/config-veloz.yaml (fuera del repo).
+# ═══════════════════════════════════════════════════════════════
+
+# ─── Interacción: menos ida y vuelta ───────────────────────────
+interaccion:
+  modo: "lote"            # una sola confirmación global, no correo a correo
+  limite_por_sesion: 50
+  mostrar_calibracion: false
+
+# ─── Lectura de cuerpo: recortada ──────────────────────────────
+puntuacion:
+  leer_cuerpo: true
+  max_caracteres_cuerpo: 800   # perfil "rápido" del plugin (vs 1500 equilibrado)
+  max_lineas_cuerpo: 20        # (vs 30)
+  # Variante ULTRA (aún más barata, menos precisa): leer_cuerpo: false
+  # → clasifica solo por asunto + remitente. Útil para bandejas con
+  #   mucho newsletter obvio. Descomenta arriba si la quieres.
+
+# ─── Scoring: determinista para sacar la aritmética del contexto ─
+scoring:
+  modo: determinista       # el modelo solo emite veredictos si/no; la
+                           # suma por ejes la hace triage_helpers.py
+  cap_reply_needed_sin_accion: true
+  sender_bulk_atenuado_a: -1
+  # NOTA para Claude al ejecutar en veloz:
+  #  · Invocar el script en LOTE con --brief (salida {id,score,tier,ejes}).
+  #    El desglose completo NO entra al contexto; va a telemetría/fichero.
+  #  · Pasar SOLO los veredictos de los 12 criterios core (ver abajo).
+
+# ─── Explicación: el mayor sumidero de tokens de salida ─────────
+explicacion:
+  razones_positivas: 1     # (vs 3)
+  razones_negativas: 1     # (vs 3)
+  incluir_rationale: false # <- quita la frase-rationale por correo (gran ahorro)
+
+# ─── Telemetría: no escribir lo que no se va a usar ─────────────
+telemetria:
+  guardar_vector: false
+  guardar_score: true
+  guardar_explicacion: false
+  guardar_correccion: true       # se conserva: alimenta el aprendizaje (PASO 0.B)
+  exportar_mal_clasificados: false
+
+# ═══════════════════════════════════════════════════════════════
+# INSTRUCCIONES DE COMPORTAMIENTO (Claude las sigue en modo veloz)
+# No son campos que consuma el script; son reglas de orquestación.
+# ═══════════════════════════════════════════════════════════════
+comportamiento_veloz:
+
+  solo_criterios_core: true
+  # Evaluar ÚNICAMENTE los 12 criterios core; omitir los 18 condicionales.
+  # Core: cambia_algo_concreto, cambio_predicciones, sorpresa_bayesiana,
+  #       evidencia_filtrada, forward_backward_flow, impacto_causal_real,
+  #       urgencia_real_vs_fabricada, argument_screens_off_authority,
+  #       hug_the_query, semantic_stopsigns, entangled_truths,
+  #       absence_of_expected_evidence.
+
+  saltar_calibracion: true
+  # No releer los 100 correos del historial (PASO 2) en cada sesión.
+  # Reutilizar la última calibración guardada si existe; si no hay ninguna,
+  # correr calibración UNA vez y cachearla.
+
+  saltar_verificacion_enviados: true
+  # No hacer la consulta por-hilo a la carpeta "Enviados" (PASO 1.C).
+  # hilo_esperando_respuesta se marca 'desconocido' → hard rule +2, no +5.
+  # Ahorra round-trips a osascript (~60 s cada uno).
+
+  presentacion_compacta: true
+  # Salida como tabla: 1 línea por correo (asunto · tier+banderita · score),
+  # agrupada por tier. Sin bloque 📧 extenso por correo.

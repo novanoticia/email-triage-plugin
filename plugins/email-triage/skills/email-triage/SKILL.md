@@ -1,6 +1,6 @@
 ---
 name: email-triage
-version: "3.7.2"
+version: "3.8.0"
 description: >
   Triaje inteligente de correo electrónico: analiza bandejas de entrada y carpetas
   de lectura pendiente para identificar correos de alto valor usando criterios
@@ -121,6 +121,47 @@ Cuando `modo_rutina: true`:
 `modo_simulacion` y `modo_rutina` son compatibles: si la rutina se ejecuta
 con `modo_simulacion: true` (porque el config lo marca o porque el prompt
 lo pide), se hace dry-run notificando los movimientos hipotéticos.
+
+### Detección de modo veloz (opt-in, NUEVO en v3.8)
+
+Perfil de bajo consumo de tokens y menor latencia, a costa de matiz.
+Es un **pre-filtro de ruido**, no el evaluador a fondo de 30 criterios.
+Para revisión semanal cuidadosa, usar el config normal.
+
+**Activación** (cualquiera de las dos vías):
+- Por petición: el usuario dice "triaje veloz", "modo veloz", "rápido y
+  barato" o equivalente → activar `modo_veloz: true` para la sesión.
+- Por config: `scoring.perfil: veloz` en `~/.email-triage/config.yaml`.
+
+**Carga de la capa de overrides.** Al activarse, ADEMÁS del config normal
+(`~/.email-triage/config.yaml`, del que se toman perfil, cuenta, carpetas,
+filtros y keywords), cargar la capa `~/.email-triage/config-veloz.yaml`
+si existe (o `config-veloz.yaml` junto a este SKILL.md como plantilla) y
+superponer SUS valores sobre el config normal SOLO durante esta sesión.
+La capa nunca aporta datos personales; solo parámetros de velocidad.
+
+Cuando `modo_veloz: true`, anunciarlo al inicio y aplicar:
+
+1. **Solo criterios core**: evaluar únicamente los 12 criterios con
+   `core: true`; omitir los 18 condicionales (no pasarlos al script en
+   modo determinista).
+2. **Scoring determinista + lote `--brief`**: usar `scoring.modo:
+   determinista` e invocar `triage_helpers.py scoring --brief` en lote.
+   El desglose completo va a telemetría/fichero, nunca al contexto.
+3. **Saltar calibración (PASO 2)**: reutilizar la última calibración; si
+   no hay ninguna, correrla una vez y cachearla.
+4. **Saltar verificación contra Enviados (PASO 1.C)**: marcar
+   `usuario_es_ultimo_en_responder: desconocido` (+2, no +5). Ahorra
+   round-trips a osascript.
+5. **Cuerpo recortado**: `max_caracteres_cuerpo: 800`, `max_lineas_cuerpo: 20`.
+6. **Explicación mínima**: 1 razón positiva + 1 negativa, sin rationale.
+7. **Presentación compacta**: tabla de 1 línea por correo (asunto ·
+   banderita+tier · score), agrupada por tier. Sin bloque extenso por correo.
+
+`modo_veloz` es compatible con `modo_simulacion` y `modo_rutina`. Ahorro
+típico estimado: ~45–60 % de tokens frente al perfil por defecto (sesión
+de ~50 correos).
+
 
 ---
 
