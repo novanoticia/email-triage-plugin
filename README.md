@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.8.0
+# Email Triage Plugin v3.8.1
 
 Filtrado epistémico de correo electrónico para Claude Cowork y Claude Code.
 
@@ -17,6 +17,14 @@ La mayoría de clasificadores de correo preguntan "¿es urgente?". Este plugin p
 - ¿Está anclado a hechos verificables? (Entangled Truths)
 
 El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decisional, calidad epistémica, coste cognitivo y riesgo de manipulación.
+
+## Novedades en v3.8.1
+Release de mantenimiento y *hardening*, surgido de una auditoría externa del repo (verificada caso por caso, sin cambios en el comportamiento normal del scoring). Cuatro correcciones y un test nuevo.
+- **Vía de lectura segura como opción principal (iCloud)**: PASO 1 del `SKILL.md` promueve el script consolidado (`references/mail-consolidado.applescript`) a vía canónica y nombrada — metadatos por stdout, cuerpos crudos a `~/.email-triage/tmp/tbody_N.txt` en `700`, sanitizados **antes** de llegar al modelo. El listado inline que volcaba los cuerpos crudos al contexto queda como *fallback* con aviso explícito. Cierra la incoherencia entre el flujo documentado y la promesa de «el modelo solo ve texto ya filtrado», y añade una regla no negociable en PASO 1 y PASO 1.B que prohíbe exponer un cuerpo crudo sin sanitizar
+- **Permisos del directorio de telemetría**: `install-plugin.sh` fija `~/.email-triage/` a `700` siempre (también sobre directorios preexistentes de versiones anteriores). Guarda asuntos y remitentes en JSONL con retención indefinida; en una Mac multiusuario no deben quedar world-readable. Complementa el `700` que ya tenía el subdirectorio `tmp/`
+- **`fix-cowork-version.sh` a prueba de destino equivocado**: guarda estructural antes del `cp -r` (confirma que el destino hallado por `find` es de verdad la raíz de este plugin) y copia *best-effort* que nunca aborta la instalación. El parcheo del rpm de Cowork queda documentado como apaño de conveniencia frente a la vía marketplace
+- **Cap de lectura en `cmd_ajustes` (PASO 0.B)**: `correcciones.jsonl` es append-only y crece sin límite; ahora se leen solo las últimas 5.000 líneas vía `deque(maxlen)` (memoria acotada sea cual sea el tamaño; *escape hatch* con `max_lineas<=0`). Se preserva la semántica de `correcciones_totales`
+- **Tests**: la batería sube a **37** (nuevo test del cap de lectura: tope respetado y lectura completa con el tope desactivado)
 
 ## Novedades en v3.8
 
