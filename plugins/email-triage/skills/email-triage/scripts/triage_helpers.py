@@ -36,7 +36,7 @@ import os
 import re
 import sys
 import unicodedata
-from collections import defaultdict
+from collections import defaultdict, deque
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -91,19 +91,31 @@ def _umbral(suma, fuerte, debil, tope):
     return 0
 
 
-def cmd_ajustes(ruta: str) -> dict:
+# Tope de líneas leídas de correcciones.jsonl. El fichero es append-only y
+# crece sin límite (el SKILL avisa >10 MB pero no purga). Leemos solo las
+# últimas N: son las que más pesan tras el decay temporal (>90 días se
+# descartan igualmente) y un deque(maxlen) mantiene la memoria acotada sea
+# cual sea el tamaño del fichero. Con max_lineas<=0 se lee el fichero entero.
+MAX_CORRECCIONES = 5000
+
+
+def cmd_ajustes(ruta: str, max_lineas: int = MAX_CORRECCIONES) -> dict:
     ahora = datetime.now(timezone.utc)
     entradas = []
     if os.path.exists(ruta):
+        tope = max_lineas if isinstance(max_lineas, int) and max_lineas > 0 \
+            else None
+        recientes = deque(maxlen=tope)          # solo las últimas 'tope' líneas
         with open(ruta, encoding="utf-8") as fh:
             for linea in fh:
                 linea = linea.strip()
-                if not linea:
-                    continue
-                try:
-                    entradas.append(json.loads(linea))
-                except json.JSONDecodeError:
-                    continue
+                if linea:
+                    recientes.append(linea)
+        for linea in recientes:
+            try:
+                entradas.append(json.loads(linea))
+            except json.JSONDecodeError:
+                continue
     usadas, por_remitente, por_dominio = [], defaultdict(float), defaultdict(float)
     kw_peso, kw_count_up, kw_count_down = (defaultdict(float), defaultdict(int),
                                            defaultdict(int))

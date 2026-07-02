@@ -240,6 +240,25 @@ class TestAjustes(unittest.TestCase):
         out = th.cmd_ajustes("/tmp/no-existe-seguro.jsonl")
         self.assertEqual(out["correcciones_totales"], 0)
 
+    def test_cap_max_lineas_lee_solo_las_ultimas(self):
+        # correcciones.jsonl es append-only y sin purga; cmd_ajustes lee solo
+        # las últimas 'max_lineas' para acotar memoria. Con 10 líneas y tope 3
+        # solo entran 3 en el cómputo; con tope <=0 se lee el fichero entero.
+        base = {"ts": self._ts(1), "from": "cap@x.com", "subject": "x",
+                "tier_asignado": "ARCHIVE", "tier_corregido": "REVIEW"}
+        with tempfile.NamedTemporaryFile(
+                "w", suffix=".jsonl", delete=False, encoding="utf-8") as fh:
+            for _ in range(10):
+                fh.write(json.dumps(base) + "\n")
+            ruta = fh.name
+        try:
+            self.assertEqual(
+                th.cmd_ajustes(ruta, max_lineas=3)["correcciones_totales"], 3)
+            self.assertEqual(
+                th.cmd_ajustes(ruta, max_lineas=0)["correcciones_totales"], 10)
+        finally:
+            os.unlink(ruta)
+
 
 class TestAsuntoS0(unittest.TestCase):
     """2.4 — el asunto también pasa por S0 y la inyección capa el tier."""

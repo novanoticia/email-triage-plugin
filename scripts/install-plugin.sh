@@ -115,10 +115,17 @@ else
 fi
 
 # ── 5. Crear directorio de telemetría/sesión ───────────────────
+# Contiene metadatos de correo (asuntos, remitentes) en JSONL con retención
+# indefinida, así que se fija a 700: solo el dueño puede leerlo. Se aplica
+# SIEMPRE (mkdir + chmod), también sobre directorios preexistentes creados
+# por versiones anteriores sin permisos restrictivos.
 if [ ! -d "$TELEMETRY_DIR" ]; then
   mkdir -p "$TELEMETRY_DIR"
   echo "📂 Creado: $TELEMETRY_DIR (para session logs y telemetría)"
 fi
+chmod 700 "$TELEMETRY_DIR" 2>/dev/null \
+  && echo "🔒 Permisos de $TELEMETRY_DIR fijados a 700 (solo el dueño)" \
+  || echo "⚠️  No se pudieron fijar permisos 700 en $TELEMETRY_DIR (revísalo a mano)"
 
 # ── 5b. Config personal persistente (NUEVO en v3.4) ────────────
 # El config del usuario vive FUERA del repo para sobrevivir a

@@ -87,19 +87,35 @@ if [ -d "$SESSION_BASE" ]; then
   done < <(find "$SESSION_BASE" -name "plugin.json" -print0 2>/dev/null)
 fi
 
+# NOTA (best-effort): parchear el rpm de Cowork por `find` está acoplado a
+# la interna de Cowork (rutas de sesión efímeras que pueden cambiar). Es un
+# apaño de conveniencia, NO la vía canónica: si Cowork instala el plugin vía
+# marketplace, esa ruta es la preferente y este paso sobra. Por eso todo el
+# bloque es tolerante a fallo y NUNCA aborta la instalación.
 if [ -n "$RPM_PLUGIN" ]; then
-  # Copiar el ÁRBOL COMPLETO del plugin, no archivos sueltos. Hasta
-  # v3.4.1 solo se copiaban plugin.json, SKILL.md y config.yaml, así
-  # que ni scripts/triage_helpers.py ni references/ ni commands/
-  # llegaban a Cowork: en esa plataforma no existía la "vía preferente"
-  # de v3.4 ni el fallback manual documentado. Copiar el árbol evita
-  # además olvidar archivos que se añadan en versiones futuras.
-  mkdir -p "$RPM_PLUGIN"
-  cp -r "$REPO/." "$RPM_PLUGIN/" && \
-  echo "✅ Cowork (rpm): árbol completo del plugin actualizado a v$VERSION" || \
-  echo "❌ Error al copiar archivos a Cowork rpm"
+  # Guarda ANTES de escribir: `cp -r "$REPO/."` sobre una ruta hallada por
+  # `find` en un árbol que no controlamos es peligroso si `find` casó un
+  # plugin homónimo o si el layout de Cowork cambió. Confirmar la firma
+  # estructural mínima del destino (es la raíz de ESTE plugin) antes del cp.
+  if [ ! -f "$RPM_PLUGIN/.claude-plugin/plugin.json" ]; then
+    echo "⚠️  Cowork: destino inesperado ($RPM_PLUGIN) sin .claude-plugin/plugin.json — omitido por seguridad"
+  elif ! python3 -c "import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if d.get('name')=='email-triage' else 1)" "$RPM_PLUGIN/.claude-plugin/plugin.json" 2>/dev/null; then
+    echo "⚠️  Cowork: destino ($RPM_PLUGIN) no es el plugin email-triage — omitido por seguridad"
+  else
+    # Copiar el ÁRBOL COMPLETO del plugin, no archivos sueltos. Hasta
+    # v3.4.1 solo se copiaban plugin.json, SKILL.md y config.yaml, así
+    # que ni scripts/triage_helpers.py ni references/ ni commands/
+    # llegaban a Cowork: en esa plataforma no existía la "vía preferente"
+    # de v3.4 ni el fallback manual documentado. Copiar el árbol evita
+    # además olvidar archivos que se añadan en versiones futuras.
+    if mkdir -p "$RPM_PLUGIN" && cp -r "$REPO/." "$RPM_PLUGIN/"; then
+      echo "✅ Cowork (rpm): árbol completo del plugin actualizado a v$VERSION"
+    else
+      echo "⚠️  Cowork (rpm): no se pudo copiar — best-effort, la instalación continúa"
+    fi
+  fi
 else
-  echo "⚠️  Cowork: plugin no encontrado en rpm (¿está instalado en Cowork?)"
+  echo "ℹ️  Cowork: plugin no encontrado en rpm (normal si no usas Cowork o si se instala vía marketplace)"
 fi
 
 # ── 2. CLAUDE CODE (caché) ────────────────────────────────────────
