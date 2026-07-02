@@ -1,6 +1,6 @@
 ---
 name: email-triage
-version: "3.8.1"
+version: "3.8.2"
 description: >
   Triaje inteligente de correo electrónico: analiza bandejas de entrada y carpetas
   de lectura pendiente para identificar correos de alto valor usando criterios
@@ -1167,14 +1167,26 @@ línea de evento e informar al usuario:
 
 #### Dónde escribir
 
-Usar Desktop Commander (`write_file`) para añadir líneas al fichero:
-```
-~/.email-triage/session_log.jsonl
+**Vía canónica (v3.8.2)**: usar el helper `registrar`, que hace un **append
+atómico bajo lock de fichero** (`fcntl.flock`). Evita que dos sesiones a la vez
+(p. ej. una tarea programada y una manual) entrelacen líneas y corrompan el
+JSONL, crea el directorio con permisos `700`/`600` si falta y garantiza una
+sola línea por registro:
+
+```bash
+echo '{"session_id":"...","message_id":"<id>","tier":"REVIEW","status":"pending"}' \
+  | python3 "<ruta-del-skill>/scripts/triage_helpers.py" registrar \
+      --ruta ~/.email-triage/session_log.jsonl
 ```
 
-Si el directorio no existe, crearlo con `create_directory` antes de la primera escritura.
-Si `write_file` falla (disco lleno, permisos), avisar al usuario y continuar el triaje
-igualmente — el log es una red de seguridad, no un requisito para operar.
+El mismo helper sirve para `correcciones.jsonl`. Devuelve `{"ok":true,...}` o
+`{"ok":false,"error":...}`; si falla, avisa al usuario y continúa el triaje.
+
+**Fallback**: si no puedes ejecutar Python, usar Desktop Commander (`write_file`)
+para añadir la línea a `~/.email-triage/session_log.jsonl` (crear el directorio
+con `create_directory` la primera vez). El log es una red de seguridad, no un
+requisito para operar; su única regla es que sea **append-only** — con el
+helper, además, concurrente-seguro.
 
 #### Retención
 

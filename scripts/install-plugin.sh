@@ -120,7 +120,9 @@ fi
 # SIEMPRE (mkdir + chmod), también sobre directorios preexistentes creados
 # por versiones anteriores sin permisos restrictivos.
 if [ ! -d "$TELEMETRY_DIR" ]; then
-  mkdir -p "$TELEMETRY_DIR"
+  # 700 desde el propio mkdir: cierra la ventana entre crear y chmod en la
+  # que el directorio quedaría con los permisos del umask (world-readable).
+  mkdir -p -m 700 "$TELEMETRY_DIR"
   echo "📂 Creado: $TELEMETRY_DIR (para session logs y telemetría)"
 fi
 chmod 700 "$TELEMETRY_DIR" 2>/dev/null \
