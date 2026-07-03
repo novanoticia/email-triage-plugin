@@ -117,6 +117,16 @@ end tell
 -- iterar `every message` (que lanza -1728 "no puede obtenerse item N").
 -- Devuelve conteos para que el SKILL verifique en vez de fiarse del
 -- valor de retorno. Rellenar las dos listas de message-ids.
+--
+-- ⚠️ SEGURIDAD (v3.8.4): el `message id` es una cabecera controlada por quien
+-- envia el correo y NO pasa por el saneo S0. NO pegues message-ids crudos en
+-- las listas de abajo: una comilla en un message-id cierra el literal y
+-- AppleScript ejecuta lo que siga (`& (do shell script "...")`). Genera las dos
+-- listas con el helper, que los valida y escapa, y pega su `lista_applescript`:
+--   echo '{"valores":["<mid1>","<mid2>"]}' \
+--     | python3 <ruta-del-skill>/scripts/triage_helpers.py escapar-applescript
+-- Los placeholders MID_* de abajo son solo ilustrativos: sustituyelos por la
+-- `lista_applescript` que devuelve el helper.
 -- ───────────────────────────────────────────────────────────────
 tell application "Mail"
 	set acct to account "<<CUENTA>>"
@@ -124,6 +134,8 @@ tell application "Mail"
 	set revBox to mailbox "<<DESTINO_REVIEW>>" of acct
 	set arcBox to mailbox "<<DESTINO_ARCHIVE>>" of acct
 
+	-- <<LISTA_REVIEW>> y <<LISTA_ARCHIVE>>: salida `lista_applescript` del
+	-- helper escapar-applescript, NO message-ids pegados a mano.
 	set toReview to {"MID_REVIEW_1", "MID_REVIEW_2"}
 	set toArchive to {"MID_ARCHIVE_1", "MID_ARCHIVE_2"}
 
