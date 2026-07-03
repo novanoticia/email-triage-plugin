@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.8.3
+# Email Triage Plugin v3.8.4
 
 Filtrado epistémico de correo electrónico para Claude Cowork y Claude Code.
 
