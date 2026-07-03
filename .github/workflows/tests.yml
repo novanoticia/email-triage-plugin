@@ -56,10 +56,37 @@ jobs:
           vers = {'plugin.json(root)': pj, 'plugin.json(inner)': inn,
                   'marketplace.json': mk, 'SKILL.md': sk, 'README.md': rd}
           assert len(set(vers.values())) == 1, f"versiones divergentes: {vers}"
+          mm = '.'.join(pj.split('.')[:2])
           cfg = (r/'plugins/email-triage/skills/email-triage/config.yaml').read_text(encoding='utf-8')
           m = re.search(r'EMAIL TRIAGE v([0-9]+\.[0-9]+)', cfg)
           if m:
-              mm = '.'.join(pj.split('.')[:2])
               assert m.group(1) == mm, f"config.yaml header v{m.group(1)} != v{mm}"
-          print(f"OK: todo en {pj} (config header v{m.group(1) if m else '?'})")
+          # H1 del SKILL.md: derivó en el pasado (quedó en v3.4 en un plugin
+          # v3.8). Ahora también es un gate — major.minor debe coincidir (#5).
+          skill = (r/'plugins/email-triage/skills/email-triage/SKILL.md').read_text(encoding='utf-8')
+          h1 = re.search(r'(?m)^#\s+Email Triage v([0-9]+\.[0-9]+)\s+—', skill)
+          assert h1, "no se encontró el H1 '# Email Triage vX.Y —' en SKILL.md"
+          assert h1.group(1) == mm, f"H1 del SKILL.md v{h1.group(1)} != v{mm}"
+          print(f"OK: todo en {pj} (config + H1 SKILL en v{mm})")
+          PY
+
+      - name: Unicidad del árbol de scripts (no duplicar triage_helpers.py)
+        run: |
+          python3 - <<'PY'
+          import pathlib
+          r = pathlib.Path('.')
+          canon = 'plugins/email-triage/skills/email-triage/scripts'
+          bad = []
+          for name in ('triage_helpers.py', 'test_triage_helpers.py'):
+              hits = [str(p).replace('\\', '/') for p in r.rglob(name)
+                      if '.git' not in p.parts]
+              if len(hits) != 1:
+                  bad.append(f"{name}: {len(hits)} copias -> {hits}")
+              elif not hits[0].startswith(canon):
+                  bad.append(f"{name} fuera de {canon}/ -> {hits[0]}")
+          stray = r / 'plugins/email-triage/scripts'
+          if stray.exists():
+              bad.append(f"árbol paralelo presente: {stray} (Cowork empaquetaría el viejo)")
+          assert not bad, "Duplicación del árbol de scripts:\n  " + "\n  ".join(bad)
+          print(f"OK: scripts canónicos únicos en {canon}/")
           PY

@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.8.2
+# Email Triage Plugin v3.8.3
 
 Filtrado epistémico de correo electrónico para Claude Cowork y Claude Code.
 
@@ -17,6 +17,13 @@ La mayoría de clasificadores de correo preguntan "¿es urgente?". Este plugin p
 - ¿Está anclado a hechos verificables? (Entangled Truths)
 
 El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decisional, calidad epistémica, coste cognitivo y riesgo de manipulación.
+
+## Novedades en v3.8.3
+Cierra los tres issues abiertos del repo (#4, #5, #6) y añade guía de co-creación para agentes.
+- **Un solo comando para el bump de versión (#5)**: `scripts/bump-version.sh X.Y.Z` actualiza los **7 sitios** de versión de una pasada (5 semver + cabecera de `config.yaml` + H1 del `SKILL.md`) y valida con el mismo criterio del CI. De paso arregla un *drift* real: el H1 del `SKILL.md` seguía en `v3.4` en un plugin v3.8. El gate de CI ahora **también** vigila el H1, así que no puede volver a derivar
+- **Instalación en Cowork desacoplada del rpm (#4)**: `install-plugin.sh` ya no parchea por defecto la copia efímera del plugin en la sesión de Cowork; la vía canónica es el **marketplace**. El parcheo del rpm queda como flag opt-in `--cowork` (o `PATCH_COWORK_RPM=1`) en `fix-cowork-version.sh`. La sincronización de la caché de Claude Code sigue por defecto
+- **CI: guardia contra duplicación de scripts (#6)**: un paso nuevo falla el build si `triage_helpers.py` / `test_triage_helpers.py` aparece en más de una ruta, o si reaparece el árbol paralelo `plugins/email-triage/scripts/` (que Cowork empaquetaría en vez del canónico)
+- **`CLAUDE.md`**: guía de co-creación en la raíz (objetivo, arquitectura mecánico-vs-juicio, cómo correr los tests, invariantes de seguridad, disciplina de versión y mapa de ficheros) para que un agente entienda el repo sin adivinar
 
 ## Novedades en v3.8.2
 Release de *hardening* a partir de una segunda auditoría externa, esta vez **verificada contra el código real** (no solo el README) caso por caso. Cuatro correcciones y **9 tests nuevos** (la batería sube de 37 a 46). Sin cambios en el comportamiento normal del scoring.
@@ -175,6 +182,12 @@ lee la versión desde `plugin.json`, sincroniza la caché y crea
 `~/.email-triage/` para logs de sesión y telemetría. En instalaciones
 existentes hace `git fetch` + `reset --hard origin/main`. Requiere
 `git` y `python3` en `PATH`.
+
+> **Cowork (v3.8.3)**: el instalador ya **no** parchea por defecto la copia
+> efímera del plugin dentro de la sesión de Cowork (el *rpm*) — es una ruta
+> que no controlas y cuyo layout puede cambiar. La vía canónica en Cowork es
+> el **marketplace** (Paso 2). Si necesitas forzar el parcheo del rpm de la
+> sesión actual, pásale el flag opt-in: `./install-plugin.sh --cowork`.
 
 **Opción B: manual.** Clona el repo en
 `~/.claude/plugins/marketplaces/email-triage-plugin/` (para actualizar,

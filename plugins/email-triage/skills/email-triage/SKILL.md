@@ -1,6 +1,6 @@
 ---
 name: email-triage
-version: "3.8.2"
+version: "3.8.3"
 description: >
   Triaje inteligente de correo electrónico: analiza bandejas de entrada y carpetas
   de lectura pendiente para identificar correos de alto valor usando criterios
@@ -25,7 +25,7 @@ description: >
   cualquier petición que implique ejecutar el análisis pero sin efectos reales.
 ---
 
-# Email Triage v3.4 — Filtrado epistémico por valor diferencial
+# Email Triage v3.8 — Filtrado epistémico por valor diferencial
 
 ## Qué hace este skill
 
