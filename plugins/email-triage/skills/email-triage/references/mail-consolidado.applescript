@@ -17,7 +17,7 @@
 -- es world-readable (sticky 1777) y cualquier usuario/proceso local podria
 -- leer los cuerpos crudos mientras dura el triaje. Se crea aqui, se fija a
 -- 700 y se limpian los cuerpos de ejecuciones anteriores.
-set tbodyDir to (do shell script "d=\"$HOME/.email-triage/tmp\"; mkdir -p \"$d\"; chmod 700 \"$d\"; printf %s \"$d\"")
+set tbodyDir to (do shell script "d=\"$HOME/.email-triage/tmp\"; mkdir -p -m 700 \"$d\"; chmod 700 \"$d\"; printf %s \"$d\"")
 do shell script "rm -f " & quoted form of tbodyDir & "/tbody_*.txt"
 
 tell application "Mail"

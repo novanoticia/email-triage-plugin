@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.8.1
+# Email Triage Plugin v3.8.2
 
 Filtrado epistémico de correo electrónico para Claude Cowork y Claude Code.
 
@@ -17,6 +17,13 @@ La mayoría de clasificadores de correo preguntan "¿es urgente?". Este plugin p
 - ¿Está anclado a hechos verificables? (Entangled Truths)
 
 El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decisional, calidad epistémica, coste cognitivo y riesgo de manipulación.
+
+## Novedades en v3.8.2
+Release de *hardening* a partir de una segunda auditoría externa, esta vez **verificada contra el código real** (no solo el README) caso por caso. Cuatro correcciones y **9 tests nuevos** (la batería sube de 37 a 46). Sin cambios en el comportamiento normal del scoring.
+- **Append concurrente-seguro (`registrar`)**: nuevo subcomando de `triage_helpers.py` que añade líneas a `correcciones.jsonl` / `session_log.jsonl` con **lock de fichero** (`fcntl.flock`) y newline garantizado. Cierra el riesgo de que dos sesiones simultáneas —p. ej. una tarea programada y una manual— entrelacen líneas y corrompan el JSONL. El PASO 4.I del `SKILL.md` lo promueve a vía canónica; `write_file` queda como *fallback*
+- **S0 cubre homóglifos de otros alfabetos**: nueva *vista desconfundida* que mapea confusables cirílicos/griegos a latín antes de aplicar los patrones. Ahora se detecta `ignоre` con la `o` cirílica (U+043E) o la `ο` griega (U+03BF), hasta ahora un límite conocido. Es solo-para-detección: correo multilingüe legítimo (ruso, griego) **no** genera falsos positivos, porque solo salta si el texto desconfundido imita una instrucción
+- **`validar-config` detecta el fallo silencioso de estructura**: avisa de criterios activos **sin `eje`** (o con un `eje` inexistente en `scoring.ejes`), que en el modo determinista pierden sus puntos sin avisar. Es el modo de fallo real cuando un config antiguo sobrevive a un cambio de estructura (p. ej. el mapeo criterio→eje de v3.6)
+- **Robustez de entrada**: la lectura de `stdin` en `sanitizar` tolera bytes no-UTF8 (un cuerpo en ISO-8859-1 ya no rompe el pipe); test explícito de cuerpo vacío; el directorio de telemetría se crea con `mkdir -m 700` (cierra la ventana entre `mkdir` y `chmod`)
 
 ## Novedades en v3.8.1
 Release de mantenimiento y *hardening*, surgido de una auditoría externa del repo (verificada caso por caso, sin cambios en el comportamiento normal del scoring). Cuatro correcciones y un test nuevo.

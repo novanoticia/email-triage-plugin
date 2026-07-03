@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.7).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.8.2).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -18,6 +18,16 @@ Novedades v3.7 (parche de 5 prioridades sobre el scoring determinista de v3.6):
      1 parse de YAML + salida compacta = mucho menos tiempo y tokens.
   4. nuevo subcomando validar-config: parsea el YAML y reporta ok/error+línea.
 
+Novedades v3.8.2 (auditoría externa verificada contra el código real):
+  1. sanitizar amplía S0 con una vista "desconfundida": mapea homóglifos
+     cirílicos/griegos a latín y caza 'ignore' escrito con la 'o' cirílica.
+  2. nuevo subcomando registrar: append atómico (fcntl.flock) a los JSONL,
+     seguro ante sesiones concurrentes. Centraliza lo que antes hacía el
+     modelo con 'echo >>'.
+  3. validar-config avisa de criterios activos sin 'eje' (pérdida silenciosa
+     de puntos en el scoring determinista tras un cambio de estructura).
+  4. lectura de stdin en sanitizar tolerante a bytes no-UTF8.
+
 Uso:
   python3 triage_helpers.py ajustes [--correcciones RUTA]
   python3 triage_helpers.py sanitizar [--archivo RUTA] [--max-chars 1500] [--asunto TXT]
@@ -25,9 +35,12 @@ Uso:
   python3 triage_helpers.py scoring [--config RUTA] [--brief]
                             (lee payload JSON de stdin; single o {"emails":[...]})
   python3 triage_helpers.py validar-config [--config RUTA]
+  python3 triage_helpers.py registrar --ruta RUTA [--registro JSON]
+                            (append atómico con flock; sin --registro lee de stdin)
 
 Salida: JSON por stdout. Solo stdlib salvo PyYAML (scoring/validar-config).
-Sin efectos laterales: este script NUNCA escribe ficheros ni mueve correos.
+Efectos laterales: solo 'registrar' escribe (append atómico, concurrente-seguro,
+a correcciones.jsonl / log_sesion.jsonl). Ningún subcomando mueve correos.
 """
 import argparse
 import html as html_mod
@@ -252,17 +265,47 @@ def _vista_decodificada(texto):
 def _vista_normalizada(texto):
     """Vista solo-para-detección: NFKC (colapsa fullwidth y ligaduras) y
     elimina caracteres invisibles (ancho cero, controles bidi). Caza
-    'ｉｇｎｏｒｅ' y 'ig<U+200B>nore'. NO cubre homoglifos de
-    otros alfabetos (p. ej. la 'a' cirilica): eso exigiria una tabla de
-    confundibles, fuera del alcance actual de S0."""
+    'ｉｇｎｏｒｅ' y 'ig<U+200B>nore'. Los homoglifos de otros alfabetos
+    (p. ej. la 'o' cirilica) los cubre _vista_desconfundida."""
     return _INVISIBLES.sub("", unicodedata.normalize("NFKC", texto))
 
 
+# Confusables de otros alfabetos -> latin. Solo los que sirven para disfrazar
+# instrucciones en ingles/espanol (ataque homoglifo): la 'о' cirilica de
+# "ignоre", la 'ε' griega, etc. La vista desconfundida es SOLO para deteccion:
+# si tras mapear a latin el texto dispara un patron S0, era una inyeccion
+# camuflada. No genera falsos positivos en correo multilingue legitimo: texto
+# ruso o griego real no coincide con los patrones de instruccion tras el mapeo.
+_CONFUSABLES = str.maketrans({
+    # Cirilico minuscula -> latin
+    "а": "a", "е": "e", "о": "o", "р": "p", "с": "c", "х": "x", "у": "y",
+    "і": "i", "ј": "j", "ѕ": "s", "ԁ": "d", "ԛ": "q", "ѡ": "w",
+    # Cirilico mayuscula -> latin
+    "А": "A", "Е": "E", "О": "O", "Р": "P", "С": "C", "Х": "X", "У": "Y",
+    "К": "K", "М": "M", "Н": "H", "Т": "T", "В": "B", "І": "I", "Ѕ": "S",
+    # Griego minuscula -> latin
+    "ο": "o", "α": "a", "ε": "e", "ρ": "p", "τ": "t", "υ": "u", "ι": "i",
+    "κ": "k", "ν": "v", "χ": "x", "ζ": "z",
+    # Griego mayuscula -> latin
+    "Ο": "O", "Α": "A", "Β": "B", "Ε": "E", "Ζ": "Z", "Η": "H", "Ι": "I",
+    "Κ": "K", "Μ": "M", "Ν": "N", "Ρ": "P", "Τ": "T", "Χ": "X",
+})
+
+
+def _vista_desconfundida(texto):
+    """Vista solo-para-detección: mapea confusables cirilicos/griegos a
+    latin para cazar homoglifos ('ignоre' con o cirilica). Se aplica sobre
+    la vista normalizada (ya sin invisibles ni fullwidth)."""
+    return _vista_normalizada(texto).translate(_CONFUSABLES)
+
+
 def _detectar_s0(texto):
-    """Patrones S0 sobre el crudo, su vista decodificada y la normalizada
-    de esa decodificada (cubre combos entidad-HTML + ancho cero)."""
+    """Patrones S0 sobre el crudo, su vista decodificada, la normalizada y
+    la desconfundida de esa decodificada (cubre combos entidad-HTML +
+    ancho cero + homoglifos de otros alfabetos)."""
     decodificada = _vista_decodificada(texto)
-    vistas = (texto, decodificada, _vista_normalizada(decodificada))
+    vistas = (texto, decodificada, _vista_normalizada(decodificada),
+              _vista_desconfundida(decodificada))
     return sorted({nombre for nombre, pat in S0_PATRONES
                    for v in vistas if pat.search(v)})
 
@@ -538,8 +581,92 @@ def cmd_validar_config(ruta: str) -> dict:
     avisos = []
     if not cuenta:
         avisos.append("correo.cuenta vacío: el skill debe autodetectar la cuenta")
+
+    # Fallo silencioso real tras un cambio de estructura (p. ej. el mapeo
+    # criterio->eje de v3.6): un criterio activo sin 'eje' —o con un 'eje'
+    # que no existe en scoring.ejes— no suma nada y el scoring determinista
+    # devuelve menos puntos SIN avisar. Un config antiguo que sobrevivió a
+    # una actualización cae aquí. Se detecta para que PASO 0 lo reporte.
+    criterios = data.get("criterios_epistemicos") or {}
+    ejes_def = ((data.get("scoring") or {}).get("ejes") or EJES_DEFAULT)
+    sin_eje, eje_desconocido = [], []
+    if isinstance(criterios, dict):
+        for nombre, c in criterios.items():
+            if not isinstance(c, dict) or c.get("activo", True) is False:
+                continue
+            eje = c.get("eje")
+            if not eje:
+                sin_eje.append(nombre)
+            elif eje not in ejes_def:
+                eje_desconocido.append(nombre)
+    if sin_eje:
+        avisos.append(
+            "%d criterio(s) activos SIN 'eje' — sus puntos se pierden en "
+            "silencio en el scoring determinista: %s"
+            % (len(sin_eje), ", ".join(sorted(sin_eje)[:8])))
+    if eje_desconocido:
+        avisos.append(
+            "%d criterio(s) con 'eje' inexistente en scoring.ejes (se ignoran): %s"
+            % (len(eje_desconocido), ", ".join(sorted(eje_desconocido)[:8])))
     return {"ok": True, "claves_top": sorted(data.keys()),
-            "campos_recomendados_ausentes": faltan, "avisos": avisos}
+            "campos_recomendados_ausentes": faltan, "avisos": avisos,
+            "criterios_sin_eje": sin_eje,
+            "criterios_eje_desconocido": eje_desconocido}
+
+
+# ════════════════════════════════════════════════════════════════
+# Registro atómico — append concurrente-seguro a los JSONL
+# ════════════════════════════════════════════════════════════════
+
+# El SKILL escribe correcciones.jsonl / log_sesion.jsonl como append-only.
+# Si dos sesiones de triaje corren a la vez (una tarea programada y una
+# manual, p. ej.), dos `echo >>` podrían entrelazar líneas y corromper el
+# JSONL. Este subcomando centraliza el append bajo un lock de fichero
+# (fcntl.flock) y con newline garantizado: una escritura, una línea,
+# atómica frente a otras instancias que usen el mismo helper.
+
+def cmd_registrar(ruta: str, registro: dict) -> dict:
+    """Append atómico de `registro` como una línea JSON en `ruta`.
+
+    Serializa a JSON de una sola línea y lo añade bajo fcntl.flock
+    (exclusivo). Crea el fichero y su directorio si faltan (700/600:
+    contiene metadatos de correo). Devuelve {"ok": True, "bytes": n,
+    "ruta": ...} o {"ok": False, "error": ...}. NUNCA mueve correos.
+    """
+    if not isinstance(registro, dict):
+        return {"ok": False, "error": "el registro debe ser un objeto JSON"}
+    try:
+        linea = json.dumps(registro, ensure_ascii=False, separators=(",", ":"))
+    except (TypeError, ValueError) as e:
+        return {"ok": False, "error": "registro no serializable: %s" % e}
+    linea = linea.replace("\r", " ").replace("\n", " ")   # una sola línea
+    ruta = os.path.expanduser(ruta)
+    directorio = os.path.dirname(ruta) or "."
+    try:
+        os.makedirs(directorio, mode=0o700, exist_ok=True)
+        fd = os.open(ruta, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+    except OSError as e:
+        return {"ok": False, "error": "no se pudo preparar %s: %s" % (ruta, e)}
+    lock = None
+    try:
+        try:
+            import fcntl
+            fcntl.flock(fd, fcntl.LOCK_EX)
+            lock = fcntl
+        except (ImportError, OSError):
+            lock = None       # sin flock (no-Unix): O_APPEND ya es atómico
+        datos = (linea + "\n").encode("utf-8")
+        os.write(fd, datos)
+        return {"ok": True, "bytes": len(datos), "ruta": ruta}
+    except OSError as e:
+        return {"ok": False, "error": "fallo al escribir %s: %s" % (ruta, e)}
+    finally:
+        if lock is not None:
+            try:
+                lock.flock(fd, lock.LOCK_UN)
+            except OSError:
+                pass
+        os.close(fd)
 
 
 def _cargar_config(ruta):
@@ -579,6 +706,11 @@ def main():
     pv = sub.add_parser("validar-config")
     pv.add_argument("--config",
                     default=os.path.expanduser("~/.email-triage/config.yaml"))
+    pr = sub.add_parser("registrar")
+    pr.add_argument("--ruta", required=True,
+                    help="fichero JSONL destino (append atómico con flock)")
+    pr.add_argument("--registro", default=None,
+                    help="registro JSON en línea; sin él se lee de stdin")
     args = p.parse_args()
     if args.cmd == "ajustes":
         out = cmd_ajustes(args.correcciones)
@@ -588,12 +720,22 @@ def main():
                                    brief=args.brief)
     elif args.cmd == "validar-config":
         out = cmd_validar_config(args.config)
+    elif args.cmd == "registrar":
+        crudo = args.registro if args.registro is not None else sys.stdin.read()
+        try:
+            registro = json.loads(crudo or "{}")
+        except json.JSONDecodeError as e:
+            out = {"ok": False, "error": "JSON de registro inválido: %s" % e}
+        else:
+            out = cmd_registrar(args.ruta, registro)
     else:
         if args.archivo:
             with open(args.archivo, encoding="utf-8", errors="replace") as fh:
                 texto = fh.read()
         else:
-            texto = sys.stdin.read()
+            # Lectura tolerante: un cuerpo en ISO-8859-1 o con bytes sueltos
+            # no debe reventar el pipe (se sustituyen los ilegibles).
+            texto = sys.stdin.buffer.read().decode("utf-8", errors="replace")
         out = cmd_sanitizar(texto, args.max_chars, asunto=args.asunto)
     json.dump(out, sys.stdout, ensure_ascii=False, indent=2)
     print()
