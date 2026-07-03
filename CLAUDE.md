@@ -49,7 +49,7 @@ plugins/email-triage/
     references/                         # applescript + procedimientos manuales
     scripts/                            # ← ÚNICA ubicación de los scripts
       triage_helpers.py                 # toda la lógica determinista
-      test_triage_helpers.py            # 46 tests (stdlib)
+      test_triage_helpers.py            # 70 tests (stdlib)
 ```
 
 **No crees `plugins/email-triage/scripts/`** ni dupliques `triage_helpers.py` en
@@ -63,7 +63,7 @@ python3 -m pip install pyyaml --break-system-packages    # solo la 1ª vez
 python3 -m unittest discover -s plugins/email-triage/skills/email-triage/scripts
 ```
 
-Son 46 tests, solo stdlib, sin red y sin efectos fuera de tempfiles. PyYAML solo
+Son 70 tests, solo stdlib, sin red y sin efectos fuera de tempfiles. PyYAML solo
 lo necesitan los tests de `validar-config` / `_cargar_config`.
 
 ## Los 4 gates de CI (deben quedar en verde)

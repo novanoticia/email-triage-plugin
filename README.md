@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.8.4
+# Email Triage Plugin v3.8.5
 
 Filtrado epistémico de correo electrónico para Claude Cowork y Claude Code.
 
@@ -17,6 +17,16 @@ La mayoría de clasificadores de correo preguntan "¿es urgente?". Este plugin p
 - ¿Está anclado a hechos verificables? (Entangled Truths)
 
 El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decisional, calidad epistémica, coste cognitivo y riesgo de manipulación.
+## Novedades en v3.8.5
+
+Verificación de una auditoría externa (Mistral) contra el código real: de sus 13 hallazgos+riesgos, solo 4 resultaron ciertos y accionables; el resto ya estaba cubierto (homóglifos en asunto/remitente, tests de `escapar-applescript`, aviso de eje inválido, limpieza de `tmp/`…) o partía de premisas incorrectas. Se aplican los confirmados:
+
+- **`ajustes` y `validar-config` sobreviven a un fichero ilegible**: un `PermissionError` (o E/S rota) en `correcciones.jsonl` / `config.yaml` tumbaba el subcomando con un traceback crudo. Ahora `ajustes` degrada a "sin ajustes aprendidos" reportando `error_lectura`, y `validar-config` devuelve `ok: false` con motivo legible. La lectura del JSONL pasa además a `errors="replace"`: una línea con bytes ilegibles ya no aborta la pasada entera
+- **Guardas de forma en `scoring`**: un payload que no es objeto JSON, un item de lote no-objeto, un `verdicts` no-objeto, un veredicto no escalar (lista/dict), un `extra_points` no numérico o un YAML vacío (`safe_load` → `None`) reventaban con `AttributeError`/`TypeError`. Ahora devuelven error legible o entran en `ignorados`, y un item malo **no tumba el resto del lote**
+- **`validar-config` detecta claves booleanas** (`si:`/`no:` sin comillas, la trampa YAML 1.1 del gotcha del CLAUDE.md): paridad runtime con el gate #2 del CI, que solo vigila la plantilla del repo — no el `config.yaml` real del usuario
+- **`escapar-applescript` marca longitudes >998** (límite de línea de cabecera RFC 5322) como `sospechosos`, con campo `motivo` explícito. Nota: el "límite de 255 caracteres de AppleScript" que alegaba la auditoría no existe en AppleScript moderno (era el `Str255` clásico); el escape ya neutralizaba estos valores, esto añade la señal
+- **16 tests nuevos** (70 en total) fijan todo lo anterior, incluido el caso prometido en v3.8.2 y nunca testado: stdin con bytes no-UTF8 por subprocess
+
 ## Novedades en v3.8.4
 Release de *hardening* a partir de una auditoría de las **superficies de metadatos**: el saneo S0 protegía cuerpo y asunto, pero dos metadatos igualmente controlados por quien envía el correo se le escapaban. **8 tests nuevos** (la batería sube de 46 a 54). Sin cambios en el comportamiento normal del scoring.
 - **`escapar-applescript` — el `message-id` deja de ser un vector de inyección**: el `message id` es una cabecera del correo (controlada por el remitente) y NO pasaba por S0. Interpolado crudo en el literal del script de mover (`set toReview to {"<mid>", ...}`), un message-id con una comilla cerraba la cadena y AppleScript ejecutaba lo que siguiera (`& (do shell script "...")`). Nuevo subcomando de `triage_helpers.py` que valida y escapa cualquier valor y devuelve la lista AppleScript ya montada; PASO 1 del `SKILL.md` y el SCRIPT 3 lo promueven a vía obligatoria

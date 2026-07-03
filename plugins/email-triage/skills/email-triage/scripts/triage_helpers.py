@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.8.2).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.8.5).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -39,6 +39,22 @@ message-id ni el nombre del remitente, ambos controlados por quien envía):
      message-id es una cabecera controlable; interpolarlo crudo en el script
      de mover (`set toReview to {"..."}`) permitía romper el literal e
      inyectar `do shell script`. Mecanismo, no confianza en el modelo.
+
+Novedades v3.8.5 (verificación de auditoría externa: se aplican solo los
+hallazgos confirmados empíricamente contra el código; el resto ya estaba
+cubierto por versiones anteriores):
+  1. ajustes / validar-config: un fichero ilegible (PermissionError, E/S)
+     devuelve error legible y degrada, en vez de morir con traceback.
+  2. scoring: guardas de forma — payload no-objeto, item de lote no-objeto,
+     config vacío, verdicts no-objeto, veredicto no escalar y extra_points
+     no numérico se reportan en 'ignorados'/'error' en vez de reventar
+     (AttributeError/TypeError con traceback crudo).
+  3. validar-config detecta claves booleanas en criterios ('si:'/'no:' sin
+     comillas, trampa YAML 1.1) — paridad runtime con el gate #2 del CI,
+     que solo vigila la plantilla del repo, no el config del usuario.
+  4. escapar-applescript marca como sospechosos los valores con longitud
+     >998 (límite de línea de cabecera RFC 5322); el escape ya los
+     neutralizaba, esto añade la señal para el resumen.
 
 Uso:
   python3 triage_helpers.py ajustes [--correcciones RUTA]
@@ -130,15 +146,26 @@ MAX_CORRECCIONES = 5000
 def cmd_ajustes(ruta: str, max_lineas: int = MAX_CORRECCIONES) -> dict:
     ahora = datetime.now(timezone.utc)
     entradas = []
+    error_lectura = None
     if os.path.exists(ruta):
         tope = max_lineas if isinstance(max_lineas, int) and max_lineas > 0 \
             else None
         recientes = deque(maxlen=tope)          # solo las últimas 'tope' líneas
-        with open(ruta, encoding="utf-8") as fh:
-            for linea in fh:
-                linea = linea.strip()
-                if linea:
-                    recientes.append(linea)
+        try:
+            # errors="replace": una línea con bytes ilegibles no debe tumbar
+            # la lectura entera; el json.loads de abajo ya descarta esa línea.
+            with open(ruta, encoding="utf-8", errors="replace") as fh:
+                for linea in fh:
+                    linea = linea.strip()
+                    if linea:
+                        recientes.append(linea)
+        except OSError as e:
+            # Sin permiso de lectura (o E/S rota), PASO 0.B no debe morir con
+            # un traceback: degrada a "sin ajustes aprendidos" y reporta el
+            # motivo para que el SKILL lo muestre (p. ej. permisos torcidos
+            # en ~/.email-triage/ tras restaurar una copia o cambiar de user).
+            error_lectura = "%s: %s" % (type(e).__name__, e)
+            recientes = ()
         for linea in recientes:
             try:
                 entradas.append(json.loads(linea))
@@ -208,6 +235,7 @@ def cmd_ajustes(ruta: str, max_lineas: int = MAX_CORRECCIONES) -> dict:
         "ajustes_dominio": aj_dom,
         "ajustes_keyword": aj_kw,
         "deriva": deriva,
+        "error_lectura": error_lectura,
     }
 
 
@@ -484,13 +512,29 @@ def cmd_scoring(payload: dict, cfg: dict) -> dict:
     ejes = {nombre: 0 for nombre in rangos}
     desglose, ignorados = [], []
 
-    for crit, verdict in (payload.get("verdicts") or {}).items():
+    verdicts = payload.get("verdicts") or {}
+    if not isinstance(verdicts, dict):
+        # Un 'verdicts' que no es objeto (lista, string) reventaba el .items()
+        # con AttributeError. Se ignora con motivo, igual que un criterio malo.
+        ignorados.append({"campo": "verdicts",
+                          "motivo": "no es un objeto JSON (%s); se ignora"
+                          % type(verdicts).__name__})
+        verdicts = {}
+    for crit, verdict in verdicts.items():
         c = criterios.get(crit)
         if not c or not c.get("activo", True):
             ignorados.append({"criterio": crit, "motivo": "desconocido o inactivo"})
             continue
         eje = c.get("eje")
         valores = {k: v for k, v in c.items() if k not in _META_CRIT}
+        if not isinstance(verdict, (str, int, float, bool)) \
+                and verdict is not None:
+            # Un veredicto no escalar (lista/objeto) reventaba el `in` de
+            # abajo con TypeError (unhashable). Mismo trato que uno inválido.
+            ignorados.append({"criterio": crit,
+                              "motivo": "veredicto de tipo no valido (%s)"
+                              % type(verdict).__name__})
+            continue
         if verdict not in valores:
             ignorados.append({"criterio": crit,
                               "motivo": "veredicto '%s' no valido; opciones: %s"
@@ -515,6 +559,13 @@ def cmd_scoring(payload: dict, cfg: dict) -> dict:
         payload.get("hard_rules"), hard_cfg, en_historial, bulk_atenuado_a, ignorados)
 
     extra = payload.get("extra_points", 0) or 0
+    if isinstance(extra, bool) or not isinstance(extra, (int, float)):
+        # Un extra_points no numérico ("tres") reventaba la suma del score
+        # con TypeError. Se reporta y se usa 0 (mismo patrón que hard rules).
+        ignorados.append({"campo": "extra_points",
+                          "motivo": "valor no numerico (%r); se usa 0"
+                          % (extra,)})
+        extra = 0
     score = sum(ejes_clamp.values()) + hard_puntos + extra
 
     tier = _tier_por_score(score, tiers)
@@ -570,10 +621,31 @@ def _brief(r):
 
 
 def cmd_scoring_dispatch(payload: dict, cfg: dict, brief: bool = False) -> dict:
-    """single o lote. Lote: {"emails":[{id, verdicts, ...}, ...]}."""
+    """single o lote. Lote: {"emails":[{id, verdicts, ...}, ...]}.
+
+    Guardas de forma (v3.8.5): un payload que no es objeto JSON, un item del
+    lote que no es objeto, o un YAML vacío (safe_load -> None) producían
+    AttributeError con traceback crudo. Ahora devuelven un error legible,
+    con el mismo contrato {"ok": False, "error": ...} que registrar y
+    escapar-applescript. Un item malo del lote NO tumba el resto del lote.
+    """
+    if not isinstance(payload, dict):
+        return {"ok": False, "error": "payload invalido: se esperaba un "
+                "objeto JSON, llego %s" % type(payload).__name__}
+    if not isinstance(cfg, dict):
+        return {"ok": False, "error": "config invalido: el YAML no es un "
+                "mapeo de claves (¿fichero vacio?); ejecuta validar-config"}
     if isinstance(payload.get("emails"), list):
-        res = [cmd_scoring(item, cfg) for item in payload["emails"]]
-        return {"resultados": [_brief(r) if brief else r for r in res]}
+        res = []
+        for i, item in enumerate(payload["emails"]):
+            if not isinstance(item, dict):
+                res.append({"indice": i,
+                            "error": "item %d del lote no es un objeto JSON "
+                            "(%s)" % (i, type(item).__name__)})
+                continue
+            r = cmd_scoring(item, cfg)
+            res.append(_brief(r) if brief else r)
+        return {"resultados": res}
     r = cmd_scoring(payload, cfg)
     return _brief(r) if brief else r
 
@@ -595,6 +667,10 @@ def cmd_validar_config(ruta: str) -> dict:
     try:
         with open(ruta, encoding="utf-8") as fh:
             data = yaml.safe_load(fh)
+    except OSError as e:
+        # Config ilegible (permisos, E/S): mismo contrato que un YAML roto —
+        # error legible para que PASO 0 lo reporte, nunca un traceback.
+        return {"ok": False, "error": "no se pudo leer %s: %s" % (ruta, e)}
     except yaml.YAMLError as e:
         info = {"ok": False, "error": str(e).splitlines()[0]}
         mark = getattr(e, "problem_mark", None)
@@ -619,10 +695,19 @@ def cmd_validar_config(ruta: str) -> dict:
     # una actualización cae aquí. Se detecta para que PASO 0 lo reporte.
     criterios = data.get("criterios_epistemicos") or {}
     ejes_def = ((data.get("scoring") or {}).get("ejes") or EJES_DEFAULT)
-    sin_eje, eje_desconocido = [], []
+    sin_eje, eje_desconocido, clave_booleana = [], [], []
     if isinstance(criterios, dict):
         for nombre, c in criterios.items():
-            if not isinstance(c, dict) or c.get("activo", True) is False:
+            if not isinstance(c, dict):
+                continue
+            # Trampa YAML 1.1 (gotcha del gate #2 del CI): 'si:'/'no:' SIN
+            # comillas se parsean como claves booleanas True/False, y el
+            # veredicto del modelo ("si"/"no", strings) no casa nunca. El CI
+            # solo vigila la PLANTILLA del repo; esto cubre el config real
+            # del usuario en runtime. Aplica también a criterios inactivos.
+            if any(isinstance(k, bool) for k in c):
+                clave_booleana.append(nombre)
+            if c.get("activo", True) is False:
                 continue
             eje = c.get("eje")
             if not eje:
@@ -638,10 +723,16 @@ def cmd_validar_config(ruta: str) -> dict:
         avisos.append(
             "%d criterio(s) con 'eje' inexistente en scoring.ejes (se ignoran): %s"
             % (len(eje_desconocido), ", ".join(sorted(eje_desconocido)[:8])))
+    if clave_booleana:
+        avisos.append(
+            "%d criterio(s) con claves booleanas — 'si:'/'no:' sin comillas "
+            "(trampa YAML 1.1): sus veredictos no casarán nunca: %s"
+            % (len(clave_booleana), ", ".join(sorted(clave_booleana)[:8])))
     return {"ok": True, "claves_top": sorted(data.keys()),
             "campos_recomendados_ausentes": faltan, "avisos": avisos,
             "criterios_sin_eje": sin_eje,
-            "criterios_eje_desconocido": eje_desconocido}
+            "criterios_eje_desconocido": eje_desconocido,
+            "criterios_clave_booleana": clave_booleana}
 
 
 # ════════════════════════════════════════════════════════════════
@@ -717,6 +808,12 @@ def cmd_registrar(ruta: str, registro: dict) -> dict:
 # sospechosa y se marca (señal), pero el escape es la defensa de fondo.
 _MID_LEGITIMO = re.compile(r"^[A-Za-z0-9!#$%&'*+/=?^_`{|}~.@-]+$")
 
+# RFC 5322 §2.1.1 limita las líneas de cabecera a 998 caracteres: un
+# message-id más largo es malformado y casi seguro hostil (o basura). El
+# escape de applescript_quote ya lo neutraliza igualmente; superar el tope
+# solo añade la señal 'sospechoso' para el resumen, no bloquea el mover.
+_MID_MAX_CHARS = 998
+
 
 def applescript_quote(valor) -> str:
     """Devuelve `valor` como un literal AppleScript entrecomillado y seguro.
@@ -741,9 +838,9 @@ def cmd_escapar_applescript(valores) -> dict:
     Devuelve:
       escapados        lista de literales AppleScript listos para pegar
       lista_applescript  los escapados ya montados como `{"a", "b"}`
-      sospechosos      índices+valor cuyo message-id tiene caracteres fuera
-                       del patrón RFC (posible intento de inyección; el escape
-                       ya los neutraliza, esto es solo la señal para el resumen)
+      sospechosos      índices+valor+motivo: caracteres fuera del patrón RFC
+                       o longitud >998 (posible inyección/malformación; el
+                       escape ya los neutraliza, esto es señal para el resumen)
     """
     if not isinstance(valores, list):
         return {"ok": False,
@@ -751,8 +848,15 @@ def cmd_escapar_applescript(valores) -> dict:
     escapados, sospechosos = [], []
     for i, v in enumerate(valores):
         escapados.append(applescript_quote(v))
-        if not _MID_LEGITIMO.match(str(v)):
-            sospechosos.append({"indice": i, "valor": str(v)[:120]})
+        s = str(v)
+        motivos = []
+        if not _MID_LEGITIMO.match(s):
+            motivos.append("caracteres fuera del patron RFC")
+        if len(s) > _MID_MAX_CHARS:
+            motivos.append("longitud %d > %d" % (len(s), _MID_MAX_CHARS))
+        if motivos:
+            sospechosos.append({"indice": i, "valor": s[:120],
+                                "motivo": "; ".join(motivos)})
     return {
         "ok": True,
         "escapados": escapados,
