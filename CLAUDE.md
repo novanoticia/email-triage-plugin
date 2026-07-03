@@ -49,7 +49,7 @@ plugins/email-triage/
     references/                         # applescript + procedimientos manuales
     scripts/                            # ← ÚNICA ubicación de los scripts
       triage_helpers.py                 # toda la lógica determinista
-      test_triage_helpers.py            # 46 tests (stdlib)
+      test_triage_helpers.py            # 70 tests (stdlib)
 ```
 
 **No crees `plugins/email-triage/scripts/`** ni dupliques `triage_helpers.py` en
@@ -63,7 +63,7 @@ python3 -m pip install pyyaml --break-system-packages    # solo la 1ª vez
 python3 -m unittest discover -s plugins/email-triage/skills/email-triage/scripts
 ```
 
-Son 46 tests, solo stdlib, sin red y sin efectos fuera de tempfiles. PyYAML solo
+Son 70 tests, solo stdlib, sin red y sin efectos fuera de tempfiles. PyYAML solo
 lo necesitan los tests de `validar-config` / `_cargar_config`.
 
 ## Los 4 gates de CI (deben quedar en verde)
@@ -73,21 +73,22 @@ lo necesitan los tests de `validar-config` / `_cargar_config`.
 1. **Tests** — `unittest discover` sobre `scripts/`.
 2. **Integridad de `config.yaml`** — parsea con YAML 1.1 y exige **exactamente 30
    criterios** y **cero claves booleanas** (ver gotcha abajo).
-3. **Coherencia de versiones** — los 5 sitios de semver completo, la cabecera
+3. **Coherencia de versiones** — los 6 sitios de semver completo, la cabecera
    `major.minor` de `config.yaml` y el **H1 del `SKILL.md`** deben coincidir.
 4. **Unicidad de scripts** — `triage_helpers.py`/`test_triage_helpers.py` en una
    sola ruta canónica; sin árbol paralelo.
 
 ## Disciplina de versión
 
-**Nunca edites la versión a mano.** Vive en 7 sitios (5 semver + cabecera de
-config + H1 del SKILL) y derivó en el pasado. Usa siempre:
+**Nunca edites la versión a mano.** Vive en 8 sitios (6 semver — incluida la
+cabecera del docstring de `triage_helpers.py` — + cabecera de config + H1 del
+SKILL) y derivó en el pasado. Usa siempre:
 
 ```bash
 ./scripts/bump-version.sh 3.8.4
 ```
 
-Actualiza los 7 sitios de una pasada y valida con el mismo criterio del CI.
+Actualiza los 8 sitios de una pasada y valida con el mismo criterio del CI.
 Luego añade la entrada de changelog en `README.md` a mano y corre los tests.
 
 ## Invariantes de seguridad (no las relajes)
