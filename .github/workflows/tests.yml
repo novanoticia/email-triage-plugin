@@ -53,8 +53,12 @@ jobs:
                            (r/'plugins/email-triage/skills/email-triage/SKILL.md').read_text(encoding='utf-8')).group(1)
           rd   = re.search(r'(?m)^#\s+Email Triage Plugin v([0-9.]+)',
                            (r/'README.md').read_text(encoding='utf-8')).group(1)
+          th   = re.search(r'email-triage \(v([0-9.]+)\)',
+                           (r/'plugins/email-triage/skills/email-triage/scripts/triage_helpers.py'
+                            ).read_text(encoding='utf-8')).group(1)
           vers = {'plugin.json(root)': pj, 'plugin.json(inner)': inn,
-                  'marketplace.json': mk, 'SKILL.md': sk, 'README.md': rd}
+                  'marketplace.json': mk, 'SKILL.md': sk, 'README.md': rd,
+                  'triage_helpers.py': th}
           assert len(set(vers.values())) == 1, f"versiones divergentes: {vers}"
           mm = '.'.join(pj.split('.')[:2])
           cfg = (r/'plugins/email-triage/skills/email-triage/config.yaml').read_text(encoding='utf-8')

@@ -26,6 +26,7 @@ Verificación de una auditoría externa (Mistral) contra el código real: de sus
 - **`validar-config` detecta claves booleanas** (`si:`/`no:` sin comillas, la trampa YAML 1.1 del gotcha del CLAUDE.md): paridad runtime con el gate #2 del CI, que solo vigila la plantilla del repo — no el `config.yaml` real del usuario
 - **`escapar-applescript` marca longitudes >998** (límite de línea de cabecera RFC 5322) como `sospechosos`, con campo `motivo` explícito. Nota: el "límite de 255 caracteres de AppleScript" que alegaba la auditoría no existe en AppleScript moderno (era el `Str255` clásico); el escape ya neutralizaba estos valores, esto añade la señal
 - **16 tests nuevos** (70 en total) fijan todo lo anterior, incluido el caso prometido en v3.8.2 y nunca testado: stdin con bytes no-UTF8 por subprocess
+- **La cabecera versionada de `triage_helpers.py` entra en la disciplina de versión**: derivaba en silencio (decía v3.8.2 en un plugin v3.8.4) porque ni `bump-version.sh` ni el CI la vigilaban. Ahora es el 8º sitio del bump y el gate #3 del CI la valida
 
 ## Novedades en v3.8.4
 Release de *hardening* a partir de una auditoría de las **superficies de metadatos**: el saneo S0 protegía cuerpo y asunto, pero dos metadatos igualmente controlados por quien envía el correo se le escapaban. **8 tests nuevos** (la batería sube de 46 a 54). Sin cambios en el comportamiento normal del scoring.
