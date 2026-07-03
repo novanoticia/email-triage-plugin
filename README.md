@@ -17,6 +17,12 @@ La mayoría de clasificadores de correo preguntan "¿es urgente?". Este plugin p
 - ¿Está anclado a hechos verificables? (Entangled Truths)
 
 El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decisional, calidad epistémica, coste cognitivo y riesgo de manipulación.
+## Novedades en v3.8.4
+Release de *hardening* a partir de una auditoría de las **superficies de metadatos**: el saneo S0 protegía cuerpo y asunto, pero dos metadatos igualmente controlados por quien envía el correo se le escapaban. **8 tests nuevos** (la batería sube de 46 a 54). Sin cambios en el comportamiento normal del scoring.
+- **`escapar-applescript` — el `message-id` deja de ser un vector de inyección**: el `message id` es una cabecera del correo (controlada por el remitente) y NO pasaba por S0. Interpolado crudo en el literal del script de mover (`set toReview to {"<mid>", ...}`), un message-id con una comilla cerraba la cadena y AppleScript ejecutaba lo que siguiera (`& (do shell script "...")`). Nuevo subcomando de `triage_helpers.py` que valida y escapa cualquier valor y devuelve la lista AppleScript ya montada; PASO 1 del `SKILL.md` y el SCRIPT 3 lo promueven a vía obligatoria
+- **El nombre del remitente también pasa por S0 (`sanitizar --remitente`)**: el display-name de la cabecera `From` es texto libre del atacante y llegaba al contexto como metadato "de confianza". Ahora se escanea con S0, capa el tier a `REVIEW` igual que el asunto y expone `remitente_evaluable` (vacío si contenía inyección)
+- **Defensa en profundidad, no confianza en el modelo**: ambos huecos se cierran con un mecanismo (escape/saneo), no con una instrucción que el modelo deba recordar. La `CLAUDE.md` añade la invariante correspondiente
+- **Tests**: la batería sube a **54** (escapado del payload de breakout, remitente inyectado que capa el tier, y las guardas de entrada)
 
 ## Novedades en v3.8.3
 Cierra los tres issues abiertos del repo (#4, #5, #6) y añade guía de co-creación para agentes.
