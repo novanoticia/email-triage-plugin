@@ -23,6 +23,15 @@ BRANCH="main"
 MARKETPLACE_DIR="$HOME/.claude/plugins/marketplaces/email-triage-plugin"
 TELEMETRY_DIR="$HOME/.email-triage"
 
+# Flag opt-in (issue #4): --cowork reenvía a fix-cowork-version.sh el
+# parcheo del rpm efímero de Cowork. Por defecto NO se toca el rpm: en
+# Cowork la vía canónica es el marketplace; aquí solo se sincroniza la
+# caché de Claude Code.
+COWORK_FLAG=""
+for arg in "$@"; do
+  [ "$arg" = "--cowork" ] && COWORK_FLAG="--cowork"
+done
+
 echo "🚀 Instalando/actualizando '$PLUGIN_NAME'..."
 echo "   Destino: $MARKETPLACE_DIR"
 echo ""
@@ -99,13 +108,14 @@ if [ -z "$VERSION" ]; then
 fi
 echo "📋 Versión detectada: v$VERSION"
 
-# ── 4. Ejecutar fix-cowork-version.sh ──────────────────────────
+# ── 4. Sincronizar caché de Claude Code (rpm de Cowork solo con --cowork) ──
 FIX_SCRIPT="$MARKETPLACE_DIR/fix-cowork-version.sh"
 if [ -f "$FIX_SCRIPT" ]; then
   echo ""
-  echo "🔧 Sincronizando con Claude Code y Cowork..."
+  echo "🔧 Sincronizando la caché de Claude Code..."
+  [ -n "$COWORK_FLAG" ] && echo "   (--cowork: además se parcheará el rpm de Cowork)"
   chmod +x "$FIX_SCRIPT"
-  if "$FIX_SCRIPT"; then
+  if "$FIX_SCRIPT" $COWORK_FLAG; then
     echo "✅ Sincronización completada"
   else
     echo "⚠️  fix-cowork-version.sh devolvió errores (revísalos arriba)"

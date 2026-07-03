@@ -13,6 +13,23 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$SCRIPT_DIR/plugins/email-triage"
 SESSION_BASE="$HOME/Library/Application Support/Claude/local-agent-mode-sessions"
 
+# ── Flags (issue #4) ─────────────────────────────────────────────
+# --cowork : parchear también el rpm efímero de Cowork (opt-in). Por defecto
+#            NO se toca: la vía canónica en Cowork es el marketplace
+#            (.claude-plugin/marketplace.json). El rpm es una ruta de sesión
+#            que el usuario no controla y cuyo layout puede cambiar sin aviso.
+# --zip    : generar el zip de instalación manual.
+# Equivalencia por entorno: PATCH_COWORK_RPM=1 == --cowork (lo usa install).
+DO_ZIP=false
+DO_COWORK=false
+for arg in "$@"; do
+  case "$arg" in
+    --zip) DO_ZIP=true ;;
+    --cowork) DO_COWORK=true ;;
+  esac
+done
+[ "${PATCH_COWORK_RPM:-}" = "1" ] && DO_COWORK=true
+
 # Leer VERSION dinámicamente desde plugin.json (fuente única de verdad)
 PLUGIN_JSON="$REPO/.claude-plugin/plugin.json"
 if [ ! -f "$PLUGIN_JSON" ]; then
@@ -74,7 +91,13 @@ for f in "$REPO/.claude-plugin/plugin.json" "$REPO/skills/email-triage/SKILL.md"
   fi
 done
 
-# ── 1. COWORK (rpm) ──────────────────────────────────────────────
+# ── 1. COWORK (rpm) — opt-in (--cowork), ver issue #4 ────────────
+# Por defecto NO se parchea el rpm: es una ruta de sesión efímera y la vía
+# canónica en Cowork es el marketplace. Con --cowork se fuerza el apaño.
+if ! $DO_COWORK; then
+  echo "ℹ️  Cowork (rpm): parcheo omitido — vía canónica: marketplace (.claude-plugin/marketplace.json)."
+  echo "    Usa --cowork (o PATCH_COWORK_RPM=1) solo si necesitas forzar el rpm de la sesión actual."
+else
 RPM_PLUGIN=""
 if [ -d "$SESSION_BASE" ]; then
   while IFS= read -r -d '' file; do
@@ -117,6 +140,7 @@ if [ -n "$RPM_PLUGIN" ]; then
 else
   echo "ℹ️  Cowork: plugin no encontrado en rpm (normal si no usas Cowork o si se instala vía marketplace)"
 fi
+fi   # fin del bloque opt-in --cowork
 
 # ── 2. CLAUDE CODE (caché) ────────────────────────────────────────
 # Limpiar caché de versiones anteriores si existen
@@ -138,7 +162,7 @@ echo "❌ Error al copiar archivos a caché de Claude Code"
 # ── 3. GENERAR ZIP PARA COWORK (opcional) ─────────────────────────
 # Si se pasa --zip, genera el zip con la estructura correcta para
 # instalación manual en Cowork (sin el envoltorio del repo).
-if [[ "${1:-}" == "--zip" ]]; then
+if $DO_ZIP; then
   ZIP_NAME="email-triage-v${VERSION}.zip"
   ZIP_PATH="$(dirname "$REPO")/../$ZIP_NAME"
   (cd "$REPO" && zip -r "$ZIP_PATH" . -x "*.DS_Store") && \
