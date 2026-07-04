@@ -102,3 +102,7 @@ PY
 echo ""
 echo "Siguiente: revisa 'git diff', añade la entrada de changelog en README.md"
 echo "y corre los tests antes de commit/tag."
+echo ""
+echo "📢 Para PUBLICAR el release v$NEW: en GitHub → pestaña 'Actions' → 'release'"
+echo "   → botón 'Run workflow'. Crea el tag y la release con notas automáticas"
+echo "   (idempotente: si la release ya existe, no hace nada)."
