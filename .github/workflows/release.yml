@@ -1,0 +1,37 @@
+name: release
+
+# Se ejecuta SOLO cuando lo lanzas a mano desde la pestaña "Actions"
+# (botón "Run workflow"). Lee la versión de plugin.json y, si aún no
+# existe una release para esa versión, crea el tag y la release con
+# notas automáticas. Es idempotente: relanzarlo no duplica nada.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Leer versión de plugin.json
+        id: v
+        run: |
+          V=$(python3 -c "import json; print(json.load(open('.claude-plugin/plugin.json'))['version'])")
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+
+      - name: Crear tag + release si no existe
+        env:
+          GH_TOKEN: ${{ github.token }}
+          V: ${{ steps.v.outputs.version }}
+        run: |
+          if gh release view "v$V" >/dev/null 2>&1; then
+            echo "La release v$V ya existe — nada que hacer."
+          else
+            gh release create "v$V" --title "v$V" --generate-notes
+            echo "Creada release v$V."
+          fi
