@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.8.6
+# Email Triage Plugin v3.8.7
 
 Filtrado epistémico de correo electrónico para Claude Cowork y Claude Code.
 
@@ -17,6 +17,13 @@ La mayoría de clasificadores de correo preguntan "¿es urgente?". Este plugin p
 - ¿Está anclado a hechos verificables? (Entangled Truths)
 
 El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decisional, calidad epistémica, coste cognitivo y riesgo de manipulación.
+## Novedades en v3.8.7
+
+- **`.mcp.json` conforme al esquema de plugin**: el fichero declaraba el proveedor de correo con una estructura propia (`email`/`options`) que Claude Code no interpreta —el esquema esperado es `{"mcpServers": {...}}`—, así que no registraba nada. Ahora declara explícitamente que el plugin no empaqueta ningún servidor MCP (`{"mcpServers": {}}`): iCloud usa AppleScript y el conector de Gmail lo añade el usuario desde Claude/Cowork (documentado en README y SKILL). Evita además forzar una conexión a Gmail a quien solo usa iCloud
+- **`scoring.ejes` mal formado ya no revienta el scoring**: un eje del `config.yaml` con forma inesperada (`valor_decisional: 5` en vez de `[0, 10]`) hacía saltar `lo, hi = rangos[nombre]` con `ValueError`/`TypeError`. Ahora el eje se deja sin clampar y se reporta en `ignorados`, y `validar-config` lo avisa antes de operar. Era la última entrada del pipeline sin guarda de forma
+- **Tests**: nuevos casos que fijan ambos comportamientos (eje malformado en `scoring` y en `validar-config`)
+- **Limpieza**: `.gitignore` tenía el bloque `email-triage-fix/` / `*.patch` / `APLICAR.md` / `ISSUE-*.md` duplicado; se deja una sola vez
+
 ## Novedades en v3.8.6
 
 - **Verificación de integridad de la instalación (#12)**: `install-plugin.sh` comprueba al final los 9 ficheros del skill y avisa —sin abortar— si el árbol quedó incompleto (típicamente `references/mail-consolidado.applescript`, la vía canónica del PASO 1). Antes, una instalación parcial degradaba en silencio al fallback manual S0–S5; ahora lo dice. Una instalación sana no añade ruido.

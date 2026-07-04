@@ -944,5 +944,44 @@ class TestSanitizarStdinBytes(unittest.TestCase):
         self.assertTrue(out["injection"])   # el payload se detecta igualmente
 
 
+class TestEjesMalformadosV387(unittest.TestCase):
+    """v3.8.7: guarda de forma en el clamp de ejes del scoring. Un eje de
+    scoring.ejes sin forma [lo, hi] numérica (p. ej. 'valor_decisional: 5')
+    reventaba `lo, hi = rangos[nombre]` con ValueError/TypeError — era la
+    última entrada del pipeline sin guarda de forma. Ahora el eje queda sin
+    clampar, se reporta en 'ignorados' y validar-config avisa antes de operar."""
+
+    CFG_EJE_MALO = {"scoring": {"ejes": {"valor_decisional": 5}},
+                    "criterios_epistemicos": {}, "tiers": {}}
+
+    def test_scoring_no_revienta_con_eje_malformado(self):
+        # Antes: TypeError al desempaquetar el rango 5. Ahora degrada limpio.
+        out = th.cmd_scoring({"verdicts": {}}, self.CFG_EJE_MALO)
+        self.assertIn("tier", out)
+        self.assertEqual(out["ejes"]["valor_decisional"], 0)   # sin clampar
+        self.assertTrue(any(i.get("eje") == "valor_decisional"
+                            and "rango invalido" in i.get("motivo", "")
+                            for i in out["ignorados"]))
+
+    def test_validar_config_avisa_de_eje_malformado(self):
+        try:
+            import yaml  # noqa: F401
+        except ImportError:
+            self.skipTest("PyYAML no instalado")
+        fh = tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False,
+                                         encoding="utf-8")
+        fh.write("correo: {cuenta: a@b.com}\n"
+                 "criterios_epistemicos: {}\n"
+                 "scoring: {ejes: {valor_decisional: 5}}\n")
+        fh.close()
+        try:
+            out = th.cmd_validar_config(fh.name)
+        finally:
+            os.unlink(fh.name)
+        self.assertTrue(out["ok"])
+        self.assertIn("valor_decisional", out["ejes_malformados"])
+        self.assertTrue(any("sin clampar" in a for a in out["avisos"]))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

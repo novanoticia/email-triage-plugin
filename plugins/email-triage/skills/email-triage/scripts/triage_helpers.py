@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.8.6).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.8.7).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -551,8 +551,20 @@ def cmd_scoring(payload: dict, cfg: dict) -> dict:
 
     ejes_clamp = {}
     for nombre, val in ejes.items():
-        lo, hi = rangos[nombre]
-        ejes_clamp[nombre] = max(lo, min(hi, val))
+        rango = rangos.get(nombre)
+        if (isinstance(rango, (list, tuple)) and len(rango) == 2
+                and all(isinstance(x, (int, float)) and not isinstance(x, bool)
+                        for x in rango)):
+            lo, hi = rango
+            ejes_clamp[nombre] = max(lo, min(hi, val))
+        else:
+            # scoring.ejes[nombre] con forma inesperada (no [lo, hi] numerico):
+            # antes reventaba con ValueError/TypeError al desempaquetar. Se deja
+            # el eje sin clampar y se reporta, coherente con el resto del pipeline.
+            ejes_clamp[nombre] = val
+            ignorados.append({"eje": nombre,
+                              "motivo": "rango invalido en scoring.ejes (%r); "
+                              "eje sin clampar" % (rango,)})
 
     en_historial = bool(payload.get("remitente_en_historial"))
     hard_puntos, hard_desglose = _aplica_hard_rules(
@@ -695,6 +707,13 @@ def cmd_validar_config(ruta: str) -> dict:
     # una actualización cae aquí. Se detecta para que PASO 0 lo reporte.
     criterios = data.get("criterios_epistemicos") or {}
     ejes_def = ((data.get("scoring") or {}).get("ejes") or EJES_DEFAULT)
+    ejes_malformados = []
+    if isinstance(ejes_def, dict):
+        for _nombre, _rango in ejes_def.items():
+            if not (isinstance(_rango, (list, tuple)) and len(_rango) == 2
+                    and all(isinstance(x, (int, float))
+                            and not isinstance(x, bool) for x in _rango)):
+                ejes_malformados.append(_nombre)
     sin_eje, eje_desconocido, clave_booleana = [], [], []
     if isinstance(criterios, dict):
         for nombre, c in criterios.items():
@@ -728,11 +747,17 @@ def cmd_validar_config(ruta: str) -> dict:
             "%d criterio(s) con claves booleanas — 'si:'/'no:' sin comillas "
             "(trampa YAML 1.1): sus veredictos no casarán nunca: %s"
             % (len(clave_booleana), ", ".join(sorted(clave_booleana)[:8])))
+    if ejes_malformados:
+        avisos.append(
+            "%d eje(s) en scoring.ejes sin forma [lo, hi] numerica — el scoring "
+            "los deja sin clampar: %s"
+            % (len(ejes_malformados), ", ".join(sorted(ejes_malformados)[:8])))
     return {"ok": True, "claves_top": sorted(data.keys()),
             "campos_recomendados_ausentes": faltan, "avisos": avisos,
             "criterios_sin_eje": sin_eje,
             "criterios_eje_desconocido": eje_desconocido,
-            "criterios_clave_booleana": clave_booleana}
+            "criterios_clave_booleana": clave_booleana,
+            "ejes_malformados": ejes_malformados}
 
 
 # ════════════════════════════════════════════════════════════════
