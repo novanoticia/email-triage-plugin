@@ -151,6 +151,40 @@ else
   echo "📝 Creado config personal desde plantilla: $USER_CONFIG"
 fi
 
+# ── 5c. Verificación de integridad de la instalación (issue #12) ──
+# La vía canónica del PASO 1 (references/mail-consolidado.applescript) da la
+# sanitización determinista de un solo round-trip. Si falta, el SKILL degrada
+# en SILENCIO al fallback manual S0–S5. Aquí avisamos si el árbol quedó
+# incompleto — sin abortar: una instalación sana no añade ruido.
+SKILL_DIR="$MARKETPLACE_DIR/plugins/$PLUGIN_NAME/skills/$PLUGIN_NAME"
+ESPERADOS=(
+  "SKILL.md"
+  "config.yaml"
+  "config-veloz.yaml"
+  "scripts/triage_helpers.py"
+  "references/mail-consolidado.applescript"
+  "references/sanitizacion-manual.md"
+  "references/paso-0b-manual.md"
+  "references/criterios-catalogo.md"
+  "references/lecciones-produccion.md"
+)
+faltan=()
+for rel in "${ESPERADOS[@]}"; do
+  [ -f "$SKILL_DIR/$rel" ] || faltan+=("$rel")
+done
+if [ ${#faltan[@]} -gt 0 ]; then
+  echo ""
+  echo "⚠️  Instalación incompleta: faltan ${#faltan[@]} fichero(s) del skill."
+  for rel in "${faltan[@]}"; do
+    echo "     - $rel"
+  done
+  echo "   El plugin puede caer al fallback manual (S0–S5 por el modelo) en vez"
+  echo "   de la vía canónica del PASO 1. Reinstala para restaurarlos:"
+  echo "     bash scripts/install-plugin.sh"
+else
+  echo "🔎 Integridad del skill verificada (${#ESPERADOS[@]}/${#ESPERADOS[@]} ficheros)"
+fi
+
 # ── 6. Mensaje final ───────────────────────────────────────────
 echo ""
 echo "🎉 Instalación de $PLUGIN_NAME v$VERSION completada."

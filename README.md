@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.8.5
+# Email Triage Plugin v3.8.6
 
 Filtrado epistémico de correo electrónico para Claude Cowork y Claude Code.
 
@@ -17,6 +17,10 @@ La mayoría de clasificadores de correo preguntan "¿es urgente?". Este plugin p
 - ¿Está anclado a hechos verificables? (Entangled Truths)
 
 El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decisional, calidad epistémica, coste cognitivo y riesgo de manipulación.
+## Novedades en v3.8.6
+
+- **Verificación de integridad de la instalación (#12)**: `install-plugin.sh` comprueba al final los 9 ficheros del skill y avisa —sin abortar— si el árbol quedó incompleto (típicamente `references/mail-consolidado.applescript`, la vía canónica del PASO 1). Antes, una instalación parcial degradaba en silencio al fallback manual S0–S5; ahora lo dice. Una instalación sana no añade ruido.
+
 ## Novedades en v3.8.5
 
 Verificación de una auditoría externa (Mistral) contra el código real: de sus 13 hallazgos+riesgos, solo 4 resultaron ciertos y accionables; el resto ya estaba cubierto (homóglifos en asunto/remitente, tests de `escapar-applescript`, aviso de eje inválido, limpieza de `tmp/`…) o partía de premisas incorrectas. Se aplican los confirmados:

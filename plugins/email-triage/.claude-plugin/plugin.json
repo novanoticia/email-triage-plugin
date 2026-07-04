@@ -1,6 +1,6 @@
 {
   "name": "email-triage",
-  "version": "3.8.5",
+  "version": "3.8.6",
   "description": "Epistemic email triage with 30 Bayesian rationality criteria (LessWrong Sequences). Multi-axis scoring, 4-tier routing with color indicators (🔴🟡🔵⚪) and explanations. Supports iCloud (Mail.app), Gmail (MCP), and other providers. Includes production-tested resilience, safe batch moving pattern, HTML content validation, graceful degradation, and routine mode for unattended scheduled-task execution with macOS notifications. Includes an opt-in low-token 'fast mode' (veloz) preset.",
   "author": {
     "name": "Pablo Rodríguez López",
