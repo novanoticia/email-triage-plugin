@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.8.7).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.8.8).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -55,6 +55,13 @@ cubierto por versiones anteriores):
   4. escapar-applescript marca como sospechosos los valores con longitud
      >998 (límite de línea de cabecera RFC 5322); el escape ya los
      neutralizaba, esto añade la señal para el resumen.
+
+Novedades v3.8.8 (paridad de blindaje en la ruta de scoring):
+  1. _cargar_config captura YAML roto / fichero ilegible y los propaga
+     como ConfigError con payload {"ok": False, "error", "linea"...}.
+     main() lo emite por stdout como el resto de subcomandos, en vez de
+     tumbar 'scoring' con un traceback crudo cuando el usuario lo invoca
+     sin correr antes validar-config.
 
 Uso:
   python3 triage_helpers.py ajustes [--correcciones RUTA]
@@ -891,6 +898,21 @@ def cmd_escapar_applescript(valores) -> dict:
     }
 
 
+class ConfigError(Exception):
+    """Config ilegible o YAML malformado en la ruta de scoring.
+
+    Lleva el `payload` de error para que main() lo emita como JSON por stdout
+    (mismo contrato {"ok": False, "error": ...} que validar-config, registrar y
+    escapar-applescript), en vez de tumbar el subcomando con un traceback crudo.
+    Hasta v3.8.7, cmd_scoring blindaba payloads y configs no-dict aguas abajo,
+    pero un YAML sintacticamente roto reventaba antes, dentro de _cargar_config.
+    """
+
+    def __init__(self, payload):
+        super().__init__(payload.get("error", "config invalido"))
+        self.payload = payload
+
+
 def _cargar_config(ruta):
     try:
         import yaml
@@ -905,8 +927,24 @@ def _cargar_config(ruta):
         raise SystemExit(
             "No se encontro config.yaml: ni el del usuario ni la plantilla "
             f"del plugin ({ruta}). Reinstala el plugin o usa --config <ruta>.")
-    with open(ruta, encoding="utf-8") as fh:
-        return yaml.safe_load(fh)
+    # Paridad con validar-config: un YAML roto o un fichero ilegible en la ruta
+    # de scoring devuelve un error legible (con linea/columna si el parser la da)
+    # en vez de un traceback crudo. Simetria con el resto del pipeline, que ya
+    # blinda payloads y configs no-dict aguas abajo (cmd_scoring_dispatch).
+    try:
+        with open(ruta, encoding="utf-8") as fh:
+            return yaml.safe_load(fh)
+    except OSError as e:
+        raise ConfigError({"ok": False,
+                           "error": "no se pudo leer %s: %s" % (ruta, e)})
+    except yaml.YAMLError as e:
+        info = {"ok": False, "error": str(e).splitlines()[0],
+                "remedio": "ejecuta 'validar-config' para el detalle (linea/columna)"}
+        mark = getattr(e, "problem_mark", None)
+        if mark is not None:
+            info["linea"] = mark.line + 1
+            info["columna"] = mark.column + 1
+        raise ConfigError(info)
 
 
 def main():
@@ -943,8 +981,14 @@ def main():
         out = cmd_ajustes(args.correcciones)
     elif args.cmd == "scoring":
         payload = json.loads(sys.stdin.read() or "{}")
-        out = cmd_scoring_dispatch(payload, _cargar_config(args.config),
-                                   brief=args.brief)
+        try:
+            cfg = _cargar_config(args.config)
+        except ConfigError as e:
+            # YAML roto / config ilegible: mismo contrato de error legible que
+            # validar-config, por stdout, sin traceback (paridad, v3.8.8).
+            out = e.payload
+        else:
+            out = cmd_scoring_dispatch(payload, cfg, brief=args.brief)
     elif args.cmd == "validar-config":
         out = cmd_validar_config(args.config)
     elif args.cmd == "registrar":

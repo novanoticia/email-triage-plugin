@@ -1,6 +1,6 @@
 ---
 name: email-triage
-version: "3.8.7"
+version: "3.8.8"
 description: >
   Triaje inteligente de correo electrónico: analiza bandejas de entrada y carpetas
   de lectura pendiente para identificar correos de alto valor usando criterios
@@ -399,6 +399,27 @@ Pega `lista_applescript` como el `{...}` del `set toReview`/`set toArchive`. Si
 el escape ya lo neutralizó). Nunca construyas ese literal concatenando el
 message-id crudo a mano.
 
+**Aplica el mismo escape a los nombres de cuenta y carpeta** (`NOMBRE_CUENTA`,
+`CARPETA_ORIGEN`, `CARPETA_DESTINO`, y los placeholders `<<CUENTA>>`, `<<ORIGEN>>`,
+`<<DESTINO_REVIEW>>`, `<<DESTINO_ARCHIVE>>` de las plantillas de `references/`).
+Salen de tu `config.yaml` —no de una cabecera del atacante, así que no es un
+vector de inyección remota— pero una carpeta o cuenta cuyo nombre contenga una
+comilla (`Correo "importante"`) rompe igual el literal AppleScript y aborta el
+mover. Pásalos por el mismo helper y usa el campo `escapados` (un literal ya
+entrecomillado por valor), en vez de envolver el nombre crudo entre comillas a
+mano:
+
+```bash
+echo '{"valores":["<nombre_cuenta>","<carpeta_origen>","<carpeta_destino>"]}' \
+  | python3 "<ruta-del-skill>/scripts/triage_helpers.py" escapar-applescript
+# usa cada elemento de "escapados" TAL CUAL (ya lleva sus comillas):
+#   set acct to account <escapados[0]>
+#   set srcBox to mailbox <escapados[1]> of acct
+```
+
+Es defensa en profundidad coherente con la del message-id: mecanismo, no
+disciplina del modelo.
+
 Y separa **crear** los buzones destino de **mover**: en iCloud `make new mailbox`
 reporta éxito aunque la carpeta tarde en aparecer, así que créalos en su propio
 script, espera ~3 s y verifica que existen antes de mover. Plantillas listas en
@@ -410,6 +431,12 @@ además los round-trips a osascript (cada uno ~60 s).
 ⚠️ Los nombres de carpeta con acentos u otros caracteres no-ASCII
 (ej: "Leer Después", "Correo sí deseado") **fallan** cuando se pasan
 como AppleScript inline al conector osascript.
+
+⚠️ Aparte del problema de codificación, un nombre de carpeta o cuenta con una
+**comilla doble** (`Correo "importante"`) rompe el literal AppleScript aunque lo
+ejecutes desde fichero: escápalo SIEMPRE con `escapar-applescript` (campo
+`escapados`) antes de interpolarlo, igual que los message-ids (ver "Escapa
+SIEMPRE los message-ids" más arriba).
 
 **Solución verificada**: escribir el script completo a un fichero temporal
 usando Desktop Commander (`write_file` a `/tmp/`) y ejecutarlo con

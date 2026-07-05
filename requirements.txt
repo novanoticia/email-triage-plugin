@@ -1,0 +1,9 @@
+# email-triage-plugin — dependencias de runtime
+#
+# El plugin es stdlib-first por diseño: sanitizar, ajustes, registrar y
+# escapar-applescript NO necesitan nada externo. Solo los subcomandos
+# 'scoring' y 'validar-config' de triage_helpers.py requieren PyYAML para
+# parsear config.yaml.
+#
+# En macOS con Python del sistema:  pip install -r requirements.txt --break-system-packages
+PyYAML>=6.0

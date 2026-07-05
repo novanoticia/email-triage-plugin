@@ -2,6 +2,8 @@
 -- Plantillas AppleScript consolidadas para email-triage (corrección #5)
 -- Objetivo: reducir round-trips a osascript (cada uno ~60s en Mail).
 -- Reemplaza <<CUENTA>>, <<ORIGEN>>, <<DESTINO_REVIEW>>, <<DESTINO_ARCHIVE>>.
+-- Escapa esos nombres con `escapar-applescript` (campo `escapados`) antes de
+-- pegarlos: un nombre con una comilla rompe el literal igual que un message-id.
 -- Ejecutar escribiendo a /tmp con Desktop Commander y `osascript /tmp/x.scpt`
 -- (los nombres con acentos rompen el inline — lección de producción #3).
 -- ════════════════════════════════════════════════════════════════
