@@ -127,6 +127,11 @@ end tell
 -- listas con el helper, que los valida y escapa, y pega su `lista_applescript`:
 --   echo '{"valores":["<mid1>","<mid2>"]}' \
 --     | python3 <ruta-del-skill>/scripts/triage_helpers.py escapar-applescript
+-- O, mejor aun, deja que 'montar-mover' emita este SCRIPT 3 entero ya
+-- escapado (cuenta, carpetas y message-ids) y no montes el literal a mano:
+--   echo '{"cuenta":"...","origen":"...","destino_review":"...",
+--          "destino_archive":"...","mids_review":[...],"mids_archive":[...]}' \
+--     | python3 <ruta-del-skill>/scripts/triage_helpers.py montar-mover
 -- Los placeholders MID_* de abajo son solo ilustrativos: sustituyelos por la
 -- `lista_applescript` que devuelve el helper.
 -- ───────────────────────────────────────────────────────────────

