@@ -892,6 +892,23 @@ def cmd_compactar(ruta: str, max_lineas: int = MAX_CORRECCIONES,
             fcntl.flock(lock_fd, fcntl.LOCK_EX)
         except (ImportError, OSError):
             pass
+        # Re-lee BAJO el lock: entre el readlines() inicial (sin lock) y este
+        # punto, un 'registrar' concurrente pudo AÑADIR líneas. Escribir el
+        # 'conservadas' del read viejo haría que el os.replace de abajo pisara
+        # esos appends (TOCTOU con pérdida de correcciones). Releer aquí y
+        # recomputar garantiza que ninguna escritura concurrente se pierda.
+        try:
+            with open(ruta, encoding="utf-8", errors="replace") as fh:
+                lineas = fh.readlines()
+        except OSError as e:
+            return {"ok": False, "error": "no se pudo releer %s: %s" % (ruta, e)}
+        antes = len(lineas)
+        if antes <= max_lineas:
+            return {"ok": True, "ruta": ruta, "lineas_antes": antes,
+                    "lineas_despues": antes, "eliminadas": 0, "cambio": False,
+                    "nota": "por debajo del tope al releer bajo lock"}
+        conservadas = lineas[-max_lineas:]
+        eliminadas = antes - len(conservadas)
         import tempfile
         fd, tmp = tempfile.mkstemp(dir=directorio, prefix=".compactar-")
         try:
