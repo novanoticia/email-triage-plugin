@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.8.7
+# Email Triage Plugin v3.8.8
 
 Filtrado epistémico de correo electrónico para Claude Cowork y Claude Code.
 
@@ -17,6 +17,13 @@ La mayoría de clasificadores de correo preguntan "¿es urgente?". Este plugin p
 - ¿Está anclado a hechos verificables? (Entangled Truths)
 
 El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decisional, calidad epistémica, coste cognitivo y riesgo de manipulación.
+## Novedades en v3.8.8
+
+- **Paridad de blindaje en la ruta de `scoring`**: si el usuario invocaba `scoring` con un `config.yaml` sintácticamente roto sin correr antes `validar-config`, `_cargar_config` reventaba con un traceback crudo (el resto del pipeline ya degradaba con guardas de forma). Ahora captura el YAML roto / fichero ilegible y devuelve el mismo contrato `{"ok": false, "error", "linea", "columna"}` que el resto de subcomandos, por stdout
+- **Escapado de nombres de cuenta/carpeta en AppleScript (defensa en profundidad)**: el helper `escapar-applescript` ya existía para los message-ids, pero el SKILL solo lo aplicaba a esos. Ahora documenta escapar también `NOMBRE_CUENTA`/`CARPETA_*` y los placeholders `<<CUENTA>>`/`<<ORIGEN>>`/`<<DESTINO_*>>`: salen del propio `config.yaml` (no es inyección remota), pero una comilla en un nombre de carpeta rompía igual el literal y abortaba el mover
+- **Dependencia declarada**: nuevo `requirements.txt` con `PyYAML` (lo usan `scoring` y `validar-config`); el resto del plugin sigue siendo stdlib-only
+- **Tests**: 4 casos nuevos para la ruta de `scoring` blindada (YAML roto, config ilegible, config válido, YAML vacío) — suite total 76 tests
+
 ## Novedades en v3.8.7
 
 - **`.mcp.json` conforme al esquema de plugin**: el fichero declaraba el proveedor de correo con una estructura propia (`email`/`options`) que Claude Code no interpreta —el esquema esperado es `{"mcpServers": {...}}`—, así que no registraba nada. Ahora declara explícitamente que el plugin no empaqueta ningún servidor MCP (`{"mcpServers": {}}`): iCloud usa AppleScript y el conector de Gmail lo añade el usuario desde Claude/Cowork (documentado en README y SKILL). Evita además forzar una conexión a Gmail a quien solo usa iCloud

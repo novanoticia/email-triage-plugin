@@ -983,5 +983,61 @@ class TestEjesMalformadosV387(unittest.TestCase):
         self.assertTrue(any("sin clampar" in a for a in out["avisos"]))
 
 
+
+class TestCargarConfigBlindadoV388(unittest.TestCase):
+    """v3.8.8: la ruta de scoring degrada ante YAML roto / config ilegible
+    con el mismo contrato de error que validar-config, sin traceback crudo."""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def _ruta(self, contenido):
+        ruta = os.path.join(self.dir, "config.yaml")
+        with open(ruta, "w", encoding="utf-8") as fh:
+            fh.write(contenido)
+        return ruta
+
+    def test_yaml_roto_lanza_configerror_con_payload(self):
+        ruta = self._ruta("criterios_epistemicos:\n  x: [1, 2\n")  # sin cerrar
+        with self.assertRaises(th.ConfigError) as ctx:
+            th._cargar_config(ruta)
+        payload = ctx.exception.payload
+        self.assertFalse(payload["ok"])
+        self.assertIn("error", payload)
+        # el parser de PyYAML da la posicion; el payload debe exponerla
+        self.assertIn("linea", payload)
+
+    def test_config_valido_devuelve_dict(self):
+        ruta = self._ruta("tiers:\n  review: 4\n")
+        cfg = th._cargar_config(ruta)
+        self.assertIsInstance(cfg, dict)
+        self.assertEqual(cfg["tiers"]["review"], 4)
+
+    def test_config_ilegible_lanza_configerror(self):
+        ruta = self._ruta("tiers: {}\n")
+        os.chmod(ruta, 0)  # sin permiso de lectura
+        try:
+            if os.access(ruta, os.R_OK):
+                self.skipTest("el entorno ignora chmod 0 (root/FS)")
+            with self.assertRaises(th.ConfigError) as ctx:
+                th._cargar_config(ruta)
+            self.assertFalse(ctx.exception.payload["ok"])
+        finally:
+            os.chmod(ruta, 0o600)
+
+    def test_yaml_vacio_devuelve_none_y_dispatch_lo_reporta(self):
+        # safe_load de un fichero vacio -> None; _cargar_config no revienta y
+        # cmd_scoring_dispatch ya reporta el config no-dict (contrato previo).
+        ruta = self._ruta("")
+        cfg = th._cargar_config(ruta)
+        self.assertIsNone(cfg)
+        out = th.cmd_scoring_dispatch({"verdicts": {}}, cfg)
+        self.assertFalse(out["ok"])
+
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
