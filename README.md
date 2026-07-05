@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.8.9
+# Email Triage Plugin v3.8.10
 
 Filtrado epistémico de correo electrónico para Claude Cowork y Claude Code.
 
@@ -17,6 +17,11 @@ La mayoría de clasificadores de correo preguntan "¿es urgente?". Este plugin p
 - ¿Está anclado a hechos verificables? (Entangled Truths)
 
 El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decisional, calidad epistémica, coste cognitivo y riesgo de manipulación.
+## Novedades en v3.8.10
+
+- **Corrección de un race TOCTOU en `compactar` (auditoría)**: `compactar` leía `correcciones.jsonl` **antes** de adquirir el `flock`, y solo bloqueaba después para reescribir. Entre esa lectura y el `os.replace`, un `registrar` concurrente (p. ej. una tarea programada mientras corre una sesión manual) podía añadir una corrección que quedaba **fuera** del conjunto reescrito y se perdía en silencio. Ahora `compactar` **relee bajo el lock** y recomputa las líneas a conservar, de modo que ningún append concurrente se pisa. El comentario del código ya prometía "bajo un flock para no pisar un `registrar` concurrente"; ahora el orden de ejecución lo cumple
+- **Tests**: nuevo caso de regresión `test_append_concurrente_bajo_lock_no_se_pierde` que inyecta un append en el momento exacto de adquirir el lock y verifica que sobrevive (falla con el código antiguo, pasa con el arreglo) — suite total 89 tests
+
 ## Novedades en v3.8.9
 
 - **Rotación de `correcciones.jsonl` (issue #1)**: nuevo subcomando `compactar` que recorta el historial a sus últimas N líneas (5000 por defecto, el mismo cap que ya usaba la lectura) de forma **atómica** (fichero temporal + `os.replace` bajo `flock`). El fichero era append-only sin purga; la lectura ya estaba acotada, ahora el disco también. Es no-op por debajo del tope y trae `--dry-run`
