@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.8.8
+# Email Triage Plugin v3.8.9
 
 Filtrado epistémico de correo electrónico para Claude Cowork y Claude Code.
 
@@ -17,6 +17,12 @@ La mayoría de clasificadores de correo preguntan "¿es urgente?". Este plugin p
 - ¿Está anclado a hechos verificables? (Entangled Truths)
 
 El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decisional, calidad epistémica, coste cognitivo y riesgo de manipulación.
+## Novedades en v3.8.9
+
+- **Rotación de `correcciones.jsonl` (issue #1)**: nuevo subcomando `compactar` que recorta el historial a sus últimas N líneas (5000 por defecto, el mismo cap que ya usaba la lectura) de forma **atómica** (fichero temporal + `os.replace` bajo `flock`). El fichero era append-only sin purga; la lectura ya estaba acotada, ahora el disco también. Es no-op por debajo del tope y trae `--dry-run`
+- **Mecanización del SCRIPT 3 de mover (issue #2)**: nuevo subcomando `montar-mover` que recibe cuenta, carpetas y las dos listas de message-ids y emite el **SCRIPT 3 completo con todo ya escapado** por `applescript_quote`. El modelo deja de ensamblar el literal `set toReview to {…}` a mano — que era el último borde donde los nombres de cuenta/carpeta podían quedarse sin escapar. Mecanismo, no confianza en el modelo
+- **Tests**: 12 casos nuevos (recorte/no-op/dry-run de `compactar`; message-id hostil, salto de línea, carpeta con comilla, listas vacías y validación de `montar-mover`) — suite total 88 tests
+
 ## Novedades en v3.8.8
 
 - **Paridad de blindaje en la ruta de `scoring`**: si el usuario invocaba `scoring` con un `config.yaml` sintácticamente roto sin correr antes `validar-config`, `_cargar_config` reventaba con un traceback crudo (el resto del pipeline ya degradaba con guardas de forma). Ahora captura el YAML roto / fichero ilegible y devuelve el mismo contrato `{"ok": false, "error", "linea", "columna"}` que el resto de subcomandos, por stdout

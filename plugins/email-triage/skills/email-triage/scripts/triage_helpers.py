@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.8.8).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.8.9).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -63,6 +63,16 @@ Novedades v3.8.8 (paridad de blindaje en la ruta de scoring):
      tumbar 'scoring' con un traceback crudo cuando el usuario lo invoca
      sin correr antes validar-config.
 
+Novedades v3.8.9 (cierre de los dos issues abiertos tras la auditoría):
+  1. nuevo subcomando compactar: recorta correcciones.jsonl a sus ultimas N
+     lineas de forma atomica (temp + os.replace bajo flock). El fichero era
+     append-only sin purga; la lectura ya estaba acotada, ahora el disco
+     tambien. No-op por debajo del tope; nunca mueve correos (issue #1).
+  2. nuevo subcomando montar-mover: emite el SCRIPT 3 completo (mover por
+     message-id + verificar) con cuenta, carpetas y message-ids ya escapados
+     por applescript_quote. El modelo deja de ensamblar el literal a mano:
+     mecanismo, no confianza (issue #2).
+
 Uso:
   python3 triage_helpers.py ajustes [--correcciones RUTA]
   python3 triage_helpers.py sanitizar [--archivo RUTA] [--max-chars 1500]
@@ -75,6 +85,10 @@ Uso:
                             (append atómico con flock; sin --registro lee de stdin)
   python3 triage_helpers.py escapar-applescript [--valores JSON]
                             (JSON {"valores":[...]}; sin él lee de stdin)
+  python3 triage_helpers.py compactar [--archivo RUTA] [--max-lineas N]
+                            [--dry-run]   (recorta correcciones.jsonl a N líneas)
+  python3 triage_helpers.py montar-mover [--datos JSON]
+                            (emite el SCRIPT 3 de mover con todo escapado)
 
 Salida: JSON por stdout. Solo stdlib salvo PyYAML (scoring/validar-config).
 Efectos laterales: solo 'registrar' escribe (append atómico, concurrente-seguro,
@@ -822,6 +836,99 @@ def cmd_registrar(ruta: str, registro: dict) -> dict:
         os.close(fd)
 
 
+
+# ════════════════════════════════════════════════════════════════
+# Compactación — rotación acotada de correcciones.jsonl (issue #1)
+# ════════════════════════════════════════════════════════════════
+
+# correcciones.jsonl es append-only y crece sin límite. La LECTURA ya está
+# acotada a las últimas MAX_CORRECCIONES líneas (cmd_ajustes usa un deque), así
+# que el rendimiento no sufre, pero el fichero en disco sigue creciendo. Este
+# subcomando recorta el fichero a sus últimas N líneas de forma ATÓMICA (temp
+# en el mismo directorio + os.replace, bajo flock) para que lo que hay en disco
+# no exceda lo que la lectura consume igualmente. No parsea ni filtra por
+# contenido: conserva las líneas crudas tal cual (las más recientes pesan más
+# tras el decay). Es no-op si el fichero ya está por debajo del tope. NUNCA
+# mueve correos.
+
+def cmd_compactar(ruta: str, max_lineas: int = MAX_CORRECCIONES,
+                  dry_run: bool = False) -> dict:
+    ruta = os.path.expanduser(ruta)
+    if not isinstance(max_lineas, int) or isinstance(max_lineas, bool) \
+            or max_lineas <= 0:
+        max_lineas = MAX_CORRECCIONES
+    if not os.path.exists(ruta):
+        return {"ok": True, "ruta": ruta, "lineas_antes": 0,
+                "lineas_despues": 0, "eliminadas": 0, "cambio": False,
+                "nota": "el fichero no existe todavía"}
+    try:
+        with open(ruta, encoding="utf-8", errors="replace") as fh:
+            lineas = fh.readlines()
+    except OSError as e:
+        return {"ok": False, "error": "no se pudo leer %s: %s" % (ruta, e)}
+
+    antes = len(lineas)
+    if antes <= max_lineas:
+        return {"ok": True, "ruta": ruta, "lineas_antes": antes,
+                "lineas_despues": antes, "eliminadas": 0, "cambio": False,
+                "nota": "por debajo del tope (%d); nada que compactar" % max_lineas}
+
+    conservadas = lineas[-max_lineas:]
+    eliminadas = antes - len(conservadas)
+    if dry_run:
+        return {"ok": True, "ruta": ruta, "lineas_antes": antes,
+                "lineas_despues": len(conservadas), "eliminadas": eliminadas,
+                "cambio": True, "dry_run": True}
+
+    # Escritura atómica: temp en el MISMO directorio (para que os.replace sea
+    # un rename atómico, no un copy entre FS) + fsync + replace, todo bajo un
+    # flock del fichero original para no pisar un 'registrar' concurrente.
+    directorio = os.path.dirname(ruta) or "."
+    lock_fd = None
+    try:
+        lock_fd = os.open(ruta, os.O_RDONLY)
+        try:
+            import fcntl
+            fcntl.flock(lock_fd, fcntl.LOCK_EX)
+        except (ImportError, OSError):
+            pass
+        import tempfile
+        fd, tmp = tempfile.mkstemp(dir=directorio, prefix=".compactar-")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as out:
+                for ln in conservadas:
+                    if not ln.endswith("\n"):
+                        ln += "\n"
+                    out.write(ln)
+                out.flush()
+                os.fsync(out.fileno())
+            os.chmod(tmp, 0o600)
+            os.replace(tmp, ruta)
+        except OSError as e:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            return {"ok": False, "error": "fallo al reescribir %s: %s" % (ruta, e)}
+    except OSError as e:
+        return {"ok": False, "error": "no se pudo compactar %s: %s" % (ruta, e)}
+    finally:
+        if lock_fd is not None:
+            try:
+                import fcntl
+                fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            except (ImportError, OSError):
+                pass
+            os.close(lock_fd)
+    try:
+        bytes_despues = os.path.getsize(ruta)
+    except OSError:
+        bytes_despues = None
+    return {"ok": True, "ruta": ruta, "lineas_antes": antes,
+            "lineas_despues": len(conservadas), "eliminadas": eliminadas,
+            "cambio": True, "bytes_despues": bytes_despues}
+
+
 # ════════════════════════════════════════════════════════════════
 # Escapado AppleScript — interpolación segura de metadatos en scripts
 # ════════════════════════════════════════════════════════════════
@@ -913,6 +1020,120 @@ class ConfigError(Exception):
         self.payload = payload
 
 
+# ════════════════════════════════════════════════════════════════
+# Montaje del SCRIPT 3 de mover — todo escapado por el mecanismo (issue #2)
+# ════════════════════════════════════════════════════════════════
+
+# Hasta v3.8.8 el SKILL le pedía al modelo ensamblar a mano el literal
+# `set toReview to {...}` pegando la salida de escapar-applescript. Ese
+# ensamblaje manual era el ÚLTIMO borde que dependía de la disciplina del
+# modelo (los nombres de cuenta/carpeta se quedaban fuera). montar-mover recibe
+# todo lo necesario y emite el SCRIPT 3 COMPLETO con cada valor —cuenta,
+# carpetas y todos los message-ids— ya pasado por applescript_quote. El modelo
+# ya no construye el literal: mecanismo, no confianza. NUNCA mueve correos;
+# solo devuelve el texto del script para escribir a fichero y ejecutar aparte.
+
+def _mid_sospechoso(valor):
+    """Devuelve el motivo (str) si un valor no parece un message-id legítimo
+    (mismos criterios que escapar-applescript), o None. Señal para el resumen;
+    el escape es la defensa de fondo, esto no bloquea nada."""
+    s = str(valor)
+    motivos = []
+    if not _MID_LEGITIMO.match(s):
+        motivos.append("caracteres fuera del patron RFC")
+    if len(s) > _MID_MAX_CHARS:
+        motivos.append("longitud %d > %d" % (len(s), _MID_MAX_CHARS))
+    return "; ".join(motivos) if motivos else None
+
+
+def _lista_applescript(valores):
+    """`{"a", "b"}` con cada elemento escapado. Lista vacía -> `{}`."""
+    return "{" + ", ".join(applescript_quote(v) for v in valores) + "}"
+
+
+def cmd_montar_mover(datos: dict) -> dict:
+    """Monta el SCRIPT 3 (mover por message-id + verificar) con todo escapado.
+
+    datos: {"cuenta", "origen", "destino_review", "destino_archive",
+            "mids_review": [...], "mids_archive": [...]}
+    Devuelve {"ok", "script", "sospechosos", "n_review", "n_archive"} o el
+    contrato de error si falta/está mal algún campo.
+    """
+    if not isinstance(datos, dict):
+        return {"ok": False, "error": "se esperaba un objeto JSON con "
+                "cuenta/origen/destino_review/destino_archive/mids_review/mids_archive"}
+    req_txt = ("cuenta", "origen", "destino_review", "destino_archive")
+    faltan = [k for k in req_txt
+              if not isinstance(datos.get(k), str) or not datos.get(k).strip()]
+    if faltan:
+        return {"ok": False,
+                "error": "faltan o vacíos (deben ser texto): %s" % ", ".join(faltan)}
+    mids_rev = datos.get("mids_review", []) or []
+    mids_arc = datos.get("mids_archive", []) or []
+    for nombre, lst in (("mids_review", mids_rev), ("mids_archive", mids_arc)):
+        if not isinstance(lst, list):
+            return {"ok": False, "error": "%s debe ser una lista JSON" % nombre}
+        if any(not isinstance(v, (str, int, float)) or isinstance(v, bool)
+               for v in lst):
+            return {"ok": False,
+                    "error": "%s: cada message-id debe ser texto/número" % nombre}
+
+    sospechosos = []
+    for etiqueta, lst in (("mids_review", mids_rev), ("mids_archive", mids_arc)):
+        for i, v in enumerate(lst):
+            motivo = _mid_sospechoso(v)
+            if motivo:
+                sospechosos.append({"lista": etiqueta, "indice": i,
+                                    "valor": str(v)[:120], "motivo": motivo})
+
+    cuenta = applescript_quote(datos["cuenta"])
+    origen = applescript_quote(datos["origen"])
+    dest_rev = applescript_quote(datos["destino_review"])
+    dest_arc = applescript_quote(datos["destino_archive"])
+    lista_rev = _lista_applescript(mids_rev)
+    lista_arc = _lista_applescript(mids_arc)
+
+    script = (
+        '-- SCRIPT 3 (mover por message-id + verificar) generado por\n'
+        '-- triage_helpers.py montar-mover: cuenta, carpetas y message-ids ya\n'
+        '-- escapados. Escríbelo a un fichero y ejecútalo con osascript.\n'
+        'tell application "Mail"\n'
+        '    set acct to account ' + cuenta + '\n'
+        '    set srcBox to mailbox ' + origen + ' of acct\n'
+        '    set revBox to mailbox ' + dest_rev + ' of acct\n'
+        '    set arcBox to mailbox ' + dest_arc + ' of acct\n'
+        '    set toReview to ' + lista_rev + '\n'
+        '    set toArchive to ' + lista_arc + '\n'
+        '    set okRev to 0\n'
+        '    repeat with theID in toReview\n'
+        '        try\n'
+        '            set hits to (messages of srcBox whose message id is theID)\n'
+        '            if (count of hits) > 0 then\n'
+        '                move (item 1 of hits) to revBox\n'
+        '                set okRev to okRev + 1\n'
+        '            end if\n'
+        '        end try\n'
+        '    end repeat\n'
+        '    set okArc to 0\n'
+        '    repeat with theID in toArchive\n'
+        '        try\n'
+        '            set hits to (messages of srcBox whose message id is theID)\n'
+        '            if (count of hits) > 0 then\n'
+        '                move (item 1 of hits) to arcBox\n'
+        '                set okArc to okArc + 1\n'
+        '            end if\n'
+        '        end try\n'
+        '    end repeat\n'
+        '    delay 2\n'
+        '    return "movidos_review:" & okRev & "/" & (count of toReview) & '
+        '" movidos_archive:" & okArc & "/" & (count of toArchive) & '
+        '" | src_restantes:" & (count of (messages of srcBox))\n'
+        'end tell\n'
+    )
+    return {"ok": True, "script": script, "sospechosos": sospechosos,
+            "n_review": len(mids_rev), "n_archive": len(mids_arc)}
+
+
 def _cargar_config(ruta):
     try:
         import yaml
@@ -976,6 +1197,16 @@ def main():
     pe = sub.add_parser("escapar-applescript")
     pe.add_argument("--valores", default=None,
                     help='JSON {"valores":[...]}; sin él se lee de stdin')
+    pc = sub.add_parser("compactar")
+    pc.add_argument("--archivo",
+                    default=os.path.expanduser("~/.email-triage/correcciones.jsonl"))
+    pc.add_argument("--max-lineas", type=int, default=MAX_CORRECCIONES,
+                    help="líneas a conservar (por defecto %d)" % MAX_CORRECCIONES)
+    pc.add_argument("--dry-run", action="store_true",
+                    help="reporta qué haría sin escribir")
+    pm = sub.add_parser("montar-mover")
+    pm.add_argument("--datos", default=None,
+                    help="JSON con cuenta/origen/destino_*/mids_*; sin él, stdin")
     args = p.parse_args()
     if args.cmd == "ajustes":
         out = cmd_ajustes(args.correcciones)
@@ -1008,6 +1239,16 @@ def main():
         else:
             valores = data.get("valores") if isinstance(data, dict) else data
             out = cmd_escapar_applescript(valores)
+    elif args.cmd == "compactar":
+        out = cmd_compactar(args.archivo, args.max_lineas, dry_run=args.dry_run)
+    elif args.cmd == "montar-mover":
+        crudo = args.datos if args.datos is not None else sys.stdin.read()
+        try:
+            data = json.loads(crudo or "{}")
+        except json.JSONDecodeError as e:
+            out = {"ok": False, "error": "JSON inválido: %s" % e}
+        else:
+            out = cmd_montar_mover(data)
     else:
         if args.archivo:
             with open(args.archivo, encoding="utf-8", errors="replace") as fh:

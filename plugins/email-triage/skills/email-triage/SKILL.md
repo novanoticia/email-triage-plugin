@@ -1,6 +1,6 @@
 ---
 name: email-triage
-version: "3.8.8"
+version: "3.8.9"
 description: >
   Triaje inteligente de correo electrónico: analiza bandejas de entrada y carpetas
   de lectura pendiente para identificar correos de alto valor usando criterios
@@ -181,6 +181,18 @@ python3 "<ruta-del-skill>/scripts/triage_helpers.py" ajustes
 Devuelve `ajustes_remitente`, `ajustes_dominio`, `ajustes_keyword` y
 `deriva` (si la hay, comunicar la sugerencia al usuario sin aplicarla).
 Si el script falla o no existe, aplicar el procedimiento manual siguiente.
+
+**Higiene del historial (opcional, NUEVO en v3.8.9)**: `correcciones.jsonl`
+es append-only. La lectura ya está acotada a las últimas 5000 líneas, pero el
+fichero en disco crece indefinidamente. Cuando supere ~10 MB (o de tanto en
+tanto), recórtalo de forma atómica con el subcomando `compactar` — conserva las
+últimas N líneas (las que la lectura consume igualmente) y es no-op por debajo
+del tope:
+
+```bash
+python3 "<ruta-del-skill>/scripts/triage_helpers.py" compactar          # recorta a 5000
+python3 "<ruta-del-skill>/scripts/triage_helpers.py" compactar --dry-run  # solo reporta
+```
 
 **Vía manual (fallback)**: lee `~/.email-triage/correcciones.jsonl` con
 Desktop Commander y calcula ajustes dinámicos que se superpondrán a los
@@ -398,6 +410,25 @@ Pega `lista_applescript` como el `{...}` del `set toReview`/`set toArchive`. Si
 `sospechosos` no está vacío, anótalo en el resumen (posible intento de inyección;
 el escape ya lo neutralizó). Nunca construyas ese literal concatenando el
 message-id crudo a mano.
+
+**Vía preferente (NUEVO en v3.8.9): no ensambles el SCRIPT 3 a mano.** El
+subcomando `montar-mover` recibe cuenta, carpetas y las dos listas de
+message-ids y devuelve el **SCRIPT 3 completo con TODO ya escapado** (cuenta,
+carpetas y message-ids). Así ni el literal de la lista ni los nombres de
+carpeta/cuenta dependen de que el modelo se acuerde de escapar:
+
+```bash
+echo '{"cuenta":"<cuenta>","origen":"<origen>",
+       "destino_review":"<carpeta_review>","destino_archive":"<carpeta_archive>",
+       "mids_review":["<mid1>","<mid2>"],"mids_archive":["<mid3>"]}' \
+  | python3 "<ruta-del-skill>/scripts/triage_helpers.py" montar-mover
+# -> {"ok":true,"script":"...SCRIPT 3 listo...","sospechosos":[...],"n_review":2,"n_archive":1}
+```
+
+Escribe el campo `script` a un fichero con Desktop Commander y ejecútalo con
+`osascript`. Si `sospechosos` no está vacío, anótalo en el resumen. Recurre al
+montaje manual con `escapar-applescript` (arriba) solo si `montar-mover` no está
+disponible.
 
 **Aplica el mismo escape a los nombres de cuenta y carpeta** (`NOMBRE_CUENTA`,
 `CARPETA_ORIGEN`, `CARPETA_DESTINO`, y los placeholders `<<CUENTA>>`, `<<ORIGEN>>`,
