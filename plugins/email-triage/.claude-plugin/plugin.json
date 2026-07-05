@@ -1,10 +1,12 @@
 {
   "name": "email-triage",
-  "description": "Epistemic email triage with 30 Bayesian rationality criteria (LessWrong Sequences). Multi-axis scoring, 4-tier routing with color indicators (🔴🟡🔵⚪) and explanations. Supports iCloud (Mail.app), Gmail (MCP), and other providers. Production-tested resilience, safe batch moving, HTML validation, UTF-8 folder support. Routine mode for scheduled tasks with macOS notifications.",
   "version": "3.8.10",
-  "author": "Pablo Rodríguez López (mindandhealth.org)",
+  "description": "Epistemic email triage with 30 Bayesian rationality criteria (LessWrong Sequences). Multi-axis scoring, 4-tier routing with color indicators (🔴🟡🔵⚪) and explanations. Supports iCloud (Mail.app), Gmail (MCP), and other providers. Includes production-tested resilience, safe batch moving pattern, HTML content validation, graceful degradation, and routine mode for unattended scheduled-task execution with macOS notifications. Includes an opt-in low-token 'fast mode' (veloz) preset.",
+  "author": {
+    "name": "Pablo Rodríguez López",
+    "url": "https://mindandhealth.org"
+  },
   "license": "Apache-2.0",
-  "repository": "https://github.com/novanoticia/email-triage-plugin",
   "keywords": [
     "email",
     "triage",
