@@ -1097,6 +1097,38 @@ class TestCompactarV389(unittest.TestCase):
         self.assertTrue(out["ok"])
         self.assertFalse(out["cambio"])  # 3 < 5000
 
+    def test_append_concurrente_bajo_lock_no_se_pierde(self):
+        # Un 'registrar' concurrente añade una corrección JUSTO al adquirir
+        # compactar el lock (entre el read inicial y la reescritura). El fix
+        # relee bajo el lock, así que ese append debe sobrevivir al os.replace
+        # en vez de perderse (regresión TOCTOU).
+        try:
+            import fcntl
+        except ImportError:
+            self.skipTest("fcntl no disponible en esta plataforma")
+        self._escribir(20)
+        real_flock = fcntl.flock
+        estado = {"inyectado": False}
+
+        def flock_con_append(fd, op):
+            r = real_flock(fd, op)
+            if not estado["inyectado"] and op == fcntl.LOCK_EX:
+                estado["inyectado"] = True
+                with open(self.ruta, "a", encoding="utf-8") as fh:
+                    fh.write(json.dumps({"n": 999}) + "\n")
+            return r
+
+        fcntl.flock = flock_con_append
+        try:
+            out = th.cmd_compactar(self.ruta, max_lineas=5)
+        finally:
+            fcntl.flock = real_flock
+        self.assertTrue(out["ok"])
+        with open(self.ruta, encoding="utf-8") as fh:
+            ns = [json.loads(x)["n"] for x in fh]
+        self.assertIn(999, ns, "el append concurrente se perdió (TOCTOU)")
+        self.assertEqual(len(ns), 5)
+
 
 class TestMontarMoverV389(unittest.TestCase):
     """v3.8.9 (issue #2): montar-mover emite el SCRIPT 3 con cuenta, carpetas y
