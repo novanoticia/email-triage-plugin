@@ -1266,5 +1266,32 @@ class TestBlindajeScoringEntradaQW1(unittest.TestCase):
         self.assertIn("reventó", out["error"])
 
 
+class TestConfigNoUTF8QW2(unittest.TestCase):
+    """Auditoría 2026-07-10 (QW2/F2): un config guardado en Latin-1 (caso
+    plausible en configs con 'ñ'/'é' editados fuera) reventaba
+    validar-config y _cargar_config con UnicodeDecodeError crudo. Ambas
+    rutas deben degradar al contrato {"ok": False, ...}."""
+
+    def setUp(self):
+        fd, self.ruta = tempfile.mkstemp(suffix=".yaml")
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(b'usuario:\n  nombre: "Jos\xe9"\n')   # Latin-1
+
+    def tearDown(self):
+        os.unlink(self.ruta)
+
+    def test_validar_config_devuelve_contrato(self):
+        out = th.cmd_validar_config(self.ruta)
+        self.assertFalse(out["ok"])
+        self.assertIn("UTF-8", out["error"])
+        self.assertIn("remedio", out)
+
+    def test_cargar_config_propaga_configerror(self):
+        with self.assertRaises(th.ConfigError) as ctx:
+            th._cargar_config(self.ruta)
+        self.assertFalse(ctx.exception.payload["ok"])
+        self.assertIn("UTF-8", ctx.exception.payload["error"])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

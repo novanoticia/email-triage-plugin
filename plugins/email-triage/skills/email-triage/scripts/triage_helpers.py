@@ -728,6 +728,14 @@ def cmd_validar_config(ruta: str) -> dict:
         # Config ilegible (permisos, E/S): mismo contrato que un YAML roto —
         # error legible para que PASO 0 lo reporte, nunca un traceback.
         return {"ok": False, "error": "no se pudo leer %s: %s" % (ruta, e)}
+    except UnicodeDecodeError as e:
+        # Un config guardado en Latin-1 u otra codificación (una 'ñ' o una
+        # 'é' bastan) reventaba con UnicodeDecodeError crudo — justo en la
+        # herramienta que promete errores legibles (QW2, auditoría
+        # 2026-07-10). Mismo contrato que un YAML roto.
+        return {"ok": False,
+                "error": "el fichero no es UTF-8 válido (%s)" % e,
+                "remedio": "guárdalo con codificación UTF-8 y reintenta"}
     except yaml.YAMLError as e:
         info = {"ok": False, "error": str(e).splitlines()[0]}
         mark = getattr(e, "problem_mark", None)
@@ -1199,6 +1207,12 @@ def _cargar_config(ruta):
     except OSError as e:
         raise ConfigError({"ok": False,
                            "error": "no se pudo leer %s: %s" % (ruta, e)})
+    except UnicodeDecodeError as e:
+        # Paridad con validar-config (QW2): un config no-UTF8 en la ruta de
+        # scoring propaga el contrato de error legible, no un traceback.
+        raise ConfigError({"ok": False,
+                           "error": "el config no es UTF-8 válido (%s)" % e,
+                           "remedio": "guárdalo como UTF-8 y reintenta"})
     except yaml.YAMLError as e:
         info = {"ok": False, "error": str(e).splitlines()[0],
                 "remedio": "ejecuta 'validar-config' para el detalle (linea/columna)"}
