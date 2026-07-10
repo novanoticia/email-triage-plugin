@@ -17,6 +17,17 @@ La mayoría de clasificadores de correo preguntan "¿es urgente?". Este plugin p
 - ¿Está anclado a hechos verificables? (Entangled Truths)
 
 El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decisional, calidad epistémica, coste cognitivo y riesgo de manipulación.
+## Novedades en v3.8.11
+
+Release de *hardening* a partir de una auditoría externa (2026-07-10) sobre `d258ffc`, con cada hallazgo **reproducido en runtime** antes de corregirse. Cuatro fixes y **10 tests nuevos** (la batería sube de 89 a 99). Sin cambios en el comportamiento normal del scoring.
+
+- **Paridad de blindaje en el stdin de `scoring` (QW1)**: un payload con JSON malformado (o bytes no-UTF8) reventaba con traceback crudo, mientras `registrar`/`escapar-applescript`/`montar-mover` ya devolvían `{"ok": false, ...}`. Ahora responde el mismo contrato. Además, un `hard_rules` que no es lista (número, booleano, string) se ignora con motivo en `ignorados` en vez de reventar el bucle con `TypeError`
+- **Un item roto ya no tumba el lote (QW1)**: el docstring de `cmd_scoring_dispatch` prometía que "un item malo NO tumba el resto del lote", pero solo cubría los casos enumerados; un crash dentro de `cmd_scoring` mataba el lote entero con él. Nueva red universal por item (y contrato de error en la ruta single): la promesa se cumple también para los fallos aún no enumerados
+- **Config no-UTF8 con error legible (QW2)**: un `config.yaml` guardado en Latin-1 (una `ñ` o una `é` bastan) tumbaba `validar-config` y la ruta de `scoring` con `UnicodeDecodeError` crudo — justo la herramienta que promete errores legibles. Ahora ambas rutas devuelven `{"ok": false, "error", "remedio"}`, el mismo contrato que un YAML roto
+- **`applescript_quote` neutraliza U+2028/U+2029/NEL (QW3)**: los separadores de línea Unicode sobrevivían al escape (el filtro `c >= " "` no caza code points altos) y podían partir la línea del literal AppleScript en un message-id hostil. Peor caso plausible: script que no compila (fail-closed) — aun así se neutralizan, como `\r` y `\n`
+- **Docs sin recuento fosilizado (QW4)**: `AGENTS.md` y `CLAUDE.md` decían "70 tests" con la suite ya en 89; se retira el número hardcodeado (lo imprime el propio runner) para que no vuelva a derivar
+- **Tests**: 10 casos nuevos (stdin malformado y no-UTF8 por subprocess, `hard_rules` no-lista, item que revienta en lote y en single, config Latin-1 en ambas rutas, separadores Unicode en el quote y end-to-end en `montar-mover`) — suite total 99 tests
+
 ## Novedades en v3.8.10
 
 - **Corrección de un race TOCTOU en `compactar` (auditoría)**: `compactar` leía `correcciones.jsonl` **antes** de adquirir el `flock`, y solo bloqueaba después para reescribir. Entre esa lectura y el `os.replace`, un `registrar` concurrente (p. ej. una tarea programada mientras corre una sesión manual) podía añadir una corrección que quedaba **fuera** del conjunto reescrito y se perdía en silencio. Ahora `compactar` **relee bajo el lock** y recomputa las líneas a conservar, de modo que ningún append concurrente se pisa. El comentario del código ya prometía "bajo un flock para no pisar un `registrar` concurrente"; ahora el orden de ejecución lo cumple
