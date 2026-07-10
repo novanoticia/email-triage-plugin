@@ -43,10 +43,12 @@ La suite es solo stdlib, sin red y sin efectos fuera de tempfiles
 
 ## Antes de abrir un PR
 
-Los 4 gates de CI (`.github/workflows/tests.yml`) deben quedar en verde:
+Los gates de CI (`.github/workflows/tests.yml`) deben quedar en verde:
 tests, integridad de `config.yaml` (30 criterios exactos, cero claves booleanas
 — gotcha YAML 1.1: `"si":` y `"no":` siempre entre comillas), coherencia de
-versiones en los 8 sitios, y unicidad de scripts.
+versiones en los 8 sitios, unicidad de scripts y changelog del README en
+sincronía con la versión (la sección `## Novedades en vX.Y.Z` de la versión
+actual debe existir y ser la primera).
 
 Para el detalle de mapa de ficheros, checklist de release, invariantes de
 seguridad completas y gotchas: **[`CLAUDE.md`](CLAUDE.md)**.

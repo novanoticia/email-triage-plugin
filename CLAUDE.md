@@ -34,7 +34,7 @@ Si dudas dónde va algo: ¿es reproducible y verificable con un test? → Python
 ```
 .claude-plugin/plugin.json              # manifiesto raíz (versión)
 .claude-plugin/marketplace.json         # entrada de marketplace (versión)
-.github/workflows/tests.yml             # CI: 4 gates (ver abajo)
+.github/workflows/tests.yml             # CI: gates (ver abajo)
 scripts/install-plugin.sh               # instalador (marketplace + caché)
 scripts/bump-version.sh                 # ÚNICA vía de subir versión
 fix-cowork-version.sh                   # sync caché Claude Code; rpm solo con --cowork
@@ -67,7 +67,7 @@ La suite es solo stdlib, sin red y sin efectos fuera de tempfiles (el
 recuento exacto lo imprime el propio runner). PyYAML solo
 lo necesitan los tests de `validar-config` / `_cargar_config`.
 
-## Los 4 gates de CI (deben quedar en verde)
+## Los gates de CI (deben quedar en verde)
 
 `tests.yml` corre, en este orden:
 
@@ -78,6 +78,9 @@ lo necesitan los tests de `validar-config` / `_cargar_config`.
    `major.minor` de `config.yaml` y el **H1 del `SKILL.md`** deben coincidir.
 4. **Unicidad de scripts** — `triage_helpers.py`/`test_triage_helpers.py` en una
    sola ruta canónica; sin árbol paralelo.
+5. **Changelog del README** — si `plugin.json` dice vX.Y.Z, el README debe tener
+   la sección `## Novedades en vX.Y.Z` y debe ser la primera: el bump mecaniza
+   el H1, esto mecaniza el recordatorio de escribir la entrada.
 
 ## Disciplina de versión
 
@@ -123,7 +126,7 @@ Luego añade la entrada de changelog en `README.md` a mano y corre los tests.
 1. `./scripts/bump-version.sh X.Y.Z`
 2. Añade `## Novedades en vX.Y.Z` al principio del changelog de `README.md`.
 3. Corre los tests y, si tocaste versiones, revisa `git diff`.
-4. Commit + push + PR; espera los 4 gates en verde antes de mergear.
+4. Commit + push + PR; espera los gates en verde antes de mergear.
 
 ## Gotchas conocidos
 

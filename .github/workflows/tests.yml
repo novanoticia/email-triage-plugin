@@ -97,3 +97,23 @@ jobs:
           assert not bad, "Duplicación del árbol de scripts:\n  " + "\n  ".join(bad)
           print(f"OK: scripts canónicos únicos en {canon}/")
           PY
+
+      - name: Changelog del README en sincronía con la versión
+        run: |
+          python3 - <<'PY'
+          import json, re, pathlib
+          r = pathlib.Path('.')
+          v = json.loads((r/'.claude-plugin/plugin.json').read_text(encoding='utf-8'))['version']
+          rd = (r/'README.md').read_text(encoding='utf-8')
+          # bump-version.sh mecaniza el H1 del README, pero la seccion de
+          # novedades se escribe a mano y puede olvidarse (paso en v3.8.11).
+          # Este gate convierte el recordatorio en mecanismo.
+          assert f'## Novedades en v{v}' in rd, (
+              f"README.md sin seccion '## Novedades en v{v}' — el H1 ya esta "
+              f"en v{v}; anade la entrada de novedades antes de publicar")
+          m = re.search(r'(?m)^## Novedades en v([0-9.]+)', rd)
+          assert m and m.group(1) == v, (
+              f"la primera seccion de novedades del README es v{m.group(1)}, "
+              f"no v{v}: la entrada nueva va por encima de las anteriores")
+          print(f"OK: changelog del README al dia (v{v})")
+          PY
