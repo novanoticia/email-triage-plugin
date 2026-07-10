@@ -488,7 +488,17 @@ def _aplica_hard_rules(hard_rules, hard_cfg, en_historial, atenuado_a, ignorados
     remitente que el usuario guarda a mano no merece el castigo completo
     de 'remitente masivo'."""
     hard_puntos, hard_desglose = 0, []
-    for k in (hard_rules or []):
+    if hard_rules is None:
+        hard_rules = []
+    elif not isinstance(hard_rules, (list, tuple)):
+        # Un 'hard_rules' que no es lista (int, bool, objeto…) reventaba el
+        # bucle con TypeError — y un string iteraba por caracteres. Mismo
+        # trato que 'verdicts' no-objeto: se ignora con motivo (QW1).
+        ignorados.append({"campo": "hard_rules",
+                          "motivo": "no es una lista JSON (%s); se ignora"
+                          % type(hard_rules).__name__})
+        hard_rules = []
+    for k in hard_rules:
         v = hard_cfg.get(k)
         if v is None:
             ignorados.append({"hard_rule": k, "motivo": "no definida en config"})
@@ -676,10 +686,24 @@ def cmd_scoring_dispatch(payload: dict, cfg: dict, brief: bool = False) -> dict:
                             "error": "item %d del lote no es un objeto JSON "
                             "(%s)" % (i, type(item).__name__)})
                 continue
-            r = cmd_scoring(item, cfg)
+            try:
+                r = cmd_scoring(item, cfg)
+            except Exception as e:
+                # Red universal (QW1): las guardas de forma cubren los casos
+                # conocidos; esto garantiza el contrato del docstring — un
+                # item roto NUNCA tumba el resto del lote — también para los
+                # casos aún no enumerados.
+                res.append({"indice": i,
+                            "error": "item %d del lote reventó (%s: %s)"
+                            % (i, type(e).__name__, e)})
+                continue
             res.append(_brief(r) if brief else r)
         return {"resultados": res}
-    r = cmd_scoring(payload, cfg)
+    try:
+        r = cmd_scoring(payload, cfg)
+    except Exception as e:
+        return {"ok": False,
+                "error": "scoring reventó (%s: %s)" % (type(e).__name__, e)}
     return _brief(r) if brief else r
 
 
@@ -1228,7 +1252,18 @@ def main():
     if args.cmd == "ajustes":
         out = cmd_ajustes(args.correcciones)
     elif args.cmd == "scoring":
-        payload = json.loads(sys.stdin.read() or "{}")
+        # Paridad de blindaje (QW1, auditoría 2026-07-10): un payload que no
+        # es JSON válido (o con bytes no-UTF8) reventaba con traceback crudo,
+        # mientras registrar/escapar-applescript/montar-mover ya devolvían
+        # {"ok": False, ...}. Mismo contrato aquí.
+        crudo = sys.stdin.buffer.read().decode("utf-8", errors="replace")
+        try:
+            payload = json.loads(crudo or "{}")
+        except json.JSONDecodeError as e:
+            json.dump({"ok": False, "error": "JSON del payload inválido: %s" % e},
+                      sys.stdout, ensure_ascii=False, indent=2)
+            print()
+            return
         try:
             cfg = _cargar_config(args.config)
         except ConfigError as e:
