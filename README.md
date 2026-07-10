@@ -17,6 +17,14 @@ La mayoría de clasificadores de correo preguntan "¿es urgente?". Este plugin p
 - ¿Está anclado a hechos verificables? (Entangled Truths)
 
 El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decisional, calidad epistémica, coste cognitivo y riesgo de manipulación.
+## Novedades en v3.8.12
+
+Segunda tanda de la auditoría 2026-07-10 (recomendaciones estructurales).
+- **`registrar` cierra la carrera flock/rename con `compactar` (CM1)**: un append que abría el fd antes del `os.replace` de `compactar` escribía en el inodo ya desenlazado y se perdía. Ahora recomprueba el inodo bajo el lock y reintenta sobre el fichero vigente
+- **Rutina exige scoring determinista y degrada fail-closed (CM2)**: el modo desatendido fuerza `scoring.modo: determinista`; si el script falla, no mueve nada y lista todo como dudoso, en vez de caer a scoring mental sin supervisión
+- **Gate de fuzzing (recomendación no obvia)**: un mutador de semilla rotativa exige que `scoring`/`montar-mover`/`sanitizar` nunca lancen y siempre devuelvan un dict serializable, para cualquier entrada — las guardas de forma pasan de reactivas a propiedad universal
+- **Tests**: 6 nuevos (3 de la carrera de inodos, 3 de fuzz) — suite total 105
+
 ## Novedades en v3.8.11
 
 Release de *hardening* a partir de una auditoría externa (2026-07-10) sobre `d258ffc`, con cada hallazgo **reproducido en runtime** antes de corregirse. Cuatro fixes y **10 tests nuevos** (la batería sube de 89 a 99). Sin cambios en el comportamiento normal del scoring.
