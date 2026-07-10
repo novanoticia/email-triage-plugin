@@ -81,6 +81,10 @@ lo necesitan los tests de `validar-config` / `_cargar_config`.
 5. **Changelog del README** — si `plugin.json` dice vX.Y.Z, el README debe tener
    la sección `## Novedades en vX.Y.Z` y debe ser la primera: el bump mecaniza
    el H1, esto mecaniza el recordatorio de escribir la entrada.
+6. **Fuzz de totalidad** — un mutador de semilla rotativa comprueba que
+   `cmd_scoring_dispatch`, `cmd_montar_mover` y `cmd_sanitizar` nunca lanzan y
+   siempre devuelven un dict serializable, para CUALQUIER entrada. Convierte
+   las guardas de forma (añadidas caso a caso) en una propiedad universal.
 
 ## Disciplina de versión
 

@@ -46,9 +46,11 @@ La suite es solo stdlib, sin red y sin efectos fuera de tempfiles
 Los gates de CI (`.github/workflows/tests.yml`) deben quedar en verde:
 tests, integridad de `config.yaml` (30 criterios exactos, cero claves booleanas
 — gotcha YAML 1.1: `"si":` y `"no":` siempre entre comillas), coherencia de
-versiones en los 8 sitios, unicidad de scripts y changelog del README en
+versiones en los 8 sitios, unicidad de scripts, changelog del README en
 sincronía con la versión (la sección `## Novedades en vX.Y.Z` de la versión
-actual debe existir y ser la primera).
+actual debe existir y ser la primera), y un fuzz de totalidad que exige que los
+puntos de entrada (`scoring`/`montar-mover`/`sanitizar`) nunca lancen y siempre
+devuelvan un dict serializable ante cualquier entrada.
 
 Para el detalle de mapa de ficheros, checklist de release, invariantes de
 seguridad completas y gotchas: **[`CLAUDE.md`](CLAUDE.md)**.

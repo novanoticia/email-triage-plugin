@@ -114,8 +114,13 @@ Cuando `modo_rutina: true`:
 1. Anunciar al inicio el timestamp y el modo:
    > ⏱️ **Inicio:** HH:MM:SS — modo rutina (silencioso con umbral)
 2. Saltar todas las preguntas de confirmación.
-3. Aplicar la lógica de PASO 4.G — Modo rutina.
-4. Al terminar, marcar timestamp de fin y lanzar notificación de macOS
+3. **Forzar `scoring.modo: determinista`** durante toda la sesión, ignorando
+   el default `mental` del config. En rutina no hay humano que revise una
+   clasificación irreproducible antes de que se muevan correos: la aritmética
+   del score la hace `triage_helpers.py`, no el juicio del modelo. Es la misma
+   disciplina de "mecanismo, no confianza" que ya rige el modo veloz.
+4. Aplicar la lógica de PASO 4.G — Modo rutina.
+5. Al terminar, marcar timestamp de fin y lanzar notificación de macOS
    (ver PASO 5 — sección rutina).
 
 `modo_simulacion` y `modo_rutina` son compatibles: si la rutina se ejecuta
@@ -1100,6 +1105,16 @@ Los colores de tier en el formato de presentación:
 - El usuario NO está presente. Cero preguntas, cero confirmaciones.
 - Sobrescribe `interaccion.modo` con los parámetros de
   `interaccion.rutina` durante esta ejecución.
+- **Scoring determinista obligatorio, con degradación segura si falla.** En
+  rutina el scoring corre en modo `determinista` (fijado en PASO 0), no
+  `mental`. Si el script determinista NO está disponible o falla (PyYAML
+  ausente, `config.yaml` ilegible o roto, `triage_helpers.py` no encontrado):
+  **NO caer al modo mental para mover correos sin supervisión**. En su lugar,
+  **no mover nada** en esta pasada, listar TODO lo evaluado como dudoso en el
+  resumen y anotar que la rutina degradó por fallo del scoring. Mover correos
+  con una clasificación irreproducible y sin humano delante es justo lo que
+  este modo debe evitar: **fail-closed, no fail-open**. (En sesión manual sí
+  es aceptable el fallback a mental de PASO 4.B, porque hay un humano revisando.)
 - **Mover** (a `carpetas.destino`): correos con `score_final >= rutina.umbral_mover`.
   **Nota de diseño**: en rutina TODO lo movido va a `carpetas.destino`,
   incluidos los correos que en sesión manual irían a

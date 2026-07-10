@@ -117,3 +117,34 @@ jobs:
               f"no v{v}: la entrada nueva va por encima de las anteriores")
           print(f"OK: changelog del README al dia (v{v})")
           PY
+
+      - name: Fuzz de totalidad de los puntos de entrada (semilla rotativa)
+        run: |
+          python3 - <<'PY'
+          import sys, json, random, datetime
+          sys.path.insert(0, 'plugins/email-triage/skills/email-triage/scripts')
+          import triage_helpers as th
+          import test_triage_helpers as tt
+          # Semilla derivada de la fecha: la suite local es reproducible
+          # (semilla fija), el CI explora entradas nuevas cada día. La
+          # invariante es la misma: total + dict serializable.
+          semilla = int(datetime.date.today().strftime("%Y%m%d"))
+          rng = random.Random(semilla)
+          def total(fn, *a):
+              try:
+                  r = fn(*a)
+              except Exception as e:
+                  print("FALLO:", fn.__name__, type(e).__name__, repr(e)[:160])
+                  print("  args=", repr(a)[:300]); sys.exit(1)
+              assert isinstance(r, dict), (fn.__name__, type(r).__name__)
+              json.dumps(r, ensure_ascii=False)
+          N = 20000
+          for _ in range(N):
+              total(th.cmd_scoring_dispatch, tt._rand_json(rng),
+                    tt._rand_json(rng), bool(rng.getrandbits(1)))
+              total(th.cmd_montar_mover, tt._rand_json(rng))
+              total(th.cmd_sanitizar, tt._rand_texto(rng),
+                    rng.choice([1500, 800, 0, -3, 1]),
+                    tt._rand_texto(rng), tt._rand_texto(rng))
+          print(f"OK: fuzz de totalidad, semilla {semilla}, {N} iters x 3 entradas")
+          PY

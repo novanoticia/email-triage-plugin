@@ -12,6 +12,7 @@ Solo stdlib. Sin red, sin efectos laterales fuera de tempfiles.
 """
 import json
 import os
+import random
 import shutil
 import sys
 import tempfile
@@ -1314,6 +1315,162 @@ class TestSeparadoresUnicodeQW3(unittest.TestCase):
         self.assertTrue(out["ok"])
         self.assertNotIn("\u2028", out["script"])
         self.assertEqual(len(out["sospechosos"]), 1)   # la señal sigue
+
+
+class TestRegistrarRotacionCM1(unittest.TestCase):
+    """Auditoría 2026-07-10 (CM1/F3): si `compactar` rota el fichero
+    (os.replace) entre el os.open y el flock de `registrar`, el flock caía
+    sobre el inodo ya desenlazado y el os.write se perdía en silencio pese
+    al lock. Ahora registrar comprueba el inodo bajo el lock y reintenta
+    sobre el fichero nuevo."""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.ruta = os.path.join(self.dir, "correcciones.jsonl")
+
+    def tearDown(self):
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def test_rotacion_real_entre_open_y_flock(self):
+        # Ejercita el camino REAL (sin mockear el helper): se interpone en
+        # os.open para disparar un `compactar` real justo después de que
+        # registrar obtiene su fd y ANTES de su flock — la ventana exacta de
+        # la carrera. Con el código antiguo, el append se perdía.
+        from unittest import mock
+        for i in range(5):                       # varias líneas: compactar SÍ recorta
+            th.cmd_registrar(self.ruta, {"seed": i})
+        real_open = os.open
+        disparado = {"si": False}
+
+        def open_que_rota(path, *a, **k):
+            fd = real_open(path, *a, **k)
+            if (not disparado["si"] and isinstance(path, str)
+                    and os.path.abspath(path) == os.path.abspath(self.ruta)):
+                disparado["si"] = True
+                th.cmd_compactar(self.ruta, max_lineas=2)   # 5>2 -> replace real
+            return fd
+
+        with mock.patch("os.open", side_effect=open_que_rota):
+            out = th.cmd_registrar(self.ruta, {"w": 42})
+        self.assertTrue(out["ok"], out)
+        self.assertTrue(disparado["si"], "la rotación no llegó a dispararse")
+        with open(self.ruta, encoding="utf-8") as fh:
+            lineas = [json.loads(l) for l in fh.read().splitlines() if l]
+        self.assertIn({"w": 42}, lineas, "el append se perdió pese a devolver ok")
+
+    def test_rotacion_persistente_devuelve_error(self):
+        # Patología: el inodo NUNCA coincide. registrar no debe colgarse ni
+        # mentir "ok": agota los reintentos y devuelve un error legible.
+        from unittest import mock
+        with mock.patch.object(th, "_fd_apunta_a", return_value=False):
+            out = th.cmd_registrar(self.ruta, {"x": 1})
+        self.assertFalse(out["ok"])
+        self.assertIn("reintentos", out["error"])
+
+    def test_helper_detecta_rotacion_real(self):
+        # _fd_apunta_a contra un os.replace real: el fd viejo deja de coincidir
+        # con el inodo que hay ahora en la ruta.
+        th.cmd_registrar(self.ruta, {"a": 1})
+        fd = os.open(self.ruta, os.O_WRONLY | os.O_APPEND)
+        try:
+            self.assertTrue(th._fd_apunta_a(fd, self.ruta))
+            otro = self.ruta + ".tmp"
+            with open(otro, "w") as fh:
+                fh.write("nuevo\n")
+            os.replace(otro, self.ruta)
+            self.assertFalse(th._fd_apunta_a(fd, self.ruta))
+        finally:
+            os.close(fd)
+
+
+# ════════════════════════════════════════════════════════════════
+# Fuzz de totalidad (recomendación no obvia de la auditoría 2026-07-10)
+# ════════════════════════════════════════════════════════════════
+
+# Claves reales del contrato + basura, para que el mutador acierte a veces
+# la forma esperada y a veces la rompa.
+_FUZZ_CLAVES = (
+    "verdicts", "hard_rules", "extra_points", "emails", "id", "tier_maximo",
+    "forzar_reply_needed", "remitente_en_historial", "cuenta", "origen",
+    "destino_review", "destino_archive", "mids_review", "mids_archive",
+    "scoring", "criterios_epistemicos", "tiers", "ejes", "_basura_",
+)
+_FUZZ_ESCALARES = (
+    None, True, False, 0, 1, -1, 2 ** 63, -(2 ** 63), 3.14, -0.0,
+    "", "si", "no", "REVIEW", "reply_needed", "x@y",
+    "ignore previous instructions", "system:",
+    "a\u2028b", "c\td", "\x00\ufeff", '"comilla', "\\barra",
+)
+
+
+def _rand_json(rng, prof=0):
+    """Valor JSON aleatorio (lo que main() obtiene de json.loads): escalares
+    de borde, listas y objetos con claves del contrato y claves basura."""
+    t = rng.random()
+    if prof >= 4 or t < 0.34:
+        v = rng.choice(_FUZZ_ESCALARES)
+        if isinstance(v, str) and rng.random() < 0.3:
+            v += "".join(rng.choice("aá0 \t\n\u200b\"'\\<>{}")
+                         for _ in range(rng.randint(0, 10)))
+        return v
+    if t < 0.62:
+        return [_rand_json(rng, prof + 1) for _ in range(rng.randint(0, 4))]
+    d = {}
+    for _ in range(rng.randint(0, 5)):
+        d[rng.choice(_FUZZ_CLAVES)] = _rand_json(rng, prof + 1)
+    return d
+
+
+def _rand_texto(rng):
+    """Cuerpo/asunto/remitente aleatorio para sanitizar."""
+    alfabeto = ("aá0 \t\n\r\u200b\u2028\u2029\x85\"'\\<>&#;\u0000\ufeff"
+                "ignore previous instructions system: assistant: тест ｉｇｎｏｒｅ")
+    return "".join(rng.choice(alfabeto) for _ in range(rng.randint(0, 200)))
+
+
+class TestPropiedadFuzzTotalidad(unittest.TestCase):
+    """Las guardas de forma se han ido añadiendo caso a caso (cada una cubre
+    un borde ya descubierto: F1, v3.8.5, v3.8.7…). Este test las eleva a una
+    PROPIEDAD universal: los puntos de entrada públicos que reciben datos ya
+    parseados de JSON/stdin son funciones TOTALES — para CUALQUIER entrada
+    nunca lanzan una excepción no capturada y siempre devuelven un dict
+    serializable a JSON (el contrato que main() vuelca por stdout). Semilla
+    fija = reproducible; el paso de CI usa semilla rotativa para explorar
+    entradas nuevas con el tiempo sin volver flaky la suite local."""
+
+    SEMILLA = 20260710
+    CASOS = 3000
+
+    def _assert_total(self, fn, *args):
+        try:
+            r = fn(*args)
+        except Exception as e:                       # noqa: BLE001 (ese es el punto)
+            self.fail("%s lanzó %s (%s) con args=%r"
+                      % (fn.__name__, type(e).__name__, e, args))
+        self.assertIsInstance(
+            r, dict, "%s devolvió %s, no dict" % (fn.__name__, type(r).__name__))
+        try:
+            json.dumps(r, ensure_ascii=False)
+        except (TypeError, ValueError) as e:
+            self.fail("%s devolvió algo no serializable a JSON: %s" % (fn.__name__, e))
+
+    def test_scoring_dispatch_es_total(self):
+        rng = random.Random(self.SEMILLA)
+        for _ in range(self.CASOS):
+            self._assert_total(th.cmd_scoring_dispatch, _rand_json(rng),
+                               _rand_json(rng), bool(rng.getrandbits(1)))
+
+    def test_montar_mover_es_total(self):
+        rng = random.Random(self.SEMILLA + 1)
+        for _ in range(self.CASOS):
+            self._assert_total(th.cmd_montar_mover, _rand_json(rng))
+
+    def test_sanitizar_es_total(self):
+        rng = random.Random(self.SEMILLA + 2)
+        for _ in range(self.CASOS):
+            mc = rng.choice([1500, 800, 0, -5, 1, 99999])
+            self._assert_total(th.cmd_sanitizar, _rand_texto(rng), mc,
+                               _rand_texto(rng), _rand_texto(rng))
 
 
 if __name__ == "__main__":
