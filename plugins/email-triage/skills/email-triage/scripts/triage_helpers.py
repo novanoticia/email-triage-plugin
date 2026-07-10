@@ -824,6 +824,18 @@ def cmd_validar_config(ruta: str) -> dict:
 # (fcntl.flock) y con newline garantizado: una escritura, una línea,
 # atómica frente a otras instancias que usen el mismo helper.
 
+def _fd_apunta_a(fd, ruta):
+    """True si el descriptor abierto sigue siendo el fichero que AHORA está en
+    `ruta`. Si `compactar` hizo os.replace entre nuestro os.open y el flock, el
+    fd apunta a un inodo ya desenlazado y escribir en él perdería la línea en
+    silencio (CM1). Ante un error de stat no bloquea la escritura (True): mejor
+    escribir de más que perder el registro."""
+    try:
+        return os.fstat(fd).st_ino == os.stat(ruta).st_ino
+    except OSError:
+        return True
+
+
 def cmd_registrar(ruta: str, registro: dict) -> dict:
     """Append atómico de `registro` como una línea JSON en `ruta`.
 
@@ -843,29 +855,46 @@ def cmd_registrar(ruta: str, registro: dict) -> dict:
     directorio = os.path.dirname(ruta) or "."
     try:
         os.makedirs(directorio, mode=0o700, exist_ok=True)
-        fd = os.open(ruta, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
     except OSError as e:
         return {"ok": False, "error": "no se pudo preparar %s: %s" % (ruta, e)}
-    lock = None
-    try:
+    datos = (linea + "\n").encode("utf-8")
+    # Reabrir-y-reintentar si el fichero fue rotado por `compactar` (os.replace)
+    # entre nuestro os.open y el flock (CM1, auditoría 2026-07-10). Sin esto, un
+    # registrar que abrió el fd ANTES del replace adquiría el flock sobre el
+    # inodo ya desenlazado y su os.write se perdía en silencio — justo el fallo
+    # que el comentario de compactar dice evitar. Tomamos el flock sobre el
+    # inodo que HAY en `ruta` y solo escribimos si el fd sigue siendo ese inodo;
+    # una vez confirmado bajo el lock, compactar (que flockea el mismo inodo por
+    # ruta) queda bloqueado y no puede reemplazar hasta que soltemos.
+    for _ in range(5):
         try:
-            import fcntl
-            fcntl.flock(fd, fcntl.LOCK_EX)
-            lock = fcntl
-        except (ImportError, OSError):
-            lock = None       # sin flock (no-Unix): O_APPEND ya es atómico
-        datos = (linea + "\n").encode("utf-8")
-        os.write(fd, datos)
-        return {"ok": True, "bytes": len(datos), "ruta": ruta}
-    except OSError as e:
-        return {"ok": False, "error": "fallo al escribir %s: %s" % (ruta, e)}
-    finally:
-        if lock is not None:
+            fd = os.open(ruta, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+        except OSError as e:
+            return {"ok": False,
+                    "error": "no se pudo preparar %s: %s" % (ruta, e)}
+        lock = None
+        try:
             try:
-                lock.flock(fd, lock.LOCK_UN)
-            except OSError:
-                pass
-        os.close(fd)
+                import fcntl
+                fcntl.flock(fd, fcntl.LOCK_EX)
+                lock = fcntl
+            except (ImportError, OSError):
+                lock = None   # sin flock (no-Unix): O_APPEND ya es atómico
+            if lock is not None and not _fd_apunta_a(fd, ruta):
+                continue      # rotado bajo el lock: el finally cierra y reintenta
+            os.write(fd, datos)
+            return {"ok": True, "bytes": len(datos), "ruta": ruta}
+        except OSError as e:
+            return {"ok": False, "error": "fallo al escribir %s: %s" % (ruta, e)}
+        finally:
+            if lock is not None:
+                try:
+                    lock.flock(fd, lock.LOCK_UN)
+                except OSError:
+                    pass
+            os.close(fd)
+    return {"ok": False, "error": "no se pudo fijar %s tras 5 reintentos "
+            "(rotación concurrente persistente)" % ruta}
 
 
 

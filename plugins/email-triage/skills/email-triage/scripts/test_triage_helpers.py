@@ -1316,5 +1316,71 @@ class TestSeparadoresUnicodeQW3(unittest.TestCase):
         self.assertEqual(len(out["sospechosos"]), 1)   # la señal sigue
 
 
+class TestRegistrarRotacionCM1(unittest.TestCase):
+    """Auditoría 2026-07-10 (CM1/F3): si `compactar` rota el fichero
+    (os.replace) entre el os.open y el flock de `registrar`, el flock caía
+    sobre el inodo ya desenlazado y el os.write se perdía en silencio pese
+    al lock. Ahora registrar comprueba el inodo bajo el lock y reintenta
+    sobre el fichero nuevo."""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.ruta = os.path.join(self.dir, "correcciones.jsonl")
+
+    def tearDown(self):
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def test_rotacion_real_entre_open_y_flock(self):
+        # Ejercita el camino REAL (sin mockear el helper): se interpone en
+        # os.open para disparar un `compactar` real justo después de que
+        # registrar obtiene su fd y ANTES de su flock — la ventana exacta de
+        # la carrera. Con el código antiguo, el append se perdía.
+        from unittest import mock
+        for i in range(5):                       # varias líneas: compactar SÍ recorta
+            th.cmd_registrar(self.ruta, {"seed": i})
+        real_open = os.open
+        disparado = {"si": False}
+
+        def open_que_rota(path, *a, **k):
+            fd = real_open(path, *a, **k)
+            if (not disparado["si"] and isinstance(path, str)
+                    and os.path.abspath(path) == os.path.abspath(self.ruta)):
+                disparado["si"] = True
+                th.cmd_compactar(self.ruta, max_lineas=2)   # 5>2 -> replace real
+            return fd
+
+        with mock.patch("os.open", side_effect=open_que_rota):
+            out = th.cmd_registrar(self.ruta, {"w": 42})
+        self.assertTrue(out["ok"], out)
+        self.assertTrue(disparado["si"], "la rotación no llegó a dispararse")
+        with open(self.ruta, encoding="utf-8") as fh:
+            lineas = [json.loads(l) for l in fh.read().splitlines() if l]
+        self.assertIn({"w": 42}, lineas, "el append se perdió pese a devolver ok")
+
+    def test_rotacion_persistente_devuelve_error(self):
+        # Patología: el inodo NUNCA coincide. registrar no debe colgarse ni
+        # mentir "ok": agota los reintentos y devuelve un error legible.
+        from unittest import mock
+        with mock.patch.object(th, "_fd_apunta_a", return_value=False):
+            out = th.cmd_registrar(self.ruta, {"x": 1})
+        self.assertFalse(out["ok"])
+        self.assertIn("reintentos", out["error"])
+
+    def test_helper_detecta_rotacion_real(self):
+        # _fd_apunta_a contra un os.replace real: el fd viejo deja de coincidir
+        # con el inodo que hay ahora en la ruta.
+        th.cmd_registrar(self.ruta, {"a": 1})
+        fd = os.open(self.ruta, os.O_WRONLY | os.O_APPEND)
+        try:
+            self.assertTrue(th._fd_apunta_a(fd, self.ruta))
+            otro = self.ruta + ".tmp"
+            with open(otro, "w") as fh:
+                fh.write("nuevo\n")
+            os.replace(otro, self.ruta)
+            self.assertFalse(th._fd_apunta_a(fd, self.ruta))
+        finally:
+            os.close(fd)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
