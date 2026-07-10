@@ -12,6 +12,7 @@ Solo stdlib. Sin red, sin efectos laterales fuera de tempfiles.
 """
 import json
 import os
+import random
 import shutil
 import sys
 import tempfile
@@ -1380,6 +1381,96 @@ class TestRegistrarRotacionCM1(unittest.TestCase):
             self.assertFalse(th._fd_apunta_a(fd, self.ruta))
         finally:
             os.close(fd)
+
+
+# ════════════════════════════════════════════════════════════════
+# Fuzz de totalidad (recomendación no obvia de la auditoría 2026-07-10)
+# ════════════════════════════════════════════════════════════════
+
+# Claves reales del contrato + basura, para que el mutador acierte a veces
+# la forma esperada y a veces la rompa.
+_FUZZ_CLAVES = (
+    "verdicts", "hard_rules", "extra_points", "emails", "id", "tier_maximo",
+    "forzar_reply_needed", "remitente_en_historial", "cuenta", "origen",
+    "destino_review", "destino_archive", "mids_review", "mids_archive",
+    "scoring", "criterios_epistemicos", "tiers", "ejes", "_basura_",
+)
+_FUZZ_ESCALARES = (
+    None, True, False, 0, 1, -1, 2 ** 63, -(2 ** 63), 3.14, -0.0,
+    "", "si", "no", "REVIEW", "reply_needed", "x@y",
+    "ignore previous instructions", "system:",
+    "a\u2028b", "c\td", "\x00\ufeff", '"comilla', "\\barra",
+)
+
+
+def _rand_json(rng, prof=0):
+    """Valor JSON aleatorio (lo que main() obtiene de json.loads): escalares
+    de borde, listas y objetos con claves del contrato y claves basura."""
+    t = rng.random()
+    if prof >= 4 or t < 0.34:
+        v = rng.choice(_FUZZ_ESCALARES)
+        if isinstance(v, str) and rng.random() < 0.3:
+            v += "".join(rng.choice("aá0 \t\n\u200b\"'\\<>{}")
+                         for _ in range(rng.randint(0, 10)))
+        return v
+    if t < 0.62:
+        return [_rand_json(rng, prof + 1) for _ in range(rng.randint(0, 4))]
+    d = {}
+    for _ in range(rng.randint(0, 5)):
+        d[rng.choice(_FUZZ_CLAVES)] = _rand_json(rng, prof + 1)
+    return d
+
+
+def _rand_texto(rng):
+    """Cuerpo/asunto/remitente aleatorio para sanitizar."""
+    alfabeto = ("aá0 \t\n\r\u200b\u2028\u2029\x85\"'\\<>&#;\u0000\ufeff"
+                "ignore previous instructions system: assistant: тест ｉｇｎｏｒｅ")
+    return "".join(rng.choice(alfabeto) for _ in range(rng.randint(0, 200)))
+
+
+class TestPropiedadFuzzTotalidad(unittest.TestCase):
+    """Las guardas de forma se han ido añadiendo caso a caso (cada una cubre
+    un borde ya descubierto: F1, v3.8.5, v3.8.7…). Este test las eleva a una
+    PROPIEDAD universal: los puntos de entrada públicos que reciben datos ya
+    parseados de JSON/stdin son funciones TOTALES — para CUALQUIER entrada
+    nunca lanzan una excepción no capturada y siempre devuelven un dict
+    serializable a JSON (el contrato que main() vuelca por stdout). Semilla
+    fija = reproducible; el paso de CI usa semilla rotativa para explorar
+    entradas nuevas con el tiempo sin volver flaky la suite local."""
+
+    SEMILLA = 20260710
+    CASOS = 3000
+
+    def _assert_total(self, fn, *args):
+        try:
+            r = fn(*args)
+        except Exception as e:                       # noqa: BLE001 (ese es el punto)
+            self.fail("%s lanzó %s (%s) con args=%r"
+                      % (fn.__name__, type(e).__name__, e, args))
+        self.assertIsInstance(
+            r, dict, "%s devolvió %s, no dict" % (fn.__name__, type(r).__name__))
+        try:
+            json.dumps(r, ensure_ascii=False)
+        except (TypeError, ValueError) as e:
+            self.fail("%s devolvió algo no serializable a JSON: %s" % (fn.__name__, e))
+
+    def test_scoring_dispatch_es_total(self):
+        rng = random.Random(self.SEMILLA)
+        for _ in range(self.CASOS):
+            self._assert_total(th.cmd_scoring_dispatch, _rand_json(rng),
+                               _rand_json(rng), bool(rng.getrandbits(1)))
+
+    def test_montar_mover_es_total(self):
+        rng = random.Random(self.SEMILLA + 1)
+        for _ in range(self.CASOS):
+            self._assert_total(th.cmd_montar_mover, _rand_json(rng))
+
+    def test_sanitizar_es_total(self):
+        rng = random.Random(self.SEMILLA + 2)
+        for _ in range(self.CASOS):
+            mc = rng.choice([1500, 800, 0, -5, 1, 99999])
+            self._assert_total(th.cmd_sanitizar, _rand_texto(rng), mc,
+                               _rand_texto(rng), _rand_texto(rng))
 
 
 if __name__ == "__main__":
