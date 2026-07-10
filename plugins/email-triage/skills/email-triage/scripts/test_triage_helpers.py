@@ -1190,5 +1190,131 @@ class TestMontarMoverV389(unittest.TestCase):
 
 
 
+class TestBlindajeScoringEntradaQW1(unittest.TestCase):
+    """Auditoría 2026-07-10 (QW1/F1): entradas imperfectas en la ruta de
+    scoring devuelven el contrato {"ok": False, ...} o aíslan el item del
+    lote — nunca un traceback crudo. Hasta v3.8.10, un JSON malformado por
+    stdin y un hard_rules no-lista tumbaban el proceso (y el lote entero)."""
+
+    def _cli_scoring(self, crudo):
+        import subprocess
+        helpers = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                               "triage_helpers.py")
+        cfg = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                           "..", "config.yaml")
+        return subprocess.run(
+            [sys.executable, helpers, "scoring", "--config", cfg],
+            input=crudo, capture_output=True, timeout=30)
+
+    def test_stdin_json_malformado_devuelve_contrato(self):
+        proc = self._cli_scoring(b"{roto")
+        self.assertEqual(proc.returncode, 0,
+                         "scoring no debe reventar con JSON malformado: %s"
+                         % proc.stderr.decode("utf-8", "replace"))
+        out = json.loads(proc.stdout.decode("utf-8"))
+        self.assertFalse(out["ok"])
+        self.assertIn("inválido", out["error"])
+
+    def test_stdin_bytes_no_utf8_no_revienta(self):
+        # Paridad con sanitizar (v3.8.2): bytes ilegibles se sustituyen.
+        proc = self._cli_scoring(b'\xff\xfe{"verdicts": {}}')
+        self.assertEqual(proc.returncode, 0,
+                         proc.stderr.decode("utf-8", "replace"))
+
+    def test_hard_rules_no_lista_se_ignora_con_motivo(self):
+        for malo in (5, True, {"a": 1}, "pregunta_directa_boost"):
+            out = th.cmd_scoring({"verdicts": {}, "hard_rules": malo}, {})
+            self.assertIn("tier", out)          # no revienta, degrada limpio
+            motivos = [i for i in out["ignorados"]
+                       if i.get("campo") == "hard_rules"]
+            self.assertEqual(len(motivos), 1, "hard_rules=%r" % (malo,))
+
+    def test_hard_rules_lista_valida_sigue_funcionando(self):
+        cfg = {"hard_rules": {"boost": 3}, "criterios_epistemicos": {},
+               "tiers": {}}
+        out = th.cmd_scoring({"verdicts": {}, "hard_rules": ["boost"]}, cfg)
+        self.assertEqual(out["hard_puntos"], 3)
+
+    def test_item_que_revienta_no_tumba_el_lote(self):
+        # La red por item debe aguantar también fallos AÚN no enumerados:
+        # se simula un cmd_scoring que revienta solo con el item id=2.
+        from unittest import mock
+        real = th.cmd_scoring
+
+        def boom(item, cfg):
+            if item.get("id") == 2:
+                raise RuntimeError("fallo sintético")
+            return real(item, cfg)
+
+        payload = {"emails": [{"id": 1, "verdicts": {}},
+                              {"id": 2, "verdicts": {}},
+                              {"id": 3, "verdicts": {}}]}
+        with mock.patch.object(th, "cmd_scoring", side_effect=boom):
+            out = th.cmd_scoring_dispatch(payload, {})
+        res = out["resultados"]
+        self.assertEqual(len(res), 3)
+        self.assertIn("error", res[1])
+        self.assertNotIn("error", res[0])
+        self.assertNotIn("error", res[2])
+
+    def test_single_que_revienta_devuelve_contrato(self):
+        from unittest import mock
+        with mock.patch.object(th, "cmd_scoring",
+                               side_effect=RuntimeError("fallo sintético")):
+            out = th.cmd_scoring_dispatch({"verdicts": {}}, {})
+        self.assertFalse(out["ok"])
+        self.assertIn("reventó", out["error"])
+
+
+class TestConfigNoUTF8QW2(unittest.TestCase):
+    """Auditoría 2026-07-10 (QW2/F2): un config guardado en Latin-1 (caso
+    plausible en configs con 'ñ'/'é' editados fuera) reventaba
+    validar-config y _cargar_config con UnicodeDecodeError crudo. Ambas
+    rutas deben degradar al contrato {"ok": False, ...}."""
+
+    def setUp(self):
+        fd, self.ruta = tempfile.mkstemp(suffix=".yaml")
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(b'usuario:\n  nombre: "Jos\xe9"\n')   # Latin-1
+
+    def tearDown(self):
+        os.unlink(self.ruta)
+
+    def test_validar_config_devuelve_contrato(self):
+        out = th.cmd_validar_config(self.ruta)
+        self.assertFalse(out["ok"])
+        self.assertIn("UTF-8", out["error"])
+        self.assertIn("remedio", out)
+
+    def test_cargar_config_propaga_configerror(self):
+        with self.assertRaises(th.ConfigError) as ctx:
+            th._cargar_config(self.ruta)
+        self.assertFalse(ctx.exception.payload["ok"])
+        self.assertIn("UTF-8", ctx.exception.payload["error"])
+
+
+class TestSeparadoresUnicodeQW3(unittest.TestCase):
+    """Auditoría 2026-07-10 (QW3/F5): U+2028/U+2029/U+0085 sobrevivían a
+    applescript_quote (el filtro c >= " " no los caza por code point alto)
+    y podían partir la línea del literal AppleScript. Deben neutralizarse
+    igual que \r y \n."""
+
+    def test_separadores_de_linea_unicode_se_neutralizan(self):
+        for ch in ("\u2028", "\u2029", "\x85"):
+            q = th.applescript_quote("a" + ch + 'do shell script "id"' + ch)
+            self.assertNotIn(ch, q, "U+%04X sobrevive al escape" % ord(ch))
+            self.assertTrue(q.startswith('"') and q.endswith('"'))
+
+    def test_tambien_en_montar_mover(self):
+        out = th.cmd_montar_mover({
+            "cuenta": "iCloud", "origen": "INBOX",
+            "destino_review": "Rev", "destino_archive": "Arc",
+            "mids_review": ["x@y\u2028do shell script \"id\""],
+            "mids_archive": []})
+        self.assertTrue(out["ok"])
+        self.assertNotIn("\u2028", out["script"])
+        self.assertEqual(len(out["sospechosos"]), 1)   # la señal sigue
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

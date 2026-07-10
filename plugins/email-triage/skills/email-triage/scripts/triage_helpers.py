@@ -488,7 +488,17 @@ def _aplica_hard_rules(hard_rules, hard_cfg, en_historial, atenuado_a, ignorados
     remitente que el usuario guarda a mano no merece el castigo completo
     de 'remitente masivo'."""
     hard_puntos, hard_desglose = 0, []
-    for k in (hard_rules or []):
+    if hard_rules is None:
+        hard_rules = []
+    elif not isinstance(hard_rules, (list, tuple)):
+        # Un 'hard_rules' que no es lista (int, bool, objeto…) reventaba el
+        # bucle con TypeError — y un string iteraba por caracteres. Mismo
+        # trato que 'verdicts' no-objeto: se ignora con motivo (QW1).
+        ignorados.append({"campo": "hard_rules",
+                          "motivo": "no es una lista JSON (%s); se ignora"
+                          % type(hard_rules).__name__})
+        hard_rules = []
+    for k in hard_rules:
         v = hard_cfg.get(k)
         if v is None:
             ignorados.append({"hard_rule": k, "motivo": "no definida en config"})
@@ -676,10 +686,24 @@ def cmd_scoring_dispatch(payload: dict, cfg: dict, brief: bool = False) -> dict:
                             "error": "item %d del lote no es un objeto JSON "
                             "(%s)" % (i, type(item).__name__)})
                 continue
-            r = cmd_scoring(item, cfg)
+            try:
+                r = cmd_scoring(item, cfg)
+            except Exception as e:
+                # Red universal (QW1): las guardas de forma cubren los casos
+                # conocidos; esto garantiza el contrato del docstring — un
+                # item roto NUNCA tumba el resto del lote — también para los
+                # casos aún no enumerados.
+                res.append({"indice": i,
+                            "error": "item %d del lote reventó (%s: %s)"
+                            % (i, type(e).__name__, e)})
+                continue
             res.append(_brief(r) if brief else r)
         return {"resultados": res}
-    r = cmd_scoring(payload, cfg)
+    try:
+        r = cmd_scoring(payload, cfg)
+    except Exception as e:
+        return {"ok": False,
+                "error": "scoring reventó (%s: %s)" % (type(e).__name__, e)}
     return _brief(r) if brief else r
 
 
@@ -704,6 +728,14 @@ def cmd_validar_config(ruta: str) -> dict:
         # Config ilegible (permisos, E/S): mismo contrato que un YAML roto —
         # error legible para que PASO 0 lo reporte, nunca un traceback.
         return {"ok": False, "error": "no se pudo leer %s: %s" % (ruta, e)}
+    except UnicodeDecodeError as e:
+        # Un config guardado en Latin-1 u otra codificación (una 'ñ' o una
+        # 'é' bastan) reventaba con UnicodeDecodeError crudo — justo en la
+        # herramienta que promete errores legibles (QW2, auditoría
+        # 2026-07-10). Mismo contrato que un YAML roto.
+        return {"ok": False,
+                "error": "el fichero no es UTF-8 válido (%s)" % e,
+                "remedio": "guárdalo con codificación UTF-8 y reintenta"}
     except yaml.YAMLError as e:
         info = {"ok": False, "error": str(e).splitlines()[0]}
         mark = getattr(e, "problem_mark", None)
@@ -982,6 +1014,12 @@ def applescript_quote(valor) -> str:
     """
     s = str(valor).replace("\\", "\\\\").replace('"', '\\"')
     s = s.replace("\r", " ").replace("\n", " ")
+    # U+2028/U+2029 (separadores de línea/párrafo Unicode) y U+0085 (NEL)
+    # también pueden partir la línea del literal, y el filtro de controles
+    # de abajo (c >= " ") no los caza por tener code point alto (QW3,
+    # auditoría 2026-07-10). Peor caso plausible sin esto: script que no
+    # compila (fail-closed) — aun así, mecanismo, no confianza.
+    s = s.replace("\u2028", " ").replace("\u2029", " ").replace("\x85", " ")
     s = "".join(c if (c >= " " or c == "\t") else " " for c in s)
     return '"' + s + '"'
 
@@ -1175,6 +1213,12 @@ def _cargar_config(ruta):
     except OSError as e:
         raise ConfigError({"ok": False,
                            "error": "no se pudo leer %s: %s" % (ruta, e)})
+    except UnicodeDecodeError as e:
+        # Paridad con validar-config (QW2): un config no-UTF8 en la ruta de
+        # scoring propaga el contrato de error legible, no un traceback.
+        raise ConfigError({"ok": False,
+                           "error": "el config no es UTF-8 válido (%s)" % e,
+                           "remedio": "guárdalo como UTF-8 y reintenta"})
     except yaml.YAMLError as e:
         info = {"ok": False, "error": str(e).splitlines()[0],
                 "remedio": "ejecuta 'validar-config' para el detalle (linea/columna)"}
@@ -1228,7 +1272,18 @@ def main():
     if args.cmd == "ajustes":
         out = cmd_ajustes(args.correcciones)
     elif args.cmd == "scoring":
-        payload = json.loads(sys.stdin.read() or "{}")
+        # Paridad de blindaje (QW1, auditoría 2026-07-10): un payload que no
+        # es JSON válido (o con bytes no-UTF8) reventaba con traceback crudo,
+        # mientras registrar/escapar-applescript/montar-mover ya devolvían
+        # {"ok": False, ...}. Mismo contrato aquí.
+        crudo = sys.stdin.buffer.read().decode("utf-8", errors="replace")
+        try:
+            payload = json.loads(crudo or "{}")
+        except json.JSONDecodeError as e:
+            json.dump({"ok": False, "error": "JSON del payload inválido: %s" % e},
+                      sys.stdout, ensure_ascii=False, indent=2)
+            print()
+            return
         try:
             cfg = _cargar_config(args.config)
         except ConfigError as e:

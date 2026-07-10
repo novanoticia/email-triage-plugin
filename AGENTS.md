@@ -38,7 +38,8 @@ python3 -m pip install pyyaml --break-system-packages    # solo la 1ª vez
 python3 -m unittest discover -s plugins/email-triage/skills/email-triage/scripts
 ```
 
-70 tests, stdlib, sin red, sin efectos fuera de tempfiles.
+La suite es solo stdlib, sin red y sin efectos fuera de tempfiles
+(el recuento exacto lo imprime el propio runner).
 
 ## Antes de abrir un PR
 
