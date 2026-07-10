@@ -1293,5 +1293,28 @@ class TestConfigNoUTF8QW2(unittest.TestCase):
         self.assertIn("UTF-8", ctx.exception.payload["error"])
 
 
+class TestSeparadoresUnicodeQW3(unittest.TestCase):
+    """Auditoría 2026-07-10 (QW3/F5): U+2028/U+2029/U+0085 sobrevivían a
+    applescript_quote (el filtro c >= " " no los caza por code point alto)
+    y podían partir la línea del literal AppleScript. Deben neutralizarse
+    igual que \r y \n."""
+
+    def test_separadores_de_linea_unicode_se_neutralizan(self):
+        for ch in ("\u2028", "\u2029", "\x85"):
+            q = th.applescript_quote("a" + ch + 'do shell script "id"' + ch)
+            self.assertNotIn(ch, q, "U+%04X sobrevive al escape" % ord(ch))
+            self.assertTrue(q.startswith('"') and q.endswith('"'))
+
+    def test_tambien_en_montar_mover(self):
+        out = th.cmd_montar_mover({
+            "cuenta": "iCloud", "origen": "INBOX",
+            "destino_review": "Rev", "destino_archive": "Arc",
+            "mids_review": ["x@y\u2028do shell script \"id\""],
+            "mids_archive": []})
+        self.assertTrue(out["ok"])
+        self.assertNotIn("\u2028", out["script"])
+        self.assertEqual(len(out["sospechosos"]), 1)   # la señal sigue
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

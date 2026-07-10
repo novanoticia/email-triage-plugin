@@ -1014,6 +1014,12 @@ def applescript_quote(valor) -> str:
     """
     s = str(valor).replace("\\", "\\\\").replace('"', '\\"')
     s = s.replace("\r", " ").replace("\n", " ")
+    # U+2028/U+2029 (separadores de línea/párrafo Unicode) y U+0085 (NEL)
+    # también pueden partir la línea del literal, y el filtro de controles
+    # de abajo (c >= " ") no los caza por tener code point alto (QW3,
+    # auditoría 2026-07-10). Peor caso plausible sin esto: script que no
+    # compila (fail-closed) — aun así, mecanismo, no confianza.
+    s = s.replace("\u2028", " ").replace("\u2029", " ").replace("\x85", " ")
     s = "".join(c if (c >= " " or c == "\t") else " " for c in s)
     return '"' + s + '"'
 
