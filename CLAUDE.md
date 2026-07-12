@@ -111,6 +111,15 @@ Luego añade la entrada de changelog en `README.md` a mano y corre los tests.
   antes de meterlo en cualquier literal AppleScript. Nunca interpoles un message-id
   crudo en el script de mover: una comilla rompe el literal e inyecta `do shell script`.
 - Si S0 detecta inyección, el tier se **capa a `REVIEW`** y el cuerpo se descarta.
+- **Dos garantías distintas, no las confundas.** El *escapado*
+  (`escapar-applescript` para el message-id; los nombres de cuenta/carpeta) es
+  **mecánico y completo**: la ruta de *mover* no se puede inyectar aunque S0 falle.
+  La *detección* S0 es una **lista de bloqueo advisory best-effort** (patrones +
+  invisibles + confusables): inherentemente incompleta —un payload novedoso,
+  multilingüe (los patrones son solo ES/EN) o con un invisible no cubierto puede
+  evadirla—. Por eso la inyección detectada solo *capa a `REVIEW`* para que la vea
+  un humano; no es un cortafuegos total. El endurecimiento es continuo (auditoría
+  2026-07-12: QW1 pasó el filtro de invisibles a categorías Unicode).
 - Los JSONL (`correcciones.jsonl`, `session_log.jsonl`) son **append-only**;
   escríbelos con el subcomando `registrar`, no con `echo >>`.
 - `~/.email-triage/` y su `tmp/` van a **700**; los cuerpos crudos temporales se
