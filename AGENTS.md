@@ -27,7 +27,9 @@ AppleScript / MCP de Gmail.
   atómico con `flock`). Los JSONL son append-only. Ningún subcomando mueve correos.
 - Todo metadato controlado por el remitente se **sanea/escapa** antes de
   interpolarse en nada (S0 para cuerpo/asunto/remitente; `escapar-applescript`
-  para message-ids).
+  para message-ids). El *escapado* es mecánico y completo; la *detección* S0 es
+  **advisory best-effort** (una lista de bloqueo, evadible) — por eso la inyección
+  solo capa a `REVIEW`. Detalle canónico en `CLAUDE.md`.
 - Documentación y comentarios **en español**. Python solo stdlib (PyYAML opcional).
 - Cambios en scoring o en S0–S5 → **añade un test** que fije el comportamiento.
 

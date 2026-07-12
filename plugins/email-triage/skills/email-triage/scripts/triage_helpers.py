@@ -267,7 +267,7 @@ def cmd_ajustes(ruta: str, max_lineas: int = MAX_CORRECCIONES) -> dict:
 _CTX_INSTR = r"(instruc\w+|instruction\w*|prompt\w*|previous|anterior\w*|reglas?|rules?|system)"
 _ROL_IA = (r"(assistant|asistente|ai|llm|chatbot|model\w*|"
            r"clasificador\w*|classifier|agente?s?|skill)")
-_TIER = r"(reply[_ ]?needed|review|reading[_ ]?later|archive)"
+_TIER = r"(reply[_ ]?needed|review|reading[_ ]?later|archive)\b"  # \b: "reviewed"/"archived" ya no disparan comando_directo (F4)
 
 S0_PATRONES = [
     ("ignorar_instrucciones",
@@ -317,7 +317,30 @@ def _primer_corte(texto, patrones):
     return texto[:pos]
 
 
-_INVISIBLES = re.compile(r"[\u200b-\u200f\u202a-\u202e\u2060\ufeff]")
+# Caracteres "por defecto ignorables": un atacante los mete DENTRO de una
+# palabra-gatillo para partirla sin que se vea ("ig<U+00AD>nore",
+# "ig<U+034F>nore"). Se eliminan por CATEGORIA Unicode (Cf = formato:
+# soft-hyphen, anchos cero 200B-200F, controles e ISOLATES bidi 2066-2069,
+# word-joiner 2060, BOM FEFF, marca arabe 061C, operadores invisibles
+# 2061-2064...) mas los joiners/selectores combinantes de ofuscacion, en vez
+# de una lista fija que siempre se quedaba corta (F1, auditoria 2026-07-12).
+_COMBINANTES_IGNORABLES = frozenset(
+    "\u034f"                                          # COMBINING GRAPHEME JOINER
+    "\u180e"                                          # MONGOLIAN VOWEL SEPARATOR
+    + "".join(chr(c) for c in range(0xFE00, 0xFE10))   # VARIATION SELECTOR-1..16
+)
+
+
+def _quitar_invisibles(texto):
+    """Elimina invisibles/ignorables por CATEGORIA (no por lista fija). Vista
+    SOLO para deteccion: quitar aqui un soft-hyphen o un selector de variacion
+    reconstruye la palabra-gatillo para que S0 la cace; no toca el texto que
+    ve el modelo (ese sale del pipeline S1-S5, no de esta vista)."""
+    return "".join(
+        ch for ch in texto
+        if unicodedata.category(ch) != "Cf"
+        and ch not in _COMBINANTES_IGNORABLES
+    )
 
 
 def _vista_decodificada(texto):
@@ -331,7 +354,7 @@ def _vista_normalizada(texto):
     elimina caracteres invisibles (ancho cero, controles bidi). Caza
     'ｉｇｎｏｒｅ' y 'ig<U+200B>nore'. Los homoglifos de otros alfabetos
     (p. ej. la 'o' cirilica) los cubre _vista_desconfundida."""
-    return _INVISIBLES.sub("", unicodedata.normalize("NFKC", texto))
+    return _quitar_invisibles(unicodedata.normalize("NFKC", texto))
 
 
 # Confusables de otros alfabetos -> latin. Solo los que sirven para disfrazar
@@ -947,12 +970,36 @@ def cmd_compactar(ruta: str, max_lineas: int = MAX_CORRECCIONES,
     directorio = os.path.dirname(ruta) or "."
     lock_fd = None
     try:
-        lock_fd = os.open(ruta, os.O_RDONLY)
+        # Adquiere el flock sobre el inodo que HAY en `ruta`, REVALIDANDO tras
+        # el lock: si otro `compactar` rotó `ruta` (os.replace) entre nuestro
+        # os.open y el flock, nuestro lock caería sobre un inodo ya desenlazado
+        # y un `registrar` concurrente sobre el inodo vivo no vería conflicto —
+        # su append se perdería en el os.replace de abajo (F5, auditoría
+        # 2026-07-12). Reabrimos y reintentamos hasta bloquear el inodo vivo,
+        # igual que cmd_registrar (que ya lo hacía con _fd_apunta_a).
         try:
             import fcntl
-            fcntl.flock(lock_fd, fcntl.LOCK_EX)
-        except (ImportError, OSError):
-            pass
+        except ImportError:
+            fcntl = None
+        for _ in range(5):
+            lock_fd = os.open(ruta, os.O_RDONLY)
+            if fcntl is None:
+                break                       # sin flock (no-Unix): seguimos
+            try:
+                fcntl.flock(lock_fd, fcntl.LOCK_EX)
+            except OSError:
+                break                       # flock no soportado en este FS
+            if _fd_apunta_a(lock_fd, ruta):
+                break                       # lock sobre el inodo vivo: seguimos
+            try:                            # rotado bajo nosotros: soltar y reintentar
+                fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            except OSError:
+                pass
+            os.close(lock_fd)
+            lock_fd = None
+        else:
+            return {"ok": False, "error": "no se pudo fijar %s tras 5 "
+                    "reintentos (rotación concurrente persistente)" % ruta}
         # Re-lee BAJO el lock: entre el readlines() inicial (sin lock) y este
         # punto, un 'registrar' concurrente pudo AÑADIR líneas. Escribir el
         # 'conservadas' del read viejo haría que el os.replace de abajo pisara
