@@ -397,6 +397,13 @@ def _detectar_s0(texto):
                    for v in vistas if pat.search(v)})
 
 
+# Tope de tamano de la ENTRADA cruda a cmd_sanitizar, antes del barrido S0
+# (F1/QW1). No es el presupuesto funcional (ese es max_chars, post-limpieza):
+# es un backstop anti-DoS generoso para acotar el coste del barrido x4 vistas
+# sobre un cuerpo hostil de tamano arbitrario. Un correo legitimo nunca lo roza.
+MAX_ENTRADA_SANITIZAR = 100_000
+
+
 def cmd_sanitizar(texto: str, max_chars: int = 1500,
                   asunto: Optional[str] = None,
                   remitente: Optional[str] = None) -> dict:
@@ -407,6 +414,17 @@ def cmd_sanitizar(texto: str, max_chars: int = 1500,
             or max_chars <= 0:
         max_chars = 1500
     original = len(texto)
+    # Backstop de recursos (F1/QW1): el barrido S0 construye 4 vistas del texto
+    # (cruda, decodificada, NFKC, desconfundida) y corre regex sobre cada una.
+    # El tope de extraccion (4000, iCloud) vive en el AppleScript y el modelo lo
+    # respeta en Gmail, pero es "confianza en el llamante". Este clamp lo vuelve
+    # invariante del propio mecanismo: un cuerpo patologico de varios MB no puede
+    # forzar un barrido no acotado. Generoso (100k) para no tocar ningun correo
+    # legitimo; el modelo solo ve, como mucho, max_chars tras S1-S5, asi que
+    # recortar el crudo aqui no pierde nada evaluable.
+    entrada_recortada = False
+    if len(texto) > MAX_ENTRADA_SANITIZAR:
+        texto, entrada_recortada = texto[:MAX_ENTRADA_SANITIZAR], True
     flags = _detectar_s0(texto)                       # S0 en doble vista
     injection_cuerpo = bool(flags)
 
@@ -478,6 +496,7 @@ def cmd_sanitizar(texto: str, max_chars: int = 1500,
         "ajuste_score": -3 if injection else 0,
         "longitud_original": original,
         "longitud_final": len(texto),
+        "entrada_recortada": entrada_recortada,
     }
 
 
@@ -734,6 +753,20 @@ def cmd_scoring_dispatch(payload: dict, cfg: dict, brief: bool = False) -> dict:
 # PASO 0 — validación del config YAML
 # ════════════════════════════════════════════════════════════════
 
+def _payload_error_yaml(e):
+    """Primera linea del error YAML + linea/columna si el parser las expone.
+    Centraliza la extraccion de problem_mark que duplicaban cmd_validar_config
+    y _cargar_config (F2/QW2). El llamante anade 'ok'/'remedio' o envuelve en
+    ConfigError segun su contrato; las cadenas de OSError/UnicodeDecodeError se
+    dejan por-llamante a proposito (redactado distinto, documentado)."""
+    info = {"error": str(e).splitlines()[0]}
+    mark = getattr(e, "problem_mark", None)
+    if mark is not None:
+        info["linea"] = mark.line + 1
+        info["columna"] = mark.column + 1
+    return info
+
+
 def cmd_validar_config(ruta: str) -> dict:
     """Parsea el YAML y reporta ok/error+línea para que el SKILL pueda
     abortar con un mensaje claro (y ofrecer autofix) antes de operar."""
@@ -760,12 +793,7 @@ def cmd_validar_config(ruta: str) -> dict:
                 "error": "el fichero no es UTF-8 válido (%s)" % e,
                 "remedio": "guárdalo con codificación UTF-8 y reintenta"}
     except yaml.YAMLError as e:
-        info = {"ok": False, "error": str(e).splitlines()[0]}
-        mark = getattr(e, "problem_mark", None)
-        if mark is not None:
-            info["linea"] = mark.line + 1
-            info["columna"] = mark.column + 1
-        return info
+        return {"ok": False, **_payload_error_yaml(e)}
     if not isinstance(data, dict):
         return {"ok": False, "error": "el YAML no es un mapeo de claves"}
     recomendados = ("usuario", "correo", "carpetas", "tiers",
@@ -981,14 +1009,33 @@ def cmd_compactar(ruta: str, max_lineas: int = MAX_CORRECCIONES,
             import fcntl
         except ImportError:
             fcntl = None
+        # F3/CM1: sin flock utilizable NO se reescribe. Antes se hacia break y
+        # se procedia al os.replace sin lock, reabriendo la carrera con un
+        # registrar concurrente (su append podia perderse). Ahora se degrada a
+        # no-op seguro: en macOS local (APFS/HFS+) flock funciona y esto no se
+        # alcanza; solo protege setups exoticos (p. ej. $HOME en NFS).
+        if fcntl is None:
+            return {"ok": True, "ruta": ruta, "lineas_antes": antes,
+                    "lineas_despues": antes, "eliminadas": 0, "cambio": False,
+                    "nota": "flock no disponible/soportado: compactar se omite "
+                            "para no perder un append concurrente de registrar "
+                            "en un FS sin bloqueo (F3). La lectura ya esta acotada "
+                            "por deque; el disco puede crecer, mal menor frente a "
+                            "perder datos."}
         for _ in range(5):
             lock_fd = os.open(ruta, os.O_RDONLY)
-            if fcntl is None:
-                break                       # sin flock (no-Unix): seguimos
             try:
                 fcntl.flock(lock_fd, fcntl.LOCK_EX)
             except OSError:
-                break                       # flock no soportado en este FS
+                # FS sin soporte de flock: mismo trato que fcntl ausente (F3/CM1).
+                # lock_fd queda abierto; el finally del try exterior lo cierra.
+                return {"ok": True, "ruta": ruta, "lineas_antes": antes,
+                        "lineas_despues": antes, "eliminadas": 0, "cambio": False,
+                        "nota": "flock no disponible/soportado: compactar se omite "
+                                "para no perder un append concurrente de registrar "
+                                "en un FS sin bloqueo (F3). La lectura ya esta acotada "
+                                "por deque; el disco puede crecer, mal menor frente a "
+                                "perder datos."}
             if _fd_apunta_a(lock_fd, ruta):
                 break                       # lock sobre el inodo vivo: seguimos
             try:                            # rotado bajo nosotros: soltar y reintentar
@@ -1296,13 +1343,9 @@ def _cargar_config(ruta):
                            "error": "el config no es UTF-8 válido (%s)" % e,
                            "remedio": "guárdalo como UTF-8 y reintenta"})
     except yaml.YAMLError as e:
-        info = {"ok": False, "error": str(e).splitlines()[0],
-                "remedio": "ejecuta 'validar-config' para el detalle (linea/columna)"}
-        mark = getattr(e, "problem_mark", None)
-        if mark is not None:
-            info["linea"] = mark.line + 1
-            info["columna"] = mark.column + 1
-        raise ConfigError(info)
+        raise ConfigError({"ok": False, **_payload_error_yaml(e),
+                           "remedio": "ejecuta 'validar-config' para el "
+                           "detalle (linea/columna)"})
 
 
 def main():
