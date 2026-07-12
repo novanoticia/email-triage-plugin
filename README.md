@@ -17,6 +17,17 @@ La mayoría de clasificadores de correo preguntan "¿es urgente?". Este plugin p
 - ¿Está anclado a hechos verificables? (Entangled Truths)
 
 El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decisional, calidad epistémica, coste cognitivo y riesgo de manipulación.
+## Novedades en v3.8.13
+
+Tercera tanda de la auditoría 2026-07-12 (dos Quick Wins + una recomendación
+estructural), con cada hallazgo reproducido en runtime antes de corregirse. Sin
+cambios en el comportamiento normal del scoring.
+
+- **`sanitizar` acota la entrada cruda antes del barrido S0 (QW1 → F1)**: `cmd_sanitizar` construye 4 vistas del cuerpo (cruda, decodificada, NFKC, desconfundida) y corre los patrones S0 sobre cada una. El tope de extracción (4000, iCloud) vivía en el AppleScript y el modelo lo respetaba en Gmail — confianza en el llamante. Ahora un backstop del propio mecanismo (`MAX_ENTRADA_SANITIZAR`, 100k) recorta el crudo **antes** del barrido, así que un cuerpo hostil de tamaño arbitrario no puede forzar un barrido no acotado. Generoso para no tocar ningún correo legítimo (el modelo solo ve, como mucho, `max_chars` tras S1–S5); expone `entrada_recortada` en la salida
+- **Unificada la extracción de línea/columna de errores YAML (QW2 → F2)**: `cmd_validar_config` y `_cargar_config` duplicaban el bloque `str(e).splitlines()[0]` + `problem_mark`. Se extrae a `_payload_error_yaml(e)`; cada llamante conserva su contrato exacto (`ok` en uno, `remedio` + `ConfigError` en el otro). Las cadenas de `OSError`/`UnicodeDecodeError` se dejan por-llamante a propósito. Sin cambio de comportamiento observable
+- **`compactar` se degrada a no-op sin flock utilizable (CM1 → F3)**: en el camino sin flock (`fcntl` ausente, o `flock` que lanza `OSError` en un FS que no lo soporta) `compactar` hacía `break` y procedía al `os.replace` **sin lock**, reabriendo la carrera con `registrar` que CM1/F5 cierran — un append concurrente podía perderse. Ahora, sin bloqueo real, devuelve un no-op seguro (`cambio: false`, con nota) en vez de reescribir. En macOS local (APFS/HFS+) flock funciona y no se alcanza; protege setups exóticos (p. ej. `$HOME` en NFS)
+- **Tests**: 7 nuevos (3 de QW1, 2 de QW2, 2 de CM1); el runner reporta 119 en total, con 1 *expected failure* (límite S0 conocido)
+
 ## Novedades en v3.8.12
 
 Segunda tanda de la auditoría 2026-07-10 (recomendaciones estructurales).
