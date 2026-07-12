@@ -1009,14 +1009,33 @@ def cmd_compactar(ruta: str, max_lineas: int = MAX_CORRECCIONES,
             import fcntl
         except ImportError:
             fcntl = None
+        # F3/CM1: sin flock utilizable NO se reescribe. Antes se hacia break y
+        # se procedia al os.replace sin lock, reabriendo la carrera con un
+        # registrar concurrente (su append podia perderse). Ahora se degrada a
+        # no-op seguro: en macOS local (APFS/HFS+) flock funciona y esto no se
+        # alcanza; solo protege setups exoticos (p. ej. $HOME en NFS).
+        if fcntl is None:
+            return {"ok": True, "ruta": ruta, "lineas_antes": antes,
+                    "lineas_despues": antes, "eliminadas": 0, "cambio": False,
+                    "nota": "flock no disponible/soportado: compactar se omite "
+                            "para no perder un append concurrente de registrar "
+                            "en un FS sin bloqueo (F3). La lectura ya esta acotada "
+                            "por deque; el disco puede crecer, mal menor frente a "
+                            "perder datos."}
         for _ in range(5):
             lock_fd = os.open(ruta, os.O_RDONLY)
-            if fcntl is None:
-                break                       # sin flock (no-Unix): seguimos
             try:
                 fcntl.flock(lock_fd, fcntl.LOCK_EX)
             except OSError:
-                break                       # flock no soportado en este FS
+                # FS sin soporte de flock: mismo trato que fcntl ausente (F3/CM1).
+                # lock_fd queda abierto; el finally del try exterior lo cierra.
+                return {"ok": True, "ruta": ruta, "lineas_antes": antes,
+                        "lineas_despues": antes, "eliminadas": 0, "cambio": False,
+                        "nota": "flock no disponible/soportado: compactar se omite "
+                                "para no perder un append concurrente de registrar "
+                                "en un FS sin bloqueo (F3). La lectura ya esta acotada "
+                                "por deque; el disco puede crecer, mal menor frente a "
+                                "perder datos."}
             if _fd_apunta_a(lock_fd, ruta):
                 break                       # lock sobre el inodo vivo: seguimos
             try:                            # rotado bajo nosotros: soltar y reintentar

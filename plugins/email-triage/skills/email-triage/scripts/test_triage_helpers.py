@@ -1638,5 +1638,49 @@ class TestPayloadErrorYamlQW2(unittest.TestCase):
             os.unlink(ruta)
 
 
+class TestCompactarSinFlockCM1(unittest.TestCase):
+    """F3/CM1: si flock no esta disponible/soportado, compactar se degrada a
+    no-op en vez de reescribir sin lock (que podia perder un append
+    concurrente de registrar). Nunca reescribe sin bloqueo real."""
+
+    def _fichero(self, n):
+        import tempfile, os
+        fd, ruta = tempfile.mkstemp(suffix=".jsonl")
+        os.close(fd)
+        with open(ruta, "w", encoding="utf-8") as fh:
+            for i in range(n):
+                fh.write('{"n": %d}\n' % i)
+        return ruta
+
+    def test_flock_oserror_hace_noop_y_no_reescribe(self):
+        import os
+        from unittest import mock
+        ruta = self._fichero(20)
+        try:
+            with mock.patch("fcntl.flock", side_effect=OSError("no flock")):
+                r = th.cmd_compactar(ruta, max_lineas=5)
+            self.assertTrue(r["ok"], r)
+            self.assertFalse(r["cambio"], r)
+            self.assertIn("flock", r.get("nota", ""))
+            # el fichero NO fue tocado: siguen las 20 lineas
+            with open(ruta, encoding="utf-8") as fh:
+                self.assertEqual(sum(1 for _ in fh), 20)
+        finally:
+            os.unlink(ruta)
+
+    def test_con_flock_si_compacta(self):
+        # sanity: con flock real (entorno normal) el recorte si ocurre.
+        import os
+        ruta = self._fichero(20)
+        try:
+            r = th.cmd_compactar(ruta, max_lineas=5)
+            self.assertTrue(r["ok"], r)
+            self.assertTrue(r["cambio"], r)
+            with open(ruta, encoding="utf-8") as fh:
+                self.assertEqual(sum(1 for _ in fh), 5)
+        finally:
+            os.unlink(ruta)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
