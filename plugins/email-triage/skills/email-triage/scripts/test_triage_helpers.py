@@ -1603,5 +1603,40 @@ class TestEntradaGiganteQW1(unittest.TestCase):
         self.assertFalse(out["entrada_recortada"])
 
 
+class TestPayloadErrorYamlQW2(unittest.TestCase):
+    """F2/QW2: el helper compartido extrae error+linea/columna de un YAMLError,
+    la logica que antes se duplicaba en cmd_validar_config y _cargar_config."""
+
+    def test_extrae_linea_y_columna(self):
+        import yaml
+        try:
+            yaml.safe_load("a: [1, 2\nb: 3\n")   # lista sin cerrar
+            self.fail("deberia lanzar YAMLError")
+        except yaml.YAMLError as e:
+            info = th._payload_error_yaml(e)
+            self.assertIn("error", info)
+            self.assertIn("linea", info)
+            self.assertIn("columna", info)
+
+    def test_ambos_llamantes_siguen_dando_linea(self):
+        import tempfile, os
+        fd, ruta = tempfile.mkstemp(suffix=".yaml")
+        os.close(fd)
+        try:
+            with open(ruta, "w", encoding="utf-8") as fh:
+                fh.write("a: [1, 2\nb: 3\n")
+            # validar-config: dict con ok False + linea
+            r = th.cmd_validar_config(ruta)
+            self.assertFalse(r["ok"])
+            self.assertIn("linea", r)
+            # _cargar_config: ConfigError con payload que conserva 'remedio'
+            with self.assertRaises(th.ConfigError) as ctx:
+                th._cargar_config(ruta)
+            self.assertIn("linea", ctx.exception.payload)
+            self.assertIn("remedio", ctx.exception.payload)
+        finally:
+            os.unlink(ruta)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

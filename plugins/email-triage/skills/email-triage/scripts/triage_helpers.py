@@ -753,6 +753,20 @@ def cmd_scoring_dispatch(payload: dict, cfg: dict, brief: bool = False) -> dict:
 # PASO 0 — validación del config YAML
 # ════════════════════════════════════════════════════════════════
 
+def _payload_error_yaml(e):
+    """Primera linea del error YAML + linea/columna si el parser las expone.
+    Centraliza la extraccion de problem_mark que duplicaban cmd_validar_config
+    y _cargar_config (F2/QW2). El llamante anade 'ok'/'remedio' o envuelve en
+    ConfigError segun su contrato; las cadenas de OSError/UnicodeDecodeError se
+    dejan por-llamante a proposito (redactado distinto, documentado)."""
+    info = {"error": str(e).splitlines()[0]}
+    mark = getattr(e, "problem_mark", None)
+    if mark is not None:
+        info["linea"] = mark.line + 1
+        info["columna"] = mark.column + 1
+    return info
+
+
 def cmd_validar_config(ruta: str) -> dict:
     """Parsea el YAML y reporta ok/error+línea para que el SKILL pueda
     abortar con un mensaje claro (y ofrecer autofix) antes de operar."""
@@ -779,12 +793,7 @@ def cmd_validar_config(ruta: str) -> dict:
                 "error": "el fichero no es UTF-8 válido (%s)" % e,
                 "remedio": "guárdalo con codificación UTF-8 y reintenta"}
     except yaml.YAMLError as e:
-        info = {"ok": False, "error": str(e).splitlines()[0]}
-        mark = getattr(e, "problem_mark", None)
-        if mark is not None:
-            info["linea"] = mark.line + 1
-            info["columna"] = mark.column + 1
-        return info
+        return {"ok": False, **_payload_error_yaml(e)}
     if not isinstance(data, dict):
         return {"ok": False, "error": "el YAML no es un mapeo de claves"}
     recomendados = ("usuario", "correo", "carpetas", "tiers",
@@ -1315,13 +1324,9 @@ def _cargar_config(ruta):
                            "error": "el config no es UTF-8 válido (%s)" % e,
                            "remedio": "guárdalo como UTF-8 y reintenta"})
     except yaml.YAMLError as e:
-        info = {"ok": False, "error": str(e).splitlines()[0],
-                "remedio": "ejecuta 'validar-config' para el detalle (linea/columna)"}
-        mark = getattr(e, "problem_mark", None)
-        if mark is not None:
-            info["linea"] = mark.line + 1
-            info["columna"] = mark.column + 1
-        raise ConfigError(info)
+        raise ConfigError({"ok": False, **_payload_error_yaml(e),
+                           "remedio": "ejecuta 'validar-config' para el "
+                           "detalle (linea/columna)"})
 
 
 def main():
