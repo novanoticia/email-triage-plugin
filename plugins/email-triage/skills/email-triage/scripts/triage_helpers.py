@@ -397,6 +397,13 @@ def _detectar_s0(texto):
                    for v in vistas if pat.search(v)})
 
 
+# Tope de tamano de la ENTRADA cruda a cmd_sanitizar, antes del barrido S0
+# (F1/QW1). No es el presupuesto funcional (ese es max_chars, post-limpieza):
+# es un backstop anti-DoS generoso para acotar el coste del barrido x4 vistas
+# sobre un cuerpo hostil de tamano arbitrario. Un correo legitimo nunca lo roza.
+MAX_ENTRADA_SANITIZAR = 100_000
+
+
 def cmd_sanitizar(texto: str, max_chars: int = 1500,
                   asunto: Optional[str] = None,
                   remitente: Optional[str] = None) -> dict:
@@ -407,6 +414,17 @@ def cmd_sanitizar(texto: str, max_chars: int = 1500,
             or max_chars <= 0:
         max_chars = 1500
     original = len(texto)
+    # Backstop de recursos (F1/QW1): el barrido S0 construye 4 vistas del texto
+    # (cruda, decodificada, NFKC, desconfundida) y corre regex sobre cada una.
+    # El tope de extraccion (4000, iCloud) vive en el AppleScript y el modelo lo
+    # respeta en Gmail, pero es "confianza en el llamante". Este clamp lo vuelve
+    # invariante del propio mecanismo: un cuerpo patologico de varios MB no puede
+    # forzar un barrido no acotado. Generoso (100k) para no tocar ningun correo
+    # legitimo; el modelo solo ve, como mucho, max_chars tras S1-S5, asi que
+    # recortar el crudo aqui no pierde nada evaluable.
+    entrada_recortada = False
+    if len(texto) > MAX_ENTRADA_SANITIZAR:
+        texto, entrada_recortada = texto[:MAX_ENTRADA_SANITIZAR], True
     flags = _detectar_s0(texto)                       # S0 en doble vista
     injection_cuerpo = bool(flags)
 
@@ -478,6 +496,7 @@ def cmd_sanitizar(texto: str, max_chars: int = 1500,
         "ajuste_score": -3 if injection else 0,
         "longitud_original": original,
         "longitud_final": len(texto),
+        "entrada_recortada": entrada_recortada,
     }
 
 
