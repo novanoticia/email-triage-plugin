@@ -152,6 +152,9 @@ Cuando `modo_veloz: true`, anunciarlo al inicio y aplicar:
    modo determinista).
 2. **Scoring determinista + lote `--brief`**: usar `scoring.modo:
    determinista` e invocar `triage_helpers.py scoring --brief` en lote.
+   Pasa la capa veloz al script con `scoring --config-veloz <ruta a
+   config-veloz.yaml>`: el script fusiona sus overrides de `scoring` sobre tu
+   config por mecanismo (CM2/F7) — no ensambles un config combinado a mano.
    El desglose completo va a telemetría/fichero, nunca al contexto.
 3. **Saltar calibración (PASO 2)**: reutilizar la última calibración; si
    no hay ninguna, correrla una vez y cachearla.

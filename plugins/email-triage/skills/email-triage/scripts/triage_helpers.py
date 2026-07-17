@@ -1471,6 +1471,63 @@ def _cargar_config(ruta):
                            "detalle (linea/columna)"})
 
 
+# ════════════════════════════════════════════════════════════════
+# Fusion de la capa "veloz" sobre el config base (CM2, F7)
+# ════════════════════════════════════════════════════════════════
+
+# El SKILL ordenaba 'superponer los valores de config-veloz.yaml sobre el config
+# normal', pero no habia mecanismo: `scoring` leia un unico --config y la fusion
+# quedaba en manos del modelo (que tenia que fabricar un config combinado a
+# mano). Hoy los valores veloz coinciden con los defaults, asi que el bug era
+# latente; se activaba en cuanto el usuario personalizaba la capa. Ahora la
+# fusion la hace el script: `scoring --config-veloz <ruta>`. Mecanismo, no
+# confianza. (Los limites de cuerpo de la capa —max_caracteres_cuerpo— llegan al
+# pipeline via `sanitizar --max-chars`, aparte; esto cubre el bloque `scoring`.)
+
+def _merge_config(base, overlay):
+    """Deep-merge: overlay pisa base; los dicts se fusionan recursivamente, el
+    resto se reemplaza. No muta los argumentos."""
+    if not isinstance(base, dict) or not isinstance(overlay, dict):
+        return overlay
+    out = dict(base)
+    for k, v in overlay.items():
+        if k in out and isinstance(out[k], dict) and isinstance(v, dict):
+            out[k] = _merge_config(out[k], v)
+        else:
+            out[k] = v
+    return out
+
+
+def _fusiona_config_veloz(cfg, ruta_veloz):
+    """Superpone la capa config-veloz.yaml sobre `cfg` (CM2, F7). La capa es
+    OPCIONAL: si `ruta_veloz` es None o no existe, no-op. Un YAML roto o una capa
+    que no es mapeo propagan ConfigError (mismo contrato de error legible que el
+    config base), en vez de fusionar algo corrupto en silencio."""
+    if not ruta_veloz or not os.path.exists(ruta_veloz):
+        return cfg
+    import yaml
+    try:
+        with open(ruta_veloz, encoding="utf-8") as fh:
+            veloz = yaml.safe_load(fh)
+    except OSError as e:
+        raise ConfigError({"ok": False,
+                           "error": "capa veloz ilegible %s: %s" % (ruta_veloz, e)})
+    except UnicodeDecodeError as e:
+        raise ConfigError({"ok": False,
+                           "error": "la capa veloz no es UTF-8 válido (%s)" % e,
+                           "remedio": "guárdala como UTF-8 y reintenta"})
+    except yaml.YAMLError as e:
+        raise ConfigError({"ok": False,
+                           "error": "capa veloz con YAML roto",
+                           **_payload_error_yaml(e)})
+    if veloz is None:
+        return cfg
+    if not isinstance(veloz, dict):
+        raise ConfigError({"ok": False,
+                           "error": "la capa veloz no es un mapeo de claves"})
+    return _merge_config(cfg, veloz)
+
+
 def _construir_parser():
     """Construye el parser de subcomandos. Separado de main() para que el
     test de contrato doc<->codigo (test_contrato_skill.py) pueda introspectar
@@ -1494,6 +1551,9 @@ def _construir_parser():
                      default=os.path.expanduser("~/.email-triage/config.yaml"))
     psc.add_argument("--brief", action="store_true",
                      help="salida compacta: solo score/tier/ejes (ahorra tokens)")
+    psc.add_argument("--config-veloz", default=None,
+                     help="capa de overrides veloz a fusionar sobre --config "
+                          "(opcional; si no existe, no-op) — CM2/F7")
     pv = sub.add_parser("validar-config")
     pv.add_argument("--config",
                     default=os.path.expanduser("~/.email-triage/config.yaml"))
@@ -1540,9 +1600,11 @@ def main():
             return
         try:
             cfg = _cargar_config(args.config)
+            # CM2 (F7): fusiona la capa veloz por mecanismo si se pidio.
+            cfg = _fusiona_config_veloz(cfg, args.config_veloz)
         except ConfigError as e:
-            # YAML roto / config ilegible: mismo contrato de error legible que
-            # validar-config, por stdout, sin traceback (paridad, v3.8.8).
+            # YAML roto / config ilegible (base o capa veloz): mismo contrato de
+            # error legible que validar-config, por stdout, sin traceback.
             out = e.payload
         else:
             out = cmd_scoring_dispatch(payload, cfg, brief=args.brief)

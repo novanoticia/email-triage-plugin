@@ -1808,5 +1808,65 @@ class TestMontarConsultaEnviadosQW1(unittest.TestCase):
         self.assertIn("count of respuestasUsuario", out["script"])
 
 
+class TestConfigVelozMergeCM2(unittest.TestCase):
+    """CM2 (auditoria 2026-07-17, F7): la capa config-veloz se fusiona sobre el
+    config base POR MECANISMO (`scoring --config-veloz`), no a mano por el
+    modelo. Antes el 'superponer' del SKILL no tenia respaldo en el script."""
+
+    def test_merge_recursivo_overlay_pisa_sin_mutar(self):
+        base = {"scoring": {"sender_bulk_atenuado_a": -1,
+                            "cap_reply_needed_sin_accion": True},
+                "tiers": {"review": 4}}
+        overlay = {"scoring": {"sender_bulk_atenuado_a": -2}}
+        out = th._merge_config(base, overlay)
+        self.assertEqual(out["scoring"]["sender_bulk_atenuado_a"], -2)   # pisado
+        self.assertTrue(out["scoring"]["cap_reply_needed_sin_accion"])   # conservado
+        self.assertEqual(out["tiers"]["review"], 4)                      # intacto
+        self.assertEqual(base["scoring"]["sender_bulk_atenuado_a"], -1)  # no muta base
+
+    def test_fusiona_desde_fichero(self):
+        d = tempfile.mkdtemp()
+        try:
+            base_p = os.path.join(d, "config.yaml")
+            veloz_p = os.path.join(d, "config-veloz.yaml")
+            with open(base_p, "w", encoding="utf-8") as fh:
+                fh.write("scoring: {sender_bulk_atenuado_a: -1}\n"
+                         "criterios_epistemicos: {}\n")
+            with open(veloz_p, "w", encoding="utf-8") as fh:
+                fh.write("scoring: {sender_bulk_atenuado_a: -3}\n")
+            cfg = th._cargar_config(base_p)
+            cfg = th._fusiona_config_veloz(cfg, veloz_p)
+            self.assertEqual(cfg["scoring"]["sender_bulk_atenuado_a"], -3)
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
+    def test_veloz_inexistente_es_noop(self):
+        cfg = {"scoring": {"x": 1}}
+        self.assertEqual(th._fusiona_config_veloz(cfg, "/no/existe/veloz.yaml"), cfg)
+        self.assertEqual(th._fusiona_config_veloz(cfg, None), cfg)
+
+    def test_veloz_yaml_roto_da_configerror(self):
+        d = tempfile.mkdtemp()
+        try:
+            veloz_p = os.path.join(d, "v.yaml")
+            with open(veloz_p, "w", encoding="utf-8") as fh:
+                fh.write("scoring: {roto: [\n")
+            with self.assertRaises(th.ConfigError):
+                th._fusiona_config_veloz({"scoring": {}}, veloz_p)
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
+    def test_veloz_no_mapa_da_configerror(self):
+        d = tempfile.mkdtemp()
+        try:
+            veloz_p = os.path.join(d, "v.yaml")
+            with open(veloz_p, "w", encoding="utf-8") as fh:
+                fh.write("- soy\n- una\n- lista\n")
+            with self.assertRaises(th.ConfigError):
+                th._fusiona_config_veloz({"scoring": {}}, veloz_p)
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
