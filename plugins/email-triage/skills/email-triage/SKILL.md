@@ -563,13 +563,40 @@ Si no hay urgentes: "Nada en la bandeja requiere atención inmediata."
 
 Esta es la fase principal. Revisa `carpetas.pendiente`.
 
-### 4.A — Reglas duras (hard rules)
+### 4.A — Reglas duras (hard rules) y boosts
 
-Antes de evaluar criterios epistémicos, aplica reglas deterministas.
-Las reglas se aplican en dos capas: primero las **reglas estáticas** del
-config, luego los **ajustes aprendidos** calculados en PASO 0.B.
+Antes de evaluar criterios epistémicos, aplica los ajustes deterministas.
+Se aplican en dos capas —primero las reglas y boosts estáticos (4.A.1 y
+4.A.2), luego los **ajustes aprendidos** del PASO 0.B (4.A.3)— pero OJO
+con el **enrutado hacia el script** en modo determinista: solo las claves
+de 4.A.1 existen en `config.hard_rules` y se pasan por nombre en el array
+`hard_rules`; todo lo demás (4.A.2 y 4.A.3) viaja sumado en `extra_points`.
 
-#### Reglas estáticas (config.yaml)
+#### 4.A.1 — Hard rules deterministas (claves de `config.hard_rules`)
+
+Estas SEIS claves son las únicas que existen en la sección `hard_rules:`
+de `config.yaml` y las únicas que se pasan por nombre en el array
+`hard_rules` del payload de scoring. Cualquier otro nombre pasado ahí
+(p. ej. "remitente_prioritario") no existe en el config: el script lo
+manda a `ignorados` con motivo "no definida en config" y el boost se
+pierde en silencio.
+
+| Clave de `config.hard_rules` | Puntos | Condición |
+|------------------------------|--------|-----------|
+| `pregunta_directa_boost` | +4 | El correo hace una pregunta directa al usuario |
+| `deadline_explicito_boost` | +4 | Fecha/hora límite verificable |
+| `mencion_directa_boost` | +3 | Nombra al usuario por nombre |
+| `hilo_esperando_respuesta_boost` | +5 / +2 | +5 con `usuario_es_ultimo_en_responder: false` CONFIRMADO; +2 si `desconocido`; 0 si `true` |
+| `sender_bulk_penalizacion` | -4 | Header unsubscribe o sender masivo. Atenuación (v3.7): si el remitente aparece en el historial conservado pasa de -4 a -1 — NO es una clave aparte, pásalo como `remitente_en_historial: true` en el payload. Un remitente que el usuario guarda a mano no merece el castigo completo de "masivo" |
+| `sin_accion_sin_info_penalizacion` | -5 | No pide nada y no aporta novedad |
+
+#### 4.A.2 — Boosts de calibración y keywords → `extra_points`
+
+Estos ajustes NO son claves de `config.hard_rules` (no las busques ahí:
+no existen). Derivan de las listas del config (`remitentes_prioritarios`,
+`palabras_clave_*`) y de la calibración (PASO 0.B / PASO 2). En modo
+determinista se suman entre sí y se pasan como un único entero en
+`extra_points`; en modo mental se aplican con este mismo baremo.
 
 | Fuente | Puntos | Condición |
 |--------|--------|-----------|
@@ -581,18 +608,13 @@ config, luego los **ajustes aprendidos** calculados en PASO 0.B.
 | **Keyword boost (baja)** | +1 | Palabra con peso `bajo` o sin peso |
 | **Keyword en cuerpo** | +1 | Keyword en extracto del cuerpo |
 | **Keyword penalizar** | -2 | Palabra en `palabras_clave_penalizar` |
-| **Remitente ignorar** | -99 | Está en `remitentes_ignorar` (skip total) |
-| **Pregunta directa al usuario** | +4 | El correo hace una pregunta directa |
-| **Deadline explícito** | +4 | Fecha/hora límite verificable |
-| **Mención directa al usuario** | +3 | Nombra al usuario por nombre |
-| **Hilo esperando respuesta del usuario** | +5 / +2 | +5 con `usuario_es_ultimo_en_responder: false` CONFIRMADO; +2 si `desconocido`; 0 si `true` |
-| **Sender bulk / unsubscribe** | -4 | Header unsubscribe o sender masivo |
-| **Sender bulk atenuado** (v3.7) | -1 | Si el remitente aparece en el historial conservado, `sender_bulk` pasa de -4 a -1 (pásalo como `remitente_en_historial: true`). Un remitente que el usuario guarda a mano no merece el castigo completo de "masivo" |
-| **Sin acción y sin info nueva** | -5 | No pide nada y no aporta novedad |
+| **Remitente ignorar** | -99 | Está en `remitentes_ignorar` (skip total: el correo se descarta antes del scoring; no pasa por `hard_rules` ni por `extra_points`) |
 
-#### Ajustes aprendidos (PASO 0.B) — aplicar después de las reglas estáticas
+#### 4.A.3 — Ajustes aprendidos (PASO 0.B) — aplicar después de 4.A.1 y 4.A.2
 
-Si PASO 0.B produjo una tabla de ajustes dinámicos, aplicarlos ahora:
+Si PASO 0.B produjo una tabla de ajustes dinámicos, aplicarlos ahora
+(en modo determinista también van sumados dentro de `extra_points`,
+nunca como claves de `hard_rules`):
 
 | Fuente | Puntos | Condición |
 |--------|--------|-----------|
@@ -616,7 +638,7 @@ explícitamente:
 
 ```
 📊 Puntuación: 6
-   Hard rules: +1 (dominio frecuente)
+   Extra (calibración): +1 (dominio frecuente)
    Aprendido:  +2 (remitente corregido 4 veces hacia arriba)
    Epistémico: +3 (valor_decisional +2, calidad_epistemica +1)
 ```
@@ -1292,7 +1314,7 @@ en MANEJO DE ERRORES.
 ## Personalización (ver config.yaml)
 
 ### Filtros y keywords (heredados de v2.0)
-- `remitentes_prioritarios` — hard rule (+3)
+- `remitentes_prioritarios` — boost de calibración (+3): va en `extra_points`, no es clave de `hard_rules` (ver 4.A.2)
 - `remitentes_ignorar` — skip total (-99)
 - `palabras_clave_boost` — con peso: `alto` (+3), `medio` (+2), `bajo` (+1)
 - `palabras_clave_penalizar` — reducen puntuación (-2)
