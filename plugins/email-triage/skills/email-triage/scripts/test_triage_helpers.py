@@ -1166,6 +1166,20 @@ class TestMontarMoverV389(unittest.TestCase):
         self.assertTrue(out["ok"])
         self.assertIn('mailbox "Correo \\"x\\"" of acct', out["script"])
 
+    def test_script_reporta_mids_fallidos(self):
+        """QW2 (auditoria 2026-07-17): el SCRIPT 3 acumula los mids que no se
+        pudieron mover (failRev/failArc) y los incluye en el return, en vez de
+        dejar solo contadores ("8/10" sin saber cuales fallaron)."""
+        out = th.cmd_montar_mover(self._base(mids_review=["a@x.com"],
+                                             mids_archive=["b@y.com"]))
+        self.assertTrue(out["ok"])
+        s = out["script"]
+        for frag in ("set failRev to {}", "set failArc to {}",
+                     "if not moved then set end of failRev to (theID as string)",
+                     "if not moved then set end of failArc to (theID as string)",
+                     'fallidos_review:[', 'fallidos_archive:['):
+            self.assertIn(frag, s)
+
     def test_listas_vacias_producen_llaves_vacias(self):
         out = th.cmd_montar_mover(self._base(mids_review=[], mids_archive=[]))
         self.assertTrue(out["ok"])
