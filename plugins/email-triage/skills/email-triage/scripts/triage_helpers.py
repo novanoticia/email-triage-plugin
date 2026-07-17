@@ -1165,15 +1165,13 @@ def cmd_escapar_applescript(valores) -> dict:
     escapados, sospechosos = [], []
     for i, v in enumerate(valores):
         escapados.append(applescript_quote(v))
-        s = str(v)
-        motivos = []
-        if not _MID_LEGITIMO.match(s):
-            motivos.append("caracteres fuera del patron RFC")
-        if len(s) > _MID_MAX_CHARS:
-            motivos.append("longitud %d > %d" % (len(s), _MID_MAX_CHARS))
-        if motivos:
-            sospechosos.append({"indice": i, "valor": s[:120],
-                                "motivo": "; ".join(motivos)})
+        # Criterios de sospecha centralizados en _mid_sospechoso (QW1,
+        # auditoria 2026-07-17): antes esta logica estaba duplicada aqui y
+        # en montar-mover, y un ajuste en una copia no llegaba a la otra.
+        motivo = _mid_sospechoso(v)
+        if motivo:
+            sospechosos.append({"indice": i, "valor": str(v)[:120],
+                                "motivo": motivo})
     return {
         "ok": True,
         "escapados": escapados,
