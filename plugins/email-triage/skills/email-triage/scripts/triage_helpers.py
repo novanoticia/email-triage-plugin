@@ -1369,7 +1369,12 @@ def _cargar_config(ruta):
                            "detalle (linea/columna)"})
 
 
-def main():
+def _construir_parser():
+    """Construye el parser de subcomandos. Separado de main() para que el
+    test de contrato doc<->codigo (test_contrato_skill.py) pueda introspectar
+    la superficie real (subcomandos y flags) sin ejecutar nada (NO1,
+    auditoria 2026-07-17): la doctrina del SKILL.md invoca estos subcomandos
+    por nombre y una deriva silenciosa la rompia sin aviso."""
     p = argparse.ArgumentParser(description=__doc__)
     sub = p.add_subparsers(dest="cmd", required=True)
     pa = sub.add_parser("ajustes")
@@ -1408,7 +1413,11 @@ def main():
     pm = sub.add_parser("montar-mover")
     pm.add_argument("--datos", default=None,
                     help="JSON con cuenta/origen/destino_*/mids_*; sin él, stdin")
-    args = p.parse_args()
+    return p
+
+
+def main():
+    args = _construir_parser().parse_args()
     if args.cmd == "ajustes":
         out = cmd_ajustes(args.correcciones)
     elif args.cmd == "scoring":
