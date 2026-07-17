@@ -17,6 +17,19 @@ La mayoría de clasificadores de correo preguntan "¿es urgente?". Este plugin p
 - ¿Está anclado a hechos verificables? (Entangled Truths)
 
 El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decisional, calidad epistémica, coste cognitivo y riesgo de manipulación.
+## Novedades en v3.8.14
+
+Fixes de la auditoría 2026-07-17 (tres Quick Wins, un gate nuevo y una
+recomendación estructural), aplicados sobre `52d1c03` con la suite verde tras
+cada cambio. Sin cambios en el comportamiento normal del scoring.
+
+- **Criterios de mid sospechoso unificados (QW1 → F4)**: `cmd_escapar_applescript` duplicaba inline la lógica de `_mid_sospechoso` (patrón RFC + longitud >998); un ajuste en una copia no llegaba a la otra. Ahora ambos caminos delegan en el mismo helper. Sin cambio de comportamiento observable
+- **SCRIPT 3 reporta QUÉ mids fallaron (QW2 → F5)**: los fallos individuales del mover solo se veían como diferencia de contadores ("movidos_review: 8/10") sin saber cuáles ni por qué. El script generado por `montar-mover` acumula ahora `failRev`/`failArc` y los devuelve en el `return` (`fallidos_review:[…] fallidos_archive:[…]`), así el resumen de sesión puede listar los message-ids concretos que no se movieron
+- **`compactar` cuenta y conserva líneas en streaming (QW3 → F3)**: hacía `readlines()` del fichero completo (dos veces: pre-lock y bajo lock) — memoria no acotada justo en el subcomando pensado para ficheros ya crecidos. Ahora `_contar_y_ultimas` itera en streaming con un `deque(maxlen=N)`, el mismo patrón que ya usaba `cmd_ajustes`. Mismo resultado, RAM acotada
+- **Gate de deriva doc↔código (recomendación no obvia)**: el código ya no confía en el modelo, pero el SKILL.md sí confiaba en que sus invocaciones a `triage_helpers.py` (subcomando + flags) siguieran existiendo tal cual. Nuevo `test_contrato_skill.py` (4 tests): extrae todas las invocaciones de SKILL.md/references/triage.md (con soporte de continuaciones `\`) y las valida contra la superficie real de `argparse` (`_construir_parser()`, ahora expuesto). Coherencia doc↔código como mecanismo, no como disciplina
+- **Divulgación progresiva del SKILL.md (CM1 → F1)**: 1.760 → 1.318 líneas (−25%). PASO 1 (conexión a proveedores/AppleScript), PASO 6 (deshacer) y MANEJO DE ERRORES se extraen a `references/`, con stubs que enrutan a cada fichero cuando la fase lo requiere y conservan las reglas no negociables (nunca interpolar metadatos a mano; degradar con explicación, nunca abortar en silencio). Menos tokens por activación y menos riesgo de pérdida de instrucciones en contexto largo
+- **Tests**: 5 nuevos (1 de QW2, 4 del gate doc↔código) — el runner reporta 124 en total, con 1 *expected failure* (límite S0 conocido)
+
 ## Novedades en v3.8.13
 
 Tercera tanda de la auditoría 2026-07-12 (dos Quick Wins + una recomendación
