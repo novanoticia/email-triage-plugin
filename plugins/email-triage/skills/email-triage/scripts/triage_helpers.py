@@ -963,6 +963,20 @@ def cmd_registrar(ruta: str, registro: dict) -> dict:
 # tras el decay). Es no-op si el fichero ya está por debajo del tope. NUNCA
 # mueve correos.
 
+def _contar_y_ultimas(ruta, n):
+    """Cuenta las lineas de `ruta` y conserva solo las ultimas `n` en memoria
+    (deque en streaming). QW3, auditoria 2026-07-17: compactar hacia
+    readlines() del fichero completo — memoria no acotada justo en el
+    subcomando pensado para ficheros ya crecidos. Mismo patron que cmd_ajustes."""
+    total = 0
+    ultimas = deque(maxlen=n)
+    with open(ruta, encoding="utf-8", errors="replace") as fh:
+        for ln in fh:
+            total += 1
+            ultimas.append(ln)
+    return total, ultimas
+
+
 def cmd_compactar(ruta: str, max_lineas: int = MAX_CORRECCIONES,
                   dry_run: bool = False) -> dict:
     ruta = os.path.expanduser(ruta)
@@ -974,18 +988,16 @@ def cmd_compactar(ruta: str, max_lineas: int = MAX_CORRECCIONES,
                 "lineas_despues": 0, "eliminadas": 0, "cambio": False,
                 "nota": "el fichero no existe todavía"}
     try:
-        with open(ruta, encoding="utf-8", errors="replace") as fh:
-            lineas = fh.readlines()
+        antes, ultimas = _contar_y_ultimas(ruta, max_lineas)
     except OSError as e:
         return {"ok": False, "error": "no se pudo leer %s: %s" % (ruta, e)}
 
-    antes = len(lineas)
     if antes <= max_lineas:
         return {"ok": True, "ruta": ruta, "lineas_antes": antes,
                 "lineas_despues": antes, "eliminadas": 0, "cambio": False,
                 "nota": "por debajo del tope (%d); nada que compactar" % max_lineas}
 
-    conservadas = lineas[-max_lineas:]
+    conservadas = list(ultimas)
     eliminadas = antes - len(conservadas)
     if dry_run:
         return {"ok": True, "ruta": ruta, "lineas_antes": antes,
@@ -1047,22 +1059,20 @@ def cmd_compactar(ruta: str, max_lineas: int = MAX_CORRECCIONES,
         else:
             return {"ok": False, "error": "no se pudo fijar %s tras 5 "
                     "reintentos (rotación concurrente persistente)" % ruta}
-        # Re-lee BAJO el lock: entre el readlines() inicial (sin lock) y este
+        # Re-lee BAJO el lock: entre la lectura inicial (sin lock) y este
         # punto, un 'registrar' concurrente pudo AÑADIR líneas. Escribir el
         # 'conservadas' del read viejo haría que el os.replace de abajo pisara
         # esos appends (TOCTOU con pérdida de correcciones). Releer aquí y
         # recomputar garantiza que ninguna escritura concurrente se pierda.
         try:
-            with open(ruta, encoding="utf-8", errors="replace") as fh:
-                lineas = fh.readlines()
+            antes, ultimas = _contar_y_ultimas(ruta, max_lineas)
         except OSError as e:
             return {"ok": False, "error": "no se pudo releer %s: %s" % (ruta, e)}
-        antes = len(lineas)
         if antes <= max_lineas:
             return {"ok": True, "ruta": ruta, "lineas_antes": antes,
                     "lineas_despues": antes, "eliminadas": 0, "cambio": False,
                     "nota": "por debajo del tope al releer bajo lock"}
-        conservadas = lineas[-max_lineas:]
+        conservadas = list(ultimas)
         eliminadas = antes - len(conservadas)
         import tempfile
         fd, tmp = tempfile.mkstemp(dir=directorio, prefix=".compactar-")
@@ -1165,15 +1175,13 @@ def cmd_escapar_applescript(valores) -> dict:
     escapados, sospechosos = [], []
     for i, v in enumerate(valores):
         escapados.append(applescript_quote(v))
-        s = str(v)
-        motivos = []
-        if not _MID_LEGITIMO.match(s):
-            motivos.append("caracteres fuera del patron RFC")
-        if len(s) > _MID_MAX_CHARS:
-            motivos.append("longitud %d > %d" % (len(s), _MID_MAX_CHARS))
-        if motivos:
-            sospechosos.append({"indice": i, "valor": s[:120],
-                                "motivo": "; ".join(motivos)})
+        # Criterios de sospecha centralizados en _mid_sospechoso (QW1,
+        # auditoria 2026-07-17): antes esta logica estaba duplicada aqui y
+        # en montar-mover, y un ajuste en una copia no llegaba a la otra.
+        motivo = _mid_sospechoso(v)
+        if motivo:
+            sospechosos.append({"indice": i, "valor": str(v)[:120],
+                                "motivo": motivo})
     return {
         "ok": True,
         "escapados": escapados,
@@ -1283,29 +1291,42 @@ def cmd_montar_mover(datos: dict) -> dict:
         '    set toReview to ' + lista_rev + '\n'
         '    set toArchive to ' + lista_arc + '\n'
         '    set okRev to 0\n'
+        '    set failRev to {}\n'
         '    repeat with theID in toReview\n'
+        '        set moved to false\n'
         '        try\n'
         '            set hits to (messages of srcBox whose message id is theID)\n'
         '            if (count of hits) > 0 then\n'
         '                move (item 1 of hits) to revBox\n'
         '                set okRev to okRev + 1\n'
+        '                set moved to true\n'
         '            end if\n'
         '        end try\n'
+        '        if not moved then set end of failRev to (theID as string)\n'
         '    end repeat\n'
         '    set okArc to 0\n'
+        '    set failArc to {}\n'
         '    repeat with theID in toArchive\n'
+        '        set moved to false\n'
         '        try\n'
         '            set hits to (messages of srcBox whose message id is theID)\n'
         '            if (count of hits) > 0 then\n'
         '                move (item 1 of hits) to arcBox\n'
         '                set okArc to okArc + 1\n'
+        '                set moved to true\n'
         '            end if\n'
         '        end try\n'
+        '        if not moved then set end of failArc to (theID as string)\n'
         '    end repeat\n'
         '    delay 2\n'
+        '    -- QW2 (auditoria 2026-07-17): reportar QUE mids fallaron, no solo\n'
+        '    -- cuantos. Un "8/10" sin lista dejaba el diagnostico ciego.\n'
+        "    set AppleScript's text item delimiters to \",\"\n"
         '    return "movidos_review:" & okRev & "/" & (count of toReview) & '
         '" movidos_archive:" & okArc & "/" & (count of toArchive) & '
-        '" | src_restantes:" & (count of (messages of srcBox))\n'
+        '" | fallidos_review:[" & (failRev as string) & '
+        '"] fallidos_archive:[" & (failArc as string) & '
+        '"] | src_restantes:" & (count of (messages of srcBox))\n'
         'end tell\n'
     )
     return {"ok": True, "script": script, "sospechosos": sospechosos,
@@ -1348,7 +1369,12 @@ def _cargar_config(ruta):
                            "detalle (linea/columna)"})
 
 
-def main():
+def _construir_parser():
+    """Construye el parser de subcomandos. Separado de main() para que el
+    test de contrato doc<->codigo (test_contrato_skill.py) pueda introspectar
+    la superficie real (subcomandos y flags) sin ejecutar nada (NO1,
+    auditoria 2026-07-17): la doctrina del SKILL.md invoca estos subcomandos
+    por nombre y una deriva silenciosa la rompia sin aviso."""
     p = argparse.ArgumentParser(description=__doc__)
     sub = p.add_subparsers(dest="cmd", required=True)
     pa = sub.add_parser("ajustes")
@@ -1387,7 +1413,11 @@ def main():
     pm = sub.add_parser("montar-mover")
     pm.add_argument("--datos", default=None,
                     help="JSON con cuenta/origen/destino_*/mids_*; sin él, stdin")
-    args = p.parse_args()
+    return p
+
+
+def main():
+    args = _construir_parser().parse_args()
     if args.cmd == "ajustes":
         out = cmd_ajustes(args.correcciones)
     elif args.cmd == "scoring":
