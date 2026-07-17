@@ -1389,6 +1389,52 @@ def cmd_montar_mover(datos: dict) -> dict:
             "n_review": len(mids_rev), "n_archive": len(mids_arc)}
 
 
+def cmd_montar_consulta_enviados(datos: dict) -> dict:
+    """Monta la consulta a Enviados de PASO 1.C con cuenta, clave_hilo y
+    fecha_corte YA escapados (QW1, auditoria 2026-07-17, F1).
+
+    datos: {"cuenta", "clave_hilo", "fecha_corte"}. Devuelve
+    {"ok", "script", "sospechoso"} o el contrato de error.
+
+    Hasta v3.8.14 el SKILL.md interpolaba a mano `account "<correo.cuenta>"` y
+    `whose subject contains "<clave_hilo>"` dentro de un literal AppleScript.
+    `clave_hilo` deriva del ASUNTO (superficie del remitente): un asunto con
+    comilla —comun en correo legitimo, p. ej. `Re: "urgente"`— rompia el literal
+    o alteraba el predicado `whose`. Mismo patron que montar-mover: mecanismo,
+    no confianza en el modelo. Solo LEE (count), nunca mueve nada.
+    """
+    if not isinstance(datos, dict):
+        return {"ok": False, "error": "se esperaba un objeto JSON con "
+                "cuenta/clave_hilo/fecha_corte"}
+    req = ("cuenta", "clave_hilo", "fecha_corte")
+    faltan = [k for k in req
+              if not isinstance(datos.get(k), str) or not datos.get(k).strip()]
+    if faltan:
+        return {"ok": False,
+                "error": "faltan o vacios (deben ser texto): %s" % ", ".join(faltan)}
+    cuenta = applescript_quote(datos["cuenta"])
+    clave = applescript_quote(datos["clave_hilo"])
+    fecha = applescript_quote(datos["fecha_corte"])
+    # clave_hilo viene del asunto: senal para el resumen (el escape es la
+    # defensa de fondo, esto no bloquea).
+    sospechoso = None
+    if any(c in datos["clave_hilo"] for c in ('"', "\n", "\r")):
+        sospechoso = "clave_hilo con comillas/saltos (neutralizados por el escape)"
+    script = (
+        '-- Consulta a Enviados (PASO 1.C) generada por\n'
+        '-- triage_helpers.py montar-consulta-enviados: cuenta, clave_hilo y\n'
+        '-- fecha_corte ya escapados. Solo LEE (count of respuestasUsuario).\n'
+        'tell application "Mail"\n'
+        '    set fechaCorte to date ' + fecha + '\n'
+        '    set respuestasUsuario to (messages of sent mailbox of account '
+        + cuenta + ' whose subject contains ' + clave
+        + ' and date sent > fechaCorte)\n'
+        '    return (count of respuestasUsuario)\n'
+        'end tell\n'
+    )
+    return {"ok": True, "script": script, "sospechoso": sospechoso}
+
+
 def _cargar_config(ruta):
     try:
         import yaml
@@ -1469,6 +1515,9 @@ def _construir_parser():
     pm = sub.add_parser("montar-mover")
     pm.add_argument("--datos", default=None,
                     help="JSON con cuenta/origen/destino_*/mids_*; sin él, stdin")
+    pce = sub.add_parser("montar-consulta-enviados")
+    pce.add_argument("--datos", default=None,
+                     help="JSON con cuenta/clave_hilo/fecha_corte; sin él, stdin")
     return p
 
 
@@ -1526,6 +1575,14 @@ def main():
             out = {"ok": False, "error": "JSON inválido: %s" % e}
         else:
             out = cmd_montar_mover(data)
+    elif args.cmd == "montar-consulta-enviados":
+        crudo = args.datos if args.datos is not None else sys.stdin.read()
+        try:
+            data = json.loads(crudo or "{}")
+        except json.JSONDecodeError as e:
+            out = {"ok": False, "error": "JSON inválido: %s" % e}
+        else:
+            out = cmd_montar_consulta_enviados(data)
     else:
         if args.archivo:
             with open(args.archivo, encoding="utf-8", errors="replace") as fh:

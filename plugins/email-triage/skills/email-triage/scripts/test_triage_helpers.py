@@ -1776,5 +1776,37 @@ class TestCompactarSinFlockCM1(unittest.TestCase):
             os.unlink(ruta)
 
 
+class TestMontarConsultaEnviadosQW1(unittest.TestCase):
+    """QW1 (auditoria 2026-07-17, F1): la consulta a Enviados (PASO 1.C) ya no
+    interpola clave_hilo/cuenta crudos; se montan escapados por el mecanismo."""
+
+    def test_clave_hilo_con_comilla_no_rompe_el_literal(self):
+        out = th.cmd_montar_consulta_enviados({
+            "cuenta": "yo@icloud.com",
+            "clave_hilo": 'proyecto "fenix" " and 1=1',
+            "fecha_corte": "7/1/2026"})
+        self.assertTrue(out["ok"])
+        # La comilla del asunto queda escapada (\") dentro del literal: no cierra
+        # la cadena, el 'whose subject contains' sigue siendo un unico string.
+        self.assertIn('\\"', out["script"])
+        self.assertNotIn('contains "proyecto "fenix"', out["script"])
+        self.assertIsNotNone(out["sospechoso"])
+
+    def test_falta_campo_da_error(self):
+        out = th.cmd_montar_consulta_enviados({"cuenta": "a@b.com"})
+        self.assertFalse(out["ok"])
+        self.assertIn("clave_hilo", out["error"])
+
+    def test_caso_normal_sin_sospecha(self):
+        out = th.cmd_montar_consulta_enviados({
+            "cuenta": "yo@icloud.com", "clave_hilo": "reunion equipo",
+            "fecha_corte": "7/1/2026 09:00:00"})
+        self.assertTrue(out["ok"])
+        self.assertIsNone(out["sospechoso"])
+        self.assertIn('account "yo@icloud.com"', out["script"])
+        self.assertIn('subject contains "reunion equipo"', out["script"])
+        self.assertIn("count of respuestasUsuario", out["script"])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -408,16 +408,22 @@ HILO [clave_hilo]
 triando no contiene tus propios envíos, así que sin este paso la señal
 daría `false` para casi cualquier hilo y el +5 se aplicaría siempre
 (sesgo estructural al alza). Para cada HILO detectado (no para mensajes
-individuales), hacer UNA consulta acotada al buzón de Enviados:
+individuales), hacer UNA consulta acotada al buzón de Enviados.
 
-```applescript
-tell application "Mail"
-    set fechaCorte to <fecha del último mensaje recibido del hilo>
-    set respuestasUsuario to (messages of sent mailbox of account "<correo.cuenta>" ¬
-        whose subject contains "<clave_hilo>" and date sent > fechaCorte)
-    return (count of respuestasUsuario)
-end tell
+**Regla no negociable (F1):** `clave_hilo` deriva del **asunto** (superficie
+del remitente) y `correo.cuenta` de tu config. **Nunca los interpoles a mano
+en el AppleScript**: una comilla en el asunto —común en correo legítimo
+(`Re: "urgente"`)— rompe el literal o altera el predicado `whose`. Monta la
+consulta con el mecanismo, que los escapa como `montar-mover` escapa el mover:
+
+```bash
+echo '{"cuenta":"<correo.cuenta>","clave_hilo":"<clave_hilo>","fecha_corte":"<fecha del último recibido del hilo>"}' \
+  | python3 "${CLAUDE_PLUGIN_ROOT}/skills/email-triage/scripts/triage_helpers.py" montar-consulta-enviados
 ```
+
+Escribe el `script` devuelto a un fichero temporal y ejecútalo con `osascript`;
+`return (count of respuestasUsuario)` da el conteo. Si `sospechoso` no es null,
+refléjalo en el resumen (el escape ya neutralizó el valor). Solo LEE, no mueve.
 
 - count > 0 → el usuario respondió después del último recibido →
   `usuario_es_ultimo_en_responder: true`
