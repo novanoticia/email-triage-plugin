@@ -551,7 +551,16 @@ def _aplica_hard_rules(hard_rules, hard_cfg, en_historial, atenuado_a, ignorados
             continue
         nota = None
         if k == "sender_bulk_penalizacion" and en_historial and v < 0:
-            nuevo = max(v, atenuado_a)
+            # QW2 (auditoria 2026-07-17, F2): 'atenuar' = acercar la
+            # penalizacion a cero, NUNCA convertirla en bonus. Un
+            # sender_bulk_atenuado_a mal puesto (positivo o no numerico) hacia
+            # max(-4, 5) = 5: la penalizacion de remitente masivo se volvia +5
+            # y encima se etiquetaba como "atenuada". Se acota el tope a <= 0 y
+            # se exige numerico.
+            tope = atenuado_a if isinstance(atenuado_a, (int, float)) \
+                and not isinstance(atenuado_a, bool) else -1
+            tope = min(tope, 0)
+            nuevo = max(v, tope)
             if nuevo != v:
                 nota = "atenuada por remitente_en_historial (%d->%d)" % (v, nuevo)
                 v = nuevo
@@ -576,6 +585,15 @@ def cmd_scoring(payload: dict, cfg: dict) -> dict:
     criterios = cfg.get("criterios_epistemicos", {}) or {}
     scfg = cfg.get("scoring", {}) or {}
     rangos = scfg.get("ejes", EJES_DEFAULT)
+    # QW2 (auditoria 2026-07-17, F2): si scoring.ejes NO es un mapeo
+    # eje->[lo,hi] (un escalar, una lista...), `{n: 0 for n in rangos}` y el
+    # `rangos.get(...)` de mas abajo reventaban con TypeError/AttributeError,
+    # que la red universal de cmd_scoring_dispatch tapaba con un error opaco
+    # ("scoring reventó ...") — pese a que validar-config habia dicho ok. Ahora
+    # degrada a los ejes por defecto y lo reporta, como el resto del pipeline.
+    rangos_invalido = not isinstance(rangos, dict)
+    if rangos_invalido:
+        rangos = EJES_DEFAULT
     tiers = cfg.get("tiers", {}) or {}
     hard_cfg = cfg.get("hard_rules", {}) or {}
     # Parámetros configurables del parche (con defaults seguros):
@@ -584,6 +602,11 @@ def cmd_scoring(payload: dict, cfg: dict) -> dict:
 
     ejes = {nombre: 0 for nombre in rangos}
     desglose, ignorados = [], []
+    if rangos_invalido:
+        ignorados.append({"campo": "scoring.ejes",
+                          "motivo": "no es un mapeo eje->[lo,hi] (%s); se usan "
+                          "los ejes por defecto"
+                          % type(scfg.get("ejes")).__name__})
 
     verdicts = payload.get("verdicts") or {}
     if not isinstance(verdicts, dict):
@@ -811,6 +834,13 @@ def cmd_validar_config(ruta: str) -> dict:
     # una actualización cae aquí. Se detecta para que PASO 0 lo reporte.
     criterios = data.get("criterios_epistemicos") or {}
     ejes_def = ((data.get("scoring") or {}).get("ejes") or EJES_DEFAULT)
+    if not isinstance(ejes_def, dict):
+        # QW2/F2: scoring.ejes con forma invalida (escalar/lista) hacia que
+        # `eje not in ejes_def` de mas abajo reventara con TypeError — la propia
+        # validar-config crasheaba en el caso que debe diagnosticar. Para las
+        # comprobaciones de pertenencia usa los ejes por defecto (a lo que
+        # cmd_scoring degrada); el aviso se emite via ejes_no_mapa mas abajo.
+        ejes_def = EJES_DEFAULT
     ejes_malformados = []
     if isinstance(ejes_def, dict):
         for _nombre, _rango in ejes_def.items():
@@ -818,6 +848,20 @@ def cmd_validar_config(ruta: str) -> dict:
                     and all(isinstance(x, (int, float))
                             and not isinstance(x, bool) for x in _rango)):
                 ejes_malformados.append(_nombre)
+    # QW2 (auditoria 2026-07-17, F2): validar-config no miraba dos parametros
+    # de tuning que rompen el scoring en runtime PESE a este 'ok':
+    #  (a) scoring.ejes que NO es un mapeo -> antes reventaba con error opaco;
+    #      ahora cmd_scoring degrada a los ejes por defecto, pero conviene avisar.
+    #  (b) sender_bulk_atenuado_a positivo/no numerico -> convertiria la
+    #      penalizacion de remitente masivo en BONUS.
+    _scfg_raw = data.get("scoring") if isinstance(data.get("scoring"), dict) else {}
+    _ejes_raw = _scfg_raw.get("ejes")
+    ejes_no_mapa = _ejes_raw is not None and not isinstance(_ejes_raw, dict)
+    _aten_raw = _scfg_raw.get("sender_bulk_atenuado_a")
+    atenuado_invalido = (_aten_raw is not None
+                         and (isinstance(_aten_raw, bool)
+                              or not isinstance(_aten_raw, (int, float))
+                              or _aten_raw > 0))
     sin_eje, eje_desconocido, clave_booleana = [], [], []
     if isinstance(criterios, dict):
         for nombre, c in criterios.items():
@@ -856,12 +900,24 @@ def cmd_validar_config(ruta: str) -> dict:
             "%d eje(s) en scoring.ejes sin forma [lo, hi] numerica — el scoring "
             "los deja sin clampar: %s"
             % (len(ejes_malformados), ", ".join(sorted(ejes_malformados)[:8])))
+    if ejes_no_mapa:
+        avisos.append(
+            "scoring.ejes no es un mapeo eje->[lo, hi] (es %s): el scoring usaria "
+            "los ejes por defecto e ignoraria tus rangos"
+            % type(_ejes_raw).__name__)
+    if atenuado_invalido:
+        avisos.append(
+            "scoring.sender_bulk_atenuado_a=%r debe ser <= 0 (numerico): un valor "
+            "positivo convertiria la penalizacion de remitente masivo en BONUS"
+            % (_aten_raw,))
     return {"ok": True, "claves_top": sorted(data.keys()),
             "campos_recomendados_ausentes": faltan, "avisos": avisos,
             "criterios_sin_eje": sin_eje,
             "criterios_eje_desconocido": eje_desconocido,
             "criterios_clave_booleana": clave_booleana,
-            "ejes_malformados": ejes_malformados}
+            "ejes_malformados": ejes_malformados,
+            "scoring_ejes_no_mapa": ejes_no_mapa,
+            "sender_bulk_atenuado_a_invalido": atenuado_invalido}
 
 
 # ════════════════════════════════════════════════════════════════

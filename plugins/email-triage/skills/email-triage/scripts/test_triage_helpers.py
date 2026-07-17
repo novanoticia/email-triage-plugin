@@ -400,6 +400,41 @@ class TestScoringDeterminista(unittest.TestCase):
         self.assertEqual(con["score"], 2)             # 3 - 1 (atenuado)
         self.assertTrue(con["remitente_en_historial"])
 
+    def test_sender_bulk_atenuado_positivo_no_invierte_signo(self):
+        # QW2/F2: un sender_bulk_atenuado_a positivo (config mal puesto) hacia
+        # max(-4, 5) = +5: la penalizacion de remitente masivo se volvia BONUS.
+        # Ahora el tope se acota a <= 0: como mucho neutraliza a 0, nunca premia.
+        cfg = _cfg_scoring()
+        cfg["hard_rules"]["sender_bulk_penalizacion"] = -4
+        cfg["scoring"]["sender_bulk_atenuado_a"] = 5  # valor absurdo
+        base = {"verdicts": {"abre_opciones": "si"},  # +3
+                "hard_rules": ["sender_bulk_penalizacion"],
+                "remitente_en_historial": True}
+        out = th.cmd_scoring(dict(base), cfg)
+        self.assertEqual(out["hard_puntos"], 0)   # max(-4, min(5,0)) = 0, NUNCA +5
+        self.assertEqual(out["score"], 3)
+
+    def test_sender_bulk_atenuado_no_numerico_cae_a_default(self):
+        # atenuado_a no numerico no debe reventar: cae a -1 (atenuacion normal).
+        cfg = _cfg_scoring()
+        cfg["hard_rules"]["sender_bulk_penalizacion"] = -4
+        cfg["scoring"]["sender_bulk_atenuado_a"] = "x"
+        base = {"verdicts": {}, "hard_rules": ["sender_bulk_penalizacion"],
+                "remitente_en_historial": True}
+        out = th.cmd_scoring(dict(base), cfg)
+        self.assertEqual(out["hard_puntos"], -1)
+
+    def test_scoring_ejes_no_mapa_degrada_sin_reventar(self):
+        # QW2/F2: scoring.ejes escalar hacia `{n:0 for n in 5}` -> TypeError,
+        # antes tapado por la red universal como error opaco. Ahora degrada a
+        # los ejes por defecto y lo reporta en ignorados, sin reventar.
+        cfg = _cfg_scoring()
+        cfg["scoring"]["ejes"] = 5  # no es un mapeo eje->[lo,hi]
+        out = th.cmd_scoring({"verdicts": {"cambia_algo_concreto": "si"}}, cfg)
+        self.assertEqual(out["ejes"]["valor_decisional"], 5)  # eje por defecto aplicado
+        self.assertTrue(any(g.get("campo") == "scoring.ejes"
+                            for g in out["ignorados"]))
+
     def test_lote_y_brief(self):
         cfg = _cfg_scoring()
         payload = {"emails": [
@@ -665,6 +700,51 @@ class TestValidarConfigEstructura(unittest.TestCase):
             out = th.cmd_validar_config(ruta)
             self.assertEqual(out["criterios_sin_eje"], [])
             self.assertEqual(out["criterios_eje_desconocido"], [])
+            self.assertFalse(out["scoring_ejes_no_mapa"])
+            self.assertFalse(out["sender_bulk_atenuado_a_invalido"])
+        finally:
+            os.unlink(ruta)
+
+    def test_scoring_ejes_no_mapa_genera_aviso(self):
+        # QW2/F2: scoring.ejes que no es un mapeo -> aviso (antes ok silencioso,
+        # y el scoring reventaba luego con error opaco).
+        ruta = self._escribir(
+            "correo: {cuenta: a@b.com}\n"
+            "scoring: {ejes: 5}\n"
+            "criterios_epistemicos:\n"
+            "  c1: {activo: true, eje: valor_decisional, si: 5}\n")
+        try:
+            out = th.cmd_validar_config(ruta)
+            self.assertTrue(out["scoring_ejes_no_mapa"])
+            self.assertTrue(any("scoring.ejes no es un mapeo" in a
+                                for a in out["avisos"]))
+        finally:
+            os.unlink(ruta)
+
+    def test_sender_bulk_atenuado_positivo_genera_aviso(self):
+        # QW2/F2: un atenuado_a positivo convertiria la penalizacion en bonus.
+        ruta = self._escribir(
+            "correo: {cuenta: a@b.com}\n"
+            "scoring: {sender_bulk_atenuado_a: 5}\n"
+            "criterios_epistemicos:\n"
+            "  c1: {activo: true, eje: valor_decisional, si: 5}\n")
+        try:
+            out = th.cmd_validar_config(ruta)
+            self.assertTrue(out["sender_bulk_atenuado_a_invalido"])
+            self.assertTrue(any("BONUS" in a for a in out["avisos"]))
+        finally:
+            os.unlink(ruta)
+
+    def test_sender_bulk_atenuado_negativo_es_valido(self):
+        # Un valor <= 0 es correcto (atenuar de -4 a -1): sin aviso.
+        ruta = self._escribir(
+            "correo: {cuenta: a@b.com}\n"
+            "scoring: {sender_bulk_atenuado_a: -1}\n"
+            "criterios_epistemicos:\n"
+            "  c1: {activo: true, eje: valor_decisional, si: 5}\n")
+        try:
+            out = th.cmd_validar_config(ruta)
+            self.assertFalse(out["sender_bulk_atenuado_a_invalido"])
         finally:
             os.unlink(ruta)
 
