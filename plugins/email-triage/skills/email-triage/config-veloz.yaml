@@ -37,13 +37,18 @@ puntuacion:
   #   mucho newsletter obvio. Descomenta arriba si la quieres.
 
 # ─── Scoring: determinista para sacar la aritmética del contexto ─
+# Este bloque SÍ lo consume el script y ahora se fusiona por MECANISMO (CM2/F7,
+# auditoría 2026-07-17): pásalo con `scoring --config-veloz <ruta>` y el script
+# superpone estos valores sobre tu config base. Ya NO hay que ensamblar un
+# config combinado a mano (antes la "superposición" dependía del modelo).
 scoring:
   modo: determinista       # el modelo solo emite veredictos si/no; la
                            # suma por ejes la hace triage_helpers.py
   cap_reply_needed_sin_accion: true
   sender_bulk_atenuado_a: -1
   # NOTA para Claude al ejecutar en veloz:
-  #  · Invocar el script en LOTE con --brief (salida {id,score,tier,ejes}).
+  #  · Invocar el script en LOTE con --brief (salida {id,score,tier,ejes}) y
+  #    --config-veloz <esta capa> para fusionar estos overrides por mecanismo.
   #    El desglose completo NO entra al contexto; va a telemetría/fichero.
   #  · Pasar SOLO los veredictos de los 12 criterios core (ver abajo).
 

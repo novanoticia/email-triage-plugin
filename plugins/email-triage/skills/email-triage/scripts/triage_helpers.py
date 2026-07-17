@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.8.14).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.8.15).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -551,7 +551,16 @@ def _aplica_hard_rules(hard_rules, hard_cfg, en_historial, atenuado_a, ignorados
             continue
         nota = None
         if k == "sender_bulk_penalizacion" and en_historial and v < 0:
-            nuevo = max(v, atenuado_a)
+            # QW2 (auditoria 2026-07-17, F2): 'atenuar' = acercar la
+            # penalizacion a cero, NUNCA convertirla en bonus. Un
+            # sender_bulk_atenuado_a mal puesto (positivo o no numerico) hacia
+            # max(-4, 5) = 5: la penalizacion de remitente masivo se volvia +5
+            # y encima se etiquetaba como "atenuada". Se acota el tope a <= 0 y
+            # se exige numerico.
+            tope = atenuado_a if isinstance(atenuado_a, (int, float)) \
+                and not isinstance(atenuado_a, bool) else -1
+            tope = min(tope, 0)
+            nuevo = max(v, tope)
             if nuevo != v:
                 nota = "atenuada por remitente_en_historial (%d->%d)" % (v, nuevo)
                 v = nuevo
@@ -576,6 +585,15 @@ def cmd_scoring(payload: dict, cfg: dict) -> dict:
     criterios = cfg.get("criterios_epistemicos", {}) or {}
     scfg = cfg.get("scoring", {}) or {}
     rangos = scfg.get("ejes", EJES_DEFAULT)
+    # QW2 (auditoria 2026-07-17, F2): si scoring.ejes NO es un mapeo
+    # eje->[lo,hi] (un escalar, una lista...), `{n: 0 for n in rangos}` y el
+    # `rangos.get(...)` de mas abajo reventaban con TypeError/AttributeError,
+    # que la red universal de cmd_scoring_dispatch tapaba con un error opaco
+    # ("scoring reventó ...") — pese a que validar-config habia dicho ok. Ahora
+    # degrada a los ejes por defecto y lo reporta, como el resto del pipeline.
+    rangos_invalido = not isinstance(rangos, dict)
+    if rangos_invalido:
+        rangos = EJES_DEFAULT
     tiers = cfg.get("tiers", {}) or {}
     hard_cfg = cfg.get("hard_rules", {}) or {}
     # Parámetros configurables del parche (con defaults seguros):
@@ -584,6 +602,11 @@ def cmd_scoring(payload: dict, cfg: dict) -> dict:
 
     ejes = {nombre: 0 for nombre in rangos}
     desglose, ignorados = [], []
+    if rangos_invalido:
+        ignorados.append({"campo": "scoring.ejes",
+                          "motivo": "no es un mapeo eje->[lo,hi] (%s); se usan "
+                          "los ejes por defecto"
+                          % type(scfg.get("ejes")).__name__})
 
     verdicts = payload.get("verdicts") or {}
     if not isinstance(verdicts, dict):
@@ -811,6 +834,13 @@ def cmd_validar_config(ruta: str) -> dict:
     # una actualización cae aquí. Se detecta para que PASO 0 lo reporte.
     criterios = data.get("criterios_epistemicos") or {}
     ejes_def = ((data.get("scoring") or {}).get("ejes") or EJES_DEFAULT)
+    if not isinstance(ejes_def, dict):
+        # QW2/F2: scoring.ejes con forma invalida (escalar/lista) hacia que
+        # `eje not in ejes_def` de mas abajo reventara con TypeError — la propia
+        # validar-config crasheaba en el caso que debe diagnosticar. Para las
+        # comprobaciones de pertenencia usa los ejes por defecto (a lo que
+        # cmd_scoring degrada); el aviso se emite via ejes_no_mapa mas abajo.
+        ejes_def = EJES_DEFAULT
     ejes_malformados = []
     if isinstance(ejes_def, dict):
         for _nombre, _rango in ejes_def.items():
@@ -818,6 +848,20 @@ def cmd_validar_config(ruta: str) -> dict:
                     and all(isinstance(x, (int, float))
                             and not isinstance(x, bool) for x in _rango)):
                 ejes_malformados.append(_nombre)
+    # QW2 (auditoria 2026-07-17, F2): validar-config no miraba dos parametros
+    # de tuning que rompen el scoring en runtime PESE a este 'ok':
+    #  (a) scoring.ejes que NO es un mapeo -> antes reventaba con error opaco;
+    #      ahora cmd_scoring degrada a los ejes por defecto, pero conviene avisar.
+    #  (b) sender_bulk_atenuado_a positivo/no numerico -> convertiria la
+    #      penalizacion de remitente masivo en BONUS.
+    _scfg_raw = data.get("scoring") if isinstance(data.get("scoring"), dict) else {}
+    _ejes_raw = _scfg_raw.get("ejes")
+    ejes_no_mapa = _ejes_raw is not None and not isinstance(_ejes_raw, dict)
+    _aten_raw = _scfg_raw.get("sender_bulk_atenuado_a")
+    atenuado_invalido = (_aten_raw is not None
+                         and (isinstance(_aten_raw, bool)
+                              or not isinstance(_aten_raw, (int, float))
+                              or _aten_raw > 0))
     sin_eje, eje_desconocido, clave_booleana = [], [], []
     if isinstance(criterios, dict):
         for nombre, c in criterios.items():
@@ -856,12 +900,24 @@ def cmd_validar_config(ruta: str) -> dict:
             "%d eje(s) en scoring.ejes sin forma [lo, hi] numerica — el scoring "
             "los deja sin clampar: %s"
             % (len(ejes_malformados), ", ".join(sorted(ejes_malformados)[:8])))
+    if ejes_no_mapa:
+        avisos.append(
+            "scoring.ejes no es un mapeo eje->[lo, hi] (es %s): el scoring usaria "
+            "los ejes por defecto e ignoraria tus rangos"
+            % type(_ejes_raw).__name__)
+    if atenuado_invalido:
+        avisos.append(
+            "scoring.sender_bulk_atenuado_a=%r debe ser <= 0 (numerico): un valor "
+            "positivo convertiria la penalizacion de remitente masivo en BONUS"
+            % (_aten_raw,))
     return {"ok": True, "claves_top": sorted(data.keys()),
             "campos_recomendados_ausentes": faltan, "avisos": avisos,
             "criterios_sin_eje": sin_eje,
             "criterios_eje_desconocido": eje_desconocido,
             "criterios_clave_booleana": clave_booleana,
-            "ejes_malformados": ejes_malformados}
+            "ejes_malformados": ejes_malformados,
+            "scoring_ejes_no_mapa": ejes_no_mapa,
+            "sender_bulk_atenuado_a_invalido": atenuado_invalido}
 
 
 # ════════════════════════════════════════════════════════════════
@@ -1333,6 +1389,52 @@ def cmd_montar_mover(datos: dict) -> dict:
             "n_review": len(mids_rev), "n_archive": len(mids_arc)}
 
 
+def cmd_montar_consulta_enviados(datos: dict) -> dict:
+    """Monta la consulta a Enviados de PASO 1.C con cuenta, clave_hilo y
+    fecha_corte YA escapados (QW1, auditoria 2026-07-17, F1).
+
+    datos: {"cuenta", "clave_hilo", "fecha_corte"}. Devuelve
+    {"ok", "script", "sospechoso"} o el contrato de error.
+
+    Hasta v3.8.14 el SKILL.md interpolaba a mano `account "<correo.cuenta>"` y
+    `whose subject contains "<clave_hilo>"` dentro de un literal AppleScript.
+    `clave_hilo` deriva del ASUNTO (superficie del remitente): un asunto con
+    comilla —comun en correo legitimo, p. ej. `Re: "urgente"`— rompia el literal
+    o alteraba el predicado `whose`. Mismo patron que montar-mover: mecanismo,
+    no confianza en el modelo. Solo LEE (count), nunca mueve nada.
+    """
+    if not isinstance(datos, dict):
+        return {"ok": False, "error": "se esperaba un objeto JSON con "
+                "cuenta/clave_hilo/fecha_corte"}
+    req = ("cuenta", "clave_hilo", "fecha_corte")
+    faltan = [k for k in req
+              if not isinstance(datos.get(k), str) or not datos.get(k).strip()]
+    if faltan:
+        return {"ok": False,
+                "error": "faltan o vacios (deben ser texto): %s" % ", ".join(faltan)}
+    cuenta = applescript_quote(datos["cuenta"])
+    clave = applescript_quote(datos["clave_hilo"])
+    fecha = applescript_quote(datos["fecha_corte"])
+    # clave_hilo viene del asunto: senal para el resumen (el escape es la
+    # defensa de fondo, esto no bloquea).
+    sospechoso = None
+    if any(c in datos["clave_hilo"] for c in ('"', "\n", "\r")):
+        sospechoso = "clave_hilo con comillas/saltos (neutralizados por el escape)"
+    script = (
+        '-- Consulta a Enviados (PASO 1.C) generada por\n'
+        '-- triage_helpers.py montar-consulta-enviados: cuenta, clave_hilo y\n'
+        '-- fecha_corte ya escapados. Solo LEE (count of respuestasUsuario).\n'
+        'tell application "Mail"\n'
+        '    set fechaCorte to date ' + fecha + '\n'
+        '    set respuestasUsuario to (messages of sent mailbox of account '
+        + cuenta + ' whose subject contains ' + clave
+        + ' and date sent > fechaCorte)\n'
+        '    return (count of respuestasUsuario)\n'
+        'end tell\n'
+    )
+    return {"ok": True, "script": script, "sospechoso": sospechoso}
+
+
 def _cargar_config(ruta):
     try:
         import yaml
@@ -1369,6 +1471,63 @@ def _cargar_config(ruta):
                            "detalle (linea/columna)"})
 
 
+# ════════════════════════════════════════════════════════════════
+# Fusion de la capa "veloz" sobre el config base (CM2, F7)
+# ════════════════════════════════════════════════════════════════
+
+# El SKILL ordenaba 'superponer los valores de config-veloz.yaml sobre el config
+# normal', pero no habia mecanismo: `scoring` leia un unico --config y la fusion
+# quedaba en manos del modelo (que tenia que fabricar un config combinado a
+# mano). Hoy los valores veloz coinciden con los defaults, asi que el bug era
+# latente; se activaba en cuanto el usuario personalizaba la capa. Ahora la
+# fusion la hace el script: `scoring --config-veloz <ruta>`. Mecanismo, no
+# confianza. (Los limites de cuerpo de la capa —max_caracteres_cuerpo— llegan al
+# pipeline via `sanitizar --max-chars`, aparte; esto cubre el bloque `scoring`.)
+
+def _merge_config(base, overlay):
+    """Deep-merge: overlay pisa base; los dicts se fusionan recursivamente, el
+    resto se reemplaza. No muta los argumentos."""
+    if not isinstance(base, dict) or not isinstance(overlay, dict):
+        return overlay
+    out = dict(base)
+    for k, v in overlay.items():
+        if k in out and isinstance(out[k], dict) and isinstance(v, dict):
+            out[k] = _merge_config(out[k], v)
+        else:
+            out[k] = v
+    return out
+
+
+def _fusiona_config_veloz(cfg, ruta_veloz):
+    """Superpone la capa config-veloz.yaml sobre `cfg` (CM2, F7). La capa es
+    OPCIONAL: si `ruta_veloz` es None o no existe, no-op. Un YAML roto o una capa
+    que no es mapeo propagan ConfigError (mismo contrato de error legible que el
+    config base), en vez de fusionar algo corrupto en silencio."""
+    if not ruta_veloz or not os.path.exists(ruta_veloz):
+        return cfg
+    import yaml
+    try:
+        with open(ruta_veloz, encoding="utf-8") as fh:
+            veloz = yaml.safe_load(fh)
+    except OSError as e:
+        raise ConfigError({"ok": False,
+                           "error": "capa veloz ilegible %s: %s" % (ruta_veloz, e)})
+    except UnicodeDecodeError as e:
+        raise ConfigError({"ok": False,
+                           "error": "la capa veloz no es UTF-8 válido (%s)" % e,
+                           "remedio": "guárdala como UTF-8 y reintenta"})
+    except yaml.YAMLError as e:
+        raise ConfigError({"ok": False,
+                           "error": "capa veloz con YAML roto",
+                           **_payload_error_yaml(e)})
+    if veloz is None:
+        return cfg
+    if not isinstance(veloz, dict):
+        raise ConfigError({"ok": False,
+                           "error": "la capa veloz no es un mapeo de claves"})
+    return _merge_config(cfg, veloz)
+
+
 def _construir_parser():
     """Construye el parser de subcomandos. Separado de main() para que el
     test de contrato doc<->codigo (test_contrato_skill.py) pueda introspectar
@@ -1392,6 +1551,9 @@ def _construir_parser():
                      default=os.path.expanduser("~/.email-triage/config.yaml"))
     psc.add_argument("--brief", action="store_true",
                      help="salida compacta: solo score/tier/ejes (ahorra tokens)")
+    psc.add_argument("--config-veloz", default=None,
+                     help="capa de overrides veloz a fusionar sobre --config "
+                          "(opcional; si no existe, no-op) — CM2/F7")
     pv = sub.add_parser("validar-config")
     pv.add_argument("--config",
                     default=os.path.expanduser("~/.email-triage/config.yaml"))
@@ -1413,6 +1575,9 @@ def _construir_parser():
     pm = sub.add_parser("montar-mover")
     pm.add_argument("--datos", default=None,
                     help="JSON con cuenta/origen/destino_*/mids_*; sin él, stdin")
+    pce = sub.add_parser("montar-consulta-enviados")
+    pce.add_argument("--datos", default=None,
+                     help="JSON con cuenta/clave_hilo/fecha_corte; sin él, stdin")
     return p
 
 
@@ -1435,9 +1600,11 @@ def main():
             return
         try:
             cfg = _cargar_config(args.config)
+            # CM2 (F7): fusiona la capa veloz por mecanismo si se pidio.
+            cfg = _fusiona_config_veloz(cfg, args.config_veloz)
         except ConfigError as e:
-            # YAML roto / config ilegible: mismo contrato de error legible que
-            # validar-config, por stdout, sin traceback (paridad, v3.8.8).
+            # YAML roto / config ilegible (base o capa veloz): mismo contrato de
+            # error legible que validar-config, por stdout, sin traceback.
             out = e.payload
         else:
             out = cmd_scoring_dispatch(payload, cfg, brief=args.brief)
@@ -1470,6 +1637,14 @@ def main():
             out = {"ok": False, "error": "JSON inválido: %s" % e}
         else:
             out = cmd_montar_mover(data)
+    elif args.cmd == "montar-consulta-enviados":
+        crudo = args.datos if args.datos is not None else sys.stdin.read()
+        try:
+            data = json.loads(crudo or "{}")
+        except json.JSONDecodeError as e:
+            out = {"ok": False, "error": "JSON inválido: %s" % e}
+        else:
+            out = cmd_montar_consulta_enviados(data)
     else:
         if args.archivo:
             with open(args.archivo, encoding="utf-8", errors="replace") as fh:

@@ -400,6 +400,41 @@ class TestScoringDeterminista(unittest.TestCase):
         self.assertEqual(con["score"], 2)             # 3 - 1 (atenuado)
         self.assertTrue(con["remitente_en_historial"])
 
+    def test_sender_bulk_atenuado_positivo_no_invierte_signo(self):
+        # QW2/F2: un sender_bulk_atenuado_a positivo (config mal puesto) hacia
+        # max(-4, 5) = +5: la penalizacion de remitente masivo se volvia BONUS.
+        # Ahora el tope se acota a <= 0: como mucho neutraliza a 0, nunca premia.
+        cfg = _cfg_scoring()
+        cfg["hard_rules"]["sender_bulk_penalizacion"] = -4
+        cfg["scoring"]["sender_bulk_atenuado_a"] = 5  # valor absurdo
+        base = {"verdicts": {"abre_opciones": "si"},  # +3
+                "hard_rules": ["sender_bulk_penalizacion"],
+                "remitente_en_historial": True}
+        out = th.cmd_scoring(dict(base), cfg)
+        self.assertEqual(out["hard_puntos"], 0)   # max(-4, min(5,0)) = 0, NUNCA +5
+        self.assertEqual(out["score"], 3)
+
+    def test_sender_bulk_atenuado_no_numerico_cae_a_default(self):
+        # atenuado_a no numerico no debe reventar: cae a -1 (atenuacion normal).
+        cfg = _cfg_scoring()
+        cfg["hard_rules"]["sender_bulk_penalizacion"] = -4
+        cfg["scoring"]["sender_bulk_atenuado_a"] = "x"
+        base = {"verdicts": {}, "hard_rules": ["sender_bulk_penalizacion"],
+                "remitente_en_historial": True}
+        out = th.cmd_scoring(dict(base), cfg)
+        self.assertEqual(out["hard_puntos"], -1)
+
+    def test_scoring_ejes_no_mapa_degrada_sin_reventar(self):
+        # QW2/F2: scoring.ejes escalar hacia `{n:0 for n in 5}` -> TypeError,
+        # antes tapado por la red universal como error opaco. Ahora degrada a
+        # los ejes por defecto y lo reporta en ignorados, sin reventar.
+        cfg = _cfg_scoring()
+        cfg["scoring"]["ejes"] = 5  # no es un mapeo eje->[lo,hi]
+        out = th.cmd_scoring({"verdicts": {"cambia_algo_concreto": "si"}}, cfg)
+        self.assertEqual(out["ejes"]["valor_decisional"], 5)  # eje por defecto aplicado
+        self.assertTrue(any(g.get("campo") == "scoring.ejes"
+                            for g in out["ignorados"]))
+
     def test_lote_y_brief(self):
         cfg = _cfg_scoring()
         payload = {"emails": [
@@ -665,6 +700,51 @@ class TestValidarConfigEstructura(unittest.TestCase):
             out = th.cmd_validar_config(ruta)
             self.assertEqual(out["criterios_sin_eje"], [])
             self.assertEqual(out["criterios_eje_desconocido"], [])
+            self.assertFalse(out["scoring_ejes_no_mapa"])
+            self.assertFalse(out["sender_bulk_atenuado_a_invalido"])
+        finally:
+            os.unlink(ruta)
+
+    def test_scoring_ejes_no_mapa_genera_aviso(self):
+        # QW2/F2: scoring.ejes que no es un mapeo -> aviso (antes ok silencioso,
+        # y el scoring reventaba luego con error opaco).
+        ruta = self._escribir(
+            "correo: {cuenta: a@b.com}\n"
+            "scoring: {ejes: 5}\n"
+            "criterios_epistemicos:\n"
+            "  c1: {activo: true, eje: valor_decisional, si: 5}\n")
+        try:
+            out = th.cmd_validar_config(ruta)
+            self.assertTrue(out["scoring_ejes_no_mapa"])
+            self.assertTrue(any("scoring.ejes no es un mapeo" in a
+                                for a in out["avisos"]))
+        finally:
+            os.unlink(ruta)
+
+    def test_sender_bulk_atenuado_positivo_genera_aviso(self):
+        # QW2/F2: un atenuado_a positivo convertiria la penalizacion en bonus.
+        ruta = self._escribir(
+            "correo: {cuenta: a@b.com}\n"
+            "scoring: {sender_bulk_atenuado_a: 5}\n"
+            "criterios_epistemicos:\n"
+            "  c1: {activo: true, eje: valor_decisional, si: 5}\n")
+        try:
+            out = th.cmd_validar_config(ruta)
+            self.assertTrue(out["sender_bulk_atenuado_a_invalido"])
+            self.assertTrue(any("BONUS" in a for a in out["avisos"]))
+        finally:
+            os.unlink(ruta)
+
+    def test_sender_bulk_atenuado_negativo_es_valido(self):
+        # Un valor <= 0 es correcto (atenuar de -4 a -1): sin aviso.
+        ruta = self._escribir(
+            "correo: {cuenta: a@b.com}\n"
+            "scoring: {sender_bulk_atenuado_a: -1}\n"
+            "criterios_epistemicos:\n"
+            "  c1: {activo: true, eje: valor_decisional, si: 5}\n")
+        try:
+            out = th.cmd_validar_config(ruta)
+            self.assertFalse(out["sender_bulk_atenuado_a_invalido"])
         finally:
             os.unlink(ruta)
 
@@ -1694,6 +1774,98 @@ class TestCompactarSinFlockCM1(unittest.TestCase):
                 self.assertEqual(sum(1 for _ in fh), 5)
         finally:
             os.unlink(ruta)
+
+
+class TestMontarConsultaEnviadosQW1(unittest.TestCase):
+    """QW1 (auditoria 2026-07-17, F1): la consulta a Enviados (PASO 1.C) ya no
+    interpola clave_hilo/cuenta crudos; se montan escapados por el mecanismo."""
+
+    def test_clave_hilo_con_comilla_no_rompe_el_literal(self):
+        out = th.cmd_montar_consulta_enviados({
+            "cuenta": "yo@icloud.com",
+            "clave_hilo": 'proyecto "fenix" " and 1=1',
+            "fecha_corte": "7/1/2026"})
+        self.assertTrue(out["ok"])
+        # La comilla del asunto queda escapada (\") dentro del literal: no cierra
+        # la cadena, el 'whose subject contains' sigue siendo un unico string.
+        self.assertIn('\\"', out["script"])
+        self.assertNotIn('contains "proyecto "fenix"', out["script"])
+        self.assertIsNotNone(out["sospechoso"])
+
+    def test_falta_campo_da_error(self):
+        out = th.cmd_montar_consulta_enviados({"cuenta": "a@b.com"})
+        self.assertFalse(out["ok"])
+        self.assertIn("clave_hilo", out["error"])
+
+    def test_caso_normal_sin_sospecha(self):
+        out = th.cmd_montar_consulta_enviados({
+            "cuenta": "yo@icloud.com", "clave_hilo": "reunion equipo",
+            "fecha_corte": "7/1/2026 09:00:00"})
+        self.assertTrue(out["ok"])
+        self.assertIsNone(out["sospechoso"])
+        self.assertIn('account "yo@icloud.com"', out["script"])
+        self.assertIn('subject contains "reunion equipo"', out["script"])
+        self.assertIn("count of respuestasUsuario", out["script"])
+
+
+class TestConfigVelozMergeCM2(unittest.TestCase):
+    """CM2 (auditoria 2026-07-17, F7): la capa config-veloz se fusiona sobre el
+    config base POR MECANISMO (`scoring --config-veloz`), no a mano por el
+    modelo. Antes el 'superponer' del SKILL no tenia respaldo en el script."""
+
+    def test_merge_recursivo_overlay_pisa_sin_mutar(self):
+        base = {"scoring": {"sender_bulk_atenuado_a": -1,
+                            "cap_reply_needed_sin_accion": True},
+                "tiers": {"review": 4}}
+        overlay = {"scoring": {"sender_bulk_atenuado_a": -2}}
+        out = th._merge_config(base, overlay)
+        self.assertEqual(out["scoring"]["sender_bulk_atenuado_a"], -2)   # pisado
+        self.assertTrue(out["scoring"]["cap_reply_needed_sin_accion"])   # conservado
+        self.assertEqual(out["tiers"]["review"], 4)                      # intacto
+        self.assertEqual(base["scoring"]["sender_bulk_atenuado_a"], -1)  # no muta base
+
+    def test_fusiona_desde_fichero(self):
+        d = tempfile.mkdtemp()
+        try:
+            base_p = os.path.join(d, "config.yaml")
+            veloz_p = os.path.join(d, "config-veloz.yaml")
+            with open(base_p, "w", encoding="utf-8") as fh:
+                fh.write("scoring: {sender_bulk_atenuado_a: -1}\n"
+                         "criterios_epistemicos: {}\n")
+            with open(veloz_p, "w", encoding="utf-8") as fh:
+                fh.write("scoring: {sender_bulk_atenuado_a: -3}\n")
+            cfg = th._cargar_config(base_p)
+            cfg = th._fusiona_config_veloz(cfg, veloz_p)
+            self.assertEqual(cfg["scoring"]["sender_bulk_atenuado_a"], -3)
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
+    def test_veloz_inexistente_es_noop(self):
+        cfg = {"scoring": {"x": 1}}
+        self.assertEqual(th._fusiona_config_veloz(cfg, "/no/existe/veloz.yaml"), cfg)
+        self.assertEqual(th._fusiona_config_veloz(cfg, None), cfg)
+
+    def test_veloz_yaml_roto_da_configerror(self):
+        d = tempfile.mkdtemp()
+        try:
+            veloz_p = os.path.join(d, "v.yaml")
+            with open(veloz_p, "w", encoding="utf-8") as fh:
+                fh.write("scoring: {roto: [\n")
+            with self.assertRaises(th.ConfigError):
+                th._fusiona_config_veloz({"scoring": {}}, veloz_p)
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
+    def test_veloz_no_mapa_da_configerror(self):
+        d = tempfile.mkdtemp()
+        try:
+            veloz_p = os.path.join(d, "v.yaml")
+            with open(veloz_p, "w", encoding="utf-8") as fh:
+                fh.write("- soy\n- una\n- lista\n")
+            with self.assertRaises(th.ConfigError):
+                th._fusiona_config_veloz({"scoring": {}}, veloz_p)
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
 
 
 if __name__ == "__main__":
