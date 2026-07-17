@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.8.14
+# Email Triage Plugin v3.8.15
 
 Filtrado epistémico de correo electrónico para Claude Cowork y Claude Code.
 
@@ -17,6 +17,20 @@ La mayoría de clasificadores de correo preguntan "¿es urgente?". Este plugin p
 - ¿Está anclado a hechos verificables? (Entangled Truths)
 
 El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decisional, calidad epistémica, coste cognitivo y riesgo de manipulación.
+## Novedades en v3.8.15
+
+Implementación de los fixes de la auditoría 2026-07-17 (segunda pasada: los seis
+IDs), aplicados sobre `825759b` con la suite verde tras cada commit. Sin cambios
+en el comportamiento normal del scoring.
+
+- **Consulta a Enviados escapada por mecanismo (QW1 → F1)**: PASO 1.C interpolaba a mano `account "<correo.cuenta>"` y `whose subject contains "<clave_hilo>"` en un literal AppleScript; `clave_hilo` deriva del asunto (superficie del remitente) y una comilla —común en correo legítimo— rompía el literal. Nuevo subcomando `montar-consulta-enviados` (espejo de `montar-mover`) que emite la consulta con cuenta/clave_hilo/fecha_corte ya escapados
+- **`validar-config` valida los parámetros de tuning (QW2 → F2)**: no miraba `scoring.ejes` no-mapa (el scoring reventaba con error opaco pese a `ok`) ni `sender_bulk_atenuado_a` positivo (que convertía la penalización de remitente masivo en BONUS). Ahora `cmd_scoring` degrada con gracia, el tope de atenuación se acota a `min(atenuado_a, 0)` y `validar-config` avisa de ambos
+- **`config.yaml` sincronizado con el mecanismo real (QW3 → F5)**: se retiran los números obsoletos 500/2000 (ya negados por `manejo-errores.md`) y se aclara que `max_lineas_cuerpo` solo lo aplica el modelo; el único recorte mecánico es `max_caracteres_cuerpo`
+- **Merge real del modo veloz (CM2 → F7)**: nuevo `scoring --config-veloz <ruta>` que fusiona la capa por deep-merge; los overrides de `scoring` llegan al script sin ensamblar un config a mano
+- **Contrato de boosts explícito + fuente única del core-12 (CM1 → F6, F8)**: la tabla 4.A se separa en 4.A.1 (6 hard rules deterministas = claves de `config.hard_rules`) y 4.A.2 (boosts de calibración → `extra_points`); dos gates nuevos fijan que la tabla == `config.hard_rules` y que el core-12 coincide en sus 3 fuentes
+- **Gate de la clase de F1 (recomendación no obvia)**: nuevo test que prohíbe interpolar placeholders `<…>` crudos en cualquier literal AppleScript de la doctrina, cerrando la clase entera (no solo la instancia de PASO 1.C)
+- **Tests**: +21 (la batería sube de 124 a 145); 1 *expected failure* (límite S0 multilingüe conocido)
+
 ## Novedades en v3.8.14
 
 Fixes de la auditoría 2026-07-17 (tres Quick Wins, un gate nuevo y una
