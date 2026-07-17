@@ -30,6 +30,20 @@ if os.path.isdir(refs):
 INVOCACION = re.compile(r"triage_helpers\.py\"?\s+([a-z][a-z0-9-]*)")
 FLAG = re.compile(r"(--[a-z][a-z0-9-]*)")
 
+# Gate de interpolacion AppleScript (recomendacion no obvia, auditoria
+# 2026-07-17, F1). Escanea los bloques ```applescript de la doctrina y prohibe
+# un placeholder <...> crudo dentro de un string literal: esa es la clase de bug
+# de F1 (SKILL:PASO 1.C interpolaba `<clave_hilo>`, derivado del asunto). La via
+# segura es montar el script con montar-mover / montar-consulta-enviados, que
+# escapan por mecanismo. Cierra la CLASE, no solo la instancia.
+FENCE_APPLESCRIPT = re.compile(r"```applescript\n(.*?)```", re.DOTALL)
+STRING_LIT = re.compile(r'"([^"\n]*)"')
+PLACEHOLDER = re.compile(r"<[^<>\n]+>")
+# Marcadores literales que SON el texto (no placeholders a sustituir):
+MARCADORES_LITERALES_OK = {"<email-body-data>", "</email-body-data>"}
+# El .applescript plantilla usa la convencion <<...>> (nombres de cuenta/carpeta
+# del usuario), distinta y fuera de este gate: solo se vigilan los .md.
+
 
 def _superficie():
     """{subcomando: {flags validos}} desde el argparse real."""
@@ -101,6 +115,45 @@ class ContratoDocCodigo(unittest.TestCase):
             self.assertIn(nuclear, mencionados,
                           "el subcomando '%s' ya no se menciona en la doctrina"
                           % nuclear)
+
+
+class ContratoInterpolacionApplescript(unittest.TestCase):
+    """Gate de la clase de F1 (auditoria 2026-07-17): ningun literal AppleScript
+    de la doctrina puede interpolar un placeholder <...> crudo dentro de un
+    string. La via segura es montar el script con montar-mover /
+    montar-consulta-enviados, que escapan. Antes de QW1, PASO 1.C interpolaba
+    `<clave_hilo>` (del asunto) y `<correo.cuenta>`."""
+
+    def _ofensas(self):
+        fuera = []
+        for ruta in DOCS:
+            if not os.path.exists(ruta):
+                continue
+            with open(ruta, encoding="utf-8") as fh:
+                texto = fh.read()
+            for bloque in FENCE_APPLESCRIPT.findall(texto):
+                for lit in STRING_LIT.findall(bloque):
+                    if lit in MARCADORES_LITERALES_OK:
+                        continue
+                    if PLACEHOLDER.search(lit):
+                        fuera.append((os.path.basename(ruta), lit))
+        return fuera
+
+    def test_ningun_placeholder_crudo_en_literal_applescript(self):
+        ofensas = self._ofensas()
+        self.assertFalse(
+            ofensas,
+            "Literal(es) AppleScript con placeholder crudo — usa montar-mover / "
+            "montar-consulta-enviados (escapan por mecanismo): %s" % ofensas)
+
+    def test_el_gate_detecta_una_interpolacion_inyectada(self):
+        # Sanidad: el gate NO es vacuo. Un bloque applescript con `"<x>"` debe
+        # ser detectado por el detector (si no, el gate de arriba no protege).
+        bloque = 'tell application "Mail"\n    set a to "<clave_hilo>"\nend tell\n'
+        lits = STRING_LIT.findall(bloque)
+        hostiles = [l for l in lits
+                    if l not in MARCADORES_LITERALES_OK and PLACEHOLDER.search(l)]
+        self.assertIn("<clave_hilo>", hostiles)
 
 
 if __name__ == "__main__":
