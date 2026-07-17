@@ -164,7 +164,8 @@ interaccion:
 
 puntuacion:
   leer_cuerpo: true
-  # Si true, lee los primeros ~500 caracteres del cuerpo.
+  # Si true, lee el cuerpo: extracción cruda (4000, la fija el SKILL en PASO 1),
+  # luego S0–S5 lo limpia y lo trunca a max_caracteres_cuerpo.
   # Si false, solo usa asunto y remitente (más rápido, menos preciso).
 
   max_caracteres_cuerpo: 1500
@@ -172,11 +173,16 @@ puntuacion:
   # el sanitizador lo recibe vía --max-chars y trunca el texto YA limpio.
   # La extracción cruda previa es de 4000 y la fija el SKILL (PASO 1).
   # Valores recomendados: 800 (rápido), 1500 (equilibrado), 2500 (profundo).
-  # El skill truncará a 2000 como máximo absoluto aunque pongas más.
+  # NO hay ningún otro tope de caracteres: los números 500/2000 de versiones
+  # < v3.5 ya NO existen (QW3/F5, auditoría 2026-07-17). El control de volumen
+  # tiene exactamente dos números —extracción 4000 y este presupuesto—; fuente
+  # única: references/manejo-errores.md.
 
   max_lineas_cuerpo: 30
-  # Si el texto plano extraído supera este número de líneas,
-  # el skill usa solo las primeras N para el análisis epistémico.
+  # Tope de LÍNEAS del texto plano. OJO (QW3/F5): lo aplica el MODELO en modo
+  # mental/veloz (orquestación); el pipeline determinista (`sanitizar`) NO lo
+  # consume —no existe flag --max-lines—. El único recorte mecánico del cuerpo
+  # es max_caracteres_cuerpo vía --max-chars.
 
 # ───────────────────────────────────────────────────────────────
 # Tiers y umbrales de routing (NUEVO en v3.0)
