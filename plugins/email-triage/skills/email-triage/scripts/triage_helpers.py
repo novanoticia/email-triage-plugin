@@ -93,6 +93,10 @@ Uso:
   python3 triage_helpers.py montar-mover [--datos JSON]
                             (SCRIPT 3 de mover con todo escapado; 3 destinos:
                             review, archive nativo o a carpeta, y reply_needed)
+  python3 triage_helpers.py montar-consulta-enviados [--datos JSON]
+                            (consulta de solo-lectura a Enviados — verificación
+                            del PASO 1.C — con cuenta, clave_hilo y fecha_corte
+                            ya escapados)
   python3 triage_helpers.py calibrar [--datos JSON] [--guardar [RUTA]]
                             (PASO 2: perfil determinista de {"correos":[...]} —
                             top remitentes/dominios/keywords; --guardar escribe

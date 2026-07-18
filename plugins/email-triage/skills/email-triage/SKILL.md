@@ -230,8 +230,10 @@ esa especificación.
 **Lee ahora `references/paso-1-proveedores.md`** (misma carpeta que este
 SKILL.md) y sigue sus instrucciones al pie de la letra. Contiene el protocolo
 completo de conexión por proveedor — iCloud/Mail.app (AppleScript consolidado,
-SCRIPTs 1-3, escapado obligatorio vía `escapar-applescript`/`montar-mover`) y
-Gmail (MCP) — extraído aquí por divulgación progresiva (CM1): solo se carga
+SCRIPTs 1-4 — el 4º es la limpieza de privacidad, que borra de disco los
+cuerpos crudos temporales —, escapado obligatorio vía
+`escapar-applescript`/`montar-mover`) y Gmail (MCP) — extraído aquí por
+divulgación progresiva (CM1): solo se carga
 cuando de verdad vas a conectar, no en cada activación del skill.
 
 Regla no negociable que sobrevive al enrutado: **nunca interpoles metadatos
@@ -748,8 +750,11 @@ SIEMPRE en cada correo; los 18 restantes solo cuando el correo lo amerita
 (ej: `motivated_stopping` solo aplica si el correo propone cerrar una
 cuestión abierta).
 
-Las tablas descriptivas por grupos (redundantes con el config) están en
-`references/criterios-catalogo.md` como documentación de consulta.
+Las tablas descriptivas por grupos están en `references/criterios-catalogo.md`
+como documentación de consulta: sus preguntas y pesos son redundantes con el
+config, pero la numeración número↔criterio solo existe en el catálogo — el
+config no numera; toda referencia "criterio N" de la doctrina se resuelve
+allí.
 
 
 ### 4.C — Routing por tiers

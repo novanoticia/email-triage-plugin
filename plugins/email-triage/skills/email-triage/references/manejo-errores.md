@@ -96,7 +96,7 @@ Mail.app, o imposibilidad de llamar a `gmail_read_message`):
 1. **No abortar** — continuar con asunto + remitente + fecha
 2. Marcar los correos afectados con `[solo metadatos]` en la explicación
 3. Aplicar solo los criterios evaluables sin cuerpo: hard rules, criterios
-   1-5 del Grupo B, y criterio 28 (entangled truths por metadatos)
+   1-5 (Grupo A + Grupo B), y criterio 28 (entangled truths por metadatos)
 4. Advertir al usuario: "N correos analizados sin acceso al cuerpo.
    La precisión del triaje puede ser menor para estos."
 
