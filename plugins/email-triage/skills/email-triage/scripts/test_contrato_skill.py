@@ -117,7 +117,8 @@ class ContratoDocCodigo(unittest.TestCase):
         # en la doctrina; si uno desaparece del SKILL.md, el modelo nunca lo
         # usara aunque exista.
         mencionados = {cmd for _, _, cmd, _ in _invocaciones_doc()}
-        for nuclear in ("sanitizar", "scoring", "validar-config"):
+        for nuclear in ("sanitizar", "scoring", "validar-config",
+                        "calibrar"):
             self.assertIn(nuclear, mencionados,
                           "el subcomando '%s' ya no se menciona en la doctrina"
                           % nuclear)

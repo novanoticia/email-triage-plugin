@@ -78,8 +78,11 @@ Uso:
   python3 triage_helpers.py sanitizar [--archivo RUTA] [--max-chars 1500]
                             [--asunto TXT] [--remitente TXT]
                             (sin --archivo lee de stdin)
-  python3 triage_helpers.py scoring [--config RUTA] [--brief]
-                            (lee payload JSON de stdin; single o {"emails":[...]})
+  python3 triage_helpers.py scoring [--config RUTA] [--config-veloz RUTA]
+                            [--brief] [--desglose RUTA]
+                            (lee payload JSON de stdin; single o {"emails":[...]};
+                            --desglose escribe el desglose completo a RUTA y
+                            deja stdout intacto)
   python3 triage_helpers.py validar-config [--config RUTA]
   python3 triage_helpers.py registrar --ruta RUTA [--registro JSON]
                             (append atómico con flock; sin --registro lee de stdin)
@@ -90,13 +93,28 @@ Uso:
   python3 triage_helpers.py montar-mover [--datos JSON]
                             (SCRIPT 3 de mover con todo escapado; 3 destinos:
                             review, archive nativo o a carpeta, y reply_needed)
+  python3 triage_helpers.py calibrar [--datos JSON] [--guardar [RUTA]]
+                            (PASO 2: perfil determinista de {"correos":[...]} —
+                            top remitentes/dominios/keywords; --guardar escribe
+                            además el snapshot de caché, atómico; sin --datos
+                            lee de stdin)
+  python3 triage_helpers.py calibrar --leer [RUTA] [--ttl-dias N]
+                            (lee la caché y decide su vigencia: el TTL lo
+                            aplica el script, no el modelo)
 
 Salida: JSON por stdout. Solo stdlib salvo PyYAML (scoring/validar-config).
-Efectos laterales: en la ruta de datos solo 'registrar' escribe (append
-atómico con flock a correcciones.jsonl / session_log.jsonl); 'compactar' es
-la única otra escritura — mantenimiento explícito que REESCRIBE el JSONL
-bajo el mismo flock (temp + os.replace) truncándolo a N líneas. Ningún
-subcomando mueve correos.
+Efectos laterales — inventario CERRADO de escrituras a disco, cada una de
+su clase (CM2, auditoría 2026-07-19):
+  1. 'registrar':          append atómico con flock a los JSONL de DATOS
+                           (correcciones.jsonl / session_log.jsonl, append-only);
+  2. 'compactar':          mantenimiento explícito — REESCRIBE ese JSONL bajo
+                           el mismo flock (temp + os.replace) truncándolo;
+  3. 'calibrar --guardar': snapshot de CACHÉ regenerable (calibracion.json,
+                           temp + os.replace): borrarlo solo cuesta recalcular;
+  4. 'scoring --desglose': volcado opt-in del desglose completo a RUTA (mismo
+                           patrón atómico), telemetría fuera del contexto.
+Sin sus flags, 'calibrar' y 'scoring' no escriben nada. Ningún subcomando
+mueve correos.
 """
 import argparse
 import html as html_mod
@@ -117,6 +135,12 @@ STOPWORDS = {
     "the", "a", "an", "and", "or", "in", "of", "for", "to", "your",
     "on", "at", "is", "are", "re", "fwd", "fw", "rv",
 }
+
+# Tokenización de keywords de asuntos: fuente ÚNICA para el PASO 0.B
+# (cmd_ajustes) y el PASO 2 (cmd_calibrar) — ambos deben contar en el MISMO
+# espacio de tokens (minúsculas, ≥3 caracteres, sin STOPWORDS) o los boosts
+# aprendidos y los calibrados divergirían en silencio (CM2/F11).
+_RE_TOKEN_ASUNTO = re.compile(r"[a-záéíóúüñ0-9]{3,}")
 
 
 # ════════════════════════════════════════════════════════════════
@@ -220,8 +244,8 @@ def cmd_ajustes(ruta: str, max_lineas: int = MAX_CORRECCIONES) -> dict:
             por_remitente[remitente] += ponderada
             if "@" in remitente:
                 por_dominio["@" + remitente.split("@", 1)[1]] += ponderada
-        for palabra in re.findall(r"[a-záéíóúüñ0-9]{3,}",
-                                  (e.get("subject") or "").lower()):
+        for palabra in _RE_TOKEN_ASUNTO.findall(
+                (e.get("subject") or "").lower()):
             if palabra in STOPWORDS:
                 continue
             kw_peso[palabra] += ponderada
@@ -1224,6 +1248,224 @@ def cmd_compactar(ruta: str, max_lineas: int = MAX_CORRECCIONES,
             "lineas_despues": len(conservadas), "eliminadas": eliminadas,
             "cambio": True, "bytes_despues": bytes_despues}
 
+# ════════════════════════════════════════════════════════════════
+# PASO 2 — calibración estadística mecanizada (CM2, auditoría 2026-07-19)
+# ════════════════════════════════════════════════════════════════
+
+# F11: el PASO 2 exigía "métricas exactas" (top remitentes con %, dominios,
+# keywords sobre ~100 correos) calculadas MENTALMENTE por el modelo — la
+# última fase aritmética sin mecanismo, con conteos no reproducibles
+# alimentando boosts de +2/+1/+1. Este subcomando la hace determinista:
+# mismo JSON de entrada → mismo perfil, orden estable (conteo desc, nombre
+# asc). F3: el modo veloz prometía "reutilizar la última calibración" sin
+# definir fichero, esquema ni TTL; --guardar/--leer materializan esa caché
+# como SNAPSHOT regenerable (no un JSONL de datos) cuya VIGENCIA decide el
+# script. El JUICIO sobre el perfil (a quién boostear y por qué) sigue
+# siendo del modelo, como manda la arquitectura de dos capas.
+
+RUTA_CALIBRACION = "~/.email-triage/calibracion.json"
+TTL_CALIBRACION_DIAS = 7
+ESQUEMA_CALIBRACION = 1
+TOP_REMITENTES, TOP_DOMINIOS, TOP_KEYWORDS = 10, 5, 15
+
+
+def _remitente_norm(bruto):
+    """(email_normalizado, dominio) desde un campo remitente arbitrario.
+
+    Acepta 'Nombre <a@b.com>', 'a@b.com' o texto libre. El dominio lleva el
+    prefijo '@' (mismo formato que cmd_ajustes y que el SKILL). Sin una
+    dirección reconocible: se devuelve el texto en minúsculas como clave de
+    remitente (mejor contarlo que perderlo) y dominio None."""
+    s = str(bruto or "").strip().lower()
+    m = re.search(r"<\s*([^<>\s]+@[^<>\s]+?)\s*>", s)
+    if m:
+        s = m.group(1)
+    else:
+        m = re.search(r"[^\s<>,;\"']+@[^\s<>,;\"']+", s)
+        if m:
+            s = m.group(0).strip(".,;:")
+    if "@" in s and not s.startswith("@") and not s.endswith("@"):
+        return s, "@" + s.rsplit("@", 1)[1]
+    return s, None
+
+
+def cmd_calibrar(datos) -> dict:
+    """Perfil determinista del historial: la aritmética del PASO 2, en código.
+
+    datos: {"correos": [{"remitente": "...", "asunto": "..."}, ...]}
+    Devuelve top_remitentes (10, con conteo y porcentaje sobre n_correos),
+    top_dominios (5) y top_keywords (15, de los asuntos, sin STOPWORDS),
+    más esquema/generado_en para la caché. Función TOTAL: la entrada basura
+    degrada a error legible o a 'ignorados', nunca lanza."""
+    try:
+        return _calibrar_nucleo(datos)
+    except Exception as e:   # red universal: cultura de fuzz del repo
+        return {"ok": False,
+                "error": "calibrar reventó (%s: %s)" % (type(e).__name__, e)}
+
+
+def _calibrar_nucleo(datos) -> dict:
+    if not isinstance(datos, dict):
+        return {"ok": False, "error": "datos inválidos: se esperaba un objeto "
+                'JSON {"correos": [...]}, llegó %s' % type(datos).__name__}
+    correos = datos.get("correos")
+    if not isinstance(correos, list):
+        return {"ok": False, "error": 'falta la lista "correos" (llegó %s); '
+                'formato: {"correos": [{"remitente": "...", "asunto": "..."}]}'
+                % type(correos).__name__}
+    ignorados = []
+    n_correos = 0
+    por_remitente = defaultdict(int)
+    por_dominio = defaultdict(int)
+    por_keyword = defaultdict(int)
+    for i, c in enumerate(correos):
+        if not isinstance(c, dict):
+            ignorados.append("correo %d: no es un objeto JSON (%s)"
+                             % (i, type(c).__name__))
+            continue
+        n_correos += 1
+        remitente = c.get("remitente")
+        if isinstance(remitente, str) and remitente.strip():
+            clave, dominio = _remitente_norm(remitente)
+            if clave:
+                por_remitente[clave] += 1
+            if dominio:
+                por_dominio[dominio] += 1
+        elif remitente is not None and not isinstance(remitente, str):
+            ignorados.append("correo %d: 'remitente' no es texto (%s)"
+                             % (i, type(remitente).__name__))
+        asunto = c.get("asunto")
+        if isinstance(asunto, str):
+            for palabra in _RE_TOKEN_ASUNTO.findall(asunto.lower()):
+                if palabra not in STOPWORDS:
+                    por_keyword[palabra] += 1
+        elif asunto is not None:
+            ignorados.append("correo %d: 'asunto' no es texto (%s)"
+                             % (i, type(asunto).__name__))
+
+    def _top(contador, n):
+        # Orden DETERMINISTA también en empates: conteo desc, nombre asc.
+        return sorted(contador.items(), key=lambda kv: (-kv[1], kv[0]))[:n]
+
+    out = {
+        "ok": True,
+        "esquema": ESQUEMA_CALIBRACION,
+        "generado_en": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "n_correos": n_correos,
+        "top_remitentes": [
+            {"remitente": r, "conteo": n,
+             "porcentaje": round(100.0 * n / n_correos, 1)}
+            for r, n in _top(por_remitente, TOP_REMITENTES)],
+        "top_dominios": [
+            {"dominio": d, "conteo": n}
+            for d, n in _top(por_dominio, TOP_DOMINIOS)],
+        "top_keywords": [
+            {"keyword": k, "conteo": n}
+            for k, n in _top(por_keyword, TOP_KEYWORDS)],
+    }
+    if ignorados:
+        # Acotado: un lote lleno de basura no debe inflar la salida.
+        out["ignorados"] = ignorados[:20]
+        if len(ignorados) > 20:
+            out["ignorados"].append("... y %d avisos más" % (len(ignorados) - 20))
+    return out
+
+
+def _escribir_snapshot_json(obj, ruta, prefijo) -> dict:
+    """Escritura ATÓMICA de un snapshot JSON regenerable (temp en el MISMO
+    directorio + fsync + os.replace; fichero 600, directorios nuevos 700).
+
+    Misma garantía de integridad que cmd_compactar — un lector ve siempre un
+    fichero completo, nunca uno a medias — pero SIN flock, a propósito: aquí
+    no hay appends concurrentes que perder (nadie 'registra' sobre un
+    snapshot); si dos sesiones escriben a la vez, os.replace garantiza que
+    queda la versión íntegra del último, aceptable para ficheros que se
+    regeneran recalculando. compactar sí necesita el flock porque compite
+    con los appends de registrar sobre el MISMO fichero de datos."""
+    ruta = os.path.expanduser(str(ruta))
+    directorio = os.path.dirname(ruta) or "."
+    try:
+        os.makedirs(directorio, mode=0o700, exist_ok=True)
+    except OSError as e:
+        return {"ok": False, "error": "no se pudo preparar %s: %s" % (ruta, e)}
+    import tempfile
+    try:
+        fd, tmp = tempfile.mkstemp(dir=directorio, prefix=prefijo)
+    except OSError as e:
+        return {"ok": False, "error": "no se pudo crear el temporal en %s: %s"
+                % (directorio, e)}
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(obj, fh, ensure_ascii=False, indent=2)
+            fh.write("\n")
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, ruta)
+    except (OSError, TypeError, ValueError) as e:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        return {"ok": False, "error": "fallo al escribir %s: %s" % (ruta, e)}
+    return {"ok": True, "ruta": ruta}
+
+
+def cmd_calibrar_leer(ruta=None, ttl_dias=TTL_CALIBRACION_DIAS) -> dict:
+    """Lee la caché de calibración y DECIDE su vigencia (F3): responde el
+    script, no la aritmética mental del modelo. Contrato total: caché
+    ausente, ilegible, corrupta o de esquema desconocido → {"ok": True,
+    "vigente": False, "perfil": None, "motivo": ...} sin lanzar jamás;
+    caducada → vigente False pero CON el perfil (el llamante decide)."""
+    try:
+        return _calibrar_leer_nucleo(ruta, ttl_dias)
+    except Exception as e:   # red universal: cultura de fuzz del repo
+        return {"ok": True, "vigente": False, "perfil": None,
+                "motivo": "lectura reventó (%s: %s)" % (type(e).__name__, e)}
+
+
+def _calibrar_leer_nucleo(ruta, ttl_dias):
+    if not isinstance(ttl_dias, (int, float)) or isinstance(ttl_dias, bool) \
+            or ttl_dias <= 0:
+        ttl_dias = TTL_CALIBRACION_DIAS   # TTL basura: cae al default, como compactar
+    ruta = os.path.expanduser(str(ruta or RUTA_CALIBRACION))
+    base = {"ok": True, "ruta": ruta, "ttl_dias": ttl_dias}
+    if not os.path.exists(ruta):
+        return dict(base, vigente=False, perfil=None,
+                    motivo="no hay calibración cacheada")
+    try:
+        with open(ruta, encoding="utf-8", errors="replace") as fh:
+            perfil = json.loads(fh.read(MAX_INGESTA_BYTES) or "null")
+    except (OSError, json.JSONDecodeError) as e:
+        return dict(base, vigente=False, perfil=None,
+                    motivo="caché ilegible o corrupta: %s" % e)
+    if not isinstance(perfil, dict):
+        return dict(base, vigente=False, perfil=None,
+                    motivo="la caché no contiene un objeto JSON (%s)"
+                    % type(perfil).__name__)
+    if perfil.get("esquema") != ESQUEMA_CALIBRACION:
+        return dict(base, vigente=False, perfil=None,
+                    motivo="esquema desconocido (%r != %d): recalibrar"
+                    % (perfil.get("esquema"), ESQUEMA_CALIBRACION))
+    ts = _parse_ts(perfil.get("generado_en", ""))
+    if ts is None:
+        return dict(base, vigente=False, perfil=None,
+                    motivo="'generado_en' ausente o ilegible: recalibrar")
+    edad = (datetime.now(timezone.utc) - ts).total_seconds() / 86400.0
+    if edad < -1:
+        # Más de un día "en el futuro" = reloj o zona rotos → recalibrar.
+        # Un desfase menor (NTP, DST) se tolera como edad 0 para no invalidar
+        # una caché recién escrita.
+        return dict(base, vigente=False, perfil=None,
+                    motivo="'generado_en' está en el futuro: recalibrar")
+    edad_dias = round(max(0.0, edad), 1)
+    out = dict(base, vigente=bool(edad <= ttl_dias), edad_dias=edad_dias,
+               perfil=perfil)
+    if not out["vigente"]:
+        out["motivo"] = ("caducada: edad %.1f días > TTL %s días"
+                         % (edad_dias, ttl_dias))
+    return out
+
 
 # ════════════════════════════════════════════════════════════════
 # Escapado AppleScript — interpolación segura de metadatos en scripts
@@ -1684,6 +1926,10 @@ def _construir_parser():
     psc.add_argument("--config-veloz", default=None,
                      help="capa de overrides veloz a fusionar sobre --config "
                           "(opcional; si no existe, no-op) — CM2/F7")
+    psc.add_argument("--desglose", default=None, metavar="RUTA",
+                     help="escribe el desglose COMPLETO por correo a RUTA "
+                          "(JSON, escritura atómica) sin tocar stdout; "
+                          "combinable con --brief — CM2/F12")
     pv = sub.add_parser("validar-config")
     pv.add_argument("--config",
                     default=os.path.expanduser("~/.email-triage/config.yaml"))
@@ -1702,6 +1948,21 @@ def _construir_parser():
                     help="líneas a conservar (por defecto %d)" % MAX_CORRECCIONES)
     pc.add_argument("--dry-run", action="store_true",
                     help="reporta qué haría sin escribir")
+    pcal = sub.add_parser("calibrar")
+    pcal.add_argument("--datos", default=None,
+                      help='JSON {"correos": [{"remitente", "asunto"}, ...]}; '
+                           "sin él se lee de stdin")
+    pcal.add_argument("--guardar", nargs="?", const=RUTA_CALIBRACION,
+                      default=None, metavar="RUTA",
+                      help="además de devolver el perfil, lo escribe como "
+                           "snapshot atómico (por defecto %s)" % RUTA_CALIBRACION)
+    pcal.add_argument("--leer", nargs="?", const=RUTA_CALIBRACION,
+                      default=None, metavar="RUTA",
+                      help="lee la caché y decide su vigencia (por defecto %s); "
+                           "excluyente con --guardar" % RUTA_CALIBRACION)
+    pcal.add_argument("--ttl-dias", type=int, default=TTL_CALIBRACION_DIAS,
+                      help="vigencia máxima de la caché en días para --leer "
+                           "(por defecto %d)" % TTL_CALIBRACION_DIAS)
     pm = sub.add_parser("montar-mover")
     pm.add_argument("--datos", default=None,
                     help="JSON con cuenta/origen/destino_*/mids_*; sin él, stdin")
@@ -1738,6 +1999,21 @@ def main():
             out = e.payload
         else:
             out = cmd_scoring_dispatch(payload, cfg, brief=args.brief)
+            # CM2 (F12): --desglose materializa la orden doctrinal "el
+            # desglose completo va a fichero, no al contexto", que hasta
+            # ahora no tenía mecanismo: escribe el resultado COMPLETO (sin
+            # brief) en RUTA con el patrón de snapshot atómico. En éxito
+            # stdout no cambia ni un byte (con --brief sigue compacto);
+            # solo un fallo de escritura añade 'desglose_error' para no
+            # fallar en silencio.
+            if args.desglose:
+                completo = (cmd_scoring_dispatch(payload, cfg, brief=False)
+                            if args.brief else out)
+                res = _escribir_snapshot_json(completo, args.desglose,
+                                              ".desglose-")
+                if not res.get("ok"):
+                    out = dict(out)
+                    out["desglose_error"] = res.get("error")
     elif args.cmd == "validar-config":
         out = cmd_validar_config(args.config)
     elif args.cmd == "registrar":
@@ -1761,6 +2037,32 @@ def main():
             out = cmd_escapar_applescript(valores)
     elif args.cmd == "compactar":
         out = cmd_compactar(args.archivo, args.max_lineas, dry_run=args.dry_run)
+    elif args.cmd == "calibrar":
+        if args.leer is not None and args.guardar is not None:
+            out = {"ok": False, "error": "--leer y --guardar son excluyentes: "
+                   "lee primero y, si 'vigente' es false, calcula y guarda "
+                   "en una segunda invocación"}
+        elif args.leer is not None:
+            out = cmd_calibrar_leer(args.leer, args.ttl_dias)
+        else:
+            crudo = (args.datos if args.datos is not None
+                     else sys.stdin.buffer.read(MAX_INGESTA_BYTES)
+                     .decode("utf-8", errors="replace"))
+            try:
+                datos = json.loads(crudo or "{}")
+            except json.JSONDecodeError as e:
+                out = {"ok": False, "error": "JSON inválido: %s" % e}
+            else:
+                out = cmd_calibrar(datos)
+                # El fichero guarda el PERFIL puro; guardado_en/guardado_error
+                # se añaden después solo a la salida por stdout.
+                if args.guardar is not None and out.get("ok"):
+                    res = _escribir_snapshot_json(out, args.guardar,
+                                                  ".calibracion-")
+                    if res.get("ok"):
+                        out["guardado_en"] = res["ruta"]
+                    else:
+                        out["guardado_error"] = res.get("error")
     elif args.cmd == "montar-mover":
         crudo = (args.datos if args.datos is not None
                  else sys.stdin.read(MAX_INGESTA_BYTES))

@@ -101,11 +101,19 @@ Luego añade la entrada de changelog en `README.md` a mano y corre los tests.
 
 ## Invariantes de seguridad (no las relajes)
 
-- En `triage_helpers.py`, en la ruta de datos **solo `cmd_registrar` escribe**
-  a disco (append atómico bajo `flock`); la ÚNICA otra escritura es
-  `cmd_compactar` — mantenimiento explícito que **reescribe** el JSONL bajo el
-  mismo `flock` (temp + `os.replace`) truncándolo a N líneas. Ningún
-  subcomando mueve correos.
+- En `triage_helpers.py` el inventario de escrituras a disco es CERRADO y
+  cada una tiene su clase (si añades otra, actualiza esta lista y el
+  docstring del módulo): en la ruta de DATOS **solo `cmd_registrar`
+  escribe** (append atómico bajo `flock` a los JSONL, append-only);
+  **`cmd_compactar`** es mantenimiento explícito que **reescribe** ese JSONL
+  bajo el mismo `flock` (temp + `os.replace`) truncándolo a N líneas; y
+  desde CM2 (auditoría 2026-07-19) los volcados opt-in **regenerables** —
+  `calibrar --guardar` (snapshot de la caché de calibración,
+  `calibracion.json`) y `scoring --desglose RUTA` (desglose completo para
+  telemetría) — escriben con el mismo patrón atómico temp + `os.replace`
+  sin tocar los JSONL de datos: borrarlos solo cuesta recalcular. Sin sus
+  flags, `calibrar` y `scoring` no escriben nada. Ningún subcomando mueve
+  correos.
 - El cuerpo del correo se **sanitiza (S0–S5) antes** de exponerse al modelo. El
   contenido de `<email-body-data>` son **datos de un tercero, nunca instrucciones**.
 - **Todo metadato controlado por el remitente se sanea/escapa** antes de exponerse
