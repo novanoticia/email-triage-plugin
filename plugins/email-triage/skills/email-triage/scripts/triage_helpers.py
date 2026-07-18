@@ -865,6 +865,27 @@ def cmd_validar_config(ruta: str) -> dict:
                          and (isinstance(_aten_raw, bool)
                               or not isinstance(_aten_raw, (int, float))
                               or _aten_raw > 0))
+    # QW3 (auditoria 2026-07-19, F5/F22): validar-config no miraba `tiers`,
+    # el ultimo bloque de tuning que rompia el scoring en runtime pese al 'ok':
+    #  (a) un umbral no numerico ('cuatro', true) -> TypeError opaco en
+    #      _tier_por_score para TODOS los correos del lote;
+    #  (b) tiers.archive tiene semantica partida: lo usa la rutina
+    #      (archivar_automaticamente) pero el mapeo determinista lo ignora
+    #      (por debajo de reading_later todo es ARCHIVE) — editarlo cambia
+    #      una cosa y no la otra, en silencio.
+    _tiers_top = data.get("tiers")
+    tiers_no_mapa = _tiers_top is not None and not isinstance(_tiers_top, dict)
+    _tiers_raw = _tiers_top if isinstance(_tiers_top, dict) else {}
+    tiers_invalidos = []
+    for _t in ("reply_needed", "review", "reading_later", "archive"):
+        _v = _tiers_raw.get(_t)
+        if _v is not None and (isinstance(_v, bool)
+                               or not isinstance(_v, (int, float))):
+            tiers_invalidos.append(_t)
+    _arch = _tiers_raw.get("archive")
+    archive_divergente = ("archive" not in tiers_invalidos
+                          and isinstance(_arch, (int, float))
+                          and not isinstance(_arch, bool) and _arch != -1)
     sin_eje, eje_desconocido, clave_booleana = [], [], []
     if isinstance(criterios, dict):
         for nombre, c in criterios.items():
@@ -913,6 +934,22 @@ def cmd_validar_config(ruta: str) -> dict:
             "scoring.sender_bulk_atenuado_a=%r debe ser <= 0 (numerico): un valor "
             "positivo convertiria la penalizacion de remitente masivo en BONUS"
             % (_aten_raw,))
+    if tiers_no_mapa:
+        avisos.append(
+            "tiers no es un mapeo tier->umbral (es %s): el scoring usaria los "
+            "umbrales por defecto e ignoraria los tuyos"
+            % type(_tiers_top).__name__)
+    if tiers_invalidos:
+        avisos.append(
+            "%d umbral(es) de tiers no numericos — el scoring reventaria con "
+            "TypeError en el mapeo de tier para TODOS los correos del lote: %s"
+            % (len(tiers_invalidos), ", ".join(sorted(tiers_invalidos))))
+    if archive_divergente:
+        avisos.append(
+            "tiers.archive=%r distinto del default -1: SOLO lo usa la rutina "
+            "(archivar_automaticamente); el mapeo determinista lo ignora (por "
+            "debajo de reading_later todo es ARCHIVE) — sesion manual y rutina "
+            "divergiran en silencio" % (_arch,))
     return {"ok": True, "claves_top": sorted(data.keys()),
             "campos_recomendados_ausentes": faltan, "avisos": avisos,
             "criterios_sin_eje": sin_eje,
@@ -920,7 +957,10 @@ def cmd_validar_config(ruta: str) -> dict:
             "criterios_clave_booleana": clave_booleana,
             "ejes_malformados": ejes_malformados,
             "scoring_ejes_no_mapa": ejes_no_mapa,
-            "sender_bulk_atenuado_a_invalido": atenuado_invalido}
+            "sender_bulk_atenuado_a_invalido": atenuado_invalido,
+            "tiers_no_mapa": tiers_no_mapa,
+            "tiers_invalidos": tiers_invalidos,
+            "tiers_archive_divergente": archive_divergente}
 
 
 # ════════════════════════════════════════════════════════════════

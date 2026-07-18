@@ -1065,6 +1065,64 @@ class TestEjesMalformadosV387(unittest.TestCase):
 
 
 
+class TestValidarConfigTiersQW3(unittest.TestCase):
+    """QW3 (auditoria 2026-07-19, F5/F22): validar-config no miraba `tiers`.
+    Un umbral no numerico pasaba el gate con 'ok' y el scoring reventaba
+    despues con TypeError opaco en TODOS los correos del lote; y un
+    tiers.archive editado divergia en silencio (rutina si, tier no)."""
+
+    def _validar(self, cuerpo_yaml):
+        try:
+            import yaml  # noqa: F401
+        except ImportError:
+            self.skipTest("PyYAML no instalado")
+        fh = tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False,
+                                         encoding="utf-8")
+        fh.write(cuerpo_yaml)
+        fh.close()
+        try:
+            return th.cmd_validar_config(fh.name)
+        finally:
+            os.unlink(fh.name)
+
+    def test_umbral_no_numerico_avisa(self):
+        out = self._validar("correo: {cuenta: a@b.com}\n"
+                            "criterios_epistemicos: {}\n"
+                            "tiers: {reply_needed: 10, review: cuatro}\n")
+        self.assertTrue(out["ok"])
+        self.assertIn("review", out["tiers_invalidos"])
+        self.assertTrue(any("TypeError" in a for a in out["avisos"]))
+
+    def test_umbral_booleano_avisa(self):
+        out = self._validar("correo: {cuenta: a@b.com}\n"
+                            "criterios_epistemicos: {}\n"
+                            "tiers: {reading_later: true}\n")
+        self.assertIn("reading_later", out["tiers_invalidos"])
+
+    def test_tiers_no_mapa_avisa(self):
+        out = self._validar("correo: {cuenta: a@b.com}\n"
+                            "criterios_epistemicos: {}\n"
+                            "tiers: [10, 4, 0]\n")
+        self.assertTrue(out["tiers_no_mapa"])
+        self.assertTrue(any("umbrales por defecto" in a for a in out["avisos"]))
+
+    def test_archive_divergente_avisa_semantica_partida(self):
+        out = self._validar("correo: {cuenta: a@b.com}\n"
+                            "criterios_epistemicos: {}\n"
+                            "tiers: {reply_needed: 10, archive: 2}\n")
+        self.assertTrue(out["tiers_archive_divergente"])
+        self.assertTrue(any("rutina" in a for a in out["avisos"]))
+
+    def test_tiers_validos_sin_aviso(self):
+        out = self._validar("correo: {cuenta: a@b.com}\n"
+                            "criterios_epistemicos: {}\n"
+                            "tiers: {reply_needed: 10, review: 4, "
+                            "reading_later: 0, archive: -1}\n")
+        self.assertEqual(out["tiers_invalidos"], [])
+        self.assertFalse(out["tiers_archive_divergente"])
+        self.assertFalse(any("tiers" in a for a in out["avisos"]))
+
+
 class TestCargarConfigBlindadoV388(unittest.TestCase):
     """v3.8.8: la ruta de scoring degrada ante YAML roto / config ilegible
     con el mismo contrato de error que validar-config, sin traceback crudo."""
