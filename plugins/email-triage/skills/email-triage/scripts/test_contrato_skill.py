@@ -340,5 +340,73 @@ class ContratoCore12FuenteUnica(unittest.TestCase):
             "promete 12" % len(set(_core_config())))
 
 
+class ContratoPlaceholdersApplescript(unittest.TestCase):
+    """Gate de F26 (auditoria 2026-07-19): la plantilla references/
+    mail-consolidado.applescript se rellena a mano (sus <<...>>), FUERA del gate
+    de interpolacion de los .md (que solo mira bloques ```applescript). Este gate
+    la vigila aparte: (1) inventaria sus placeholders y falla si aparece uno no
+    documentado —obligando a declararlo y darle regla de escapado—; (2) exige que
+    la plantilla conserve la REGLA DE ESCAPADO (pasar cuenta/carpetas por
+    escapar-applescript antes de sustituir). Cierra la clase, no una instancia."""
+
+    RUTA = os.path.join(SKILL_DIR, "references", "mail-consolidado.applescript")
+    # Inventario canonico. Los 4 primeros son nombres de cuenta/carpeta (se
+    # escapan con `escapados`); los 2 <<LISTA_*>> son las listas de message-ids
+    # (se rellenan con `lista_applescript`). Un placeholder nuevo debe entrar
+    # aqui Y recibir su regla de escapado en la cabecera de la plantilla.
+    PLACEHOLDERS_DOCUMENTADOS = {
+        "<<CUENTA>>", "<<ORIGEN>>", "<<DESTINO_REVIEW>>", "<<DESTINO_ARCHIVE>>",
+        "<<LISTA_REVIEW>>", "<<LISTA_ARCHIVE>>",
+    }
+    RE_PLACEHOLDER = re.compile(r"<<[^<>\n]+>>")
+
+    def _texto(self):
+        if not os.path.exists(self.RUTA):
+            return ""
+        with open(self.RUTA, encoding="utf-8") as fh:
+            return fh.read()
+
+    def test_plantilla_existe(self):
+        self.assertTrue(os.path.exists(self.RUTA),
+                        "mail-consolidado.applescript no encontrado")
+
+    def test_gate_no_vacuo(self):
+        # Si el formato cambia y no se detecta ningun placeholder, el gate no
+        # debe pasar en vacio (dejaria de proteger sin avisar).
+        hallados = set(self.RE_PLACEHOLDER.findall(self._texto()))
+        self.assertTrue(
+            hallados,
+            "no se detecto ningun placeholder <<...>> en la plantilla "
+            "(¿convencion <<...>> cambiada?)")
+
+    def test_placeholders_todos_documentados(self):
+        hallados = set(self.RE_PLACEHOLDER.findall(self._texto()))
+        no_doc = hallados - self.PLACEHOLDERS_DOCUMENTADOS
+        self.assertFalse(
+            no_doc,
+            "Placeholder(s) <<...>> sin documentar en la plantilla: %s. "
+            "Declaralos en PLACEHOLDERS_DOCUMENTADOS y dales regla de escapado "
+            "en la cabecera del .applescript." % sorted(no_doc))
+
+    def test_inventario_sin_placeholders_obsoletos(self):
+        # Si un placeholder documentado desaparece, el inventario quedo obsoleto:
+        # hay que actualizarlo para que el gate no proteja fantasmas.
+        hallados = set(self.RE_PLACEHOLDER.findall(self._texto()))
+        obsoletos = self.PLACEHOLDERS_DOCUMENTADOS - hallados
+        self.assertFalse(
+            obsoletos,
+            "Placeholder(s) documentados que ya no aparecen en la plantilla: %s. "
+            "Actualiza PLACEHOLDERS_DOCUMENTADOS." % sorted(obsoletos))
+
+    def test_plantilla_conserva_regla_de_escapado(self):
+        texto = self._texto()
+        self.assertIn(
+            "REGLA DE ESCAPADO", texto,
+            "la plantilla perdio la ancla 'REGLA DE ESCAPADO' de su cabecera")
+        self.assertIn(
+            "escapar-applescript", texto,
+            "la plantilla ya no instruye pasar cuenta/carpetas por "
+            "escapar-applescript antes de sustituir los <<...>>")
+
 if __name__ == "__main__":
     unittest.main()

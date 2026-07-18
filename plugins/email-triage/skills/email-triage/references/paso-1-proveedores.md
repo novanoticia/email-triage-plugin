@@ -108,17 +108,18 @@ cuerpo"**. Si `content` falla (error de permisos o formato), el bloque
 
 #### Mover un correo
 
-```applescript
-tell application "Mail"
-    set acct to account "NOMBRE_CUENTA"
-    set destMailbox to mailbox "CARPETA_DESTINO" of acct
-    set sourceMailbox to mailbox "CARPETA_ORIGEN" of acct
-    set msgs to messages of sourceMailbox
+⚠️ **No muevas correos por índice ni interpolando metadatos a mano.** El patrón
+por índice (`move message i of ...`) sufre *index shifting* (lección de
+producción #2: mover el correo N renumera los siguientes) y, además, invita a
+pegar cuenta/carpeta/message-id sin escapar. Por eso aquí NO va ningún snippet
+por índice: usa siempre el mecanismo.
 
-    -- Mover por índice (o por message id si se guardó)
-    move message i of sourceMailbox to destMailbox
-end tell
-```
+- **Vía preferente** — `triage_helpers.py montar-mover`: emite el SCRIPT 3
+  completo para los tres destinos (review, archive y reply_needed) con cuenta,
+  carpetas y message-ids ya escapados. Ver "Vía preferente" más abajo.
+- **Si montas el script a mano** — usa el patrón seguro por `message id`
+  (localizar con `whose message id is theID` + verificación por conteo) descrito
+  en la sección siguiente, y escapa cuenta/carpetas/ids con `escapar-applescript`.
 
 #### Mover múltiples correos por índice (lote) — PATRÓN SEGURO
 
@@ -203,18 +204,38 @@ el escape ya lo neutralizó). Nunca construyas ese literal concatenando el
 message-id crudo a mano.
 
 **Vía preferente (NUEVO en v3.8.9): no ensambles el SCRIPT 3 a mano.** El
-subcomando `montar-mover` recibe cuenta, carpetas y las dos listas de
+subcomando `montar-mover` recibe cuenta, carpetas y las listas de
 message-ids y devuelve el **SCRIPT 3 completo con TODO ya escapado** (cuenta,
 carpetas y message-ids). Así ni el literal de la lista ni los nombres de
 carpeta/cuenta dependen de que el modelo se acuerde de escapar:
 
 ```bash
 echo '{"cuenta":"<cuenta>","origen":"<origen>",
-       "destino_review":"<carpeta_review>","destino_archive":"<carpeta_archive>",
-       "mids_review":["<mid1>","<mid2>"],"mids_archive":["<mid3>"]}' \
+       "destino_review":"<carpeta_review>","destino_archive":"<carpeta_archive_o_vacio>",
+       "destino_reply_needed":"<carpeta_reply_needed_o_vacio>",
+       "mids_review":["<mid1>","<mid2>"],"mids_archive":["<mid3>"],
+       "mids_reply_needed":["<mid4>"]}' \
   | python3 "<ruta-del-skill>/scripts/triage_helpers.py" montar-mover
-# -> {"ok":true,"script":"...SCRIPT 3 listo...","sospechosos":[...],"n_review":2,"n_archive":1}
+# -> {"ok":true,"script":"...SCRIPT 3 listo...","sospechosos":[...],
+#     "n_review":2,"n_archive":1,"n_reply_needed":1,
+#     "archivo_nativo":false,"reply_needed_movido":true}
 ```
+
+Los tres destinos (contrato cerrado en CM1):
+
+- `destino_review` es **obligatorio** (carpeta de REVIEW).
+- `destino_archive` es **opcional**: si lo dejas **vacío o lo omites**, el script
+  archiva de forma **nativa** moviendo esos correos al buzón `Archive` de la
+  cuenta (el `script` incluye un comentario con el matiz de localización/IMAP).
+  Si defines una carpeta, se usa esa.
+- `destino_reply_needed` + `mids_reply_needed` son **opcionales**: los
+  reply_needed **solo se mueven si su carpeta difiere del origen**; si
+  `destino_reply_needed` está **vacío o es igual a `origen`**, esos correos NO se
+  mueven (no aparecen en el script, se quedan donde están) y `reply_needed_movido`
+  sale `false`.
+
+La salida añade `n_reply_needed`, `archivo_nativo` y `reply_needed_movido` a las
+claves previas (`ok`, `script`, `sospechosos`, `n_review`, `n_archive`).
 
 Escribe el campo `script` a un fichero con Desktop Commander y ejecútalo con
 `osascript`. Si `sospechosos` no está vacío, anótalo en el resumen. Recurre al
@@ -224,6 +245,10 @@ disponible.
 **Aplica el mismo escape a los nombres de cuenta y carpeta** (`NOMBRE_CUENTA`,
 `CARPETA_ORIGEN`, `CARPETA_DESTINO`, y los placeholders `<<CUENTA>>`, `<<ORIGEN>>`,
 `<<DESTINO_REVIEW>>`, `<<DESTINO_ARCHIVE>>` de las plantillas de `references/`).
+> La plantilla `references/mail-consolidado.applescript` lleva esa **REGLA DE
+> ESCAPADO** en su cabecera e inventaría sus `<<...>>`; el gate
+> `test_contrato_skill.py` falla si aparece un placeholder sin documentar o
+> si la plantilla pierde la regla.
 Salen de tu `config.yaml` —no de una cabecera del atacante, así que no es un
 vector de inyección remota— pero una carpeta o cuenta cuyo nombre contenga una
 comilla (`Correo "importante"`) rompe igual el literal AppleScript y aborta el

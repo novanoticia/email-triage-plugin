@@ -88,7 +88,8 @@ Uso:
   python3 triage_helpers.py compactar [--archivo RUTA] [--max-lineas N]
                             [--dry-run]   (recorta correcciones.jsonl a N líneas)
   python3 triage_helpers.py montar-mover [--datos JSON]
-                            (emite el SCRIPT 3 de mover con todo escapado)
+                            (SCRIPT 3 de mover con todo escapado; 3 destinos:
+                            review, archive nativo o a carpeta, y reply_needed)
 
 Salida: JSON por stdout. Solo stdlib salvo PyYAML (scoring/validar-config).
 Efectos laterales: en la ruta de datos solo 'registrar' escribe (append
@@ -1350,26 +1351,93 @@ def _lista_applescript(valores):
     return "{" + ", ".join(applescript_quote(v) for v in valores) + "}"
 
 
+def _bloque_repeat_mover(ok, fail, lista, box):
+    """Bloque `repeat` estándar: mueve por message-id (filtro `whose`, robusto
+    durante sincronización) y acumula en `fail` los mids que no se movieron
+    (QW2). review/archive/reply comparten esta estructura; centralizarla evita
+    que una copia divergiera de las otras (misma lección que _mid_sospechoso)."""
+    return (
+        '    set ' + ok + ' to 0\n'
+        '    set ' + fail + ' to {}\n'
+        '    repeat with theID in ' + lista + '\n'
+        '        set moved to false\n'
+        '        try\n'
+        '            set hits to (messages of srcBox whose message id is theID)\n'
+        '            if (count of hits) > 0 then\n'
+        '                move (item 1 of hits) to ' + box + '\n'
+        '                set ' + ok + ' to ' + ok + ' + 1\n'
+        '                set moved to true\n'
+        '            end if\n'
+        '        end try\n'
+        '        if not moved then set end of ' + fail + ' to (theID as string)\n'
+        '    end repeat\n'
+    )
+
+
 def cmd_montar_mover(datos: dict) -> dict:
     """Monta el SCRIPT 3 (mover por message-id + verificar) con todo escapado.
 
-    datos: {"cuenta", "origen", "destino_review", "destino_archive",
-            "mids_review": [...], "mids_archive": [...]}
-    Devuelve {"ok", "script", "sospechosos", "n_review", "n_archive"} o el
-    contrato de error si falta/está mal algún campo.
+    Cierra el contrato de mover de punta a punta (CM1) para los TRES destinos:
+      cuenta, origen, destino_review   OBLIGATORIOS (texto no vacío).
+      destino_archive   OPCIONAL. Vacío/ausente = "archivo nativo": los
+                        mids_archive se mueven al buzón "Archive" de la cuenta
+                        (patrón Mail.app). El matiz de localización/IMAP queda
+                        documentado como comentario en el propio script.
+      destino_reply_needed  OPCIONAL. Si está vacío O es igual a `origen`, los
+                        mids_reply_needed NO se mueven (no aparecen en el
+                        script; se quedan donde están). Si define otra carpeta,
+                        se mueven con el mismo patrón seguro por message-id.
+      mids_review, mids_archive, mids_reply_needed   listas opcionales de ids.
+
+    Devuelve {"ok", "script", "sospechosos", "n_review", "n_archive",
+    "n_reply_needed", "archivo_nativo", "reply_needed_movido"} o el contrato de
+    error {"ok": False, "error"} si algún campo falta o está mal.
+
+    Retrocompatible: un payload con solo cuenta/origen/destino_review/
+    destino_archive/mids_review/mids_archive se comporta igual que antes (más
+    las claves nuevas). TOTAL: ante CUALQUIER entrada devuelve un dict
+    serializable a JSON, nunca lanza (hay fuzz de CI con semilla fija).
     """
     if not isinstance(datos, dict):
-        return {"ok": False, "error": "se esperaba un objeto JSON con "
-                "cuenta/origen/destino_review/destino_archive/mids_review/mids_archive"}
-    req_txt = ("cuenta", "origen", "destino_review", "destino_archive")
+        return {"ok": False, "error": "se esperaba un objeto JSON con cuenta/"
+                "origen/destino_review [+ destino_archive/destino_reply_needed/"
+                "mids_review/mids_archive/mids_reply_needed]"}
+    # cuenta/origen/destino_review siguen siendo obligatorios no vacíos.
+    req_txt = ("cuenta", "origen", "destino_review")
     faltan = [k for k in req_txt
               if not isinstance(datos.get(k), str) or not datos.get(k).strip()]
     if faltan:
         return {"ok": False,
                 "error": "faltan o vacíos (deben ser texto): %s" % ", ".join(faltan)}
+
+    # destino_archive y destino_reply_needed son OPCIONALES (texto). Ausente o
+    # None => "" (no es error); un tipo no-texto sí es error explícito.
+    def _texto_opcional(clave):
+        v = datos.get(clave, "")
+        return "" if v is None else v
+    dest_arc_raw = _texto_opcional("destino_archive")
+    dest_rn_raw = _texto_opcional("destino_reply_needed")
+    for clave, v in (("destino_archive", dest_arc_raw),
+                     ("destino_reply_needed", dest_rn_raw)):
+        if not isinstance(v, str):
+            return {"ok": False, "error": "%s debe ser texto" % clave}
+
+    # Archivo nativo: destino_archive vacío => buzón "Archive" de la cuenta.
+    archivo_nativo = not dest_arc_raw.strip()
+    # REPLY_NEEDED: solo se mueve a una carpeta DISTINTA del origen; vacío o
+    # igual al origen => se queda (no se emite en el script).
+    dest_rn_norm = dest_rn_raw.strip()
+    reply_needed_movido = bool(dest_rn_norm) and dest_rn_norm != datos["origen"].strip()
+
     mids_rev = datos.get("mids_review", []) or []
     mids_arc = datos.get("mids_archive", []) or []
-    for nombre, lst in (("mids_review", mids_rev), ("mids_archive", mids_arc)):
+    mids_rn = datos.get("mids_reply_needed", []) or []
+    # Solo se validan/escapan/emiten las listas que de verdad van al script: la
+    # de reply solo si se mueve (si se queda, su contenido no llega a AppleScript).
+    listas = [("mids_review", mids_rev), ("mids_archive", mids_arc)]
+    if reply_needed_movido:
+        listas.append(("mids_reply_needed", mids_rn))
+    for nombre, lst in listas:
         if not isinstance(lst, list):
             return {"ok": False, "error": "%s debe ser una lista JSON" % nombre}
         if any(not isinstance(v, (str, int, float)) or isinstance(v, bool)
@@ -1378,7 +1446,7 @@ def cmd_montar_mover(datos: dict) -> dict:
                     "error": "%s: cada message-id debe ser texto/número" % nombre}
 
     sospechosos = []
-    for etiqueta, lst in (("mids_review", mids_rev), ("mids_archive", mids_arc)):
+    for etiqueta, lst in listas:
         for i, v in enumerate(lst):
             motivo = _mid_sospechoso(v)
             if motivo:
@@ -1388,11 +1456,12 @@ def cmd_montar_mover(datos: dict) -> dict:
     cuenta = applescript_quote(datos["cuenta"])
     origen = applescript_quote(datos["origen"])
     dest_rev = applescript_quote(datos["destino_review"])
-    dest_arc = applescript_quote(datos["destino_archive"])
+    # Buzón de archive: la carpeta configurada, o el buzón nativo "Archive".
+    arc_box_lit = applescript_quote("Archive" if archivo_nativo else dest_arc_raw)
     lista_rev = _lista_applescript(mids_rev)
     lista_arc = _lista_applescript(mids_arc)
 
-    script = (
+    cab = (
         '-- SCRIPT 3 (mover por message-id + verificar) generado por\n'
         '-- triage_helpers.py montar-mover: cuenta, carpetas y message-ids ya\n'
         '-- escapados. Escríbelo a un fichero y ejecútalo con osascript.\n'
@@ -1400,51 +1469,55 @@ def cmd_montar_mover(datos: dict) -> dict:
         '    set acct to account ' + cuenta + '\n'
         '    set srcBox to mailbox ' + origen + ' of acct\n'
         '    set revBox to mailbox ' + dest_rev + ' of acct\n'
-        '    set arcBox to mailbox ' + dest_arc + ' of acct\n'
+    )
+    if archivo_nativo:
+        cab += (
+            '    -- Archivo nativo (destino_archive vacío): buzón "Archive" de la\n'
+            '    -- cuenta. Matiz localización/IMAP: en algunas cuentas se llama\n'
+            '    -- distinto (p.ej. "Archivo", o "Archived Messages" en iCloud).\n'
+            '    -- Si el move falla, esos mids salen en fallidos_archive: define\n'
+            '    -- entonces destino_archive con el nombre real del buzón.\n'
+        )
+    cab += '    set arcBox to mailbox ' + arc_box_lit + ' of acct\n'
+    if reply_needed_movido:
+        cab += '    set rnBox to mailbox ' + applescript_quote(dest_rn_raw) + ' of acct\n'
+    cab += (
         '    set toReview to ' + lista_rev + '\n'
         '    set toArchive to ' + lista_arc + '\n'
-        '    set okRev to 0\n'
-        '    set failRev to {}\n'
-        '    repeat with theID in toReview\n'
-        '        set moved to false\n'
-        '        try\n'
-        '            set hits to (messages of srcBox whose message id is theID)\n'
-        '            if (count of hits) > 0 then\n'
-        '                move (item 1 of hits) to revBox\n'
-        '                set okRev to okRev + 1\n'
-        '                set moved to true\n'
-        '            end if\n'
-        '        end try\n'
-        '        if not moved then set end of failRev to (theID as string)\n'
-        '    end repeat\n'
-        '    set okArc to 0\n'
-        '    set failArc to {}\n'
-        '    repeat with theID in toArchive\n'
-        '        set moved to false\n'
-        '        try\n'
-        '            set hits to (messages of srcBox whose message id is theID)\n'
-        '            if (count of hits) > 0 then\n'
-        '                move (item 1 of hits) to arcBox\n'
-        '                set okArc to okArc + 1\n'
-        '                set moved to true\n'
-        '            end if\n'
-        '        end try\n'
-        '        if not moved then set end of failArc to (theID as string)\n'
-        '    end repeat\n'
+    )
+    if reply_needed_movido:
+        cab += '    set toReply to ' + _lista_applescript(mids_rn) + '\n'
+
+    cuerpo = (_bloque_repeat_mover("okRev", "failRev", "toReview", "revBox")
+              + _bloque_repeat_mover("okArc", "failArc", "toArchive", "arcBox"))
+    if reply_needed_movido:
+        cuerpo += _bloque_repeat_mover("okRep", "failRep", "toReply", "rnBox")
+
+    # Return con QW2 (QUÉ mids fallaron, no solo cuántos). El bloque de reply
+    # solo aporta sus contadores si de verdad se movió.
+    ret = (
         '    delay 2\n'
         '    -- QW2 (auditoria 2026-07-17): reportar QUE mids fallaron, no solo\n'
         '    -- cuantos. Un "8/10" sin lista dejaba el diagnostico ciego.\n'
         "    set AppleScript's text item delimiters to \",\"\n"
         '    return "movidos_review:" & okRev & "/" & (count of toReview) & '
         '" movidos_archive:" & okArc & "/" & (count of toArchive) & '
-        '" | fallidos_review:[" & (failRev as string) & '
-        '"] fallidos_archive:[" & (failArc as string) & '
-        '"] | src_restantes:" & (count of (messages of srcBox))\n'
-        'end tell\n'
     )
-    return {"ok": True, "script": script, "sospechosos": sospechosos,
-            "n_review": len(mids_rev), "n_archive": len(mids_arc)}
+    if reply_needed_movido:
+        ret += '" movidos_reply:" & okRep & "/" & (count of toReply) & '
+    ret += ('" | fallidos_review:[" & (failRev as string) & '
+            '"] fallidos_archive:[" & (failArc as string) & ')
+    if reply_needed_movido:
+        ret += '"] fallidos_reply:[" & (failRep as string) & '
+    ret += ('"] | src_restantes:" & (count of (messages of srcBox))\n'
+            'end tell\n')
 
+    script = cab + cuerpo + ret
+    return {"ok": True, "script": script, "sospechosos": sospechosos,
+            "n_review": len(mids_rev), "n_archive": len(mids_arc),
+            "n_reply_needed": len(mids_rn) if isinstance(mids_rn, list) else 0,
+            "archivo_nativo": archivo_nativo,
+            "reply_needed_movido": reply_needed_movido}
 
 def cmd_montar_consulta_enviados(datos: dict) -> dict:
     """Monta la consulta a Enviados de PASO 1.C con cuenta, clave_hilo y

