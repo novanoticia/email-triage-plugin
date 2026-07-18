@@ -86,7 +86,8 @@ comportamiento_veloz:
   # correr calibración UNA vez y cachearla.
 
   saltar_verificacion_enviados: true
-  # No hacer la consulta por-hilo a la carpeta "Enviados" (PASO 1.C).
+  # No hacer la consulta por-hilo a la carpeta "Enviados" (subpaso de
+  # verificación del PASO 1.C; la agrupación de hilos de 1.C se mantiene).
   # hilo_esperando_respuesta se marca 'desconocido' → hard rule +2, no +5.
   # Ahorra round-trips a osascript (~60 s cada uno).
 

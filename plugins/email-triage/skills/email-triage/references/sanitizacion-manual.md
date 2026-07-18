@@ -100,6 +100,8 @@ Cortar el texto en la PRIMERA ocurrencia de:
 
 Tras aplicar S1-S4, verificar:
 - Si el texto resultante tiene menos de 30 caracteres útiles → `[cuerpo no legible]`
-- Si el texto resultante supera 1500 caracteres → truncar a 1500 + `[truncado]`
+- Si el texto resultante supera el presupuesto configurado
+  (`puntuacion.max_caracteres_cuerpo`: 800 rápido / 1500 equilibrado por
+  defecto / 2500 profundo) → truncar a ese valor + `[truncado]`
 - Si el texto resultante tiene ratio de caracteres especiales (no alfanuméricos
   ni espacios) > 40% → `[cuerpo corrupto]` y usar solo metadatos

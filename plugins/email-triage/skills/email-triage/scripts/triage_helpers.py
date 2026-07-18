@@ -91,8 +91,11 @@ Uso:
                             (emite el SCRIPT 3 de mover con todo escapado)
 
 Salida: JSON por stdout. Solo stdlib salvo PyYAML (scoring/validar-config).
-Efectos laterales: solo 'registrar' escribe (append atómico, concurrente-seguro,
-a correcciones.jsonl / log_sesion.jsonl). Ningún subcomando mueve correos.
+Efectos laterales: en la ruta de datos solo 'registrar' escribe (append
+atómico con flock a correcciones.jsonl / session_log.jsonl); 'compactar' es
+la única otra escritura — mantenimiento explícito que REESCRIBE el JSONL
+bajo el mismo flock (temp + os.replace) truncándolo a N líneas. Ningún
+subcomando mueve correos.
 """
 import argparse
 import html as html_mod
@@ -924,7 +927,7 @@ def cmd_validar_config(ruta: str) -> dict:
 # Registro atómico — append concurrente-seguro a los JSONL
 # ════════════════════════════════════════════════════════════════
 
-# El SKILL escribe correcciones.jsonl / log_sesion.jsonl como append-only.
+# El SKILL escribe correcciones.jsonl / session_log.jsonl como append-only.
 # Si dos sesiones de triaje corren a la vez (una tarea programada y una
 # manual, p. ej.), dos `echo >>` podrían entrelazar líneas y corromper el
 # JSONL. Este subcomando centraliza el append bajo un lock de fichero

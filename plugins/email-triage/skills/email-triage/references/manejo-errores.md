@@ -40,7 +40,8 @@ es peor que fallar. Si mover un correo falla, informar y pasar al siguiente.
 
 ### Protección contra emails enormes
 
-El control de volumen tiene exactamente DOS números (v3.5), en este orden:
+El control de volumen tiene exactamente DOS números de CARACTERES (v3.5)
+más UN límite de LÍNEAS que aplica el modelo (QW3/F5, auditoría 2026-07-17):
 
 1. **Extracción cruda: 4000 caracteres** (PASO 1) — generosa a propósito,
    porque la limpieza viene después y limpiar reduce. Truncar en corto
@@ -49,9 +50,13 @@ El control de volumen tiene exactamente DOS números (v3.5), en este orden:
    1500 por defecto) — lo aplica el sanitizador vía `--max-chars` SOBRE
    el texto YA limpio, añadiendo `[truncado]` si recorta.
 
+3. **Límite de líneas: `puntuacion.max_lineas_cuerpo`** (config, 30 por
+   defecto; 20 en veloz) — lo aplica el MODELO sobre el cuerpo ya
+   sanitizado; no pasa por el script.
+
 No existe ningún otro límite de caracteres o líneas; si aparecen números
-distintos (500/2000/30 líneas) en docs o logs antiguos, son de versiones
-anteriores a v3.5.
+distintos (500/2000) en docs o logs antiguos, son de versiones anteriores
+a v3.5.
 
 **Reglas de lote (sin cambios):**
 - Si el lote total supera 30 correos con cuerpo, procesar en sublotes de 15

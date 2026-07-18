@@ -158,9 +158,10 @@ Cuando `modo_veloz: true`, anunciarlo al inicio y aplicar:
    El desglose completo va a telemetría/fichero, nunca al contexto.
 3. **Saltar calibración (PASO 2)**: reutilizar la última calibración; si
    no hay ninguna, correrla una vez y cachearla.
-4. **Saltar verificación contra Enviados (PASO 1.C)**: marcar
+4. **Saltar la consulta a Enviados (subpaso de verificación de 1.C)**: marcar
    `usuario_es_ultimo_en_responder: desconocido` (+2, no +5). Ahorra
-   round-trips a osascript.
+   round-trips a osascript. El resto del PASO 1.C (agrupación por hilos y
+   sus hard rules) se mantiene.
 5. **Cuerpo recortado**: `max_caracteres_cuerpo: 800`, `max_lineas_cuerpo: 20`.
 6. **Explicación mínima**: 1 razón positiva + 1 negativa, sin rationale.
 7. **Presentación compacta**: tabla de 1 línea por correo (asunto ·
