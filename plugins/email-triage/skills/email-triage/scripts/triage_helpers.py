@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.8.15).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.8.16).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -78,8 +78,11 @@ Uso:
   python3 triage_helpers.py sanitizar [--archivo RUTA] [--max-chars 1500]
                             [--asunto TXT] [--remitente TXT]
                             (sin --archivo lee de stdin)
-  python3 triage_helpers.py scoring [--config RUTA] [--brief]
-                            (lee payload JSON de stdin; single o {"emails":[...]})
+  python3 triage_helpers.py scoring [--config RUTA] [--config-veloz RUTA]
+                            [--brief] [--desglose RUTA]
+                            (lee payload JSON de stdin; single o {"emails":[...]};
+                            --desglose escribe el desglose completo a RUTA y
+                            deja stdout intacto)
   python3 triage_helpers.py validar-config [--config RUTA]
   python3 triage_helpers.py registrar --ruta RUTA [--registro JSON]
                             (append atómico con flock; sin --registro lee de stdin)
@@ -88,11 +91,34 @@ Uso:
   python3 triage_helpers.py compactar [--archivo RUTA] [--max-lineas N]
                             [--dry-run]   (recorta correcciones.jsonl a N líneas)
   python3 triage_helpers.py montar-mover [--datos JSON]
-                            (emite el SCRIPT 3 de mover con todo escapado)
+                            (SCRIPT 3 de mover con todo escapado; 3 destinos:
+                            review, archive nativo o a carpeta, y reply_needed)
+  python3 triage_helpers.py montar-consulta-enviados [--datos JSON]
+                            (consulta de solo-lectura a Enviados — verificación
+                            del PASO 1.C — con cuenta, clave_hilo y fecha_corte
+                            ya escapados)
+  python3 triage_helpers.py calibrar [--datos JSON] [--guardar [RUTA]]
+                            (PASO 2: perfil determinista de {"correos":[...]} —
+                            top remitentes/dominios/keywords; --guardar escribe
+                            además el snapshot de caché, atómico; sin --datos
+                            lee de stdin)
+  python3 triage_helpers.py calibrar --leer [RUTA] [--ttl-dias N]
+                            (lee la caché y decide su vigencia: el TTL lo
+                            aplica el script, no el modelo)
 
 Salida: JSON por stdout. Solo stdlib salvo PyYAML (scoring/validar-config).
-Efectos laterales: solo 'registrar' escribe (append atómico, concurrente-seguro,
-a correcciones.jsonl / log_sesion.jsonl). Ningún subcomando mueve correos.
+Efectos laterales — inventario CERRADO de escrituras a disco, cada una de
+su clase (CM2, auditoría 2026-07-19):
+  1. 'registrar':          append atómico con flock a los JSONL de DATOS
+                           (correcciones.jsonl / session_log.jsonl, append-only);
+  2. 'compactar':          mantenimiento explícito — REESCRIBE ese JSONL bajo
+                           el mismo flock (temp + os.replace) truncándolo;
+  3. 'calibrar --guardar': snapshot de CACHÉ regenerable (calibracion.json,
+                           temp + os.replace): borrarlo solo cuesta recalcular;
+  4. 'scoring --desglose': volcado opt-in del desglose completo a RUTA (mismo
+                           patrón atómico), telemetría fuera del contexto.
+Sin sus flags, 'calibrar' y 'scoring' no escriben nada. Ningún subcomando
+mueve correos.
 """
 import argparse
 import html as html_mod
@@ -113,6 +139,12 @@ STOPWORDS = {
     "the", "a", "an", "and", "or", "in", "of", "for", "to", "your",
     "on", "at", "is", "are", "re", "fwd", "fw", "rv",
 }
+
+# Tokenización de keywords de asuntos: fuente ÚNICA para el PASO 0.B
+# (cmd_ajustes) y el PASO 2 (cmd_calibrar) — ambos deben contar en el MISMO
+# espacio de tokens (minúsculas, ≥3 caracteres, sin STOPWORDS) o los boosts
+# aprendidos y los calibrados divergirían en silencio (CM2/F11).
+_RE_TOKEN_ASUNTO = re.compile(r"[a-záéíóúüñ0-9]{3,}")
 
 
 # ════════════════════════════════════════════════════════════════
@@ -216,8 +248,8 @@ def cmd_ajustes(ruta: str, max_lineas: int = MAX_CORRECCIONES) -> dict:
             por_remitente[remitente] += ponderada
             if "@" in remitente:
                 por_dominio["@" + remitente.split("@", 1)[1]] += ponderada
-        for palabra in re.findall(r"[a-záéíóúüñ0-9]{3,}",
-                                  (e.get("subject") or "").lower()):
+        for palabra in _RE_TOKEN_ASUNTO.findall(
+                (e.get("subject") or "").lower()):
             if palabra in STOPWORDS:
                 continue
             kw_peso[palabra] += ponderada
@@ -403,6 +435,12 @@ def _detectar_s0(texto):
 # sobre un cuerpo hostil de tamano arbitrario. Un correo legitimo nunca lo roza.
 MAX_ENTRADA_SANITIZAR = 100_000
 
+# QW4 (auditoria 2026-07-19, F19): tope de INGESTA en memoria para main().
+# El clamp de arriba acota el barrido S0, pero actuaba DESPUES de cargar todo
+# el fichero/stdin en memoria: una entrada de GB agotaba la RAM antes de
+# llegar a ningun clamp. Generoso: ninguna entrada legitima se acerca.
+MAX_INGESTA_BYTES = 10_000_000
+
 
 def cmd_sanitizar(texto: str, max_chars: int = 1500,
                   asunto: Optional[str] = None,
@@ -428,6 +466,14 @@ def cmd_sanitizar(texto: str, max_chars: int = 1500,
     flags = _detectar_s0(texto)                       # S0 en doble vista
     injection_cuerpo = bool(flags)
 
+    # QW4 (auditoria 2026-07-19, F7): el mismo backstop del cuerpo para las
+    # otras dos superficies del barrido S0. Asunto (v3.8.2) y remitente
+    # (v3.8.4) se anadieron sin heredar el clamp: un metadato patologico
+    # forzaba un barrido lineal no acotado (verificado: 5 MB ~ 2 s de CPU).
+    if asunto and len(asunto) > MAX_ENTRADA_SANITIZAR:
+        asunto, entrada_recortada = asunto[:MAX_ENTRADA_SANITIZAR], True
+    if remitente and len(remitente) > MAX_ENTRADA_SANITIZAR:
+        remitente, entrada_recortada = remitente[:MAX_ENTRADA_SANITIZAR], True
     flags_asunto = _detectar_s0(asunto) if asunto else []
     injection_asunto = bool(flags_asunto)
 
@@ -862,6 +908,27 @@ def cmd_validar_config(ruta: str) -> dict:
                          and (isinstance(_aten_raw, bool)
                               or not isinstance(_aten_raw, (int, float))
                               or _aten_raw > 0))
+    # QW3 (auditoria 2026-07-19, F5/F22): validar-config no miraba `tiers`,
+    # el ultimo bloque de tuning que rompia el scoring en runtime pese al 'ok':
+    #  (a) un umbral no numerico ('cuatro', true) -> TypeError opaco en
+    #      _tier_por_score para TODOS los correos del lote;
+    #  (b) tiers.archive tiene semantica partida: lo usa la rutina
+    #      (archivar_automaticamente) pero el mapeo determinista lo ignora
+    #      (por debajo de reading_later todo es ARCHIVE) — editarlo cambia
+    #      una cosa y no la otra, en silencio.
+    _tiers_top = data.get("tiers")
+    tiers_no_mapa = _tiers_top is not None and not isinstance(_tiers_top, dict)
+    _tiers_raw = _tiers_top if isinstance(_tiers_top, dict) else {}
+    tiers_invalidos = []
+    for _t in ("reply_needed", "review", "reading_later", "archive"):
+        _v = _tiers_raw.get(_t)
+        if _v is not None and (isinstance(_v, bool)
+                               or not isinstance(_v, (int, float))):
+            tiers_invalidos.append(_t)
+    _arch = _tiers_raw.get("archive")
+    archive_divergente = ("archive" not in tiers_invalidos
+                          and isinstance(_arch, (int, float))
+                          and not isinstance(_arch, bool) and _arch != -1)
     sin_eje, eje_desconocido, clave_booleana = [], [], []
     if isinstance(criterios, dict):
         for nombre, c in criterios.items():
@@ -910,6 +977,22 @@ def cmd_validar_config(ruta: str) -> dict:
             "scoring.sender_bulk_atenuado_a=%r debe ser <= 0 (numerico): un valor "
             "positivo convertiria la penalizacion de remitente masivo en BONUS"
             % (_aten_raw,))
+    if tiers_no_mapa:
+        avisos.append(
+            "tiers no es un mapeo tier->umbral (es %s): el scoring usaria los "
+            "umbrales por defecto e ignoraria los tuyos"
+            % type(_tiers_top).__name__)
+    if tiers_invalidos:
+        avisos.append(
+            "%d umbral(es) de tiers no numericos — el scoring reventaria con "
+            "TypeError en el mapeo de tier para TODOS los correos del lote: %s"
+            % (len(tiers_invalidos), ", ".join(sorted(tiers_invalidos))))
+    if archive_divergente:
+        avisos.append(
+            "tiers.archive=%r distinto del default -1: SOLO lo usa la rutina "
+            "(archivar_automaticamente); el mapeo determinista lo ignora (por "
+            "debajo de reading_later todo es ARCHIVE) — sesion manual y rutina "
+            "divergiran en silencio" % (_arch,))
     return {"ok": True, "claves_top": sorted(data.keys()),
             "campos_recomendados_ausentes": faltan, "avisos": avisos,
             "criterios_sin_eje": sin_eje,
@@ -917,14 +1000,17 @@ def cmd_validar_config(ruta: str) -> dict:
             "criterios_clave_booleana": clave_booleana,
             "ejes_malformados": ejes_malformados,
             "scoring_ejes_no_mapa": ejes_no_mapa,
-            "sender_bulk_atenuado_a_invalido": atenuado_invalido}
+            "sender_bulk_atenuado_a_invalido": atenuado_invalido,
+            "tiers_no_mapa": tiers_no_mapa,
+            "tiers_invalidos": tiers_invalidos,
+            "tiers_archive_divergente": archive_divergente}
 
 
 # ════════════════════════════════════════════════════════════════
 # Registro atómico — append concurrente-seguro a los JSONL
 # ════════════════════════════════════════════════════════════════
 
-# El SKILL escribe correcciones.jsonl / log_sesion.jsonl como append-only.
+# El SKILL escribe correcciones.jsonl / session_log.jsonl como append-only.
 # Si dos sesiones de triaje corren a la vez (una tarea programada y una
 # manual, p. ej.), dos `echo >>` podrían entrelazar líneas y corromper el
 # JSONL. Este subcomando centraliza el append bajo un lock de fichero
@@ -1166,6 +1252,224 @@ def cmd_compactar(ruta: str, max_lineas: int = MAX_CORRECCIONES,
             "lineas_despues": len(conservadas), "eliminadas": eliminadas,
             "cambio": True, "bytes_despues": bytes_despues}
 
+# ════════════════════════════════════════════════════════════════
+# PASO 2 — calibración estadística mecanizada (CM2, auditoría 2026-07-19)
+# ════════════════════════════════════════════════════════════════
+
+# F11: el PASO 2 exigía "métricas exactas" (top remitentes con %, dominios,
+# keywords sobre ~100 correos) calculadas MENTALMENTE por el modelo — la
+# última fase aritmética sin mecanismo, con conteos no reproducibles
+# alimentando boosts de +2/+1/+1. Este subcomando la hace determinista:
+# mismo JSON de entrada → mismo perfil, orden estable (conteo desc, nombre
+# asc). F3: el modo veloz prometía "reutilizar la última calibración" sin
+# definir fichero, esquema ni TTL; --guardar/--leer materializan esa caché
+# como SNAPSHOT regenerable (no un JSONL de datos) cuya VIGENCIA decide el
+# script. El JUICIO sobre el perfil (a quién boostear y por qué) sigue
+# siendo del modelo, como manda la arquitectura de dos capas.
+
+RUTA_CALIBRACION = "~/.email-triage/calibracion.json"
+TTL_CALIBRACION_DIAS = 7
+ESQUEMA_CALIBRACION = 1
+TOP_REMITENTES, TOP_DOMINIOS, TOP_KEYWORDS = 10, 5, 15
+
+
+def _remitente_norm(bruto):
+    """(email_normalizado, dominio) desde un campo remitente arbitrario.
+
+    Acepta 'Nombre <a@b.com>', 'a@b.com' o texto libre. El dominio lleva el
+    prefijo '@' (mismo formato que cmd_ajustes y que el SKILL). Sin una
+    dirección reconocible: se devuelve el texto en minúsculas como clave de
+    remitente (mejor contarlo que perderlo) y dominio None."""
+    s = str(bruto or "").strip().lower()
+    m = re.search(r"<\s*([^<>\s]+@[^<>\s]+?)\s*>", s)
+    if m:
+        s = m.group(1)
+    else:
+        m = re.search(r"[^\s<>,;\"']+@[^\s<>,;\"']+", s)
+        if m:
+            s = m.group(0).strip(".,;:")
+    if "@" in s and not s.startswith("@") and not s.endswith("@"):
+        return s, "@" + s.rsplit("@", 1)[1]
+    return s, None
+
+
+def cmd_calibrar(datos) -> dict:
+    """Perfil determinista del historial: la aritmética del PASO 2, en código.
+
+    datos: {"correos": [{"remitente": "...", "asunto": "..."}, ...]}
+    Devuelve top_remitentes (10, con conteo y porcentaje sobre n_correos),
+    top_dominios (5) y top_keywords (15, de los asuntos, sin STOPWORDS),
+    más esquema/generado_en para la caché. Función TOTAL: la entrada basura
+    degrada a error legible o a 'ignorados', nunca lanza."""
+    try:
+        return _calibrar_nucleo(datos)
+    except Exception as e:   # red universal: cultura de fuzz del repo
+        return {"ok": False,
+                "error": "calibrar reventó (%s: %s)" % (type(e).__name__, e)}
+
+
+def _calibrar_nucleo(datos) -> dict:
+    if not isinstance(datos, dict):
+        return {"ok": False, "error": "datos inválidos: se esperaba un objeto "
+                'JSON {"correos": [...]}, llegó %s' % type(datos).__name__}
+    correos = datos.get("correos")
+    if not isinstance(correos, list):
+        return {"ok": False, "error": 'falta la lista "correos" (llegó %s); '
+                'formato: {"correos": [{"remitente": "...", "asunto": "..."}]}'
+                % type(correos).__name__}
+    ignorados = []
+    n_correos = 0
+    por_remitente = defaultdict(int)
+    por_dominio = defaultdict(int)
+    por_keyword = defaultdict(int)
+    for i, c in enumerate(correos):
+        if not isinstance(c, dict):
+            ignorados.append("correo %d: no es un objeto JSON (%s)"
+                             % (i, type(c).__name__))
+            continue
+        n_correos += 1
+        remitente = c.get("remitente")
+        if isinstance(remitente, str) and remitente.strip():
+            clave, dominio = _remitente_norm(remitente)
+            if clave:
+                por_remitente[clave] += 1
+            if dominio:
+                por_dominio[dominio] += 1
+        elif remitente is not None and not isinstance(remitente, str):
+            ignorados.append("correo %d: 'remitente' no es texto (%s)"
+                             % (i, type(remitente).__name__))
+        asunto = c.get("asunto")
+        if isinstance(asunto, str):
+            for palabra in _RE_TOKEN_ASUNTO.findall(asunto.lower()):
+                if palabra not in STOPWORDS:
+                    por_keyword[palabra] += 1
+        elif asunto is not None:
+            ignorados.append("correo %d: 'asunto' no es texto (%s)"
+                             % (i, type(asunto).__name__))
+
+    def _top(contador, n):
+        # Orden DETERMINISTA también en empates: conteo desc, nombre asc.
+        return sorted(contador.items(), key=lambda kv: (-kv[1], kv[0]))[:n]
+
+    out = {
+        "ok": True,
+        "esquema": ESQUEMA_CALIBRACION,
+        "generado_en": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "n_correos": n_correos,
+        "top_remitentes": [
+            {"remitente": r, "conteo": n,
+             "porcentaje": round(100.0 * n / n_correos, 1)}
+            for r, n in _top(por_remitente, TOP_REMITENTES)],
+        "top_dominios": [
+            {"dominio": d, "conteo": n}
+            for d, n in _top(por_dominio, TOP_DOMINIOS)],
+        "top_keywords": [
+            {"keyword": k, "conteo": n}
+            for k, n in _top(por_keyword, TOP_KEYWORDS)],
+    }
+    if ignorados:
+        # Acotado: un lote lleno de basura no debe inflar la salida.
+        out["ignorados"] = ignorados[:20]
+        if len(ignorados) > 20:
+            out["ignorados"].append("... y %d avisos más" % (len(ignorados) - 20))
+    return out
+
+
+def _escribir_snapshot_json(obj, ruta, prefijo) -> dict:
+    """Escritura ATÓMICA de un snapshot JSON regenerable (temp en el MISMO
+    directorio + fsync + os.replace; fichero 600, directorios nuevos 700).
+
+    Misma garantía de integridad que cmd_compactar — un lector ve siempre un
+    fichero completo, nunca uno a medias — pero SIN flock, a propósito: aquí
+    no hay appends concurrentes que perder (nadie 'registra' sobre un
+    snapshot); si dos sesiones escriben a la vez, os.replace garantiza que
+    queda la versión íntegra del último, aceptable para ficheros que se
+    regeneran recalculando. compactar sí necesita el flock porque compite
+    con los appends de registrar sobre el MISMO fichero de datos."""
+    ruta = os.path.expanduser(str(ruta))
+    directorio = os.path.dirname(ruta) or "."
+    try:
+        os.makedirs(directorio, mode=0o700, exist_ok=True)
+    except OSError as e:
+        return {"ok": False, "error": "no se pudo preparar %s: %s" % (ruta, e)}
+    import tempfile
+    try:
+        fd, tmp = tempfile.mkstemp(dir=directorio, prefix=prefijo)
+    except OSError as e:
+        return {"ok": False, "error": "no se pudo crear el temporal en %s: %s"
+                % (directorio, e)}
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(obj, fh, ensure_ascii=False, indent=2)
+            fh.write("\n")
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, ruta)
+    except (OSError, TypeError, ValueError) as e:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        return {"ok": False, "error": "fallo al escribir %s: %s" % (ruta, e)}
+    return {"ok": True, "ruta": ruta}
+
+
+def cmd_calibrar_leer(ruta=None, ttl_dias=TTL_CALIBRACION_DIAS) -> dict:
+    """Lee la caché de calibración y DECIDE su vigencia (F3): responde el
+    script, no la aritmética mental del modelo. Contrato total: caché
+    ausente, ilegible, corrupta o de esquema desconocido → {"ok": True,
+    "vigente": False, "perfil": None, "motivo": ...} sin lanzar jamás;
+    caducada → vigente False pero CON el perfil (el llamante decide)."""
+    try:
+        return _calibrar_leer_nucleo(ruta, ttl_dias)
+    except Exception as e:   # red universal: cultura de fuzz del repo
+        return {"ok": True, "vigente": False, "perfil": None,
+                "motivo": "lectura reventó (%s: %s)" % (type(e).__name__, e)}
+
+
+def _calibrar_leer_nucleo(ruta, ttl_dias):
+    if not isinstance(ttl_dias, (int, float)) or isinstance(ttl_dias, bool) \
+            or ttl_dias <= 0:
+        ttl_dias = TTL_CALIBRACION_DIAS   # TTL basura: cae al default, como compactar
+    ruta = os.path.expanduser(str(ruta or RUTA_CALIBRACION))
+    base = {"ok": True, "ruta": ruta, "ttl_dias": ttl_dias}
+    if not os.path.exists(ruta):
+        return dict(base, vigente=False, perfil=None,
+                    motivo="no hay calibración cacheada")
+    try:
+        with open(ruta, encoding="utf-8", errors="replace") as fh:
+            perfil = json.loads(fh.read(MAX_INGESTA_BYTES) or "null")
+    except (OSError, json.JSONDecodeError) as e:
+        return dict(base, vigente=False, perfil=None,
+                    motivo="caché ilegible o corrupta: %s" % e)
+    if not isinstance(perfil, dict):
+        return dict(base, vigente=False, perfil=None,
+                    motivo="la caché no contiene un objeto JSON (%s)"
+                    % type(perfil).__name__)
+    if perfil.get("esquema") != ESQUEMA_CALIBRACION:
+        return dict(base, vigente=False, perfil=None,
+                    motivo="esquema desconocido (%r != %d): recalibrar"
+                    % (perfil.get("esquema"), ESQUEMA_CALIBRACION))
+    ts = _parse_ts(perfil.get("generado_en", ""))
+    if ts is None:
+        return dict(base, vigente=False, perfil=None,
+                    motivo="'generado_en' ausente o ilegible: recalibrar")
+    edad = (datetime.now(timezone.utc) - ts).total_seconds() / 86400.0
+    if edad < -1:
+        # Más de un día "en el futuro" = reloj o zona rotos → recalibrar.
+        # Un desfase menor (NTP, DST) se tolera como edad 0 para no invalidar
+        # una caché recién escrita.
+        return dict(base, vigente=False, perfil=None,
+                    motivo="'generado_en' está en el futuro: recalibrar")
+    edad_dias = round(max(0.0, edad), 1)
+    out = dict(base, vigente=bool(edad <= ttl_dias), edad_dias=edad_dias,
+               perfil=perfil)
+    if not out["vigente"]:
+        out["motivo"] = ("caducada: edad %.1f días > TTL %s días"
+                         % (edad_dias, ttl_dias))
+    return out
+
 
 # ════════════════════════════════════════════════════════════════
 # Escapado AppleScript — interpolación segura de metadatos en scripts
@@ -1293,26 +1597,93 @@ def _lista_applescript(valores):
     return "{" + ", ".join(applescript_quote(v) for v in valores) + "}"
 
 
+def _bloque_repeat_mover(ok, fail, lista, box):
+    """Bloque `repeat` estándar: mueve por message-id (filtro `whose`, robusto
+    durante sincronización) y acumula en `fail` los mids que no se movieron
+    (QW2). review/archive/reply comparten esta estructura; centralizarla evita
+    que una copia divergiera de las otras (misma lección que _mid_sospechoso)."""
+    return (
+        '    set ' + ok + ' to 0\n'
+        '    set ' + fail + ' to {}\n'
+        '    repeat with theID in ' + lista + '\n'
+        '        set moved to false\n'
+        '        try\n'
+        '            set hits to (messages of srcBox whose message id is theID)\n'
+        '            if (count of hits) > 0 then\n'
+        '                move (item 1 of hits) to ' + box + '\n'
+        '                set ' + ok + ' to ' + ok + ' + 1\n'
+        '                set moved to true\n'
+        '            end if\n'
+        '        end try\n'
+        '        if not moved then set end of ' + fail + ' to (theID as string)\n'
+        '    end repeat\n'
+    )
+
+
 def cmd_montar_mover(datos: dict) -> dict:
     """Monta el SCRIPT 3 (mover por message-id + verificar) con todo escapado.
 
-    datos: {"cuenta", "origen", "destino_review", "destino_archive",
-            "mids_review": [...], "mids_archive": [...]}
-    Devuelve {"ok", "script", "sospechosos", "n_review", "n_archive"} o el
-    contrato de error si falta/está mal algún campo.
+    Cierra el contrato de mover de punta a punta (CM1) para los TRES destinos:
+      cuenta, origen, destino_review   OBLIGATORIOS (texto no vacío).
+      destino_archive   OPCIONAL. Vacío/ausente = "archivo nativo": los
+                        mids_archive se mueven al buzón "Archive" de la cuenta
+                        (patrón Mail.app). El matiz de localización/IMAP queda
+                        documentado como comentario en el propio script.
+      destino_reply_needed  OPCIONAL. Si está vacío O es igual a `origen`, los
+                        mids_reply_needed NO se mueven (no aparecen en el
+                        script; se quedan donde están). Si define otra carpeta,
+                        se mueven con el mismo patrón seguro por message-id.
+      mids_review, mids_archive, mids_reply_needed   listas opcionales de ids.
+
+    Devuelve {"ok", "script", "sospechosos", "n_review", "n_archive",
+    "n_reply_needed", "archivo_nativo", "reply_needed_movido"} o el contrato de
+    error {"ok": False, "error"} si algún campo falta o está mal.
+
+    Retrocompatible: un payload con solo cuenta/origen/destino_review/
+    destino_archive/mids_review/mids_archive se comporta igual que antes (más
+    las claves nuevas). TOTAL: ante CUALQUIER entrada devuelve un dict
+    serializable a JSON, nunca lanza (hay fuzz de CI con semilla fija).
     """
     if not isinstance(datos, dict):
-        return {"ok": False, "error": "se esperaba un objeto JSON con "
-                "cuenta/origen/destino_review/destino_archive/mids_review/mids_archive"}
-    req_txt = ("cuenta", "origen", "destino_review", "destino_archive")
+        return {"ok": False, "error": "se esperaba un objeto JSON con cuenta/"
+                "origen/destino_review [+ destino_archive/destino_reply_needed/"
+                "mids_review/mids_archive/mids_reply_needed]"}
+    # cuenta/origen/destino_review siguen siendo obligatorios no vacíos.
+    req_txt = ("cuenta", "origen", "destino_review")
     faltan = [k for k in req_txt
               if not isinstance(datos.get(k), str) or not datos.get(k).strip()]
     if faltan:
         return {"ok": False,
                 "error": "faltan o vacíos (deben ser texto): %s" % ", ".join(faltan)}
+
+    # destino_archive y destino_reply_needed son OPCIONALES (texto). Ausente o
+    # None => "" (no es error); un tipo no-texto sí es error explícito.
+    def _texto_opcional(clave):
+        v = datos.get(clave, "")
+        return "" if v is None else v
+    dest_arc_raw = _texto_opcional("destino_archive")
+    dest_rn_raw = _texto_opcional("destino_reply_needed")
+    for clave, v in (("destino_archive", dest_arc_raw),
+                     ("destino_reply_needed", dest_rn_raw)):
+        if not isinstance(v, str):
+            return {"ok": False, "error": "%s debe ser texto" % clave}
+
+    # Archivo nativo: destino_archive vacío => buzón "Archive" de la cuenta.
+    archivo_nativo = not dest_arc_raw.strip()
+    # REPLY_NEEDED: solo se mueve a una carpeta DISTINTA del origen; vacío o
+    # igual al origen => se queda (no se emite en el script).
+    dest_rn_norm = dest_rn_raw.strip()
+    reply_needed_movido = bool(dest_rn_norm) and dest_rn_norm != datos["origen"].strip()
+
     mids_rev = datos.get("mids_review", []) or []
     mids_arc = datos.get("mids_archive", []) or []
-    for nombre, lst in (("mids_review", mids_rev), ("mids_archive", mids_arc)):
+    mids_rn = datos.get("mids_reply_needed", []) or []
+    # Solo se validan/escapan/emiten las listas que de verdad van al script: la
+    # de reply solo si se mueve (si se queda, su contenido no llega a AppleScript).
+    listas = [("mids_review", mids_rev), ("mids_archive", mids_arc)]
+    if reply_needed_movido:
+        listas.append(("mids_reply_needed", mids_rn))
+    for nombre, lst in listas:
         if not isinstance(lst, list):
             return {"ok": False, "error": "%s debe ser una lista JSON" % nombre}
         if any(not isinstance(v, (str, int, float)) or isinstance(v, bool)
@@ -1321,7 +1692,7 @@ def cmd_montar_mover(datos: dict) -> dict:
                     "error": "%s: cada message-id debe ser texto/número" % nombre}
 
     sospechosos = []
-    for etiqueta, lst in (("mids_review", mids_rev), ("mids_archive", mids_arc)):
+    for etiqueta, lst in listas:
         for i, v in enumerate(lst):
             motivo = _mid_sospechoso(v)
             if motivo:
@@ -1331,11 +1702,12 @@ def cmd_montar_mover(datos: dict) -> dict:
     cuenta = applescript_quote(datos["cuenta"])
     origen = applescript_quote(datos["origen"])
     dest_rev = applescript_quote(datos["destino_review"])
-    dest_arc = applescript_quote(datos["destino_archive"])
+    # Buzón de archive: la carpeta configurada, o el buzón nativo "Archive".
+    arc_box_lit = applescript_quote("Archive" if archivo_nativo else dest_arc_raw)
     lista_rev = _lista_applescript(mids_rev)
     lista_arc = _lista_applescript(mids_arc)
 
-    script = (
+    cab = (
         '-- SCRIPT 3 (mover por message-id + verificar) generado por\n'
         '-- triage_helpers.py montar-mover: cuenta, carpetas y message-ids ya\n'
         '-- escapados. Escríbelo a un fichero y ejecútalo con osascript.\n'
@@ -1343,51 +1715,55 @@ def cmd_montar_mover(datos: dict) -> dict:
         '    set acct to account ' + cuenta + '\n'
         '    set srcBox to mailbox ' + origen + ' of acct\n'
         '    set revBox to mailbox ' + dest_rev + ' of acct\n'
-        '    set arcBox to mailbox ' + dest_arc + ' of acct\n'
+    )
+    if archivo_nativo:
+        cab += (
+            '    -- Archivo nativo (destino_archive vacío): buzón "Archive" de la\n'
+            '    -- cuenta. Matiz localización/IMAP: en algunas cuentas se llama\n'
+            '    -- distinto (p.ej. "Archivo", o "Archived Messages" en iCloud).\n'
+            '    -- Si el move falla, esos mids salen en fallidos_archive: define\n'
+            '    -- entonces destino_archive con el nombre real del buzón.\n'
+        )
+    cab += '    set arcBox to mailbox ' + arc_box_lit + ' of acct\n'
+    if reply_needed_movido:
+        cab += '    set rnBox to mailbox ' + applescript_quote(dest_rn_raw) + ' of acct\n'
+    cab += (
         '    set toReview to ' + lista_rev + '\n'
         '    set toArchive to ' + lista_arc + '\n'
-        '    set okRev to 0\n'
-        '    set failRev to {}\n'
-        '    repeat with theID in toReview\n'
-        '        set moved to false\n'
-        '        try\n'
-        '            set hits to (messages of srcBox whose message id is theID)\n'
-        '            if (count of hits) > 0 then\n'
-        '                move (item 1 of hits) to revBox\n'
-        '                set okRev to okRev + 1\n'
-        '                set moved to true\n'
-        '            end if\n'
-        '        end try\n'
-        '        if not moved then set end of failRev to (theID as string)\n'
-        '    end repeat\n'
-        '    set okArc to 0\n'
-        '    set failArc to {}\n'
-        '    repeat with theID in toArchive\n'
-        '        set moved to false\n'
-        '        try\n'
-        '            set hits to (messages of srcBox whose message id is theID)\n'
-        '            if (count of hits) > 0 then\n'
-        '                move (item 1 of hits) to arcBox\n'
-        '                set okArc to okArc + 1\n'
-        '                set moved to true\n'
-        '            end if\n'
-        '        end try\n'
-        '        if not moved then set end of failArc to (theID as string)\n'
-        '    end repeat\n'
+    )
+    if reply_needed_movido:
+        cab += '    set toReply to ' + _lista_applescript(mids_rn) + '\n'
+
+    cuerpo = (_bloque_repeat_mover("okRev", "failRev", "toReview", "revBox")
+              + _bloque_repeat_mover("okArc", "failArc", "toArchive", "arcBox"))
+    if reply_needed_movido:
+        cuerpo += _bloque_repeat_mover("okRep", "failRep", "toReply", "rnBox")
+
+    # Return con QW2 (QUÉ mids fallaron, no solo cuántos). El bloque de reply
+    # solo aporta sus contadores si de verdad se movió.
+    ret = (
         '    delay 2\n'
         '    -- QW2 (auditoria 2026-07-17): reportar QUE mids fallaron, no solo\n'
         '    -- cuantos. Un "8/10" sin lista dejaba el diagnostico ciego.\n'
         "    set AppleScript's text item delimiters to \",\"\n"
         '    return "movidos_review:" & okRev & "/" & (count of toReview) & '
         '" movidos_archive:" & okArc & "/" & (count of toArchive) & '
-        '" | fallidos_review:[" & (failRev as string) & '
-        '"] fallidos_archive:[" & (failArc as string) & '
-        '"] | src_restantes:" & (count of (messages of srcBox))\n'
-        'end tell\n'
     )
-    return {"ok": True, "script": script, "sospechosos": sospechosos,
-            "n_review": len(mids_rev), "n_archive": len(mids_arc)}
+    if reply_needed_movido:
+        ret += '" movidos_reply:" & okRep & "/" & (count of toReply) & '
+    ret += ('" | fallidos_review:[" & (failRev as string) & '
+            '"] fallidos_archive:[" & (failArc as string) & ')
+    if reply_needed_movido:
+        ret += '"] fallidos_reply:[" & (failRep as string) & '
+    ret += ('"] | src_restantes:" & (count of (messages of srcBox))\n'
+            'end tell\n')
 
+    script = cab + cuerpo + ret
+    return {"ok": True, "script": script, "sospechosos": sospechosos,
+            "n_review": len(mids_rev), "n_archive": len(mids_arc),
+            "n_reply_needed": len(mids_rn) if isinstance(mids_rn, list) else 0,
+            "archivo_nativo": archivo_nativo,
+            "reply_needed_movido": reply_needed_movido}
 
 def cmd_montar_consulta_enviados(datos: dict) -> dict:
     """Monta la consulta a Enviados de PASO 1.C con cuenta, clave_hilo y
@@ -1554,6 +1930,10 @@ def _construir_parser():
     psc.add_argument("--config-veloz", default=None,
                      help="capa de overrides veloz a fusionar sobre --config "
                           "(opcional; si no existe, no-op) — CM2/F7")
+    psc.add_argument("--desglose", default=None, metavar="RUTA",
+                     help="escribe el desglose COMPLETO por correo a RUTA "
+                          "(JSON, escritura atómica) sin tocar stdout; "
+                          "combinable con --brief — CM2/F12")
     pv = sub.add_parser("validar-config")
     pv.add_argument("--config",
                     default=os.path.expanduser("~/.email-triage/config.yaml"))
@@ -1572,6 +1952,21 @@ def _construir_parser():
                     help="líneas a conservar (por defecto %d)" % MAX_CORRECCIONES)
     pc.add_argument("--dry-run", action="store_true",
                     help="reporta qué haría sin escribir")
+    pcal = sub.add_parser("calibrar")
+    pcal.add_argument("--datos", default=None,
+                      help='JSON {"correos": [{"remitente", "asunto"}, ...]}; '
+                           "sin él se lee de stdin")
+    pcal.add_argument("--guardar", nargs="?", const=RUTA_CALIBRACION,
+                      default=None, metavar="RUTA",
+                      help="además de devolver el perfil, lo escribe como "
+                           "snapshot atómico (por defecto %s)" % RUTA_CALIBRACION)
+    pcal.add_argument("--leer", nargs="?", const=RUTA_CALIBRACION,
+                      default=None, metavar="RUTA",
+                      help="lee la caché y decide su vigencia (por defecto %s); "
+                           "excluyente con --guardar" % RUTA_CALIBRACION)
+    pcal.add_argument("--ttl-dias", type=int, default=TTL_CALIBRACION_DIAS,
+                      help="vigencia máxima de la caché en días para --leer "
+                           "(por defecto %d)" % TTL_CALIBRACION_DIAS)
     pm = sub.add_parser("montar-mover")
     pm.add_argument("--datos", default=None,
                     help="JSON con cuenta/origen/destino_*/mids_*; sin él, stdin")
@@ -1590,7 +1985,7 @@ def main():
         # es JSON válido (o con bytes no-UTF8) reventaba con traceback crudo,
         # mientras registrar/escapar-applescript/montar-mover ya devolvían
         # {"ok": False, ...}. Mismo contrato aquí.
-        crudo = sys.stdin.buffer.read().decode("utf-8", errors="replace")
+        crudo = sys.stdin.buffer.read(MAX_INGESTA_BYTES).decode("utf-8", errors="replace")
         try:
             payload = json.loads(crudo or "{}")
         except json.JSONDecodeError as e:
@@ -1608,10 +2003,26 @@ def main():
             out = e.payload
         else:
             out = cmd_scoring_dispatch(payload, cfg, brief=args.brief)
+            # CM2 (F12): --desglose materializa la orden doctrinal "el
+            # desglose completo va a fichero, no al contexto", que hasta
+            # ahora no tenía mecanismo: escribe el resultado COMPLETO (sin
+            # brief) en RUTA con el patrón de snapshot atómico. En éxito
+            # stdout no cambia ni un byte (con --brief sigue compacto);
+            # solo un fallo de escritura añade 'desglose_error' para no
+            # fallar en silencio.
+            if args.desglose:
+                completo = (cmd_scoring_dispatch(payload, cfg, brief=False)
+                            if args.brief else out)
+                res = _escribir_snapshot_json(completo, args.desglose,
+                                              ".desglose-")
+                if not res.get("ok"):
+                    out = dict(out)
+                    out["desglose_error"] = res.get("error")
     elif args.cmd == "validar-config":
         out = cmd_validar_config(args.config)
     elif args.cmd == "registrar":
-        crudo = args.registro if args.registro is not None else sys.stdin.read()
+        crudo = (args.registro if args.registro is not None
+                 else sys.stdin.read(MAX_INGESTA_BYTES))
         try:
             registro = json.loads(crudo or "{}")
         except json.JSONDecodeError as e:
@@ -1619,7 +2030,8 @@ def main():
         else:
             out = cmd_registrar(args.ruta, registro)
     elif args.cmd == "escapar-applescript":
-        crudo = args.valores if args.valores is not None else sys.stdin.read()
+        crudo = (args.valores if args.valores is not None
+                 else sys.stdin.read(MAX_INGESTA_BYTES))
         try:
             data = json.loads(crudo or "{}")
         except json.JSONDecodeError as e:
@@ -1629,8 +2041,35 @@ def main():
             out = cmd_escapar_applescript(valores)
     elif args.cmd == "compactar":
         out = cmd_compactar(args.archivo, args.max_lineas, dry_run=args.dry_run)
+    elif args.cmd == "calibrar":
+        if args.leer is not None and args.guardar is not None:
+            out = {"ok": False, "error": "--leer y --guardar son excluyentes: "
+                   "lee primero y, si 'vigente' es false, calcula y guarda "
+                   "en una segunda invocación"}
+        elif args.leer is not None:
+            out = cmd_calibrar_leer(args.leer, args.ttl_dias)
+        else:
+            crudo = (args.datos if args.datos is not None
+                     else sys.stdin.buffer.read(MAX_INGESTA_BYTES)
+                     .decode("utf-8", errors="replace"))
+            try:
+                datos = json.loads(crudo or "{}")
+            except json.JSONDecodeError as e:
+                out = {"ok": False, "error": "JSON inválido: %s" % e}
+            else:
+                out = cmd_calibrar(datos)
+                # El fichero guarda el PERFIL puro; guardado_en/guardado_error
+                # se añaden después solo a la salida por stdout.
+                if args.guardar is not None and out.get("ok"):
+                    res = _escribir_snapshot_json(out, args.guardar,
+                                                  ".calibracion-")
+                    if res.get("ok"):
+                        out["guardado_en"] = res["ruta"]
+                    else:
+                        out["guardado_error"] = res.get("error")
     elif args.cmd == "montar-mover":
-        crudo = args.datos if args.datos is not None else sys.stdin.read()
+        crudo = (args.datos if args.datos is not None
+                 else sys.stdin.read(MAX_INGESTA_BYTES))
         try:
             data = json.loads(crudo or "{}")
         except json.JSONDecodeError as e:
@@ -1638,7 +2077,8 @@ def main():
         else:
             out = cmd_montar_mover(data)
     elif args.cmd == "montar-consulta-enviados":
-        crudo = args.datos if args.datos is not None else sys.stdin.read()
+        crudo = (args.datos if args.datos is not None
+                 else sys.stdin.read(MAX_INGESTA_BYTES))
         try:
             data = json.loads(crudo or "{}")
         except json.JSONDecodeError as e:
@@ -1648,11 +2088,11 @@ def main():
     else:
         if args.archivo:
             with open(args.archivo, encoding="utf-8", errors="replace") as fh:
-                texto = fh.read()
+                texto = fh.read(MAX_INGESTA_BYTES)
         else:
             # Lectura tolerante: un cuerpo en ISO-8859-1 o con bytes sueltos
             # no debe reventar el pipe (se sustituyen los ilegibles).
-            texto = sys.stdin.buffer.read().decode("utf-8", errors="replace")
+            texto = sys.stdin.buffer.read(MAX_INGESTA_BYTES).decode("utf-8", errors="replace")
         out = cmd_sanitizar(texto, args.max_chars, asunto=args.asunto,
                             remitente=args.remitente)
     json.dump(out, sys.stdout, ensure_ascii=False, indent=2)

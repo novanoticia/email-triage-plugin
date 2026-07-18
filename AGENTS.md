@@ -23,8 +23,11 @@ AppleScript / MCP de Gmail.
   `./scripts/bump-version.sh X.Y.Z`.
 - **No dupliques scripts**: `triage_helpers.py` y sus tests viven solo en
   `plugins/email-triage/skills/email-triage/scripts/`. No crees árboles paralelos.
-- En `triage_helpers.py` **solo `cmd_registrar` escribe a disco** (append
-  atómico con `flock`). Los JSONL son append-only. Ningún subcomando mueve correos.
+- En `triage_helpers.py` las escrituras a disco son un inventario CERRADO:
+  `cmd_registrar` (append atómico con `flock`; los JSONL de datos son
+  append-only), `cmd_compactar` (purga explícita y atómica de ese JSONL) y
+  los volcados opt-in regenerables `calibrar --guardar` / `scoring
+  --desglose` (snapshots atómicos, no-datos). Ningún subcomando mueve correos.
 - Todo metadato controlado por el remitente se **sanea/escapa** antes de
   interpolarse en nada (S0 para cuerpo/asunto/remitente; `escapar-applescript`
   para message-ids). El *escapado* es mecánico y completo; la *detección* S0 es
@@ -51,8 +54,8 @@ tests, integridad de `config.yaml` (30 criterios exactos, cero claves booleanas
 versiones en los 8 sitios, unicidad de scripts, changelog del README en
 sincronía con la versión (la sección `## Novedades en vX.Y.Z` de la versión
 actual debe existir y ser la primera), y un fuzz de totalidad que exige que los
-puntos de entrada (`scoring`/`montar-mover`/`sanitizar`) nunca lancen y siempre
-devuelvan un dict serializable ante cualquier entrada.
+puntos de entrada (`scoring`/`montar-mover`/`sanitizar`/`calibrar`) nunca
+lancen y siempre devuelvan un dict serializable ante cualquier entrada.
 
 Para el detalle de mapa de ficheros, checklist de release, invariantes de
 seguridad completas y gotchas: **[`CLAUDE.md`](CLAUDE.md)**.

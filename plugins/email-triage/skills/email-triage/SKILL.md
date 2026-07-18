@@ -1,6 +1,6 @@
 ---
 name: email-triage
-version: "3.8.15"
+version: "3.8.16"
 description: >
   Triaje inteligente de correo electrónico: analiza bandejas de entrada y carpetas
   de lectura pendiente para identificar correos de alto valor usando criterios
@@ -155,12 +155,18 @@ Cuando `modo_veloz: true`, anunciarlo al inicio y aplicar:
    Pasa la capa veloz al script con `scoring --config-veloz <ruta a
    config-veloz.yaml>`: el script fusiona sus overrides de `scoring` sobre tu
    config por mecanismo (CM2/F7) — no ensambles un config combinado a mano.
-   El desglose completo va a telemetría/fichero, nunca al contexto.
-3. **Saltar calibración (PASO 2)**: reutilizar la última calibración; si
-   no hay ninguna, correrla una vez y cachearla.
-4. **Saltar verificación contra Enviados (PASO 1.C)**: marcar
+   El desglose completo va a fichero añadiendo `--desglose <ruta>` a esa
+   misma invocación (CM2/F12), nunca al contexto.
+3. **Saltar calibración (PASO 2)**: preguntar primero a la caché con
+   `triage_helpers.py calibrar --leer` (la vigencia — TTL 7 días,
+   `--ttl-dias` para otro — la decide el script, no tú). Si responde
+   `vigente: true`, usar su `perfil` tal cual; si `vigente: false` (no
+   existe, corrupta o caducada), correr el PASO 2 una vez terminando en
+   `calibrar --guardar` para regenerarla.
+4. **Saltar la consulta a Enviados (subpaso de verificación de 1.C)**: marcar
    `usuario_es_ultimo_en_responder: desconocido` (+2, no +5). Ahorra
-   round-trips a osascript.
+   round-trips a osascript. El resto del PASO 1.C (agrupación por hilos y
+   sus hard rules) se mantiene.
 5. **Cuerpo recortado**: `max_caracteres_cuerpo: 800`, `max_lineas_cuerpo: 20`.
 6. **Explicación mínima**: 1 razón positiva + 1 negativa, sin rationale.
 7. **Presentación compacta**: tabla de 1 línea por correo (asunto ·
@@ -224,8 +230,10 @@ esa especificación.
 **Lee ahora `references/paso-1-proveedores.md`** (misma carpeta que este
 SKILL.md) y sigue sus instrucciones al pie de la letra. Contiene el protocolo
 completo de conexión por proveedor — iCloud/Mail.app (AppleScript consolidado,
-SCRIPTs 1-3, escapado obligatorio vía `escapar-applescript`/`montar-mover`) y
-Gmail (MCP) — extraído aquí por divulgación progresiva (CM1): solo se carga
+SCRIPTs 1-4 — el 4º es la limpieza de privacidad, que borra de disco los
+cuerpos crudos temporales —, escapado obligatorio vía
+`escapar-applescript`/`montar-mover`) y Gmail (MCP) — extraído aquí por
+divulgación progresiva (CM1): solo se carga
 cuando de verdad vas a conectar, no en cada activación del skill.
 
 Regla no negociable que sobrevive al enrutado: **nunca interpoles metadatos
@@ -472,43 +480,39 @@ descripción conceptual: es un análisis cuantitativo que produce datos usables.
 
 2. Lee los últimos 100 correos con asunto, remitente y fecha.
 
-3. **Extrae estas métricas exactas**:
+3. **Extrae las métricas exactas CON EL SCRIPT** (CM2/F11): la aritmética
+   de conteos ya no se hace mentalmente — mismo lote, mismo perfil,
+   reproducible. Pasa los metadatos recopilados a `calibrar`:
 
-   **a) Remitentes frecuentes** (top 10 por apariciones):
-   ```
-   remitente@ejemplo.com — 12 correos (12%)
-   otro@dominio.org — 8 correos (8%)
-   ...
-   ```
-
-   **b) Dominios de remitente frecuentes** (top 5):
-   ```
-   @substack.com — 23 correos
-   @gmail.com — 18 correos
-   ...
+   ```bash
+   echo '{"correos": [
+     {"remitente": "Ana López <ana@substack.com>", "asunto": "Update semanal"},
+     {"remitente": "luis@gmail.com", "asunto": "Re: presupuesto"}
+   ]}' \
+     | python3 "<ruta-del-skill>/scripts/triage_helpers.py" calibrar --guardar
    ```
 
-   **c) Palabras clave en asuntos** (top 15, excluyendo stopwords):
-   ```
-   "AI" — 14 apariciones
-   "update" — 11 apariciones
-   ...
-   ```
+   Devuelve el perfil determinista y, con `--guardar`, lo cachea además
+   como snapshot atómico en `~/.email-triage/calibracion.json` (esquema 1;
+   es lo que el modo veloz reutiliza vía `calibrar --leer`):
 
-   **d) Distribución temporal**:
-   ```
-   Correos más antiguos: DD/MM/YYYY
-   Correos más recientes: DD/MM/YYYY
-   Pico de conservación: [mañana/tarde/noche]
-   ```
+   **a) `top_remitentes`** — top 10, con `conteo` y `porcentaje` sobre
+   `n_correos`;
 
-   **e) Tipos detectados**:
-   ```
-   Newsletters: ~45%
-   Comunicaciones directas: ~30%
-   Notificaciones de servicio: ~15%
-   Otros: ~10%
-   ```
+   **b) `top_dominios`** — top 5, formato `@dominio.com`;
+
+   **c) `top_keywords`** — top 15 de los asuntos: minúsculas, tokens de ≥3
+   caracteres, sin stopwords ES/EN (la MISMA tokenización que los ajustes
+   del PASO 0.B: un solo espacio de keywords).
+
+   Dos observaciones siguen siendo TU juicio — el script no las calcula y
+   no requieren conteo exacto:
+
+   **d) Distribución temporal**: rango de fechas y pico de conservación
+   (mañana/tarde/noche), a ojo sobre los metadatos ya leídos.
+
+   **e) Tipos detectados**: proporción aproximada de newsletters /
+   comunicaciones directas / notificaciones de servicio / otros.
 
 4. **Almacena el perfil** como contexto interno para las fases siguientes.
    Úsalo para:
@@ -525,6 +529,9 @@ descripción conceptual: es un análisis cuantitativo que produce datos usables.
 - A petición del usuario
 - Si más de 3 "No" consecutivos en modo confirmación
 - Si la carpeta de historial ha cambiado significativamente (>50 correos nuevos)
+- En modo veloz decide el script: `triage_helpers.py calibrar --leer` responde
+  `vigente: false` cuando la caché supera el TTL (`--ttl-dias`, por defecto 7)
+  o es ilegible — entonces recalibra y regenera con `calibrar --guardar`
 
 ### Calidad de la calibración
 
@@ -721,8 +728,12 @@ echo '{"emails": [
       --config ~/.email-triage/config.yaml --brief
 ```
 
-Guarda el desglose completo (sin `--brief`) en telemetría/fichero, no en el
-contexto de la conversación.
+Para conservar el desglose completo sin meterlo al contexto, añade
+`--desglose <ruta>` a la misma invocación (combinable con `--brief`):
+`triage_helpers.py scoring --brief --desglose ~/.email-triage/tmp/desglose.json`
+escribe el desglose por correo a fichero (JSON, escritura atómica) mientras
+stdout sigue compacto; un fallo de escritura se reporta en `desglose_error`,
+nunca en silencio (CM2/F12).
 
 > Nota: el campo `eje` de cada criterio y los rangos de `scoring.ejes` son la
 > fuente única del mapeo criterio→eje. Si editas pesos o reasignas un criterio
@@ -739,8 +750,11 @@ SIEMPRE en cada correo; los 18 restantes solo cuando el correo lo amerita
 (ej: `motivated_stopping` solo aplica si el correo propone cerrar una
 cuestión abierta).
 
-Las tablas descriptivas por grupos (redundantes con el config) están en
-`references/criterios-catalogo.md` como documentación de consulta.
+Las tablas descriptivas por grupos están en `references/criterios-catalogo.md`
+como documentación de consulta: sus preguntas y pesos son redundantes con el
+config, pero la numeración número↔criterio solo existe en el catálogo — el
+config no numera; toda referencia "criterio N" de la doctrina se resuelve
+allí.
 
 
 ### 4.C — Routing por tiers

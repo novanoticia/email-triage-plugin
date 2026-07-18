@@ -1,9 +1,16 @@
 -- ════════════════════════════════════════════════════════════════
 -- Plantillas AppleScript consolidadas para email-triage (corrección #5)
 -- Objetivo: reducir round-trips a osascript (cada uno ~60s en Mail).
--- Reemplaza <<CUENTA>>, <<ORIGEN>>, <<DESTINO_REVIEW>>, <<DESTINO_ARCHIVE>>.
--- Escapa esos nombres con `escapar-applescript` (campo `escapados`) antes de
--- pegarlos: un nombre con una comilla rompe el literal igual que un message-id.
+-- Placeholders a sustituir (inventario que vigila test_contrato_skill.py):
+--   <<CUENTA>>, <<ORIGEN>>, <<DESTINO_REVIEW>>, <<DESTINO_ARCHIVE>>  (nombre de
+--     cuenta y de las carpetas; salen de tu config.yaml).
+--   <<LISTA_REVIEW>>, <<LISTA_ARCHIVE>>  (las dos listas de message-ids).
+-- REGLA DE ESCAPADO (obligatoria): pasa cuenta y carpetas por `escapar-applescript`
+-- y sustituye con el campo `escapados`; rellena las dos listas de message-ids con
+-- el campo `lista_applescript` del helper (o, mejor, deja que `montar-mover` emita
+-- el SCRIPT 3 entero, que además cubre el archivo nativo y reply_needed). NUNCA
+-- escribas un nombre o message-id crudo entre comillas: una comilla rompe el
+-- literal e inyecta código.
 -- Ejecutar escribiendo a /tmp con Desktop Commander y `osascript /tmp/x.scpt`
 -- (los nombres con acentos rompen el inline — lección de producción #3).
 -- ════════════════════════════════════════════════════════════════

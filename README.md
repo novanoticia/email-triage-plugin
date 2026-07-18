@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.8.15
+# Email Triage Plugin v3.8.16
 
 Filtrado epistémico de correo electrónico para Claude Cowork y Claude Code.
 
@@ -17,6 +17,20 @@ La mayoría de clasificadores de correo preguntan "¿es urgente?". Este plugin p
 - ¿Está anclado a hechos verificables? (Entangled Truths)
 
 El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decisional, calidad epistémica, coste cognitivo y riesgo de manipulación.
+## Novedades en v3.8.16
+
+Implementación de los fixes de la auditoría 2026-07-19 (QW1-4, CM1, CM2, NO1):
+
+- **El contrato de mover cubre por fin los 3 tiers y el archivo nativo (CM1)**: `montar-mover` acepta `destino_archive` vacío (genera archivo nativo al buzón Archive de la cuenta, escapado) y listas opcionales `mids_reply_needed`/`destino_reply_needed` — si el destino está vacío o es el propio origen, esos correos se quedan donde están y ni entran al script. Retrocompatibilidad byte-idéntica con el payload de 2 destinos. El ejemplo inseguro de mover por índice desaparece de la referencia.
+- **La calibración deja de ser aritmética mental (CM2)**: nuevo subcomando `calibrar` (top remitentes/dominios/keywords con conteos y porcentajes deterministas), caché con snapshot atómico en `~/.email-triage/calibracion.json` y vigencia por TTL decidida por el script (`--leer`, default 7 días). El modo veloz por fin tiene el mecanismo de cacheo que prometía.
+- **`scoring --desglose RUTA` (CM2)**: el desglose completo va a fichero; el stdout con `--brief` sigue byte-idéntico al de v3.8.15.
+- **Gate doctrinal doc↔doc (NO1)**: 20 tests verifican que cada documento cita correctamente las constantes compartidas (límites de volumen leídos del YAML real, protocolo de inyección con cap a REVIEW en ambos docs, numeración de criterios contra el catálogo, contador de SCRIPTs contra la plantilla, bloque Uso contra el argparse). La clase de deriva "referencia congelada tras un fix" deja de depender de acordarse de sincronizar.
+- **Fallback manual sincronizado (QW1)**: el protocolo de inyección de `sanitizacion-manual.md` adopta el v3.5 (cap a REVIEW + metadatos comprometidos fuera de la evaluación).
+- **Pasada doctrinal (QW2)**: `manejo-errores.md` reconoce `max_lineas_cuerpo` como límite vivo; el presupuesto del fallback S5 se parametriza; la invariante de escritura dice la verdad (append de datos / purga / snapshots); `session_log.jsonl` recupera su nombre real en el docstring.
+- **`validar-config` valida `tiers` (QW3)**: umbrales no numéricos se avisan antes de que el scoring reviente con TypeError opaco en todo el lote; editar `tiers.archive` avisa de su semántica partida (rutina sí, tier determinista no).
+- **Clamps completos (QW4)**: `MAX_ENTRADA_SANITIZAR` cubre también asunto y remitente (antes un metadato de 5 MB costaba ~2 s de CPU sin tope) y `MAX_INGESTA_BYTES` (10 MB) acota las 7 lecturas de fichero/stdin de `main()`.
+- **63 tests nuevos** (208 en total, más el fuzz de CI ampliado a `calibrar`) fijan todo lo anterior.
+
 ## Novedades en v3.8.15
 
 Implementación de los fixes de la auditoría 2026-07-17 (segunda pasada: los seis
