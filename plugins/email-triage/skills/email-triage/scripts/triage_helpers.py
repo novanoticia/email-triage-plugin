@@ -406,6 +406,12 @@ def _detectar_s0(texto):
 # sobre un cuerpo hostil de tamano arbitrario. Un correo legitimo nunca lo roza.
 MAX_ENTRADA_SANITIZAR = 100_000
 
+# QW4 (auditoria 2026-07-19, F19): tope de INGESTA en memoria para main().
+# El clamp de arriba acota el barrido S0, pero actuaba DESPUES de cargar todo
+# el fichero/stdin en memoria: una entrada de GB agotaba la RAM antes de
+# llegar a ningun clamp. Generoso: ninguna entrada legitima se acerca.
+MAX_INGESTA_BYTES = 10_000_000
+
 
 def cmd_sanitizar(texto: str, max_chars: int = 1500,
                   asunto: Optional[str] = None,
@@ -431,6 +437,14 @@ def cmd_sanitizar(texto: str, max_chars: int = 1500,
     flags = _detectar_s0(texto)                       # S0 en doble vista
     injection_cuerpo = bool(flags)
 
+    # QW4 (auditoria 2026-07-19, F7): el mismo backstop del cuerpo para las
+    # otras dos superficies del barrido S0. Asunto (v3.8.2) y remitente
+    # (v3.8.4) se anadieron sin heredar el clamp: un metadato patologico
+    # forzaba un barrido lineal no acotado (verificado: 5 MB ~ 2 s de CPU).
+    if asunto and len(asunto) > MAX_ENTRADA_SANITIZAR:
+        asunto, entrada_recortada = asunto[:MAX_ENTRADA_SANITIZAR], True
+    if remitente and len(remitente) > MAX_ENTRADA_SANITIZAR:
+        remitente, entrada_recortada = remitente[:MAX_ENTRADA_SANITIZAR], True
     flags_asunto = _detectar_s0(asunto) if asunto else []
     injection_asunto = bool(flags_asunto)
 
@@ -1633,7 +1647,7 @@ def main():
         # es JSON válido (o con bytes no-UTF8) reventaba con traceback crudo,
         # mientras registrar/escapar-applescript/montar-mover ya devolvían
         # {"ok": False, ...}. Mismo contrato aquí.
-        crudo = sys.stdin.buffer.read().decode("utf-8", errors="replace")
+        crudo = sys.stdin.buffer.read(MAX_INGESTA_BYTES).decode("utf-8", errors="replace")
         try:
             payload = json.loads(crudo or "{}")
         except json.JSONDecodeError as e:
@@ -1654,7 +1668,8 @@ def main():
     elif args.cmd == "validar-config":
         out = cmd_validar_config(args.config)
     elif args.cmd == "registrar":
-        crudo = args.registro if args.registro is not None else sys.stdin.read()
+        crudo = (args.registro if args.registro is not None
+                 else sys.stdin.read(MAX_INGESTA_BYTES))
         try:
             registro = json.loads(crudo or "{}")
         except json.JSONDecodeError as e:
@@ -1662,7 +1677,8 @@ def main():
         else:
             out = cmd_registrar(args.ruta, registro)
     elif args.cmd == "escapar-applescript":
-        crudo = args.valores if args.valores is not None else sys.stdin.read()
+        crudo = (args.valores if args.valores is not None
+                 else sys.stdin.read(MAX_INGESTA_BYTES))
         try:
             data = json.loads(crudo or "{}")
         except json.JSONDecodeError as e:
@@ -1673,7 +1689,8 @@ def main():
     elif args.cmd == "compactar":
         out = cmd_compactar(args.archivo, args.max_lineas, dry_run=args.dry_run)
     elif args.cmd == "montar-mover":
-        crudo = args.datos if args.datos is not None else sys.stdin.read()
+        crudo = (args.datos if args.datos is not None
+                 else sys.stdin.read(MAX_INGESTA_BYTES))
         try:
             data = json.loads(crudo or "{}")
         except json.JSONDecodeError as e:
@@ -1681,7 +1698,8 @@ def main():
         else:
             out = cmd_montar_mover(data)
     elif args.cmd == "montar-consulta-enviados":
-        crudo = args.datos if args.datos is not None else sys.stdin.read()
+        crudo = (args.datos if args.datos is not None
+                 else sys.stdin.read(MAX_INGESTA_BYTES))
         try:
             data = json.loads(crudo or "{}")
         except json.JSONDecodeError as e:
@@ -1691,11 +1709,11 @@ def main():
     else:
         if args.archivo:
             with open(args.archivo, encoding="utf-8", errors="replace") as fh:
-                texto = fh.read()
+                texto = fh.read(MAX_INGESTA_BYTES)
         else:
             # Lectura tolerante: un cuerpo en ISO-8859-1 o con bytes sueltos
             # no debe reventar el pipe (se sustituyen los ilegibles).
-            texto = sys.stdin.buffer.read().decode("utf-8", errors="replace")
+            texto = sys.stdin.buffer.read(MAX_INGESTA_BYTES).decode("utf-8", errors="replace")
         out = cmd_sanitizar(texto, args.max_chars, asunto=args.asunto,
                             remitente=args.remitente)
     json.dump(out, sys.stdout, ensure_ascii=False, indent=2)
