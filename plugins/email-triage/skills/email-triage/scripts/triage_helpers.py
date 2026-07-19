@@ -943,6 +943,11 @@ def cmd_validar_config(ruta: str) -> dict:
     _t_v = _tier_efectivo("review")
     _t_l = _tier_efectivo("reading_later")
     tiers_desordenados = not (_t_r >= _t_v >= _t_l)
+    # QW2-r2 (F2): claves de tiers fuera de las 4 canonicas (typos como
+    # 'reply_neded') caian al default en silencio — espejo de eje_desconocido.
+    tiers_desconocidos = sorted(
+        str(k) for k in _tiers_raw
+        if k not in ("reply_needed", "review", "reading_later", "archive"))
     sin_eje, eje_desconocido, clave_booleana = [], [], []
     if isinstance(criterios, dict):
         for nombre, c in criterios.items():
@@ -1001,6 +1006,11 @@ def cmd_validar_config(ruta: str) -> dict:
             "%d umbral(es) de tiers no numericos — el scoring reventaria con "
             "TypeError en el mapeo de tier para TODOS los correos del lote: %s"
             % (len(tiers_invalidos), ", ".join(sorted(tiers_invalidos))))
+    if tiers_desconocidos:
+        avisos.append(
+            "%d clave(s) de tiers desconocidas (¿typo?): %s — el umbral real "
+            "cae al default en silencio"
+            % (len(tiers_desconocidos), ", ".join(tiers_desconocidos[:8])))
     if tiers_desordenados:
         avisos.append(
             "umbrales de tiers desordenados (efectivos: reply_needed=%s, "
@@ -1024,6 +1034,7 @@ def cmd_validar_config(ruta: str) -> dict:
             "tiers_no_mapa": tiers_no_mapa,
             "tiers_invalidos": tiers_invalidos,
             "tiers_desordenados": tiers_desordenados,
+            "tiers_desconocidos": tiers_desconocidos,
             "tiers_archive_divergente": archive_divergente}
 
 

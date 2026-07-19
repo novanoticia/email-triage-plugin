@@ -1134,6 +1134,20 @@ class TestValidarConfigTiersOrdenR2(unittest.TestCase):
                             "tiers: {reply_needed: 3}\n")
         self.assertTrue(out["tiers_desordenados"])
 
+    def test_typo_de_clave_avisa(self):
+        # QW2-r2 (F2): 'reply_neded' caia al default sin señal.
+        out = self._validar("correo: {cuenta: a@b.com}\n"
+                            "criterios_epistemicos: {}\n"
+                            "tiers: {reply_neded: 12, review: 4}\n")
+        self.assertIn("reply_neded", out["tiers_desconocidos"])
+        self.assertTrue(any("desconocidas" in a for a in out["avisos"]))
+
+    def test_claves_canonicas_sin_aviso_de_desconocidas(self):
+        out = self._validar("correo: {cuenta: a@b.com}\n"
+                            "criterios_epistemicos: {}\n"
+                            "tiers: {reply_needed: 10, review: 4}\n")
+        self.assertEqual(out["tiers_desconocidos"], [])
+
     def test_orden_valido_sin_aviso(self):
         out = self._validar("correo: {cuenta: a@b.com}\n"
                             "criterios_epistemicos: {}\n"
