@@ -1754,14 +1754,31 @@ def cmd_montar_mover(datos: dict) -> dict:
         '    set revBox to mailbox ' + dest_rev + ' of acct\n'
     )
     if archivo_nativo:
+        # F5 (re-auditoría 2026-07-19): la resolución del buzón nativo "Archive"
+        # corría FUERA de todo try; si el buzón no existe (iCloud lo localiza o
+        # lo llama "Archived Messages") podía abortar TODO el script antes de
+        # mover nada, y el comentario prometía lo contrario. Ahora se resuelve
+        # dentro de su propio try con un flag arcBoxOK: si falla, NO aborta y
+        # todos los mids_archive caen en fallidos_archive (+ archivo_nativo_fallido:1).
         cab += (
             '    -- Archivo nativo (destino_archive vacío): buzón "Archive" de la\n'
             '    -- cuenta. Matiz localización/IMAP: en algunas cuentas se llama\n'
             '    -- distinto (p.ej. "Archivo", o "Archived Messages" en iCloud).\n'
-            '    -- Si el move falla, esos mids salen en fallidos_archive: define\n'
-            '    -- entonces destino_archive con el nombre real del buzón.\n'
+            '    -- Si el buzón "Archive" NO existe, el script NO aborta: se\n'
+            '    -- resuelve dentro de un try (arcBoxOK) y TODOS los mids_archive\n'
+            '    -- salen en fallidos_archive con archivo_nativo_fallido:1.\n'
+            '    -- Solución: define destino_archive con el nombre real del buzón.\n'
+            '    set arcBoxOK to true\n'
+            '    set arcNativoFallido to 0\n'
+            '    try\n'
+            '        set arcBox to mailbox ' + arc_box_lit + ' of acct\n'
+            '    on error\n'
+            '        set arcBoxOK to false\n'
+            '        set arcNativoFallido to 1\n'
+            '    end try\n'
         )
-    cab += '    set arcBox to mailbox ' + arc_box_lit + ' of acct\n'
+    else:
+        cab += '    set arcBox to mailbox ' + arc_box_lit + ' of acct\n'
     if reply_needed_movido:
         cab += '    set rnBox to mailbox ' + applescript_quote(dest_rn_raw) + ' of acct\n'
     cab += (
@@ -1771,8 +1788,21 @@ def cmd_montar_mover(datos: dict) -> dict:
     if reply_needed_movido:
         cab += '    set toReply to ' + _lista_applescript(mids_rn) + '\n'
 
-    cuerpo = (_bloque_repeat_mover("okRev", "failRev", "toReview", "revBox")
-              + _bloque_repeat_mover("okArc", "failArc", "toArchive", "arcBox"))
+    cuerpo = _bloque_repeat_mover("okRev", "failRev", "toReview", "revBox")
+    if archivo_nativo:
+        # Guard F5: el bloque de archive solo corre si el buzón nativo se
+        # resolvió (arcBoxOK); si no, okArc=0 y TODOS los mids van a failArc,
+        # que el return expone como fallidos_archive (+ archivo_nativo_fallido:1).
+        cuerpo += (
+            '    if arcBoxOK then\n'
+            + _bloque_repeat_mover("okArc", "failArc", "toArchive", "arcBox")
+            + '    else\n'
+            '        set okArc to 0\n'
+            '        set failArc to toArchive\n'
+            '    end if\n'
+        )
+    else:
+        cuerpo += _bloque_repeat_mover("okArc", "failArc", "toArchive", "arcBox")
     if reply_needed_movido:
         cuerpo += _bloque_repeat_mover("okRep", "failRep", "toReply", "rnBox")
 
@@ -1788,6 +1818,10 @@ def cmd_montar_mover(datos: dict) -> dict:
     )
     if reply_needed_movido:
         ret += '" movidos_reply:" & okRep & "/" & (count of toReply) & '
+    if archivo_nativo:
+        # F5: expone si el buzón nativo no se resolvió (0/1) en el mismo formato
+        # clave:valor que el resto del return, así la doctrina lo parsea igual.
+        ret += '" archivo_nativo_fallido:" & arcNativoFallido & '
     ret += ('" | fallidos_review:[" & (failRev as string) & '
             '"] fallidos_archive:[" & (failArc as string) & ')
     if reply_needed_movido:

