@@ -948,6 +948,30 @@ def cmd_validar_config(ruta: str) -> dict:
     tiers_desconocidos = sorted(
         str(k) for k in _tiers_raw
         if k not in ("reply_needed", "review", "reading_later", "archive"))
+    # NO-r2 (re-auditoria 2026-07-19 r2, F8/F9): claves OPCIONALES de doctrina
+    # parseable en `puntuacion` — extraccion_cruda_max (tope de la extraccion
+    # cruda del PASO 1, citado por los scripts AppleScript) y perfiles
+    # (presupuestos post-limpieza rapido/equilibrado/profundo). El runtime NO
+    # las consume (sigue mandando max_caracteres_cuerpo): son la fuente que
+    # los gates doctrinales comparan con la doctrina. Si estan presentes se
+    # validan tipos, para que un valor roto no envenene el gate ni confunda
+    # a quien las copie a su config personal.
+    _punt = (data.get("puntuacion")
+             if isinstance(data.get("puntuacion"), dict) else {})
+    _extr = _punt.get("extraccion_cruda_max")
+    extraccion_invalida = (_extr is not None
+                           and (isinstance(_extr, bool)
+                                or not isinstance(_extr, int)
+                                or _extr <= 0))
+    _perf = _punt.get("perfiles")
+    perfiles_no_mapa = _perf is not None and not isinstance(_perf, dict)
+    perfiles_invalidos = []
+    if isinstance(_perf, dict):
+        for _pk, _pv in _perf.items():
+            if (isinstance(_pv, bool) or not isinstance(_pv, (int, float))
+                    or _pv <= 0):
+                perfiles_invalidos.append(str(_pk))
+    perfiles_invalidos.sort()
     sin_eje, eje_desconocido, clave_booleana = [], [], []
     if isinstance(criterios, dict):
         for nombre, c in criterios.items():
@@ -1023,6 +1047,23 @@ def cmd_validar_config(ruta: str) -> dict:
             "(archivar_automaticamente); el mapeo determinista lo ignora (por "
             "debajo de reading_later todo es ARCHIVE) — sesion manual y rutina "
             "divergiran en silencio" % (_arch,))
+    if extraccion_invalida:
+        avisos.append(
+            "puntuacion.extraccion_cruda_max=%r debe ser un entero > 0: es el "
+            "tope de extraccion cruda del PASO 1 que los gates doctrinales "
+            "comparan con los scripts AppleScript (el runtime no lo usa, pero "
+            "un valor roto desinforma a quien lo lea)" % (_extr,))
+    if perfiles_no_mapa:
+        avisos.append(
+            "puntuacion.perfiles no es un mapeo perfil->caracteres (es %s): "
+            "se esperaba algo como {rapido: 800, equilibrado: 1500, "
+            "profundo: 2500}" % type(_perf).__name__)
+    if perfiles_invalidos:
+        avisos.append(
+            "%d perfil(es) de puntuacion.perfiles sin presupuesto numerico "
+            "positivo: %s — cada perfil debe ser un numero de caracteres "
+            "(p. ej. rapido: 800)"
+            % (len(perfiles_invalidos), ", ".join(perfiles_invalidos[:8])))
     return {"ok": True, "claves_top": sorted(data.keys()),
             "campos_recomendados_ausentes": faltan, "avisos": avisos,
             "criterios_sin_eje": sin_eje,
@@ -1035,7 +1076,10 @@ def cmd_validar_config(ruta: str) -> dict:
             "tiers_invalidos": tiers_invalidos,
             "tiers_desordenados": tiers_desordenados,
             "tiers_desconocidos": tiers_desconocidos,
-            "tiers_archive_divergente": archive_divergente}
+            "tiers_archive_divergente": archive_divergente,
+            "extraccion_cruda_max_invalido": extraccion_invalida,
+            "perfiles_no_mapa": perfiles_no_mapa,
+            "perfiles_invalidos": perfiles_invalidos}
 
 
 # ════════════════════════════════════════════════════════════════

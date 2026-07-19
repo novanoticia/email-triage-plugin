@@ -1217,6 +1217,86 @@ class TestValidarConfigTiersOrdenR2(unittest.TestCase):
         self.assertFalse(any("desordenados" in a for a in out["avisos"]))
 
 
+class TestValidarConfigClavesDoctrinaNOr2(unittest.TestCase):
+    """NO-r2 (re-auditoria 2026-07-19 r2, F8/F9): puntuacion.
+    extraccion_cruda_max y puntuacion.perfiles son claves OPCIONALES de
+    doctrina parseable (el runtime no las consume; los gates doctrinales
+    si). validar-config valida tipos si estan presentes y calla si no:
+    retrocompatibilidad total con configs personales anteriores."""
+
+    def _validar(self, cuerpo_yaml):
+        try:
+            import yaml  # noqa: F401
+        except ImportError:
+            self.skipTest("PyYAML no instalado")
+        fh = tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False,
+                                         encoding="utf-8")
+        fh.write(cuerpo_yaml)
+        fh.close()
+        try:
+            return th.cmd_validar_config(fh.name)
+        finally:
+            os.unlink(fh.name)
+
+    BASE = "correo: {cuenta: a@b.com}\ncriterios_epistemicos: {}\n"
+
+    def test_claves_ausentes_sin_aviso(self):
+        # Un config personal sin las claves nuevas sigue limpio: opcionales.
+        out = self._validar(self.BASE + "puntuacion: {leer_cuerpo: true}\n")
+        self.assertTrue(out["ok"])
+        self.assertFalse(out["extraccion_cruda_max_invalido"])
+        self.assertFalse(out["perfiles_no_mapa"])
+        self.assertEqual(out["perfiles_invalidos"], [])
+        self.assertFalse(any("extraccion_cruda_max" in a or "perfiles" in a
+                             for a in out["avisos"]))
+
+    def test_claves_validas_sin_aviso(self):
+        out = self._validar(
+            self.BASE + "puntuacion:\n  extraccion_cruda_max: 4000\n"
+            "  perfiles: {rapido: 800, equilibrado: 1500, profundo: 2500}\n")
+        self.assertFalse(out["extraccion_cruda_max_invalido"])
+        self.assertFalse(out["perfiles_no_mapa"])
+        self.assertEqual(out["perfiles_invalidos"], [])
+
+    def test_extraccion_no_entera_avisa(self):
+        out = self._validar(
+            self.BASE + "puntuacion: {extraccion_cruda_max: muchos}\n")
+        self.assertTrue(out["extraccion_cruda_max_invalido"])
+        self.assertTrue(any("entero > 0" in a for a in out["avisos"]))
+
+    def test_extraccion_cero_avisa(self):
+        out = self._validar(
+            self.BASE + "puntuacion: {extraccion_cruda_max: 0}\n")
+        self.assertTrue(out["extraccion_cruda_max_invalido"])
+
+    def test_extraccion_booleana_avisa(self):
+        # true es int en Python: el gate debe rechazar bool explicitamente.
+        out = self._validar(
+            self.BASE + "puntuacion: {extraccion_cruda_max: true}\n")
+        self.assertTrue(out["extraccion_cruda_max_invalido"])
+
+    def test_perfiles_no_mapa_avisa(self):
+        out = self._validar(
+            self.BASE + "puntuacion: {perfiles: [800, 1500, 2500]}\n")
+        self.assertTrue(out["perfiles_no_mapa"])
+        self.assertTrue(any("mapeo perfil->caracteres" in a
+                            for a in out["avisos"]))
+
+    def test_perfil_no_numerico_avisa(self):
+        out = self._validar(
+            self.BASE + "puntuacion:\n"
+            "  perfiles: {rapido: rapidito, equilibrado: 1500}\n")
+        self.assertEqual(out["perfiles_invalidos"], ["rapido"])
+        self.assertTrue(any("presupuesto numerico" in a
+                            for a in out["avisos"]))
+
+    def test_perfil_negativo_o_booleano_avisa(self):
+        out = self._validar(
+            self.BASE + "puntuacion:\n"
+            "  perfiles: {profundo: -1, rapido: true, equilibrado: 1500}\n")
+        self.assertEqual(out["perfiles_invalidos"], ["profundo", "rapido"])
+
+
 class TestValidarConfigTiersQW3(unittest.TestCase):
     """QW3 (auditoria 2026-07-19, F5/F22): validar-config no miraba `tiers`.
     Un umbral no numerico pasaba el gate con 'ok' y el scoring reventaba

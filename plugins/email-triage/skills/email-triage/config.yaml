@@ -168,15 +168,34 @@ puntuacion:
   # luego S0–S5 lo limpia y lo trunca a max_caracteres_cuerpo.
   # Si false, solo usa asunto y remitente (más rápido, menos preciso).
 
+  extraccion_cruda_max: 4000
+  # Tope de la extracción cruda del PASO 1 — fuente doctrinal PARSEABLE.
+  # El runtime NO lee esta clave (el tope va embebido en los scripts que
+  # monta el SKILL); los scripts AppleScript (paso-1-proveedores.md,
+  # mail-consolidado.applescript) y manejo-errores.md citan este valor y el
+  # gate ContratoDoctrinaConstantesR2 de test_contrato_skill.py los compara.
+  # Si cambias este número, cambia esos ficheros a la vez (el gate te guía).
+
   max_caracteres_cuerpo: 1500
   # Presupuesto de caracteres del cuerpo DESPUÉS de la limpieza (v3.5):
   # el sanitizador lo recibe vía --max-chars y trunca el texto YA limpio.
   # La extracción cruda previa es de 4000 y la fija el SKILL (PASO 1).
-  # Valores recomendados: 800 (rápido), 1500 (equilibrado), 2500 (profundo).
+  # Valores recomendados: los de `perfiles` (justo debajo):
+  # rapido / equilibrado / profundo.
   # NO hay ningún otro tope de caracteres: los números 500/2000 de versiones
   # < v3.5 ya NO existen (QW3/F5, auditoría 2026-07-17). El control de volumen
   # tiene exactamente dos números —extracción 4000 y este presupuesto—; fuente
   # única: references/manejo-errores.md.
+
+  perfiles:
+    rapido: 800
+    equilibrado: 1500
+    profundo: 2500
+  # Presupuestos post-limpieza recomendados — fuente doctrinal PARSEABLE de
+  # los "800 rápido / 1500 equilibrado / 2500 profundo" que cita la doctrina
+  # (sanitizacion-manual.md S5). `max_caracteres_cuerpo` debería ser uno de
+  # ellos. El runtime NO lee estas claves (sigue mandando
+  # max_caracteres_cuerpo); los gates doctrinales sí.
 
   max_lineas_cuerpo: 30
   # Tope de LÍNEAS del texto plano. OJO (QW3/F5): lo aplica el MODELO en modo
