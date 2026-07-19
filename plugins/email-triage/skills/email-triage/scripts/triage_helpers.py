@@ -1672,7 +1672,8 @@ def cmd_montar_mover(datos: dict) -> dict:
       mids_review, mids_archive, mids_reply_needed   listas opcionales de ids.
 
     Devuelve {"ok", "script", "sospechosos", "n_review", "n_archive",
-    "n_reply_needed", "archivo_nativo", "reply_needed_movido"} o el contrato de
+    "n_reply_needed", "n_reply_omitidos", "archivo_nativo",
+    "reply_needed_movido"} o el contrato de
     error {"ok": False, "error"} si algún campo falta o está mal.
 
     Retrocompatible: un payload con solo cuenta/origen/destino_review/
@@ -1797,7 +1798,12 @@ def cmd_montar_mover(datos: dict) -> dict:
     script = cab + cuerpo + ret
     return {"ok": True, "script": script, "sospechosos": sospechosos,
             "n_review": len(mids_rev), "n_archive": len(mids_arc),
-            "n_reply_needed": len(mids_rn) if isinstance(mids_rn, list) else 0,
+            "n_reply_needed": (len(mids_rn)
+                               if (reply_needed_movido
+                                   and isinstance(mids_rn, list)) else 0),
+            "n_reply_omitidos": (len(mids_rn)
+                                 if (not reply_needed_movido
+                                     and isinstance(mids_rn, list)) else 0),
             "archivo_nativo": archivo_nativo,
             "reply_needed_movido": reply_needed_movido}
 

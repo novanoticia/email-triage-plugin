@@ -234,7 +234,8 @@ Los tres destinos (contrato cerrado en CM1):
   mueven (no aparecen en el script, se quedan donde están) y `reply_needed_movido`
   sale `false`.
 
-La salida añade `n_reply_needed`, `archivo_nativo` y `reply_needed_movido` a las
+La salida añade `n_reply_needed` (solo cuenta si de verdad se mueven; si se
+quedan, van en `n_reply_omitidos`), `archivo_nativo` y `reply_needed_movido` a las
 claves previas (`ok`, `script`, `sospechosos`, `n_review`, `n_archive`).
 
 Escribe el campo `script` a un fichero con Desktop Commander y ejecútalo con

@@ -1098,6 +1098,33 @@ class TestClampSuperficiesQW4(unittest.TestCase):
         self.assertFalse(out["entrada_recortada"])
 
 
+class TestMontarMoverContadoresR2(unittest.TestCase):
+    """QW4-r2 (F10): n_reply_needed contaba mids aunque no se movieran —
+    un consumidor que sumara n_* sobre-contaba los movidos."""
+
+    _BASE = {"cuenta": "iCloud", "origen": "INBOX",
+             "destino_review": "Triage/Review", "destino_archive": "Arch",
+             "mids_review": ["<r@x>"], "mids_archive": ["<a@x>"]}
+
+    def test_reply_que_se_queda_no_cuenta_como_movido(self):
+        datos = dict(self._BASE, mids_reply_needed=["<p@x>", "<q@x>"],
+                     destino_reply_needed="")
+        out = th.cmd_montar_mover(datos)
+        self.assertTrue(out["ok"])
+        self.assertFalse(out["reply_needed_movido"])
+        self.assertEqual(out["n_reply_needed"], 0)
+        self.assertEqual(out["n_reply_omitidos"], 2)
+
+    def test_reply_que_se_mueve_cuenta_y_no_omite(self):
+        datos = dict(self._BASE, mids_reply_needed=["<p@x>"],
+                     destino_reply_needed="Triage/Responder")
+        out = th.cmd_montar_mover(datos)
+        self.assertTrue(out["ok"])
+        self.assertTrue(out["reply_needed_movido"])
+        self.assertEqual(out["n_reply_needed"], 1)
+        self.assertEqual(out["n_reply_omitidos"], 0)
+
+
 class TestCalibrarLeerBordeTTLR2(unittest.TestCase):
     """QW3-r2 (F3): la vigencia y el mensaje usan el mismo valor redondeado —
     nunca mas 'edad 7.0 dias > TTL 7 dias'."""
