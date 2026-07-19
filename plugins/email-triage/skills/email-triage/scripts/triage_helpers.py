@@ -1494,8 +1494,12 @@ def _calibrar_leer_nucleo(ruta, ttl_dias):
         # una caché recién escrita.
         return dict(base, vigente=False, perfil=None,
                     motivo="'generado_en' está en el futuro: recalibrar")
+    # QW3-r2 (auditoria 2026-07-19 r2, F3): la vigencia se decide con el
+    # MISMO valor redondeado que se muestra (edad_dias). Antes comparaba la
+    # edad sin redondear y el motivo podia imprimir la contradiccion visual
+    # "edad 7.0 dias > TTL 7 dias" (edad real 7.03).
     edad_dias = round(max(0.0, edad), 1)
-    out = dict(base, vigente=bool(edad <= ttl_dias), edad_dias=edad_dias,
+    out = dict(base, vigente=bool(edad_dias <= ttl_dias), edad_dias=edad_dias,
                perfil=perfil)
     if not out["vigente"]:
         out["motivo"] = ("caducada: edad %.1f días > TTL %s días"

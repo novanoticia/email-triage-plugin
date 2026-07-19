@@ -1098,6 +1098,39 @@ class TestClampSuperficiesQW4(unittest.TestCase):
         self.assertFalse(out["entrada_recortada"])
 
 
+class TestCalibrarLeerBordeTTLR2(unittest.TestCase):
+    """QW3-r2 (F3): la vigencia y el mensaje usan el mismo valor redondeado —
+    nunca mas 'edad 7.0 dias > TTL 7 dias'."""
+
+    def _cache_con_edad(self, dias):
+        import json as _json
+        from datetime import datetime, timedelta, timezone
+        perfil = th.cmd_calibrar({"correos": []})
+        perfil["generado_en"] = (datetime.now(timezone.utc)
+                                 - timedelta(days=dias)).isoformat()
+        fh = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False,
+                                         encoding="utf-8")
+        _json.dump(perfil, fh); fh.close()
+        return fh.name
+
+    def test_borde_redondea_a_favor_de_vigente(self):
+        ruta = self._cache_con_edad(7.03)   # round -> 7.0 <= 7
+        try:
+            out = th.cmd_calibrar_leer(ruta, 7)
+        finally:
+            os.unlink(ruta)
+        self.assertTrue(out["vigente"])
+
+    def test_pasado_el_borde_caduca_y_el_motivo_no_se_contradice(self):
+        ruta = self._cache_con_edad(7.06)   # round -> 7.1 > 7
+        try:
+            out = th.cmd_calibrar_leer(ruta, 7)
+        finally:
+            os.unlink(ruta)
+        self.assertFalse(out["vigente"])
+        self.assertIn("7.1", out["motivo"])
+
+
 class TestValidarConfigTiersOrdenR2(unittest.TestCase):
     """QW1-r2 (auditoria 2026-07-19 r2, F1): QW3 validaba tipos de tiers pero
     no su orden — umbrales desordenados dejaban un tier inalcanzable con
