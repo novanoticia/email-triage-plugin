@@ -363,6 +363,43 @@ class ContratoCore12FuenteUnica(unittest.TestCase):
             "promete 12" % len(set(_core_config())))
 
 
+class ContratoPlantillaScript3Paridad(unittest.TestCase):
+    """CM2-r2 (F4, re-auditoria 2026-07-19): la plantilla manual del SCRIPT 3
+    iba DOS rondas por detras del generador (sin fallidos_*, sin blindaje).
+    Ahora la seccion se regenera desde cmd_montar_mover y este gate fija que
+    plantilla y generador no vuelvan a divergir. Unica transformacion
+    permitida: las dos lineas de listas usan <<LISTA_*>> como placeholder."""
+
+    MARKER = ('-- PARIDAD-GATE: seccion generada por cmd_montar_mover '
+              '(payload centinela del test de paridad) — NO editar a mano')
+    PAYLOAD = {"cuenta": "<<CUENTA>>", "origen": "<<ORIGEN>>",
+               "destino_review": "<<DESTINO_REVIEW>>",
+               "destino_archive": "<<DESTINO_ARCHIVE>>",
+               "mids_review": ["LISTA_R_SENTINEL"],
+               "mids_archive": ["LISTA_A_SENTINEL"]}
+
+    def test_plantilla_script3_identica_al_generador(self):
+        import pathlib as _pl
+        plantilla = (_pl.Path(AQUI).parent / "references" /
+                     "mail-consolidado.applescript").read_text(encoding="utf-8")
+        lineas = plantilla.splitlines()
+        self.assertIn(self.MARKER, lineas,
+                      "falta el marcador de paridad en la plantilla")
+        i = lineas.index(self.MARKER)
+        j = next(k for k in range(i, len(lineas)) if lineas[k] == "end tell")
+        seccion = "\n".join(lineas[i + 1:j + 1])
+        out = th.cmd_montar_mover(dict(self.PAYLOAD))
+        self.assertTrue(out["ok"])
+        esperado = (out["script"]
+                    .replace('set toReview to {"LISTA_R_SENTINEL"}',
+                             'set toReview to <<LISTA_REVIEW>>')
+                    .replace('set toArchive to {"LISTA_A_SENTINEL"}',
+                             'set toArchive to <<LISTA_ARCHIVE>>'))
+        self.assertEqual(seccion, esperado.rstrip("\n"),
+                         "la plantilla SCRIPT 3 divergio del generador: "
+                         "regenerala desde cmd_montar_mover (ver docstring)")
+
+
 class ContratoPlaceholdersApplescript(unittest.TestCase):
     """Gate de F26 (auditoria 2026-07-19): la plantilla references/
     mail-consolidado.applescript se rellena a mano (sus <<...>>), FUERA del gate
@@ -452,6 +489,9 @@ RUTA_CATALOGO = os.path.join(SKILL_DIR, "references",
 RUTA_PLANTILLA_AS = os.path.join(SKILL_DIR, "references",
                                  "mail-consolidado.applescript")
 RUTA_CONFIG_VELOZ = os.path.join(SKILL_DIR, "config-veloz.yaml")
+RUTA_PASO1 = os.path.join(SKILL_DIR, "references",
+                          "paso-1-proveedores.md")
+RUTA_CONFIG_PLANTILLA = os.path.join(SKILL_DIR, "config.yaml")
 
 RE_VELOZ_EN_SKILL = re.compile(
     r"`max_caracteres_cuerpo: (\d+)`, `max_lineas_cuerpo: (\d+)`")
@@ -488,6 +528,54 @@ STOPWORDS_NOMBRE_CRITERIO = {"de", "del", "la", "el", "los", "las", "vs",
 ALIAS_NOMBRE_CATALOGO = {"apertura de opciones": "abre_opciones"}
 FRASE_MATIZ_CATALOGO = ("la numeración número↔criterio solo existe en el "
                         "catálogo")
+
+# NO-r2 (F8/F9, re-auditoria 2026-07-19 r2). Familias LEXICAS de cita de la
+# extraccion cruda del PASO 1: cada regex captura el numero de una forma de
+# frase real de la doctrina/los scripts. Si reescribes una frase y deja de
+# capturarse, cae el minimo de cobertura del gate (fallo accionable, no pase
+# silencioso). El escaner es lexico, no gramatical: mantenlo al anadir citas.
+FAMILIAS_EXTRACCION_CRUDA = (
+    ("extraccion [cruda|GENEROSA|previa es de] N",
+     re.compile(r"[Ee]xtracci[oó]n(?:\s+cruda)?(?:\s+GENEROSA)?"
+                r"(?:\s+previa\s+es\s+de)?\s*[:(]?\s*[≤<]?=?\s*(\d{3,})")),
+    ("cuerpo crudo (<=N)",
+     re.compile(r"cuerpo crudo[^\n]{0,30}?\(?[≤<]=?\s*(\d{3,})")),
+    ("length of VAR > N",
+     re.compile(r"length of \(?[A-Za-z_]+\)? > (\d{3,})")),
+    ("text 1 thru N of",
+     re.compile(r"text 1 thru (\d{3,}) of")),
+)
+# Alcance del 4000 (documentado): la doctrina (manejo-errores.md), el paso
+# que lo ejecuta (paso-1-proveedores.md), la plantilla ejecutable
+# mail-consolidado.applescript (SCRIPT 1: donde el numero tiene efecto real)
+# y los comentarios de la propia plantilla config.yaml. SKILL.md no cita el
+# numero (verificado 2026-07-19); si algun dia lo cita, anadelo aqui.
+ALCANCE_EXTRACCION_CRUDA = (
+    ("references/manejo-errores.md", "RUTA_MANEJO_ERRORES"),
+    ("references/paso-1-proveedores.md", "RUTA_PASO1"),
+    ("references/mail-consolidado.applescript", "RUTA_PLANTILLA_AS"),
+    ("config.yaml", "RUTA_CONFIG_PLANTILLA"),
+)
+RE_PERFIL_PROFUNDO = re.compile(r"(\d+)\s+profundo(?!\s*:)")
+
+# Menciones inline de criterios (F7): 'criterio N' / 'criterios N-M' fuera
+# del formato 'del Grupo X' que ya vigila RE_REF_CRITERIOS_GRUPO.
+RE_MENCION_CRITERIO = re.compile(
+    r"criterios?\s+(\d+)(?:\s*[-–]\s*(\d+))?", re.IGNORECASE)
+# Tres formas de mencion con nombre:
+RE_MENCION_NOMBRE_DP = re.compile(          # criterio N: nombre
+    r"criterio\s+(\d+)\s*:\s*([^).\n]+)", re.IGNORECASE)
+RE_MENCION_NOMBRE_PAR = re.compile(         # criterio N (nombre)
+    r"criterio\s+(\d+)\s+\(([^)\n]+)\)", re.IGNORECASE)
+RE_MENCION_NOMBRE_PRE = re.compile(         # nombre (criterio N)
+    r"([^().;:\n]{3,60})\(criterio\s+(\d+)\)", re.IGNORECASE)
+# Parafraseos/traducciones legitimas de nombres del catalogo (frase que usa
+# la doctrina -> nombre visible de la fila). Si escribes una mencion inline
+# con un nombre que el matching por tokens no reconoce, o la reformulas con
+# el nombre del catalogo o la registras aqui.
+ALIAS_MENCION_CRITERIO = {
+    "ausencia de evidencia": "Absence of expected evidence",
+}
 
 
 def _texto_doc(ruta):
@@ -558,6 +646,29 @@ def _tokens_nombre(texto):
     texto = "".join(c for c in texto if not unicodedata.combining(c))
     return tuple(t for t in re.findall(r"[a-z0-9]+", texto.lower())
                  if t not in STOPWORDS_NOMBRE_CRITERIO)
+
+
+def _candidatos_mencion(frase):
+    """Numeros de fila del catalogo con los que puede casar el nombre de una
+    mencion inline: contencion de tokens en ambos sentidos (la mencion puede
+    abreviar el nombre de la fila o extenderlo con contexto), mas
+    ALIAS_MENCION_CRITERIO. Vacio = nombre no reconocido (no se valida)."""
+    toks = set(_tokens_nombre(frase))
+    if not toks:
+        return set()
+    filas = _catalogo_filas()
+    cands = set()
+    for num, nombre, _ in filas:
+        ftoks = set(_tokens_nombre(nombre))
+        if ftoks and (ftoks <= toks or toks <= ftoks):
+            cands.add(num)
+    for alias, canon in ALIAS_MENCION_CRITERIO.items():
+        atoks = set(_tokens_nombre(alias))
+        if atoks and (atoks <= toks or toks <= atoks):
+            for num, nombre, _ in filas:
+                if _tokens_nombre(nombre) == _tokens_nombre(canon):
+                    cands.add(num)
+    return cands
 
 
 def _scripts_reales():
@@ -688,6 +799,149 @@ class ContratoDoctrinaVolumen(unittest.TestCase):
             int(m.group(2)), base.get("max_caracteres_cuerpo"),
             "sanitizacion-manual.md dice '%s equilibrado' pero config.yaml "
             "dice %s" % (m.group(2), base.get("max_caracteres_cuerpo")))
+
+
+class ContratoDoctrinaConstantesR2(unittest.TestCase):
+    """Gate de F8/F9 (re-auditoria 2026-07-19 r2): las dos constantes de
+    volumen que quedaban como numeros sueltos sin fuente parseable viven
+    ahora como claves OPCIONALES de la plantilla config.yaml —
+    puntuacion.extraccion_cruda_max (tope de extraccion cruda del PASO 1) y
+    puntuacion.perfiles (rapido/equilibrado/profundo). El runtime NO las lee
+    (el tope va embebido en los scripts que monta el SKILL y el presupuesto
+    sigue siendo max_caracteres_cuerpo): existen para que este gate compare
+    cada cita de la doctrina con un valor parseado, no con prosa. Alcance
+    del 4000: manejo-errores.md (doctrina), paso-1-proveedores.md (el paso
+    que lo ejecuta), mail-consolidado.applescript (SCRIPT 1 ejecutable:
+    donde el numero tiene efecto real) y los comentarios del propio
+    config.yaml. Alcance de perfiles: sanitizacion-manual.md (S5) y los
+    comentarios de config.yaml, mas los defaults reales de ambos YAML."""
+
+    def _puntuacion(self):
+        _requiere_yaml(self)
+        return _cargar_config_repo().get("puntuacion") or {}
+
+    def test_config_declara_extraccion_cruda_max(self):
+        valor = self._puntuacion().get("extraccion_cruda_max")
+        self.assertTrue(
+            isinstance(valor, int) and not isinstance(valor, bool)
+            and valor > 0,
+            "config.yaml (plantilla) debe declarar "
+            "puntuacion.extraccion_cruda_max como entero > 0 (hay %r): es "
+            "la fuente parseable del tope de extraccion cruda del PASO 1 "
+            "que este gate compara con la doctrina y los scripts" % (valor,))
+
+    def test_config_declara_perfiles_coherentes(self):
+        punt = self._puntuacion()
+        perfiles = punt.get("perfiles")
+        self.assertIsInstance(
+            perfiles, dict,
+            "config.yaml (plantilla) debe declarar puntuacion.perfiles como "
+            "mapeo {rapido, equilibrado, profundo} (hay %r): es la fuente "
+            "parseable de los presupuestos post-limpieza" % (perfiles,))
+        self.assertEqual(
+            sorted(perfiles), ["equilibrado", "profundo", "rapido"],
+            "puntuacion.perfiles debe tener exactamente las claves "
+            "rapido/equilibrado/profundo (hay %s)" % sorted(perfiles))
+        for clave, valor in perfiles.items():
+            self.assertTrue(
+                isinstance(valor, int) and not isinstance(valor, bool)
+                and valor > 0,
+                "puntuacion.perfiles.%s debe ser un entero > 0 (hay %r)"
+                % (clave, valor))
+        self.assertLess(
+            perfiles["rapido"], perfiles["equilibrado"],
+            "perfiles.rapido debe ser menor que perfiles.equilibrado")
+        self.assertLess(
+            perfiles["equilibrado"], perfiles["profundo"],
+            "perfiles.equilibrado debe ser menor que perfiles.profundo")
+        base = punt.get("max_caracteres_cuerpo")
+        self.assertIn(
+            base, set(perfiles.values()),
+            "puntuacion.max_caracteres_cuerpo=%r de config.yaml no es "
+            "ninguno de los perfiles %s — la plantilla promete que el "
+            "default es uno de ellos" % (base, perfiles))
+        veloz = (_cargar_config_veloz().get("puntuacion")
+                 or {}).get("max_caracteres_cuerpo")
+        self.assertIn(
+            veloz, set(perfiles.values()),
+            "config-veloz.yaml usa max_caracteres_cuerpo=%r, que no es "
+            "ninguno de los perfiles %s de la plantilla" % (veloz, perfiles))
+
+    def test_toda_cita_de_extraccion_cruda_sigue_al_config(self):
+        esperado = self._puntuacion().get("extraccion_cruda_max")
+        rutas = {"RUTA_MANEJO_ERRORES": RUTA_MANEJO_ERRORES,
+                 "RUTA_PASO1": RUTA_PASO1,
+                 "RUTA_PLANTILLA_AS": RUTA_PLANTILLA_AS,
+                 "RUTA_CONFIG_PLANTILLA": RUTA_CONFIG_PLANTILLA}
+        total = 0
+        for nombre, ruta_id in ALCANCE_EXTRACCION_CRUDA:
+            plano = _plano(_texto_doc(rutas[ruta_id]))
+            capturas = []
+            for familia, regex in FAMILIAS_EXTRACCION_CRUDA:
+                for m in regex.finditer(plano):
+                    capturas.append((familia, m.group(0), int(m.group(1))))
+            self.assertTrue(
+                capturas,
+                "%s ya no contiene ninguna cita reconocible de la "
+                "extraccion cruda (familias: %s) — o desaparecio la cita "
+                "(actualiza ALCANCE_EXTRACCION_CRUDA) o cambio la frase "
+                "(adapta FAMILIAS_EXTRACCION_CRUDA para que el gate siga "
+                "vigilando)"
+                % (nombre, [f for f, _ in FAMILIAS_EXTRACCION_CRUDA]))
+            for familia, cita, valor in capturas:
+                self.assertEqual(
+                    valor, esperado,
+                    "%s cita la extraccion cruda como %d (familia '%s', "
+                    "texto %r) pero puntuacion.extraccion_cruda_max de "
+                    "config.yaml es %s — actualiza el que este mal; si "
+                    "cambias el YAML, cambia TODAS las citas del alcance"
+                    % (nombre, valor, familia, cita, esperado))
+            total += len(capturas)
+        self.assertGreaterEqual(
+            total, 8,
+            "el escaner de la extraccion cruda solo capturo %d citas en "
+            "todo el alcance (con 11 en 2026-07-19): demasiadas frases han "
+            "dejado de reconocerse — adapta FAMILIAS_EXTRACCION_CRUDA"
+            % total)
+
+    def test_perfil_profundo_sigue_al_config(self):
+        profundo = (self._puntuacion().get("perfiles") or {}).get("profundo")
+        for nombre, ruta in (
+                ("references/sanitizacion-manual.md", RUTA_SANITIZACION),
+                ("config.yaml", RUTA_CONFIG_PLANTILLA)):
+            capturas = RE_PERFIL_PROFUNDO.findall(_plano(_texto_doc(ruta)))
+            self.assertTrue(
+                capturas,
+                "%s ya no cita 'N profundo'; sin esa cita el gate no puede "
+                "compararla con puntuacion.perfiles.profundo (si la frase "
+                "cambio de forma, adapta RE_PERFIL_PROFUNDO)" % nombre)
+            for valor in capturas:
+                self.assertEqual(
+                    int(valor), profundo,
+                    "%s dice '%s profundo' pero puntuacion.perfiles."
+                    "profundo de config.yaml es %s — la clase de F9: un "
+                    "numero de perfil congelado en prosa" 
+                    % (nombre, valor, profundo))
+
+    def test_perfiles_rapido_equilibrado_siguen_al_config(self):
+        perfiles = self._puntuacion().get("perfiles") or {}
+        for nombre, ruta in (
+                ("references/sanitizacion-manual.md", RUTA_SANITIZACION),
+                ("config.yaml", RUTA_CONFIG_PLANTILLA)):
+            m = RE_PERFILES_SANITIZACION.search(_plano(_texto_doc(ruta)))
+            self.assertTrue(
+                m, "%s ya no cita 'N rápido / M equilibrado'; el gate no "
+                   "puede anclar esos perfiles a puntuacion.perfiles"
+                   % nombre)
+            self.assertEqual(
+                int(m.group(1)), perfiles.get("rapido"),
+                "%s dice '%s rápido' pero puntuacion.perfiles.rapido es %s"
+                % (nombre, m.group(1), perfiles.get("rapido")))
+            self.assertEqual(
+                int(m.group(2)), perfiles.get("equilibrado"),
+                "%s dice '%s equilibrado' pero puntuacion.perfiles."
+                "equilibrado es %s"
+                % (nombre, m.group(2), perfiles.get("equilibrado")))
 
 
 class ContratoDoctrinaInyeccion(unittest.TestCase):
@@ -888,6 +1142,95 @@ class ContratoDoctrinaNumeracionCriterios(unittest.TestCase):
             "SKILL.md perdio la frase-matiz %r que aclara que la "
             "numeracion numero<->criterio solo existe en el catalogo"
             % FRASE_MATIZ_CATALOGO)
+
+
+class ContratoDoctrinaMencionesCriteriosInline(unittest.TestCase):
+    """Gate de F7 (re-auditoria 2026-07-19 r2): RE_REF_CRITERIOS_GRUPO solo
+    vigila 'criterios N-M del/(Grupo X)'; las menciones inline sueltas
+    ('criterios 1-5', 'criterio 14: urgencia fabricada', 'la ausencia de
+    evidencia (criterio 30)') no las miraba nadie — la misma clase de
+    deriva que F10 con otra sintaxis. Reglas: (a) todo numero mencionado
+    existe en el catalogo; (b) si la mencion trae nombre ('criterio N:
+    nombre', 'criterio N (nombre)' o 'nombre (criterio N)') y el nombre es
+    reconocible (tokens del gate F10, contencion en ambos sentidos, o
+    ALIAS_MENCION_CRITERIO), debe casar con la fila N. Un nombre no
+    reconocido no se valida (prosa libre): registralo en el alias si
+    quieres anclarlo."""
+
+    def _max_fila(self):
+        filas = _catalogo_filas()
+        self.assertTrue(
+            filas, "no hay filas numeradas en criterios-catalogo.md (ver "
+                   "ContratoDoctrinaNumeracionCriterios.test_gate_no_vacuo)")
+        return max(n for n, _, _ in filas)
+
+    def test_numeros_inline_dentro_del_catalogo(self):
+        tope = self._max_fila()
+        vistos = 0
+        for ruta in DOCS:
+            nombre = os.path.basename(ruta)
+            for m in RE_MENCION_CRITERIO.finditer(_plano(_texto_doc(ruta))):
+                vistos += 1
+                desde = int(m.group(1))
+                hasta = int(m.group(2)) if m.group(2) else None
+                self.assertTrue(
+                    1 <= desde <= tope,
+                    "%s menciona %r pero el catalogo numera 1..%d — "
+                    "criterio inexistente (F7)" % (nombre, m.group(0), tope))
+                if hasta is not None:
+                    self.assertTrue(
+                        desde < hasta <= tope,
+                        "%s menciona el rango %r incoherente con el "
+                        "catalogo (1..%d, y el rango debe ir de menor a "
+                        "mayor)" % (nombre, m.group(0), tope))
+        self.assertGreaterEqual(
+            vistos, 4,
+            "el escaner de menciones inline solo encontro %d menciones "
+            "'criterio N'/'criterios N-M' en la doctrina (6 en 2026-07-19); "
+            "si la frase cambio de forma, adapta RE_MENCION_CRITERIO para "
+            "que el gate siga vigilando" % vistos)
+
+    def test_menciones_con_nombre_casan_con_su_fila(self):
+        filas = {n: nom for n, nom, _ in _catalogo_filas()}
+        tope = self._max_fila()
+        validadas = 0
+        for ruta in DOCS:
+            nombre_doc = os.path.basename(ruta)
+            plano = _plano(_texto_doc(ruta))
+            menciones = []
+            for m in RE_MENCION_NOMBRE_DP.finditer(plano):
+                menciones.append((int(m.group(1)), m.group(2), m.group(0)))
+            for m in RE_MENCION_NOMBRE_PAR.finditer(plano):
+                if m.group(2).strip().startswith("Grupo"):
+                    continue      # 'criterios N-M (Grupo X)': gate F10
+                menciones.append((int(m.group(1)), m.group(2), m.group(0)))
+            for m in RE_MENCION_NOMBRE_PRE.finditer(plano):
+                menciones.append((int(m.group(2)), m.group(1), m.group(0)))
+            for num, frase, cita in menciones:
+                if not (1 <= num <= tope):
+                    continue      # ya falla en test_numeros_inline
+                cands = _candidatos_mencion(frase)
+                if not cands:
+                    continue      # nombre no reconocible: prosa libre
+                validadas += 1
+                self.assertIn(
+                    num, cands,
+                    "%s dice %r, pero ese nombre casa con la(s) fila(s) %s "
+                    "del catalogo (%s) y no con la %d ('%s') — numero y "
+                    "nombre divergen (la clase de F7/F10). Corrige el "
+                    "numero o el nombre; si el nombre es un parafraseo "
+                    "legitimo de la fila %d, registralo en "
+                    "ALIAS_MENCION_CRITERIO"
+                    % (nombre_doc, cita, sorted(cands),
+                       ", ".join("%d='%s'" % (c, filas[c])
+                                 for c in sorted(cands)),
+                       num, filas.get(num, "?"), num))
+        self.assertGreaterEqual(
+            validadas, 1,
+            "el escaner no pudo validar ninguna mencion inline con nombre "
+            "(3 en 2026-07-19: DP=14, PAR=28, PRE=30 via alias); si las "
+            "frases cambiaron de forma, adapta RE_MENCION_NOMBRE_* o "
+            "ALIAS_MENCION_CRITERIO para que el gate siga vigilando")
 
 
 class ContratoDoctrinaContadorScripts(unittest.TestCase):

@@ -227,14 +227,20 @@ Los tres destinos (contrato cerrado en CM1):
 - `destino_archive` es **opcional**: si lo dejas **vacío o lo omites**, el script
   archiva de forma **nativa** moviendo esos correos al buzón `Archive` de la
   cuenta (el `script` incluye un comentario con el matiz de localización/IMAP).
-  Si defines una carpeta, se usa esa.
+  Si defines una carpeta, se usa esa. **Matiz F5:** si el buzón `Archive`
+  no existe (iCloud lo localiza / `Archived Messages`), el script **no
+  aborta**: lo resuelve en un `try` (`arcBoxOK`) y manda TODOS los
+  `mids_archive` a `fallidos_archive` con `archivo_nativo_fallido:1` en el
+  return; para archivarlos de verdad, fija `destino_archive` con el nombre
+  real del buzón.
 - `destino_reply_needed` + `mids_reply_needed` son **opcionales**: los
   reply_needed **solo se mueven si su carpeta difiere del origen**; si
   `destino_reply_needed` está **vacío o es igual a `origen`**, esos correos NO se
   mueven (no aparecen en el script, se quedan donde están) y `reply_needed_movido`
   sale `false`.
 
-La salida añade `n_reply_needed`, `archivo_nativo` y `reply_needed_movido` a las
+La salida añade `n_reply_needed` (solo cuenta si de verdad se mueven; si se
+quedan, van en `n_reply_omitidos`), `archivo_nativo` y `reply_needed_movido` a las
 claves previas (`ok`, `script`, `sospechosos`, `n_review`, `n_archive`).
 
 Escribe el campo `script` a un fichero con Desktop Commander y ejecútalo con

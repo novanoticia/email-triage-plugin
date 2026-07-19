@@ -139,47 +139,57 @@ end tell
 --   echo '{"cuenta":"...","origen":"...","destino_review":"...",
 --          "destino_archive":"...","mids_review":[...],"mids_archive":[...]}' \
 --     | python3 <ruta-del-skill>/scripts/triage_helpers.py montar-mover
--- Los placeholders MID_* de abajo son solo ilustrativos: sustituyelos por la
--- `lista_applescript` que devuelve el helper.
+-- Sustituye <<LISTA_REVIEW>> / <<LISTA_ARCHIVE>> por la `lista_applescript`
+-- del helper (la LISTA COMPLETA {"..."}, nunca message-ids pegados a mano).
+-- Esta seccion se REGENERA desde el generador real: un gate de paridad
+-- (test_contrato_skill.py) falla si plantilla y generador divergen.
 -- ───────────────────────────────────────────────────────────────
+-- PARIDAD-GATE: seccion generada por cmd_montar_mover (payload centinela del test de paridad) — NO editar a mano
+-- SCRIPT 3 (mover por message-id + verificar) generado por
+-- triage_helpers.py montar-mover: cuenta, carpetas y message-ids ya
+-- escapados. Escríbelo a un fichero y ejecútalo con osascript.
 tell application "Mail"
-	set acct to account "<<CUENTA>>"
-	set srcBox to mailbox "<<ORIGEN>>" of acct
-	set revBox to mailbox "<<DESTINO_REVIEW>>" of acct
-	set arcBox to mailbox "<<DESTINO_ARCHIVE>>" of acct
-
-	-- <<LISTA_REVIEW>> y <<LISTA_ARCHIVE>>: salida `lista_applescript` del
-	-- helper escapar-applescript, NO message-ids pegados a mano.
-	set toReview to {"MID_REVIEW_1", "MID_REVIEW_2"}
-	set toArchive to {"MID_ARCHIVE_1", "MID_ARCHIVE_2"}
-
-	set okRev to 0
-	repeat with theID in toReview
-		try
-			set hits to (messages of srcBox whose message id is theID)
-			if (count of hits) > 0 then
-				move (item 1 of hits) to revBox
-				set okRev to okRev + 1
-			end if
-		end try
-	end repeat
-	set okArc to 0
-	repeat with theID in toArchive
-		try
-			set hits to (messages of srcBox whose message id is theID)
-			if (count of hits) > 0 then
-				move (item 1 of hits) to arcBox
-				set okArc to okArc + 1
-			end if
-		end try
-	end repeat
-
-	delay 2
-	-- Verificación real: cuántos quedan en origen vs cuántos se pidieron.
-	return "movidos_review:" & okRev & "/" & (count of toReview) & ¬
-		" movidos_archive:" & okArc & "/" & (count of toArchive) & ¬
-		" | src_restantes:" & (count of (messages of srcBox))
+    set acct to account "<<CUENTA>>"
+    set srcBox to mailbox "<<ORIGEN>>" of acct
+    set revBox to mailbox "<<DESTINO_REVIEW>>" of acct
+    set arcBox to mailbox "<<DESTINO_ARCHIVE>>" of acct
+    set toReview to <<LISTA_REVIEW>>
+    set toArchive to <<LISTA_ARCHIVE>>
+    set okRev to 0
+    set failRev to {}
+    repeat with theID in toReview
+        set moved to false
+        try
+            set hits to (messages of srcBox whose message id is theID)
+            if (count of hits) > 0 then
+                move (item 1 of hits) to revBox
+                set okRev to okRev + 1
+                set moved to true
+            end if
+        end try
+        if not moved then set end of failRev to (theID as string)
+    end repeat
+    set okArc to 0
+    set failArc to {}
+    repeat with theID in toArchive
+        set moved to false
+        try
+            set hits to (messages of srcBox whose message id is theID)
+            if (count of hits) > 0 then
+                move (item 1 of hits) to arcBox
+                set okArc to okArc + 1
+                set moved to true
+            end if
+        end try
+        if not moved then set end of failArc to (theID as string)
+    end repeat
+    delay 2
+    -- QW2 (auditoria 2026-07-17): reportar QUE mids fallaron, no solo
+    -- cuantos. Un "8/10" sin lista dejaba el diagnostico ciego.
+    set AppleScript's text item delimiters to ","
+    return "movidos_review:" & okRev & "/" & (count of toReview) & " movidos_archive:" & okArc & "/" & (count of toArchive) & " | fallidos_review:[" & (failRev as string) & "] fallidos_archive:[" & (failArc as string) & "] | src_restantes:" & (count of (messages of srcBox))
 end tell
+
 
 
 -- ───────────────────────────────────────────────────────────────

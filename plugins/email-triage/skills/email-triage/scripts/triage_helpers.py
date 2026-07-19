@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.8.16).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.8.17).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -929,6 +929,49 @@ def cmd_validar_config(ruta: str) -> dict:
     archive_divergente = ("archive" not in tiers_invalidos
                           and isinstance(_arch, (int, float))
                           and not isinstance(_arch, bool) and _arch != -1)
+    # QW1-r2 (auditoria 2026-07-19 r2, F1): validar tambien el ORDEN de los
+    # umbrales. QW3 validaba tipos pero no orden: {reply_needed: 4, review: 10}
+    # pasaba con 'ok' y dejaba REVIEW inalcanzable (misrouting silencioso del
+    # lote entero). Se comprueba con los valores EFECTIVOS (presentes o
+    # default), que es exactamente lo que _tier_por_score usa en runtime.
+    _DEF_TIERS = {"reply_needed": 10, "review": 4, "reading_later": 0}
+    def _tier_efectivo(k):
+        v = _tiers_raw.get(k)
+        return v if (isinstance(v, (int, float))
+                     and not isinstance(v, bool)) else _DEF_TIERS[k]
+    _t_r = _tier_efectivo("reply_needed")
+    _t_v = _tier_efectivo("review")
+    _t_l = _tier_efectivo("reading_later")
+    tiers_desordenados = not (_t_r >= _t_v >= _t_l)
+    # QW2-r2 (F2): claves de tiers fuera de las 4 canonicas (typos como
+    # 'reply_neded') caian al default en silencio — espejo de eje_desconocido.
+    tiers_desconocidos = sorted(
+        str(k) for k in _tiers_raw
+        if k not in ("reply_needed", "review", "reading_later", "archive"))
+    # NO-r2 (re-auditoria 2026-07-19 r2, F8/F9): claves OPCIONALES de doctrina
+    # parseable en `puntuacion` — extraccion_cruda_max (tope de la extraccion
+    # cruda del PASO 1, citado por los scripts AppleScript) y perfiles
+    # (presupuestos post-limpieza rapido/equilibrado/profundo). El runtime NO
+    # las consume (sigue mandando max_caracteres_cuerpo): son la fuente que
+    # los gates doctrinales comparan con la doctrina. Si estan presentes se
+    # validan tipos, para que un valor roto no envenene el gate ni confunda
+    # a quien las copie a su config personal.
+    _punt = (data.get("puntuacion")
+             if isinstance(data.get("puntuacion"), dict) else {})
+    _extr = _punt.get("extraccion_cruda_max")
+    extraccion_invalida = (_extr is not None
+                           and (isinstance(_extr, bool)
+                                or not isinstance(_extr, int)
+                                or _extr <= 0))
+    _perf = _punt.get("perfiles")
+    perfiles_no_mapa = _perf is not None and not isinstance(_perf, dict)
+    perfiles_invalidos = []
+    if isinstance(_perf, dict):
+        for _pk, _pv in _perf.items():
+            if (isinstance(_pv, bool) or not isinstance(_pv, (int, float))
+                    or _pv <= 0):
+                perfiles_invalidos.append(str(_pk))
+    perfiles_invalidos.sort()
     sin_eje, eje_desconocido, clave_booleana = [], [], []
     if isinstance(criterios, dict):
         for nombre, c in criterios.items():
@@ -987,12 +1030,40 @@ def cmd_validar_config(ruta: str) -> dict:
             "%d umbral(es) de tiers no numericos — el scoring reventaria con "
             "TypeError en el mapeo de tier para TODOS los correos del lote: %s"
             % (len(tiers_invalidos), ", ".join(sorted(tiers_invalidos))))
+    if tiers_desconocidos:
+        avisos.append(
+            "%d clave(s) de tiers desconocidas (¿typo?): %s — el umbral real "
+            "cae al default en silencio"
+            % (len(tiers_desconocidos), ", ".join(tiers_desconocidos[:8])))
+    if tiers_desordenados:
+        avisos.append(
+            "umbrales de tiers desordenados (efectivos: reply_needed=%s, "
+            "review=%s, reading_later=%s; se exige reply_needed >= review >= "
+            "reading_later): algun tier queda inalcanzable y el lote entero "
+            "se reclasifica en silencio" % (_t_r, _t_v, _t_l))
     if archive_divergente:
         avisos.append(
             "tiers.archive=%r distinto del default -1: SOLO lo usa la rutina "
             "(archivar_automaticamente); el mapeo determinista lo ignora (por "
             "debajo de reading_later todo es ARCHIVE) — sesion manual y rutina "
             "divergiran en silencio" % (_arch,))
+    if extraccion_invalida:
+        avisos.append(
+            "puntuacion.extraccion_cruda_max=%r debe ser un entero > 0: es el "
+            "tope de extraccion cruda del PASO 1 que los gates doctrinales "
+            "comparan con los scripts AppleScript (el runtime no lo usa, pero "
+            "un valor roto desinforma a quien lo lea)" % (_extr,))
+    if perfiles_no_mapa:
+        avisos.append(
+            "puntuacion.perfiles no es un mapeo perfil->caracteres (es %s): "
+            "se esperaba algo como {rapido: 800, equilibrado: 1500, "
+            "profundo: 2500}" % type(_perf).__name__)
+    if perfiles_invalidos:
+        avisos.append(
+            "%d perfil(es) de puntuacion.perfiles sin presupuesto numerico "
+            "positivo: %s — cada perfil debe ser un numero de caracteres "
+            "(p. ej. rapido: 800)"
+            % (len(perfiles_invalidos), ", ".join(perfiles_invalidos[:8])))
     return {"ok": True, "claves_top": sorted(data.keys()),
             "campos_recomendados_ausentes": faltan, "avisos": avisos,
             "criterios_sin_eje": sin_eje,
@@ -1003,7 +1074,12 @@ def cmd_validar_config(ruta: str) -> dict:
             "sender_bulk_atenuado_a_invalido": atenuado_invalido,
             "tiers_no_mapa": tiers_no_mapa,
             "tiers_invalidos": tiers_invalidos,
-            "tiers_archive_divergente": archive_divergente}
+            "tiers_desordenados": tiers_desordenados,
+            "tiers_desconocidos": tiers_desconocidos,
+            "tiers_archive_divergente": archive_divergente,
+            "extraccion_cruda_max_invalido": extraccion_invalida,
+            "perfiles_no_mapa": perfiles_no_mapa,
+            "perfiles_invalidos": perfiles_invalidos}
 
 
 # ════════════════════════════════════════════════════════════════
@@ -1462,8 +1538,12 @@ def _calibrar_leer_nucleo(ruta, ttl_dias):
         # una caché recién escrita.
         return dict(base, vigente=False, perfil=None,
                     motivo="'generado_en' está en el futuro: recalibrar")
+    # QW3-r2 (auditoria 2026-07-19 r2, F3): la vigencia se decide con el
+    # MISMO valor redondeado que se muestra (edad_dias). Antes comparaba la
+    # edad sin redondear y el motivo podia imprimir la contradiccion visual
+    # "edad 7.0 dias > TTL 7 dias" (edad real 7.03).
     edad_dias = round(max(0.0, edad), 1)
-    out = dict(base, vigente=bool(edad <= ttl_dias), edad_dias=edad_dias,
+    out = dict(base, vigente=bool(edad_dias <= ttl_dias), edad_dias=edad_dias,
                perfil=perfil)
     if not out["vigente"]:
         out["motivo"] = ("caducada: edad %.1f días > TTL %s días"
@@ -1636,7 +1716,8 @@ def cmd_montar_mover(datos: dict) -> dict:
       mids_review, mids_archive, mids_reply_needed   listas opcionales de ids.
 
     Devuelve {"ok", "script", "sospechosos", "n_review", "n_archive",
-    "n_reply_needed", "archivo_nativo", "reply_needed_movido"} o el contrato de
+    "n_reply_needed", "n_reply_omitidos", "archivo_nativo",
+    "reply_needed_movido"} o el contrato de
     error {"ok": False, "error"} si algún campo falta o está mal.
 
     Retrocompatible: un payload con solo cuenta/origen/destino_review/
@@ -1717,14 +1798,31 @@ def cmd_montar_mover(datos: dict) -> dict:
         '    set revBox to mailbox ' + dest_rev + ' of acct\n'
     )
     if archivo_nativo:
+        # F5 (re-auditoría 2026-07-19): la resolución del buzón nativo "Archive"
+        # corría FUERA de todo try; si el buzón no existe (iCloud lo localiza o
+        # lo llama "Archived Messages") podía abortar TODO el script antes de
+        # mover nada, y el comentario prometía lo contrario. Ahora se resuelve
+        # dentro de su propio try con un flag arcBoxOK: si falla, NO aborta y
+        # todos los mids_archive caen en fallidos_archive (+ archivo_nativo_fallido:1).
         cab += (
             '    -- Archivo nativo (destino_archive vacío): buzón "Archive" de la\n'
             '    -- cuenta. Matiz localización/IMAP: en algunas cuentas se llama\n'
             '    -- distinto (p.ej. "Archivo", o "Archived Messages" en iCloud).\n'
-            '    -- Si el move falla, esos mids salen en fallidos_archive: define\n'
-            '    -- entonces destino_archive con el nombre real del buzón.\n'
+            '    -- Si el buzón "Archive" NO existe, el script NO aborta: se\n'
+            '    -- resuelve dentro de un try (arcBoxOK) y TODOS los mids_archive\n'
+            '    -- salen en fallidos_archive con archivo_nativo_fallido:1.\n'
+            '    -- Solución: define destino_archive con el nombre real del buzón.\n'
+            '    set arcBoxOK to true\n'
+            '    set arcNativoFallido to 0\n'
+            '    try\n'
+            '        set arcBox to mailbox ' + arc_box_lit + ' of acct\n'
+            '    on error\n'
+            '        set arcBoxOK to false\n'
+            '        set arcNativoFallido to 1\n'
+            '    end try\n'
         )
-    cab += '    set arcBox to mailbox ' + arc_box_lit + ' of acct\n'
+    else:
+        cab += '    set arcBox to mailbox ' + arc_box_lit + ' of acct\n'
     if reply_needed_movido:
         cab += '    set rnBox to mailbox ' + applescript_quote(dest_rn_raw) + ' of acct\n'
     cab += (
@@ -1734,8 +1832,21 @@ def cmd_montar_mover(datos: dict) -> dict:
     if reply_needed_movido:
         cab += '    set toReply to ' + _lista_applescript(mids_rn) + '\n'
 
-    cuerpo = (_bloque_repeat_mover("okRev", "failRev", "toReview", "revBox")
-              + _bloque_repeat_mover("okArc", "failArc", "toArchive", "arcBox"))
+    cuerpo = _bloque_repeat_mover("okRev", "failRev", "toReview", "revBox")
+    if archivo_nativo:
+        # Guard F5: el bloque de archive solo corre si el buzón nativo se
+        # resolvió (arcBoxOK); si no, okArc=0 y TODOS los mids van a failArc,
+        # que el return expone como fallidos_archive (+ archivo_nativo_fallido:1).
+        cuerpo += (
+            '    if arcBoxOK then\n'
+            + _bloque_repeat_mover("okArc", "failArc", "toArchive", "arcBox")
+            + '    else\n'
+            '        set okArc to 0\n'
+            '        set failArc to toArchive\n'
+            '    end if\n'
+        )
+    else:
+        cuerpo += _bloque_repeat_mover("okArc", "failArc", "toArchive", "arcBox")
     if reply_needed_movido:
         cuerpo += _bloque_repeat_mover("okRep", "failRep", "toReply", "rnBox")
 
@@ -1751,6 +1862,10 @@ def cmd_montar_mover(datos: dict) -> dict:
     )
     if reply_needed_movido:
         ret += '" movidos_reply:" & okRep & "/" & (count of toReply) & '
+    if archivo_nativo:
+        # F5: expone si el buzón nativo no se resolvió (0/1) en el mismo formato
+        # clave:valor que el resto del return, así la doctrina lo parsea igual.
+        ret += '" archivo_nativo_fallido:" & arcNativoFallido & '
     ret += ('" | fallidos_review:[" & (failRev as string) & '
             '"] fallidos_archive:[" & (failArc as string) & ')
     if reply_needed_movido:
@@ -1761,7 +1876,12 @@ def cmd_montar_mover(datos: dict) -> dict:
     script = cab + cuerpo + ret
     return {"ok": True, "script": script, "sospechosos": sospechosos,
             "n_review": len(mids_rev), "n_archive": len(mids_arc),
-            "n_reply_needed": len(mids_rn) if isinstance(mids_rn, list) else 0,
+            "n_reply_needed": (len(mids_rn)
+                               if (reply_needed_movido
+                                   and isinstance(mids_rn, list)) else 0),
+            "n_reply_omitidos": (len(mids_rn)
+                                 if (not reply_needed_movido
+                                     and isinstance(mids_rn, list)) else 0),
             "archivo_nativo": archivo_nativo,
             "reply_needed_movido": reply_needed_movido}
 

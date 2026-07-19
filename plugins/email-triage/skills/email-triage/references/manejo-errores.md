@@ -58,6 +58,12 @@ No existe ningún otro límite de caracteres o líneas; si aparecen números
 distintos (500/2000) en docs o logs antiguos, son de versiones anteriores
 a v3.5.
 
+Fuente parseable: ambos números de caracteres viven como claves en la
+plantilla `config.yaml` (`puntuacion.extraccion_cruda_max` y
+`puntuacion.perfiles`); el gate `ContratoDoctrinaConstantesR2` de
+`test_contrato_skill.py` compara cada cita numérica de esta doctrina y de
+los scripts con esas claves.
+
 **Reglas de lote (sin cambios):**
 - Si el lote total supera 30 correos con cuerpo, procesar en sublotes de 15
   para evitar saturar la ventana de contexto

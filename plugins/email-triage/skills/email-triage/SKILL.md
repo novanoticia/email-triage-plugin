@@ -1,6 +1,6 @@
 ---
 name: email-triage
-version: "3.8.16"
+version: "3.8.17"
 description: >
   Triaje inteligente de correo electrónico: analiza bandejas de entrada y carpetas
   de lectura pendiente para identificar correos de alto valor usando criterios
@@ -764,7 +764,7 @@ Cada tier tiene un **indicador de color** (banderita) para identificación visua
 
 | Tier | Indicador | Score mínimo | Qué significa | Acción |
 |------|-----------|-------------|---------------|--------|
-| **REPLY_NEEDED** | 🔴 (rojo) | ≥ 10 **y** señal de acción | Requiere respuesta o acción directa | Mover a `carpetas.destino_reply_needed` (o `destino`) + marcar |
+| **REPLY_NEEDED** | 🔴 (rojo) | ≥ 10 **y** señal de acción | Requiere respuesta o acción directa | A `carpetas.destino_reply_needed` solo si define carpeta ≠ origen; si está vacío o es el propio origen (default INBOX), **se queda donde está** (mecanismo: `montar-mover`) + marcar |
 | **REVIEW** | 🟡 (amarillo) | 4–9 | Vale la pena leer con atención | Mover a `carpetas.destino` |
 | **READING_LATER** | 🔵 (azul) | 0–3 | Interesante pero no urgente | Dejar en `carpetas.pendiente` |
 | **ARCHIVE** | ⚪ (gris) | < 0 | Ruido, ritual o manipulación | Mover a `carpetas.destino_archive` si está definido; si no, archivar nativamente (según modo) |
