@@ -1,6 +1,6 @@
 ---
 name: email-triage
-version: "3.8.16"
+version: "3.8.17"
 description: >
   Triaje inteligente de correo electrónico: analiza bandejas de entrada y carpetas
   de lectura pendiente para identificar correos de alto valor usando criterios

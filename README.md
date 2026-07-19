@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.8.16
+# Email Triage Plugin v3.8.17
 
 Filtrado epistémico de correo electrónico para Claude Cowork y Claude Code.
 
@@ -17,6 +17,17 @@ La mayoría de clasificadores de correo preguntan "¿es urgente?". Este plugin p
 - ¿Está anclado a hechos verificables? (Entangled Truths)
 
 El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decisional, calidad epistémica, coste cognitivo y riesgo de manipulación.
+## Novedades en v3.8.17
+
+Fixes de la re-auditoría 2026-07-19 sobre v3.8.16 (QW1-4 r2, CM1-2 r2, NO r2):
+
+- **`validar-config` completa la vigilancia de `tiers` (QW1/QW2)**: valida el ORDEN de los umbrales con los valores efectivos (`{reply_needed: 4, review: 10}` dejaba REVIEW inalcanzable y el lote entero se reclasificaba en silencio) y reporta claves desconocidas (`reply_neded` caía al default sin señal).
+- **Archivo nativo blindado (CM1)**: si el buzón "Archive" no existe en la cuenta, el script ya no puede abortar — la resolución va en su propio `try` y todos los mids salen en `fallidos_archive` con el token `archivo_nativo_fallido:1`. Modo con carpeta explícita byte-idéntico.
+- **La plantilla manual del SCRIPT 3 se regenera desde el generador real (CM2)**: sección marcada PARIDAD-GATE emitida por `montar-mover` (con `fallidos_*` y blindaje incluidos) y test de paridad que falla si plantilla y generador vuelven a divergir. La tabla de tiers documenta el matiz reply-se-queda.
+- **Constantes doctrinales con fuente parseable (NO)**: `puntuacion.extraccion_cruda_max` (4000) y `puntuacion.perfiles` (800/1500/2500) entran en la plantilla de config como claves opcionales; el gate doctrinal ancla a ellas todas las citas (docs, AppleScript y comentarios del propio config), y las menciones inline "criterio N" se validan contra el catálogo.
+- **Bordes menores**: la vigencia del TTL de calibración se decide con el mismo valor redondeado que muestra el motivo (adiós "edad 7.0 días > TTL 7 días"), y `n_reply_needed` solo cuenta lo que de verdad se mueve (`n_reply_omitidos` para lo que se queda).
+- **25 tests nuevos** (242 en total).
+
 ## Novedades en v3.8.16
 
 Implementación de los fixes de la auditoría 2026-07-19 (QW1-4, CM1, CM2, NO1):
