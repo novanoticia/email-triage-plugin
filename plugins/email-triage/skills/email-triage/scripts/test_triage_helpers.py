@@ -1098,6 +1098,51 @@ class TestClampSuperficiesQW4(unittest.TestCase):
         self.assertFalse(out["entrada_recortada"])
 
 
+class TestValidarConfigTiersOrdenR2(unittest.TestCase):
+    """QW1-r2 (auditoria 2026-07-19 r2, F1): QW3 validaba tipos de tiers pero
+    no su orden — umbrales desordenados dejaban un tier inalcanzable con
+    'ok' y cero avisos."""
+
+    def _validar(self, cuerpo_yaml):
+        try:
+            import yaml  # noqa: F401
+        except ImportError:
+            self.skipTest("PyYAML no instalado")
+        fh = tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False,
+                                         encoding="utf-8")
+        fh.write(cuerpo_yaml)
+        fh.close()
+        try:
+            return th.cmd_validar_config(fh.name)
+        finally:
+            os.unlink(fh.name)
+
+    def test_desordenados_avisa(self):
+        # Repro exacto de la re-auditoria: REVIEW inalcanzable.
+        out = self._validar("correo: {cuenta: a@b.com}\n"
+                            "criterios_epistemicos: {}\n"
+                            "tiers: {reply_needed: 4, review: 10, "
+                            "reading_later: 0}\n")
+        self.assertTrue(out["tiers_desordenados"])
+        self.assertTrue(any("desordenados" in a for a in out["avisos"]))
+
+    def test_desorden_contra_defaults_tambien_avisa(self):
+        # Solo reply_needed: 3 presente -> contra el default review=4
+        # el orden efectivo ya esta roto.
+        out = self._validar("correo: {cuenta: a@b.com}\n"
+                            "criterios_epistemicos: {}\n"
+                            "tiers: {reply_needed: 3}\n")
+        self.assertTrue(out["tiers_desordenados"])
+
+    def test_orden_valido_sin_aviso(self):
+        out = self._validar("correo: {cuenta: a@b.com}\n"
+                            "criterios_epistemicos: {}\n"
+                            "tiers: {reply_needed: 10, review: 4, "
+                            "reading_later: 0, archive: -1}\n")
+        self.assertFalse(out["tiers_desordenados"])
+        self.assertFalse(any("desordenados" in a for a in out["avisos"]))
+
+
 class TestValidarConfigTiersQW3(unittest.TestCase):
     """QW3 (auditoria 2026-07-19, F5/F22): validar-config no miraba `tiers`.
     Un umbral no numerico pasaba el gate con 'ok' y el scoring reventaba

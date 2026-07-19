@@ -929,6 +929,20 @@ def cmd_validar_config(ruta: str) -> dict:
     archive_divergente = ("archive" not in tiers_invalidos
                           and isinstance(_arch, (int, float))
                           and not isinstance(_arch, bool) and _arch != -1)
+    # QW1-r2 (auditoria 2026-07-19 r2, F1): validar tambien el ORDEN de los
+    # umbrales. QW3 validaba tipos pero no orden: {reply_needed: 4, review: 10}
+    # pasaba con 'ok' y dejaba REVIEW inalcanzable (misrouting silencioso del
+    # lote entero). Se comprueba con los valores EFECTIVOS (presentes o
+    # default), que es exactamente lo que _tier_por_score usa en runtime.
+    _DEF_TIERS = {"reply_needed": 10, "review": 4, "reading_later": 0}
+    def _tier_efectivo(k):
+        v = _tiers_raw.get(k)
+        return v if (isinstance(v, (int, float))
+                     and not isinstance(v, bool)) else _DEF_TIERS[k]
+    _t_r = _tier_efectivo("reply_needed")
+    _t_v = _tier_efectivo("review")
+    _t_l = _tier_efectivo("reading_later")
+    tiers_desordenados = not (_t_r >= _t_v >= _t_l)
     sin_eje, eje_desconocido, clave_booleana = [], [], []
     if isinstance(criterios, dict):
         for nombre, c in criterios.items():
@@ -987,6 +1001,12 @@ def cmd_validar_config(ruta: str) -> dict:
             "%d umbral(es) de tiers no numericos — el scoring reventaria con "
             "TypeError en el mapeo de tier para TODOS los correos del lote: %s"
             % (len(tiers_invalidos), ", ".join(sorted(tiers_invalidos))))
+    if tiers_desordenados:
+        avisos.append(
+            "umbrales de tiers desordenados (efectivos: reply_needed=%s, "
+            "review=%s, reading_later=%s; se exige reply_needed >= review >= "
+            "reading_later): algun tier queda inalcanzable y el lote entero "
+            "se reclasifica en silencio" % (_t_r, _t_v, _t_l))
     if archive_divergente:
         avisos.append(
             "tiers.archive=%r distinto del default -1: SOLO lo usa la rutina "
@@ -1003,6 +1023,7 @@ def cmd_validar_config(ruta: str) -> dict:
             "sender_bulk_atenuado_a_invalido": atenuado_invalido,
             "tiers_no_mapa": tiers_no_mapa,
             "tiers_invalidos": tiers_invalidos,
+            "tiers_desordenados": tiers_desordenados,
             "tiers_archive_divergente": archive_divergente}
 
 
