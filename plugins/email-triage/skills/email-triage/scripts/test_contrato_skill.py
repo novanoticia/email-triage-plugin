@@ -363,6 +363,43 @@ class ContratoCore12FuenteUnica(unittest.TestCase):
             "promete 12" % len(set(_core_config())))
 
 
+class ContratoPlantillaScript3Paridad(unittest.TestCase):
+    """CM2-r2 (F4, re-auditoria 2026-07-19): la plantilla manual del SCRIPT 3
+    iba DOS rondas por detras del generador (sin fallidos_*, sin blindaje).
+    Ahora la seccion se regenera desde cmd_montar_mover y este gate fija que
+    plantilla y generador no vuelvan a divergir. Unica transformacion
+    permitida: las dos lineas de listas usan <<LISTA_*>> como placeholder."""
+
+    MARKER = ('-- PARIDAD-GATE: seccion generada por cmd_montar_mover '
+              '(payload centinela del test de paridad) — NO editar a mano')
+    PAYLOAD = {"cuenta": "<<CUENTA>>", "origen": "<<ORIGEN>>",
+               "destino_review": "<<DESTINO_REVIEW>>",
+               "destino_archive": "<<DESTINO_ARCHIVE>>",
+               "mids_review": ["LISTA_R_SENTINEL"],
+               "mids_archive": ["LISTA_A_SENTINEL"]}
+
+    def test_plantilla_script3_identica_al_generador(self):
+        import pathlib as _pl
+        plantilla = (_pl.Path(AQUI).parent / "references" /
+                     "mail-consolidado.applescript").read_text(encoding="utf-8")
+        lineas = plantilla.splitlines()
+        self.assertIn(self.MARKER, lineas,
+                      "falta el marcador de paridad en la plantilla")
+        i = lineas.index(self.MARKER)
+        j = next(k for k in range(i, len(lineas)) if lineas[k] == "end tell")
+        seccion = "\n".join(lineas[i + 1:j + 1])
+        out = th.cmd_montar_mover(dict(self.PAYLOAD))
+        self.assertTrue(out["ok"])
+        esperado = (out["script"]
+                    .replace('set toReview to {"LISTA_R_SENTINEL"}',
+                             'set toReview to <<LISTA_REVIEW>>')
+                    .replace('set toArchive to {"LISTA_A_SENTINEL"}',
+                             'set toArchive to <<LISTA_ARCHIVE>>'))
+        self.assertEqual(seccion, esperado.rstrip("\n"),
+                         "la plantilla SCRIPT 3 divergio del generador: "
+                         "regenerala desde cmd_montar_mover (ver docstring)")
+
+
 class ContratoPlaceholdersApplescript(unittest.TestCase):
     """Gate de F26 (auditoria 2026-07-19): la plantilla references/
     mail-consolidado.applescript se rellena a mano (sus <<...>>), FUERA del gate
