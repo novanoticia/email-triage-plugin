@@ -617,6 +617,8 @@ determinista se suman entre sí y se pasan como un único entero en
 | **Keyword penalizar** | -2 | Palabra en `palabras_clave_penalizar` |
 | **Remitente ignorar** | -99 | Está en `remitentes_ignorar` (skip total: el correo se descarta antes del scoring; no pasa por `hard_rules` ni por `extra_points`) |
 
+> **Graduar `sender_bulk` por frecuencia (v3.8.x).** Cuando el remitente aparezca en la calibración (`calibrar` → `top_remitentes[].conteo`), pasa ese `conteo` en el payload de `scoring` como `remitente_conteo_historial` (entero, aparte de `extra_points`). El motor lo usa para **graduar** la penalización `sender_bulk` (-4 acercándose a cero por cada conservación, sin pasar del tope `sender_bulk_atenuado_a`), en vez del salto binario del flag `remitente_en_historial`. Si solo pasas el flag booleano, la atenuación es plena (comportamiento previo); si no pasas ninguno, no hay atenuación.
+
 #### 4.A.3 — Ajustes aprendidos (PASO 0.B) — aplicar después de 4.A.1 y 4.A.2
 
 Si PASO 0.B produjo una tabla de ajustes dinámicos, aplicarlos ahora
@@ -722,7 +724,7 @@ devuelve solo `{id, score, tier, ejes, cap_aplicado?}`:
 ```bash
 echo '{"emails": [
   {"id": 1, "verdicts": {...}, "hard_rules": ["sender_bulk_penalizacion"]},
-  {"id": 2, "verdicts": {...}, "remitente_en_historial": true}
+  {"id": 2, "verdicts": {...}, "remitente_en_historial": true, "remitente_conteo_historial": 3}
 ]}' \
   | python3 "<ruta-del-skill>/scripts/triage_helpers.py" scoring \
       --config ~/.email-triage/config.yaml --brief
