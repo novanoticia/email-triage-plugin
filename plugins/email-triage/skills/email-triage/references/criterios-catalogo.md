@@ -59,7 +59,7 @@ Evalúa cada criterio aplicable. Los criterios están organizados en 4 grupos:
 
 #### Criterios prioritarios para v3.0
 
-No todos los criterios pesan igual. Los **12 criterios core** que SIEMPRE deben
+No todos los criterios pesan igual. Los **13 criterios core** que SIEMPRE deben
 evaluarse (equilibran valor informacional, utilidad práctica, detectabilidad
 y capacidad de explicación):
 
@@ -75,6 +75,7 @@ y capacidad de explicación):
 10. `semantic_stopsigns` (25)
 11. `entangled_truths` (28)
 12. `absence_of_expected_evidence` (30)
+13. `distancia_inferencial` (coste_cognitivo)
 
-Los 18 restantes se evalúan cuando el correo lo amerita (ej: `motivated_stopping`
+Los 17 restantes se evalúan cuando el correo lo amerita (ej: `motivated_stopping`
 solo aplica si el correo propone cerrar una cuestión abierta).

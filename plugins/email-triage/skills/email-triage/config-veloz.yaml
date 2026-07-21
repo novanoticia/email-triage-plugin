@@ -51,7 +51,7 @@ scoring:
   #    --config-veloz <esta capa> para fusionar estos overrides por mecanismo.
   #    El desglose completo NO entra al contexto: añade --desglose <ruta> a
   #    la misma invocación y el script lo escribe a fichero (CM2/F12).
-  #  · Pasar SOLO los veredictos de los 12 criterios core (ver abajo).
+  #  · Pasar SOLO los veredictos de los 13 criterios core (ver abajo).
 
 # ─── Explicación: el mayor sumidero de tokens de salida ─────────
 explicacion:
@@ -74,12 +74,12 @@ telemetria:
 comportamiento_veloz:
 
   solo_criterios_core: true
-  # Evaluar ÚNICAMENTE los 12 criterios core; omitir los 18 condicionales.
+  # Evaluar ÚNICAMENTE los 13 criterios core; omitir los 17 condicionales.
   # Core: cambia_algo_concreto, cambio_predicciones, sorpresa_bayesiana,
   #       evidencia_filtrada, forward_backward_flow, impacto_causal_real,
   #       urgencia_real_vs_fabricada, argument_screens_off_authority,
   #       hug_the_query, semantic_stopsigns, entangled_truths,
-  #       absence_of_expected_evidence.
+  #       absence_of_expected_evidence, distancia_inferencial.
 
   saltar_calibracion: true
   # No releer los 100 correos del historial (PASO 2) en cada sesión.

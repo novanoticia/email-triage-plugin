@@ -570,7 +570,8 @@ def _tier_por_score(score, tiers):
     return "ARCHIVE"
 
 
-def _aplica_hard_rules(hard_rules, hard_cfg, en_historial, atenuado_a, ignorados):
+def _aplica_hard_rules(hard_rules, hard_cfg, en_historial, atenuado_a, ignorados,
+                       conteo_historial=None):
     """Suma las hard rules. Atenúa sender_bulk_penalizacion cuando el
     remitente está en el historial de conservados (corrección #2): un
     remitente que el usuario guarda a mano no merece el castigo completo
@@ -596,19 +597,33 @@ def _aplica_hard_rules(hard_rules, hard_cfg, en_historial, atenuado_a, ignorados
                               "motivo": "valor no numerico en config (%r)" % (v,)})
             continue
         nota = None
-        if k == "sender_bulk_penalizacion" and en_historial and v < 0:
+        # Atenuacion graduada de sender_bulk (memo veloz 2026-07-21): un
+        # remitente que conservas UNA vez no merece lo mismo que uno que
+        # conservas siete. Si el payload trae remitente_conteo_historial (int
+        # >=1), cada conservacion acerca la penalizacion a cero, sin pasar del
+        # tope (sender_bulk_atenuado_a). Si solo llega el flag booleano
+        # remitente_en_historial (sin conteo), se mantiene la atenuacion plena
+        # al tope, exactamente como antes (compatibilidad hacia atras).
+        conteo_ok = (isinstance(conteo_historial, int)
+                     and not isinstance(conteo_historial, bool)
+                     and conteo_historial >= 1)
+        aten_activa = en_historial or conteo_ok
+        if k == "sender_bulk_penalizacion" and aten_activa and v < 0:
             # QW2 (auditoria 2026-07-17, F2): 'atenuar' = acercar la
-            # penalizacion a cero, NUNCA convertirla en bonus. Un
-            # sender_bulk_atenuado_a mal puesto (positivo o no numerico) hacia
-            # max(-4, 5) = 5: la penalizacion de remitente masivo se volvia +5
-            # y encima se etiquetaba como "atenuada". Se acota el tope a <= 0 y
-            # se exige numerico.
+            # penalizacion a cero, NUNCA convertirla en bonus. Se acota el tope
+            # a <= 0 y se exige numerico.
             tope = atenuado_a if isinstance(atenuado_a, (int, float)) \
                 and not isinstance(atenuado_a, bool) else -1
             tope = min(tope, 0)
-            nuevo = max(v, tope)
+            if conteo_ok:
+                nuevo = max(v, min(v + conteo_historial, tope))
+                etiq = ("graduada por remitente_conteo_historial=%d"
+                        % conteo_historial)
+            else:
+                nuevo = max(v, tope)
+                etiq = "atenuada por remitente_en_historial"
             if nuevo != v:
-                nota = "atenuada por remitente_en_historial (%d->%d)" % (v, nuevo)
+                nota = "%s (%d->%d)" % (etiq, v, nuevo)
                 v = nuevo
         hard_puntos += v
         entry = {"regla": k, "puntos": v}
@@ -625,6 +640,8 @@ def cmd_scoring(payload: dict, cfg: dict) -> dict:
               "extra_points": int, "forzar_reply_needed": bool,
               "tier_maximo": "REVIEW"|None,
               "remitente_en_historial": bool,   # corrección #2
+              "remitente_conteo_historial": int, # opcional: atenua sender_bulk
+                                                 # de forma graduada por frecuencia
               "id": cualquier}                   # opcional, para lote
     cfg: config.yaml ya parseado (dict). Devuelve score, tier, ejes y desglose.
     """
@@ -709,8 +726,17 @@ def cmd_scoring(payload: dict, cfg: dict) -> dict:
                               "eje sin clampar" % (rango,)})
 
     en_historial = bool(payload.get("remitente_en_historial"))
+    conteo_hist = payload.get("remitente_conteo_historial")
+    if conteo_hist is not None and (isinstance(conteo_hist, bool)
+                                    or not isinstance(conteo_hist, int)):
+        # Un conteo no entero ("tres", 1.5, True) no debe reventar ni graduar:
+        # se ignora con motivo y se cae al comportamiento booleano previo.
+        ignorados.append({"campo": "remitente_conteo_historial",
+                          "motivo": "valor no entero (%r); se ignora" % (conteo_hist,)})
+        conteo_hist = None
     hard_puntos, hard_desglose = _aplica_hard_rules(
-        payload.get("hard_rules"), hard_cfg, en_historial, bulk_atenuado_a, ignorados)
+        payload.get("hard_rules"), hard_cfg, en_historial, bulk_atenuado_a,
+        ignorados, conteo_hist)
 
     extra = payload.get("extra_points", 0) or 0
     if isinstance(extra, bool) or not isinstance(extra, (int, float)):
@@ -752,6 +778,7 @@ def cmd_scoring(payload: dict, cfg: dict) -> dict:
         "hard_puntos": hard_puntos,
         "extra_points": extra,
         "remitente_en_historial": en_historial,
+        "remitente_conteo_historial": conteo_hist,
         "criterios": desglose,
         "ignorados": ignorados,
     }

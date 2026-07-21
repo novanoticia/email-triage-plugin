@@ -353,14 +353,14 @@ class ContratoCore12FuenteUnica(unittest.TestCase):
                 "%s. Solo en config.yaml: %s; solo en la copia: %s"
                 % (etiqueta, sorted(cfg - copia), sorted(copia - cfg)))
 
-    def test_core_son_doce(self):
+    def test_core_son_trece(self):
         # La doctrina (SKILL.md 4.B y criterios-catalogo.md) promete en prosa
         # "12 criterios core". Si la cardinalidad cambia legitimamente, hay
         # que actualizar esa prosa Y este numero a la vez.
         self.assertEqual(
-            len(set(_core_config())), 12,
+            len(set(_core_config())), 13,
             "config.yaml declara %d criterios core: true; la doctrina "
-            "promete 12" % len(set(_core_config())))
+            "promete 13" % len(set(_core_config())))
 
 
 class ContratoPlantillaScript3Paridad(unittest.TestCase):
