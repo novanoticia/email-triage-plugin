@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.8.17
+# Email Triage Plugin v3.8.18
 
 Filtrado epistémico de correo electrónico para Claude Cowork y Claude Code.
 
@@ -17,6 +17,16 @@ La mayoría de clasificadores de correo preguntan "¿es urgente?". Este plugin p
 - ¿Está anclado a hechos verificables? (Entangled Truths)
 
 El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decisional, calidad epistémica, coste cognitivo y riesgo de manipulación.
+## Novedades en v3.8.18
+
+Mejoras de robustez de lectura y de calibración del scoring, tras probar el plugin de extremo a extremo en una sesión real (modo veloz, 50 correos):
+
+- **Lectura de Mail en dos pasadas, robusta a timeouts (#26)**: `references/mail-consolidado-v2.applescript` separa metadatos (SCRIPT 1A, sin `content of m`, retorna en segundos) de los cuerpos (SCRIPT 1B, localizados por `message id` e indexados por posición de lista, no de carpeta) → inmune a que entre correo nuevo entre pasadas y reanudable en sublotes de `resiliencia.sublote_con_cuerpo` (15). Nueva doctrina `references/paso-1-doctrina-ejecucion.md`: patrón background+poll, matar procesos osascript zombis antes de relanzar, y aviso de que el primer veloz sin caché de calibración es más lento. El SCRIPT 1 v1 devolvía los metadatos solo al final (un timeout se comía toda la salida) e ignoraba el sublote del config.
+- **`sender_bulk` graduado por frecuencia (#27)**: nuevo campo opcional de payload `remitente_conteo_historial` (entero). Cada conservación en el historial acerca la penalización de remitente masivo (-4) hacia cero sin pasar del tope `sender_bulk_atenuado_a` (-1): conteo 1→-3, 2→-2, ≥3→-1. Sustituye el salto binario -4/-1 del flag `remitente_en_historial`. Retrocompatible: solo el flag → atenuación plena como antes; un conteo no entero se ignora con motivo; el tope ≤0 impide convertir la penalización en bonus. El SKILL.md (4.A.2) instruye pasar el `conteo` de `calibrar → top_remitentes[]` para que el motor gradúe de extremo a extremo.
+- **`coste_cognitivo` deja de ser un eje muerto en veloz (#27)**: `distancia_inferencial` pasa a `core: true`; el core sube de 12 a 13 criterios, actualizado de forma idéntica en las tres fuentes que verifica el contrato (`config.yaml`, `criterios-catalogo.md`, `config-veloz.yaml`) y en la prosa/gate de cardinalidad. En modo veloz el eje de coste ya no queda siempre a 0.
+- **Memo de diseño del scoring** (`docs/MEJORAS-scoring-veloz.md`): documenta por qué en veloz el remitente pesa más que la epistémica, y deja abiertas las opciones para reequilibrarlo.
+- **5 tests nuevos** (247 en total) fijan la atenuación graduada.
+
 ## Novedades en v3.8.17
 
 Fixes de la re-auditoría 2026-07-19 sobre v3.8.16 (QW1-4 r2, CM1-2 r2, NO r2):
