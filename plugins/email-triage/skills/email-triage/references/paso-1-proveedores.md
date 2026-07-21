@@ -6,6 +6,13 @@
 
 ### iCloud / Mail.app (macOS)
 
+> 🚀 **Ejecución robusta contra Mail (leer primero):** el patrón de lectura de
+> abajo asume llamadas osascript síncronas que en la práctica expiran y dejan
+> procesos zombis compitiendo por Mail. Para lecturas fiables —metadatos-primero,
+> cuerpos localizados por message-id, background/poll, matar zombis antes de
+> relanzar y sublotes de 15— sigue `references/paso-1-doctrina-ejecucion.md` y usa
+> `references/mail-consolidado-v2.applescript`.
+
 Usa "Control your Mac" (osascript) para acceder a Mail.app.
 
 #### Vía preferente (segura): metadatos por stdout + cuerpos a fichero 700
