@@ -147,8 +147,8 @@ La capa nunca aporta datos personales; solo parámetros de velocidad.
 
 Cuando `modo_veloz: true`, anunciarlo al inicio y aplicar:
 
-1. **Solo criterios core**: evaluar únicamente los 12 criterios con
-   `core: true`; omitir los 18 condicionales (no pasarlos al script en
+1. **Solo criterios core**: evaluar únicamente los 13 criterios con
+   `core: true`; omitir los 17 condicionales (no pasarlos al script en
    modo determinista).
 2. **Scoring determinista + lote `--brief`**: usar `scoring.modo:
    determinista` e invocar `triage_helpers.py scoring --brief` en lote.
@@ -745,8 +745,8 @@ La fuente única del catálogo es `config.yaml` → `criterios_epistemicos`:
 cada criterio lleva su pregunta operativa (`question`), peso, valores
 `si`/`no` y el flag `core`. Evaluar todos los que tengan `activo: true`.
 
-**Regla de cobertura**: los 12 criterios con `core: true` se evalúan
-SIEMPRE en cada correo; los 18 restantes solo cuando el correo lo amerita
+**Regla de cobertura**: los 13 criterios con `core: true` se evalúan
+SIEMPRE en cada correo; los 17 restantes solo cuando el correo lo amerita
 (ej: `motivated_stopping` solo aplica si el correo propone cerrar una
 cuestión abierta).
 
@@ -809,7 +809,7 @@ aplicar siempre este principio:
 Cuando se dispone del extracto sanitizado del cuerpo:
 
 1. **Primer filtro rápido** — Evaluar asunto + remitente (hard rules + criterios 1-5)
-2. **Si score parcial >= 1** — Analizar extracto del cuerpo con los 12 criterios core
+2. **Si score parcial >= 1** — Analizar extracto del cuerpo con los 13 criterios core
 3. **Si score parcial < 1 y remitente no está en ignorar** — Leer el extracto
    igualmente, pero el cuerpo debe aportar >= 4 puntos para alcanzar `review`
 
@@ -1227,7 +1227,7 @@ Una línea JSON por correo con el vector binario de criterios activados
 (1 = criterio activo/aplicado, 0 = no aplica):
 
 ```json
-{"session_id":"YYYYMMDD-HHMMSS","message_id":"<id>","tier":"REVIEW","score_final":7,"criterios":{"cambia_algo_concreto":1,"cambio_predicciones":1,"sorpresa_bayesiana":0,"evidencia_filtrada":1,"forward_backward_flow":0,"impacto_causal_real":1,"urgencia_real_vs_fabricada":0,"argument_screens_off_authority":1,"hug_the_query":1,"semantic_stopsigns":0,"entangled_truths":1,"absence_of_expected_evidence":0}}
+{"session_id":"YYYYMMDD-HHMMSS","message_id":"<id>","tier":"REVIEW","score_final":7,"criterios":{"cambia_algo_concreto":1,"cambio_predicciones":1,"sorpresa_bayesiana":0,"evidencia_filtrada":1,"forward_backward_flow":0,"impacto_causal_real":1,"urgencia_real_vs_fabricada":0,"argument_screens_off_authority":1,"hug_the_query":1,"semantic_stopsigns":0,"entangled_truths":1,"absence_of_expected_evidence":0,"distancia_inferencial":0}}
 ```
 
 #### `guardar_correccion: true` → `correcciones.jsonl`

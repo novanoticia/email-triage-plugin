@@ -436,7 +436,7 @@ criterios_epistemicos:
   distancia_inferencial:
     eje: coste_cognitivo
     activo: true
-    core: false
+    core: true
     weight: -2
     question: "¿Cuánto trabajo mental me cuesta entenderlo de verdad?"
     baja: 0

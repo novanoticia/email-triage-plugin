@@ -2694,5 +2694,60 @@ class TestScoringDesgloseCM2(unittest.TestCase):
             self.assertIn("resultados", out)      # el scoring salió igualmente
 
 
+class TestSenderBulkGraduado(unittest.TestCase):
+    """Atenuacion graduada de sender_bulk por frecuencia en el historial
+    (memo veloz 2026-07-21). remitente_conteo_historial acerca la penalizacion
+    a cero por cada conservacion, sin pasar del tope (sender_bulk_atenuado_a).
+    El flag booleano remitente_en_historial (sin conteo) sigue atenuando pleno."""
+
+    def _base(self):
+        cfg = _cfg_scoring()
+        cfg["hard_rules"]["sender_bulk_penalizacion"] = -4  # tope default -1
+        base = {"verdicts": {"abre_opciones": "si"},  # +3
+                "hard_rules": ["sender_bulk_penalizacion"]}
+        return cfg, base
+
+    def test_conteo_gradua_por_frecuencia(self):
+        cfg, base = self._base()
+        # v=-4, tope=-1: conteo 1->-3, 2->-2, 3->-1, 5->-1 (capado al tope)
+        esperado = {1: 0, 2: 1, 3: 2, 5: 2}  # score = 3 + bulk_atenuado
+        for conteo, score in esperado.items():
+            out = th.cmd_scoring(dict(base, remitente_conteo_historial=conteo), cfg)
+            self.assertEqual(out["score"], score,
+                             "conteo=%d deberia dar score=%d" % (conteo, score))
+            self.assertEqual(out["remitente_conteo_historial"], conteo)
+
+    def test_conteo_activa_atenuacion_sin_flag_booleano(self):
+        cfg, base = self._base()
+        out = th.cmd_scoring(dict(base, remitente_conteo_historial=1), cfg)
+        self.assertEqual(out["score"], 0)   # -4 graduado a -3, sin en_historial
+        self.assertFalse(out["remitente_en_historial"])
+
+    def test_flag_booleano_sin_conteo_atenua_pleno(self):
+        # Compatibilidad hacia atras: solo el flag -> atenuacion plena al tope.
+        cfg, base = self._base()
+        out = th.cmd_scoring(dict(base, remitente_en_historial=True), cfg)
+        self.assertEqual(out["score"], 2)   # -4 -> -1
+        self.assertIsNone(out["remitente_conteo_historial"])
+
+    def test_conteo_no_entero_se_ignora(self):
+        cfg, base = self._base()
+        for malo in (True, 1.5, "tres"):
+            out = th.cmd_scoring(dict(base, remitente_conteo_historial=malo,
+                                      remitente_en_historial=True), cfg)
+            # cae al comportamiento booleano (-1) y reporta el ignorado
+            self.assertEqual(out["score"], 2)
+            self.assertIsNone(out["remitente_conteo_historial"])
+            self.assertTrue(any(i.get("campo") == "remitente_conteo_historial"
+                                for i in out["ignorados"]))
+
+    def test_conteo_nunca_convierte_en_bonus(self):
+        # Aunque el conteo sea enorme, el tope <=0 impide premiar al masivo.
+        cfg, base = self._base()
+        out = th.cmd_scoring(dict(base, remitente_conteo_historial=999), cfg)
+        self.assertEqual(out["score"], 2)   # capado a -1, nunca positivo
+
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
