@@ -2748,6 +2748,191 @@ class TestSenderBulkGraduado(unittest.TestCase):
         self.assertEqual(out["score"], 2)   # capado a -1, nunca positivo
 
 
+# ─── v3.8.19: 4 subcomandos aditivos ────────────────────────────────
+
+class TestMontarLeerCuerposV3819(unittest.TestCase):
+    """Fix 1: paridad con montar-mover para leer cuerpos (SCRIPT 1B)."""
+
+    def test_ok_basico(self):
+        out = th.cmd_montar_leer_cuerpos(
+            {"cuenta": "iCloud", "origen": "Leer Después",
+             "mids": ["a@x.com", "b@y.com"]})
+        self.assertTrue(out["ok"])
+        self.assertEqual(out["n"], 2)
+        self.assertEqual(out["prefijo"], "tbody_")
+        # cuenta y origen escapados, lista con ambos mids.
+        self.assertIn('account "iCloud"', out["script"])
+        self.assertIn('is "Leer Después"', out["script"])
+        self.assertIn('set idList to {"a@x.com", "b@y.com"}', out["script"])
+
+    def test_escapa_mid_hostil_y_lo_marca(self):
+        hostil = 'x" & (do shell script "id") & "@y.com'
+        out = th.cmd_montar_leer_cuerpos(
+            {"cuenta": "iCloud", "origen": "INBOX", "mids": [hostil]})
+        self.assertTrue(out["ok"])
+        # El literal nunca contiene una comilla sin escapar que cierre la
+        # cadena: el payload va dentro de \"...\".
+        self.assertNotIn('"' + hostil + '"', out["script"])
+        self.assertIn('\\"', out["script"])
+        self.assertTrue(out["sospechosos"])
+        self.assertEqual(out["sospechosos"][0]["indice"], 0)
+
+    def test_prefijo_por_sublote(self):
+        out = th.cmd_montar_leer_cuerpos(
+            {"cuenta": "iCloud", "origen": "INBOX", "mids": ["a@x.com"],
+             "prefijo": "tbody2_"})
+        self.assertTrue(out["ok"])
+        self.assertIn('& "tbody2_" &', out["script"])
+
+    def test_rechaza_prefijo_inseguro(self):
+        out = th.cmd_montar_leer_cuerpos(
+            {"cuenta": "iCloud", "origen": "INBOX", "mids": [],
+             "prefijo": "../../etc/passwd"})
+        self.assertFalse(out["ok"])
+        self.assertIn("prefijo", out["error"])
+
+    def test_faltan_campos_y_tipos(self):
+        self.assertFalse(th.cmd_montar_leer_cuerpos({"origen": "X"})["ok"])
+        self.assertFalse(th.cmd_montar_leer_cuerpos(
+            {"cuenta": "c", "origen": "o", "mids": "no-lista"})["ok"])
+        # Nunca lanza, sea cual sea la entrada.
+        for entrada in (None, [], 3, "x", {"cuenta": 1}):
+            self.assertIn("ok", th.cmd_montar_leer_cuerpos(entrada))
+
+
+class TestAgruparHilosV3819(unittest.TestCase):
+    """Fix 2: PASO 1.C determinista (normalización + participante)."""
+
+    def test_agrupa_por_clave_y_dominio(self):
+        out = th.cmd_agrupar_hilos({"correos": [
+            {"id": 1, "remitente": "A <a@x.com>", "asunto": "Reunión"},
+            {"id": 2, "remitente": "B <b@x.com>", "asunto": "Re: Reunión"},
+            {"id": 3, "remitente": "C <c@y.com>", "asunto": "Otra"},
+        ]})
+        self.assertTrue(out["ok"])
+        hilos = [u for u in out["unidades"] if u["tipo"] == "hilo"]
+        self.assertEqual(len(hilos), 1)
+        self.assertEqual(hilos[0]["count"], 2)
+        self.assertEqual(out["n_mensajes"], 3)
+
+    def test_misma_clave_sin_participante_no_agrupa(self):
+        # Regla del SKILL: misma clave_hilo Y participante compartido.
+        out = th.cmd_agrupar_hilos({"correos": [
+            {"id": 1, "remitente": "A <a@x.com>", "asunto": "Reunión"},
+            {"id": 2, "remitente": "D <d@z.com>", "asunto": "Reunión"},
+        ]})
+        self.assertEqual([u["tipo"] for u in out["unidades"]],
+                         ["individual", "individual"])
+
+    def test_asunto_vacio_o_solo_prefijos_es_individual(self):
+        out = th.cmd_agrupar_hilos({"correos": [
+            {"id": 1, "remitente": "A <a@x.com>", "asunto": "Re: "},
+            {"id": 2, "remitente": "B <a@x.com>", "asunto": ""},
+        ]})
+        # clave vacía -> no se agrupan aunque compartan remitente.
+        self.assertTrue(all(u["tipo"] == "individual" for u in out["unidades"]))
+
+    def test_combos_de_prefijos(self):
+        self.assertEqual(th._clave_hilo("Re: Fwd: RV: Hola"), "hola")
+        self.assertEqual(th._clave_hilo("RE:RE: Pago"), "pago")
+
+    def test_conserva_orden_y_miembros(self):
+        out = th.cmd_agrupar_hilos({"correos": [
+            {"id": 9, "remitente": "A <a@x.com>", "asunto": "T"},
+            {"id": 8, "remitente": "A <a@x.com>", "asunto": "Re: T"},
+        ]})
+        u = out["unidades"][0]
+        self.assertEqual([m["id"] for m in u["miembros"]], [9, 8])
+        self.assertNotIn("orden_entrada", u)
+
+    def test_no_lanza_ante_basura(self):
+        for entrada in (None, {}, {"correos": "x"}, {"correos": [1, 2]}):
+            self.assertIn("ok", th.cmd_agrupar_hilos(entrada))
+
+
+class TestGateCuerpoV3819(unittest.TestCase):
+    """Fix 3: dos pasadas del PASO 4.D mecanizadas."""
+
+    def test_score_parcial_alto_lee_sin_umbral(self):
+        out = th.cmd_gate_cuerpo({"score_parcial": 3})
+        self.assertTrue(out["leer_cuerpo"])
+        self.assertIsNone(out["umbral_min_cuerpo"])
+
+    def test_score_parcial_bajo_lee_con_umbral(self):
+        out = th.cmd_gate_cuerpo({"score_parcial": 0})
+        self.assertTrue(out["leer_cuerpo"])
+        self.assertEqual(out["umbral_min_cuerpo"], 4)
+
+    def test_umbral_review_configurable(self):
+        out = th.cmd_gate_cuerpo({"score_parcial": -1, "umbral_review": 5})
+        self.assertEqual(out["umbral_min_cuerpo"], 5)
+
+    def test_ignorar_no_lee(self):
+        out = th.cmd_gate_cuerpo(
+            {"score_parcial": 8, "remitente_en_ignorar": True})
+        self.assertFalse(out["leer_cuerpo"])
+
+    def test_score_no_numerico_es_error(self):
+        self.assertFalse(th.cmd_gate_cuerpo({"score_parcial": "tres"})["ok"])
+        self.assertFalse(th.cmd_gate_cuerpo({"score_parcial": True})["ok"])
+        self.assertIn("ok", th.cmd_gate_cuerpo(None))
+
+
+class TestMontarLeerMetadatosV3819(unittest.TestCase):
+    """Fix 4: SCRIPT 1A con ventana temporal opcional (PASO 3)."""
+
+    def test_sin_ventana(self):
+        out = th.cmd_montar_leer_metadatos({"cuenta": "iCloud", "origen": "INBOX"})
+        self.assertTrue(out["ok"])
+        self.assertIsNone(out["ventana_horas"])
+        self.assertEqual(out["limite"], 50)
+        self.assertIn("set msgs to messages of srcBox", out["script"])
+        self.assertNotIn("whose date received", out["script"])
+
+    def test_con_ventana(self):
+        out = th.cmd_montar_leer_metadatos(
+            {"cuenta": "iCloud", "origen": "INBOX", "limite": 30,
+             "ventana_horas": 72})
+        self.assertTrue(out["ok"])
+        self.assertEqual(out["ventana_horas"], 72)
+        self.assertIn("(current date) - (72 * hours)", out["script"])
+        self.assertIn("whose date received > cutoff", out["script"])
+        self.assertIn("set n to 30", out["script"])
+
+    def test_escapa_cuenta_y_origen(self):
+        out = th.cmd_montar_leer_metadatos(
+            {"cuenta": 'Cor"a', "origen": "Leer Después"})
+        self.assertTrue(out["ok"])
+        self.assertIn('account "Cor\\"a"', out["script"])
+        self.assertIn('is "Leer Después"', out["script"])
+
+    def test_validaciones(self):
+        self.assertFalse(th.cmd_montar_leer_metadatos({"cuenta": "c"})["ok"])
+        self.assertFalse(th.cmd_montar_leer_metadatos(
+            {"cuenta": "c", "origen": "o", "limite": 0})["ok"])
+        self.assertFalse(th.cmd_montar_leer_metadatos(
+            {"cuenta": "c", "origen": "o", "ventana_horas": -1})["ok"])
+        self.assertFalse(th.cmd_montar_leer_metadatos(
+            {"cuenta": "c", "origen": "o", "ventana_horas": True})["ok"])
+        for entrada in (None, 3, "x", []):
+            self.assertIn("ok", th.cmd_montar_leer_metadatos(entrada))
+
+
+class TestParserV3819(unittest.TestCase):
+    """Los 4 subcomandos existen en el argparse real con su flag --datos."""
+
+    def test_subcomandos_registrados(self):
+        parser = th._construir_parser()
+        import argparse
+        sub = next(a for a in parser._actions
+                   if isinstance(a, argparse._SubParsersAction))
+        for cmd in ("montar-leer-metadatos", "montar-leer-cuerpos",
+                    "agrupar-hilos", "gate-cuerpo"):
+            self.assertIn(cmd, sub.choices)
+            flags = {o for a in sub.choices[cmd]._actions
+                     for o in a.option_strings if o.startswith("--")}
+            self.assertIn("--datos", flags)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
