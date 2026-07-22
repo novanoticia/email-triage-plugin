@@ -1,6 +1,6 @@
 ---
 name: email-triage
-version: "3.8.18"
+version: "3.8.19"
 description: >
   Triaje inteligente de correo electrónico: analiza bandejas de entrada y carpetas
   de lectura pendiente para identificar correos de alto valor usando criterios
@@ -237,8 +237,13 @@ divulgación progresiva (CM1): solo se carga
 cuando de verdad vas a conectar, no en cada activación del skill.
 
 Regla no negociable que sobrevive al enrutado: **nunca interpoles metadatos
-(message-ids, cuentas, carpetas) en AppleScript a mano** — siempre
-`triage_helpers.py montar-mover` o `escapar-applescript`.
+(message-ids, cuentas, carpetas) en AppleScript a mano** — siempre por
+mecanismo. Además de `montar-mover` y `escapar-applescript`, desde v3.8.19
+hay dos montadores más que cierran la misma superficie en la LECTURA (antes
+se ensamblaban a mano): `triage_helpers.py montar-leer-metadatos` (SCRIPT 1A,
+con ventana temporal opcional para PASO 3) y `triage_helpers.py
+montar-leer-cuerpos` (SCRIPT 1B, cuerpos por message-id). Úsalos en vez de
+pegar las listas de mids a mano.
 
 ## PASO 1.B — SANITIZACIÓN DEL CUERPO (obligatorio antes de evaluar)
 
@@ -358,6 +363,22 @@ Transforma la lista plana de mensajes en unidades de evaluación: mensajes
 individuales o hilos agrupados. Esto es lo que garantiza que `presion_accion`
 y `hilo_esperando_respuesta` se evalúen sobre el hilo completo, no sobre
 un fragmento aislado.
+
+**Vía preferente (determinista, v3.8.19)**: para iCloud, no agrupes a ojo — la
+normalización de asunto y la unión por participante compartido son
+deterministas y reproducibles con `triage_helpers.py agrupar-hilos`. Pásale
+los metadatos ya recogidos (SCRIPT 1A) y usa las `unidades` que devuelve:
+
+```bash
+echo '{"correos":[{"id":1,"remitente":"A <a@x.com>","asunto":"Reunión"},
+                  {"id":2,"remitente":"B <x.com>","asunto":"Re: Reunión"}]}' \
+  | python3 "<ruta-del-skill>/scripts/triage_helpers.py" agrupar-hilos
+```
+
+Devuelve `{"unidades":[{tipo, clave_hilo, count, participantes, miembros}]}`.
+En Gmail sigue mandando el hilo nativo (paso 0 de abajo); el algoritmo manual
+que sigue es la especificación que `agrupar-hilos` implementa (fallback si el
+script no está disponible).
 
 ### Algoritmo de agrupación
 
@@ -543,6 +564,19 @@ por rango de fechas o excluir ciertos dominios del análisis.
 ## PASO 3 — BANDEJA DE ENTRADA (urgentes)
 
 Revisa `carpetas.entrada` (últimas 48-72 horas).
+
+**Vía preferente (determinista, v3.8.19)**: en iCloud, el SCRIPT 1A leía "los
+primeros N" sin mirar la fecha, así que en una bandeja grande podía dejar
+fuera correos dentro de la ventana o colar antiguos. Monta la lectura de
+metadatos con la ventana temporal ya aplicada:
+
+```bash
+echo '{"cuenta":"iCloud","origen":"INBOX","limite":30,"ventana_horas":72}' \
+  | python3 "<ruta-del-skill>/scripts/triage_helpers.py" montar-leer-metadatos
+```
+
+Escribe el `script` a un fichero y ejecútalo con `osascript`. Sin
+`ventana_horas` se comporta como el SCRIPT 1A clásico (primeros `limite`).
 
 ### Criterio de urgencia
 
@@ -818,6 +852,19 @@ Cuando se dispone del extracto sanitizado del cuerpo:
 Este enfoque en dos pasadas evita procesar en profundidad correos que
 claramente no son relevantes, pero no descarta correos con asuntos vagos
 que podrían tener contenido valioso.
+
+**Vía preferente (determinista, v3.8.19)**: la decisión de las dos pasadas
+(leer o no el cuerpo, y con qué umbral) la mecaniza `triage_helpers.py
+gate-cuerpo` a partir del score parcial de metadatos, en vez de aplicarla a
+ojo:
+
+```bash
+echo '{"score_parcial":0,"remitente_en_ignorar":false,"umbral_review":4}' \
+  | python3 "<ruta-del-skill>/scripts/triage_helpers.py" gate-cuerpo
+```
+
+Devuelve `{"leer_cuerpo":bool, "umbral_min_cuerpo":int|null, "motivo":...}`.
+Pasa `umbral_review` igual a `tiers.review` de tu config.
 
 ### 4.E — Explicación por correo
 
