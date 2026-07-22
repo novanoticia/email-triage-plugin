@@ -105,6 +105,32 @@ Uso:
   python3 triage_helpers.py calibrar --leer [RUTA] [--ttl-dias N]
                             (lee la caché y decide su vigencia: el TTL lo
                             aplica el script, no el modelo)
+  python3 triage_helpers.py montar-leer-metadatos [--datos JSON]
+                            (SCRIPT 1A de metadatos con cuenta/origen escapados
+                            y filtro opcional por ventana temporal — PASO 3)
+  python3 triage_helpers.py montar-leer-cuerpos [--datos JSON]
+                            (SCRIPT 1B de lectura de cuerpos por message-id, con
+                            cuenta/origen/mids ya escapados — paridad montar-mover)
+  python3 triage_helpers.py agrupar-hilos [--datos JSON]
+                            (PASO 1.C determinista: agrupa metadatos en hilos por
+                            asunto normalizado + participante compartido)
+  python3 triage_helpers.py gate-cuerpo [--datos JSON]
+                            (PASO 4.D: decide si leer el cuerpo y con qué umbral
+                            desde el score parcial de metadatos)
+
+Novedades v3.8.19 (4 huecos de mecanización detectados en la ejecución real
+del 2026-07-22; todos ADITIVOS, sin tocar el scoring ni los gates de doctrina):
+  1. montar-leer-cuerpos: cierra la paridad que faltaba con montar-mover — el
+     SKILL montaba el SCRIPT 1B (leer cuerpos) a mano, pegando las listas de
+     message-ids. Ahora se emiten ya escapadas. Mecanismo, no confianza.
+  2. agrupar-hilos: la agrupación de hilos del PASO 1.C era prosa; ahora es
+     determinista y auditable (normaliza Re/Fwd/RV..., agrupa por clave +
+     participante con union-find). Espejo de calibrar.
+  3. gate-cuerpo: mecaniza las dos pasadas del PASO 4.D (metadatos → decidir si
+     leer cuerpo y con qué umbral) que antes quedaban al juicio del modelo.
+  4. montar-leer-metadatos: el SCRIPT 1A leía 'los primeros N' sin filtrar por
+     fecha; PASO 3 (urgentes de INBOX) pide una ventana de 48-72h. Ahora acepta
+     ventana_horas y emite el filtro 'whose date received > cutoff'.
 
 Salida: JSON por stdout. Solo stdlib salvo PyYAML (scoring/validar-config).
 Efectos laterales — inventario CERRADO de escrituras a disco, cada una de
@@ -1958,6 +1984,397 @@ def cmd_montar_consulta_enviados(datos: dict) -> dict:
     return {"ok": True, "script": script, "sospechoso": sospechoso}
 
 
+# ════════════════════════════════════════════════════════════════
+# v3.8.19 — 4 subcomandos ADITIVOS (mecanización de huecos del 2026-07-22)
+# ════════════════════════════════════════════════════════════════
+
+# Tope de extracción cruda del cuerpo (el mismo 4000 del SCRIPT 1 de la
+# plantilla mail-consolidado.applescript y de puntuacion.extraccion_cruda_max):
+# el presupuesto FUNCIONAL post-limpieza lo aplica el sanitizador con
+# --max-chars, no este número; aquí solo acota lo que el AppleScript vuelca a
+# disco antes de sanear.
+_EXTRACCION_CRUDA = 4000
+# Prefijo de los ficheros tbody_i.txt. Charset seguro para nombre de fichero;
+# el orquestador puede pasar tbody1_/tbody2_ por sublote sin colisiones.
+_RE_PREFIJO_TBODY = re.compile(r"^[A-Za-z0-9_]{1,32}$")
+
+
+def cmd_montar_leer_cuerpos(datos: dict) -> dict:
+    """Monta el SCRIPT 1B (leer cuerpos por message-id → tbody_i.txt) con
+    cuenta, origen y message-ids YA escapados. Cierra la paridad que faltaba
+    con montar-mover: hasta v3.8.18 el SKILL ensamblaba a mano la lista de
+    mids en el literal AppleScript (el último borde que dependía de que el
+    modelo recordara escapar). Mecanismo, no confianza. NUNCA mueve ni lee
+    correos: solo devuelve el texto del script para escribir a fichero y
+    ejecutar aparte con osascript.
+
+    datos: {"cuenta", "origen", "mids": [str, ...],
+            "prefijo": "tbody_" (opcional), }
+    Devuelve {"ok", "script", "sospechosos", "n", "prefijo"} o el contrato
+    de error {"ok": False, "error": ...}. Ante CUALQUIER entrada devuelve un
+    dict serializable a JSON, nunca lanza.
+    """
+    if not isinstance(datos, dict):
+        return {"ok": False, "error": "se esperaba un objeto JSON con "
+                "cuenta/origen/mids [+ prefijo]"}
+    faltan = [k for k in ("cuenta", "origen")
+              if not isinstance(datos.get(k), str) or not datos.get(k).strip()]
+    if faltan:
+        return {"ok": False,
+                "error": "faltan o vacíos (deben ser texto): %s" % ", ".join(faltan)}
+    mids = datos.get("mids", []) or []
+    if not isinstance(mids, list):
+        return {"ok": False, "error": "mids debe ser una lista JSON"}
+    if any(not isinstance(v, (str, int, float)) or isinstance(v, bool)
+           for v in mids):
+        return {"ok": False,
+                "error": "cada message-id de mids debe ser texto/número"}
+    prefijo = datos.get("prefijo", "tbody_")
+    if not isinstance(prefijo, str) or not _RE_PREFIJO_TBODY.match(prefijo):
+        return {"ok": False,
+                "error": "prefijo inválido (solo [A-Za-z0-9_], 1-32 chars): %r"
+                % (prefijo,)}
+    sospechosos = []
+    for i, v in enumerate(mids):
+        motivo = _mid_sospechoso(v)
+        if motivo:
+            sospechosos.append({"indice": i, "valor": str(v)[:120],
+                                "motivo": motivo})
+    cuenta = applescript_quote(datos["cuenta"])
+    origen = applescript_quote(datos["origen"])
+    lista = _lista_applescript(mids)
+    pref = applescript_quote(prefijo)
+    script = (
+        '-- SCRIPT 1B (leer cuerpos por message-id) generado por\n'
+        '-- triage_helpers.py montar-leer-cuerpos: cuenta, origen y message-ids\n'
+        '-- ya escapados. Vuelca cada cuerpo crudo (<=%d) a\n'
+        '-- ~/.email-triage/tmp/PREFIJO_i.txt (dir privado 700). El i es la\n'
+        '-- POSICIÓN en la lista de mids, no en la carpeta -> robusto a que\n'
+        '-- entre correo nuevo. Sanea cada fichero con "sanitizar" ANTES de\n'
+        '-- exponerlo al modelo, y bórralos al terminar (SCRIPT 4).\n'
+        % _EXTRACCION_CRUDA
+        + 'set tbodyDir to (do shell script "d=\\"$HOME/.email-triage/tmp\\"; '
+        'mkdir -p -m 700 \\"$d\\"; chmod 700 \\"$d\\"; printf %s \\"$d\\"")\n'
+        'tell application "Mail"\n'
+        '    set acct to account ' + cuenta + '\n'
+        '    set srcBox to missing value\n'
+        '    repeat with mb in (every mailbox of acct)\n'
+        '        if name of mb is ' + origen + ' then\n'
+        '            set srcBox to mb\n'
+        '            exit repeat\n'
+        '        end if\n'
+        '    end repeat\n'
+        '    if srcBox is missing value then return "NO_SOURCE"\n'
+        '    set idList to ' + lista + '\n'
+        '    set okN to 0\n'
+        '    set missN to 0\n'
+        '    repeat with i from 1 to (count of idList)\n'
+        '        set theID to item i of idList\n'
+        '        set p to tbodyDir & "/" & ' + pref + ' & i & ".txt"\n'
+        '        set c to "(sin acceso al cuerpo)"\n'
+        '        try\n'
+        '            set hits to (messages of srcBox whose message id is theID)\n'
+        '            if (count of hits) > 0 then\n'
+        '                set c to content of (item 1 of hits)\n'
+        '                if (length of c) > %d then set c to text 1 thru %d of c\n'
+        % (_EXTRACCION_CRUDA, _EXTRACCION_CRUDA)
+        + '            else\n'
+        '                set missN to missN + 1\n'
+        '            end if\n'
+        '        on error\n'
+        '            set missN to missN + 1\n'
+        '        end try\n'
+        '        try\n'
+        '            set fref to open for access (POSIX file p) with write permission\n'
+        '            set eof of fref to 0\n'
+        '            write c to fref as «class utf8»\n'
+        '            close access fref\n'
+        '            if c is not "(sin acceso al cuerpo)" then set okN to okN + 1\n'
+        '        on error\n'
+        '            try\n'
+        '                close access (POSIX file p)\n'
+        '            end try\n'
+        '        end try\n'
+        '    end repeat\n'
+        '    return "bodies_ok:" & okN & " missing:" & missN & '
+        '" of " & (count of idList)\n'
+        'end tell\n'
+    )
+    return {"ok": True, "script": script, "sospechosos": sospechosos,
+            "n": len(mids), "prefijo": prefijo}
+
+
+# ─── agrupar-hilos (PASO 1.C determinista) ──────────────────────────
+# Prefijos de respuesta/reenvío a eliminar del asunto para obtener la
+# clave_hilo (los del SKILL 1.C: Re/RE/Fwd/FWD/RV/Aw/SV/TR y sus combos).
+_RE_PREFIJO_ASUNTO = re.compile(
+    r"^(?:\s*(?:re|fwd|fw|rv|aw|sv|tr)\s*:\s*)+", re.IGNORECASE)
+
+
+def _clave_hilo(asunto):
+    """Asunto normalizado: sin prefijos de respuesta/reenvío, sin espacios
+    colapsables, en minúsculas. '' si el asunto queda vacío (no agrupa)."""
+    if not isinstance(asunto, str):
+        return ""
+    s = asunto
+    # Quitar prefijos repetidamente ("Re: Fwd: ..." -> "...").
+    while True:
+        nuevo = _RE_PREFIJO_ASUNTO.sub("", s, count=1)
+        if nuevo == s:
+            break
+        s = nuevo
+    return re.sub(r"\s+", " ", s).strip().lower()
+
+
+def _dominio_remitente(bruto):
+    """Dominio en minúsculas de un remitente ('A <a@b.com>' -> 'b.com'), o ''."""
+    if not isinstance(bruto, str):
+        return ""
+    m = re.search(r"<([^>]+)>", bruto)
+    dir_ = (m.group(1) if m else bruto).strip().lower()
+    return dir_.split("@", 1)[1] if "@" in dir_ else ""
+
+
+def cmd_agrupar_hilos(datos: dict) -> dict:
+    """Agrupa una lista plana de metadatos en unidades del PASO 1.C: mensajes
+    individuales o hilos (2+ mensajes con la misma clave_hilo que comparten al
+    menos un participante — remitente exacto o dominio). Determinista y
+    auditable (union-find dentro de cada bucket de clave_hilo), en vez del
+    juicio del modelo. NO lee correo ni toca disco.
+
+    datos: {"correos": [{"id"?, "remitente", "asunto", "message_id"?, ...}, ...]}
+    Cada correo se conserva TAL CUAL en su unidad (miembros), en el orden de
+    entrada. Devuelve {"ok", "n_unidades", "n_mensajes", "unidades":[...]}.
+    Cada unidad: {"tipo": "individual"|"hilo", "clave_hilo", "count",
+    "participantes":[...], "miembros":[...]}.
+    """
+    if not isinstance(datos, dict):
+        return {"ok": False, "error": "se esperaba un objeto JSON con 'correos'"}
+    correos = datos.get("correos")
+    if not isinstance(correos, list):
+        return {"ok": False, "error": "'correos' debe ser una lista JSON"}
+    if any(not isinstance(c, dict) for c in correos):
+        return {"ok": False, "error": "cada correo debe ser un objeto JSON"}
+
+    # Buckets por clave_hilo (los de clave vacía son individuales directos).
+    buckets = defaultdict(list)      # clave -> [índices de entrada]
+    individuales_forzados = []
+    for i, c in enumerate(correos):
+        clave = _clave_hilo(c.get("asunto"))
+        if clave:
+            buckets[clave].append(i)
+        else:
+            individuales_forzados.append(i)
+
+    unidades = []
+
+    def _remitente_exacto(c):
+        return (c.get("remitente") or "").strip().lower()
+
+    # Dentro de cada bucket, union-find por participante compartido.
+    for clave, idxs in buckets.items():
+        padre = {i: i for i in idxs}
+
+        def find(x):
+            while padre[x] != x:
+                padre[x] = padre[padre[x]]
+                x = padre[x]
+            return x
+
+        def union(a, b):
+            ra, rb = find(a), find(b)
+            if ra != rb:
+                padre[rb] = ra
+
+        # Índices por remitente exacto y por dominio, para unir en O(n).
+        for clave_part in ("exacto", "dominio"):
+            visto = {}
+            for i in idxs:
+                c = correos[i]
+                k = (_remitente_exacto(c) if clave_part == "exacto"
+                     else _dominio_remitente(c.get("remitente")))
+                if not k:
+                    continue
+                if k in visto:
+                    union(visto[k], i)
+                else:
+                    visto[k] = i
+
+        comps = defaultdict(list)
+        for i in idxs:
+            comps[find(i)].append(i)
+        for raiz, miembros_idx in comps.items():
+            miembros_idx.sort()
+            miembros = [correos[i] for i in miembros_idx]
+            participantes = []
+            for c in miembros:
+                r = (c.get("remitente") or "").strip()
+                if r and r not in participantes:
+                    participantes.append(r)
+            unidades.append({
+                "tipo": "hilo" if len(miembros) >= 2 else "individual",
+                "clave_hilo": clave,
+                "count": len(miembros),
+                "participantes": participantes,
+                "orden_entrada": miembros_idx[0],
+                "miembros": miembros,
+            })
+
+    for i in individuales_forzados:
+        c = correos[i]
+        r = (c.get("remitente") or "").strip()
+        unidades.append({
+            "tipo": "individual",
+            "clave_hilo": "",
+            "count": 1,
+            "participantes": [r] if r else [],
+            "orden_entrada": i,
+            "miembros": [c],
+        })
+
+    unidades.sort(key=lambda u: u["orden_entrada"])
+    for u in unidades:
+        del u["orden_entrada"]
+    return {
+        "ok": True,
+        "n_unidades": len(unidades),
+        "n_mensajes": len(correos),
+        "unidades": unidades,
+    }
+
+
+def cmd_gate_cuerpo(datos: dict) -> dict:
+    """Mecaniza la decisión de dos pasadas del PASO 4.D: a partir del score
+    parcial (asunto + remitente, criterios 1-5) decide si merece la pena leer
+    el cuerpo y con qué umbral debe evaluarse. Antes era prosa que el modelo
+    aplicaba a ojo.
+
+    datos: {"score_parcial": number, "remitente_en_ignorar": bool,
+            "umbral_review": 4 (opcional, = tiers.review del config)}
+    Devuelve {"ok", "leer_cuerpo", "umbral_min_cuerpo", "motivo"}:
+      · remitente en ignorar        -> no leer (skip total, -99)
+      · score_parcial >= 1          -> leer, sin umbral extra
+      · score_parcial < 1 (no ignore) -> leer, pero el cuerpo debe aportar
+                                       >= umbral_review para alcanzar review
+    """
+    if not isinstance(datos, dict):
+        return {"ok": False, "error": "se esperaba un objeto JSON con "
+                "score_parcial/remitente_en_ignorar"}
+    sp = datos.get("score_parcial")
+    if isinstance(sp, bool) or not isinstance(sp, (int, float)):
+        return {"ok": False,
+                "error": "score_parcial debe ser numérico (hay %r)" % (sp,)}
+    umbral = datos.get("umbral_review", 4)
+    if isinstance(umbral, bool) or not isinstance(umbral, (int, float)):
+        umbral = 4
+    if datos.get("remitente_en_ignorar"):
+        return {"ok": True, "leer_cuerpo": False, "umbral_min_cuerpo": None,
+                "motivo": "remitente en la lista de ignorar (skip total, -99)"}
+    if sp >= 1:
+        return {"ok": True, "leer_cuerpo": True, "umbral_min_cuerpo": None,
+                "motivo": "score parcial >= 1: analizar el cuerpo con los "
+                          "criterios core, sin umbral extra"}
+    return {"ok": True, "leer_cuerpo": True, "umbral_min_cuerpo": umbral,
+            "motivo": "score parcial < 1 y remitente no ignorado: leer el "
+                      "cuerpo, pero debe aportar >= %d puntos para alcanzar "
+                      "review" % umbral}
+
+
+def cmd_montar_leer_metadatos(datos: dict) -> dict:
+    """Monta el SCRIPT 1A (metadatos primero, sin cuerpos) con cuenta y origen
+    ya escapados y, opcionalmente, un filtro por VENTANA temporal para el PASO 3
+    (urgentes de INBOX). El SCRIPT 1A de la plantilla tomaba 'los primeros N'
+    sin mirar la fecha: en un buzón grande eso puede dejar fuera correos dentro
+    de la ventana o colar antiguos. Con ventana_horas emite el predicado
+    'whose date received > cutoff'. NUNCA mueve; solo lee metadatos.
+
+    datos: {"cuenta", "origen", "limite": 50 (opcional),
+            "ventana_horas": int|None (opcional; None/ausente = sin filtro)}
+    Devuelve {"ok", "script", "limite", "ventana_horas"} o el contrato de error.
+    """
+    if not isinstance(datos, dict):
+        return {"ok": False, "error": "se esperaba un objeto JSON con "
+                "cuenta/origen [+ limite/ventana_horas]"}
+    faltan = [k for k in ("cuenta", "origen")
+              if not isinstance(datos.get(k), str) or not datos.get(k).strip()]
+    if faltan:
+        return {"ok": False,
+                "error": "faltan o vacíos (deben ser texto): %s" % ", ".join(faltan)}
+    limite = datos.get("limite", 50)
+    if isinstance(limite, bool) or not isinstance(limite, int) or limite <= 0:
+        return {"ok": False,
+                "error": "limite debe ser un entero > 0 (hay %r)" % (limite,)}
+    ventana = datos.get("ventana_horas")
+    if ventana is not None and (isinstance(ventana, bool)
+                                or not isinstance(ventana, int) or ventana <= 0):
+        return {"ok": False, "error": "ventana_horas debe ser un entero > 0 "
+                "o null (hay %r)" % (ventana,)}
+    cuenta = applescript_quote(datos["cuenta"])
+    origen = applescript_quote(datos["origen"])
+    cab = (
+        '-- SCRIPT 1A (metadatos primero, sin cuerpos) generado por\n'
+        '-- triage_helpers.py montar-leer-metadatos: cuenta y origen escapados.\n'
+        '-- Devuelve TOTAL + una fila por correo (idx, fecha, remitente, asunto,\n'
+        '-- message-id). Sin `content of m`: retorna en segundos.\n'
+        'tell application "Mail"\n'
+        '    set acct to account ' + cuenta + '\n'
+        '    set srcBox to missing value\n'
+        '    repeat with mb in (every mailbox of acct)\n'
+        '        if name of mb is ' + origen + ' then\n'
+        '            set srcBox to mb\n'
+        '            exit repeat\n'
+        '        end if\n'
+        '    end repeat\n'
+        '    if srcBox is missing value then return "NO_SOURCE"\n'
+    )
+    if ventana is not None:
+        cab += (
+            '    -- Ventana temporal (PASO 3): solo correos recibidos en las\n'
+            '    -- últimas %d horas.\n'
+            '    set cutoff to (current date) - (%d * hours)\n'
+            '    set msgs to (messages of srcBox whose date received > cutoff)\n'
+            % (ventana, ventana)
+        )
+    else:
+        cab += '    set msgs to messages of srcBox\n'
+    cuerpo = (
+        '    set total to count of msgs\n'
+        '    set n to %d\n'
+        '    if total < n then set n to total\n'
+        '    set out to "TOTAL:" & total & linefeed\n'
+        '    repeat with i from 1 to n\n'
+        '        set m to item i of msgs\n'
+        '        try\n'
+        '            set mid to message id of m\n'
+        '        on error\n'
+        '            set mid to "unknown-" & i\n'
+        '        end try\n'
+        '        try\n'
+        '            set s to sender of m\n'
+        '        on error\n'
+        '            set s to "?"\n'
+        '        end try\n'
+        '        try\n'
+        '            set subj to subject of m\n'
+        '        on error\n'
+        '            set subj to "?"\n'
+        '        end try\n'
+        '        try\n'
+        '            set d to (date received of m) as string\n'
+        '        on error\n'
+        '            set d to "?"\n'
+        '        end try\n'
+        '        set out to out & "#" & i & " ||| " & d & " ||| " & s & '
+        '" ||| " & subj & " ||| " & mid & linefeed\n'
+        '    end repeat\n'
+        '    return out\n'
+        'end tell\n'
+        % limite
+    )
+    return {"ok": True, "script": cab + cuerpo,
+            "limite": limite, "ventana_horas": ventana}
+
+
 def _cargar_config(ruta):
     try:
         import yaml
@@ -2120,6 +2537,20 @@ def _construir_parser():
     pce = sub.add_parser("montar-consulta-enviados")
     pce.add_argument("--datos", default=None,
                      help="JSON con cuenta/clave_hilo/fecha_corte; sin él, stdin")
+    pmm = sub.add_parser("montar-leer-metadatos")
+    pmm.add_argument("--datos", default=None,
+                     help="JSON con cuenta/origen [+ limite/ventana_horas]; "
+                          "sin él, stdin")
+    pmc = sub.add_parser("montar-leer-cuerpos")
+    pmc.add_argument("--datos", default=None,
+                     help="JSON con cuenta/origen/mids [+ prefijo]; sin él, stdin")
+    pah = sub.add_parser("agrupar-hilos")
+    pah.add_argument("--datos", default=None,
+                     help='JSON {"correos":[...]}; sin él, stdin')
+    pgc = sub.add_parser("gate-cuerpo")
+    pgc.add_argument("--datos", default=None,
+                     help="JSON con score_parcial/remitente_en_ignorar; "
+                          "sin él, stdin")
     return p
 
 
@@ -2232,6 +2663,24 @@ def main():
             out = {"ok": False, "error": "JSON inválido: %s" % e}
         else:
             out = cmd_montar_consulta_enviados(data)
+    elif args.cmd in ("montar-leer-metadatos", "montar-leer-cuerpos",
+                      "agrupar-hilos", "gate-cuerpo"):
+        # 4 subcomandos aditivos v3.8.19: mismo contrato de entrada que
+        # montar-mover (JSON de --datos o stdin, error legible si es inválido).
+        crudo = (args.datos if args.datos is not None
+                 else sys.stdin.read(MAX_INGESTA_BYTES))
+        try:
+            data = json.loads(crudo or "{}")
+        except json.JSONDecodeError as e:
+            out = {"ok": False, "error": "JSON inválido: %s" % e}
+        else:
+            _despacho_v3819 = {
+                "montar-leer-metadatos": cmd_montar_leer_metadatos,
+                "montar-leer-cuerpos": cmd_montar_leer_cuerpos,
+                "agrupar-hilos": cmd_agrupar_hilos,
+                "gate-cuerpo": cmd_gate_cuerpo,
+            }
+            out = _despacho_v3819[args.cmd](data)
     else:
         if args.archivo:
             with open(args.archivo, encoding="utf-8", errors="replace") as fh:
