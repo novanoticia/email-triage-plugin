@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.8.18
+# Email Triage Plugin v3.8.19
 
 Filtrado epistémico de correo electrónico para Claude Cowork y Claude Code.
 
@@ -17,6 +17,16 @@ La mayoría de clasificadores de correo preguntan "¿es urgente?". Este plugin p
 - ¿Está anclado a hechos verificables? (Entangled Truths)
 
 El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decisional, calidad epistémica, coste cognitivo y riesgo de manipulación.
+## Novedades en v3.8.19
+
+Cuatro huecos de mecanización detectados al probar el plugin de extremo a extremo (modo veloz, 50 correos). Todos **aditivos**: nuevos subcomandos de `triage_helpers.py` que sacan al modelo del bucle de ensamblar AppleScript a mano o de aplicar reglas a ojo. No tocan el scoring ni los gates de doctrina.
+
+- **`montar-leer-cuerpos` (paridad con `montar-mover`)**: el SCRIPT 1B (leer cuerpos por `message id`) se montaba a mano pegando las listas de mids — el último borde que dependía de que el modelo recordara escapar. Ahora se emite ya escapado (cuenta, origen y message-ids), con detección de mids sospechosos. Mecanismo, no confianza.
+- **`agrupar-hilos` (PASO 1.C determinista)**: la agrupación de hilos era prosa aplicada a ojo. Ahora normaliza los prefijos de asunto (`Re:`/`Fwd:`/`RV:`…) y agrupa por clave de hilo + participante compartido (remitente exacto o dominio) con union-find. Reproducible y auditable, espejo de `calibrar`.
+- **`gate-cuerpo` (dos pasadas del PASO 4.D)**: mecaniza la decisión de si leer el cuerpo y con qué umbral a partir del score parcial de metadatos (skip si el remitente está en ignorar; leer sin umbral si score ≥ 1; leer con umbral = `tiers.review` si score < 1).
+- **`montar-leer-metadatos` con ventana temporal (PASO 3)**: el SCRIPT 1A leía "los primeros N" sin mirar la fecha, así que en una bandeja grande podía dejar fuera correos dentro de la ventana de urgentes. Ahora acepta `ventana_horas` y emite el predicado `whose date received > cutoff`. Sin ventana, se comporta como el SCRIPT 1A clásico.
+- **21 tests nuevos** (268 en total). SKILL.md cablea los cuatro subcomandos en PASO 1, 1.C, 3 y 4.D.
+
 ## Novedades en v3.8.18
 
 Mejoras de robustez de lectura y de calibración del scoring, tras probar el plugin de extremo a extremo en una sesión real (modo veloz, 50 correos):
