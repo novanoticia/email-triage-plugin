@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.8.19
+# Email Triage Plugin v3.9.0
 
 Filtrado epistémico de correo electrónico para Claude Cowork y Claude Code.
 
@@ -17,6 +17,32 @@ La mayoría de clasificadores de correo preguntan "¿es urgente?". Este plugin p
 - ¿Está anclado a hechos verificables? (Entangled Truths)
 
 El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decisional, calidad epistémica, coste cognitivo y riesgo de manipulación.
+## Novedades en v3.9.0
+Capa de arquitectura nueva (aditiva, sin tocar el motor): se establece la
+**frontera núcleo ↔ adaptador de correo**, preparando el plugin para servir a
+más de un backend (Mail.app hoy; Gmail/otros en el futuro) desde un mismo
+núcleo de scoring. No cambia ni un veredicto: los tests previos siguen verdes.
+- **`contracts.py`**: define `NormalizedEmail` (objeto de intercambio crudo,
+  pre-sanitización) y el puerto `AdaptadorCorreo` (4 verbos: `leer_bandeja`,
+  `leer_cuerpos`, `estado_hilo`, `mover`). Platform-agnostic: no importa
+  osascript ni ninguna API. Contrato endurecido tras una revisión adversarial
+  (polaridad de `respuesta_pendiente`, tiers soportados por adaptador, frontera
+  `id`/`handle` mensaje-vs-hilo, invariantes de fecha/cuerpo).
+- **`adapter_mailapp.py`**: `MailAppAdapter` que ENVUELVE los subcomandos
+  `montar-*` existentes + osascript (no reescribe nada); separa construcción de
+  script (testeable en cualquier sitio) de ejecución (solo macOS). Declara que
+  Mail.app no enruta `reading_later` y lo rechaza en `mover` en vez de dejarlo
+  en no-op silencioso.
+- **`adapter_gmail.py`**: stub que cumple la interfaz (levanta
+  `NotImplementedError`), prueba de que el puerto es dual-implementable.
+- **`core.py`** (Fase A.2, split seguro): fachada que reexporta las funciones
+  agnósticas del motor bajo nombres limpios (`from core import scoring,
+  sanitizar, ...`) sin mover las ~2.700 líneas de `triage_helpers.py`. El split
+  físico completo queda deliberadamente diferido por riesgo/valor.
+- **Tests**: la batería sube con 19 tests nuevos de contrato + fachada.
+- **Docs**: `ARCHITECTURE.md` (la frontera + mapa subcomando→capa) y
+  `MIGRACION-FASE-A.md` (integración, Fase A.2 y Fase B/Gmail).
+
 ## Novedades en v3.8.19
 
 Cuatro huecos de mecanización detectados al probar el plugin de extremo a extremo (modo veloz, 50 correos). Todos **aditivos**: nuevos subcomandos de `triage_helpers.py` que sacan al modelo del bucle de ensamblar AppleScript a mano o de aplicar reglas a ojo. No tocan el scoring ni los gates de doctrina.
