@@ -186,6 +186,14 @@ rompes la conformidad (gate #7) y el skill deja de cargar fuera de Claude.
   la ruta de datos**; escríbelos con `registrar`, no con `echo >>`. La única
   excepción es `compactar` (purga atómica y explícita a N líneas): trata
   cualquier otra reescritura como bug.
+- **Un resultado correcto no prueba que el pipeline se haya ejecutado.** Un
+  cliente capaz de lanzar `osascript` puede mover el correo bien saltándose
+  este módulo: con su propio AppleScript, sin `sanitizar` y sin `registrar`.
+  Ocurrió el 2026-08-07 (v3.11.0). Por eso el PASO 5.V del `SKILL.md` exige
+  `verificar-sesion` antes de dar un triaje por bueno, y el veredicto del
+  script manda sobre la impresión del modelo. Si añades una vía nueva de
+  mover correo, tiene que pasar por `montar-mover` y quedar registrada, o el
+  triaje deja de ser auditable y de alimentar la calibración.
 - `~/.email-triage/` y su `tmp/` van a **700**; los cuerpos crudos temporales se
   borran tras leerlos.
 - El **config del usuario vive FUERA del repo** en `~/.email-triage/config.yaml`.

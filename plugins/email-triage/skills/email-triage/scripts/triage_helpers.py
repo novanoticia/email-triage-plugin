@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.10.0).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.11.0).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -90,6 +90,11 @@ Uso:
                             (JSON {"valores":[...]}; sin él lee de stdin)
   python3 triage_helpers.py compactar [--archivo RUTA] [--max-lineas N]
                             [--dry-run]   (recorta correcciones.jsonl a N líneas)
+  python3 triage_helpers.py verificar-sesion [--datos JSON]
+                            (PASO 5.V: cuenta los movimientos que la sesión
+                            registró de verdad en session_log.jsonl y los
+                            compara con los declarados; veredicto valido /
+                            incompleto / sin_registro. Solo lee)
   python3 triage_helpers.py montar-mover [--datos JSON]
                             (SCRIPT 3 de mover con todo escapado; 3 destinos:
                             review, archive nativo o a carpeta, y reply_needed)
@@ -1382,6 +1387,123 @@ def cmd_compactar(ruta: str, max_lineas: int = MAX_CORRECCIONES,
             "cambio": True, "bytes_despues": bytes_despues}
 
 # ════════════════════════════════════════════════════════════════
+# PASO 5.V — verificación del cierre de sesión (auditoría 2026-08-07)
+# ════════════════════════════════════════════════════════════════
+
+# Un cliente con capacidad de ejecutar osascript puede mover el correo
+# CORRECTAMENTE saltándose este módulo: improvisando su propio AppleScript,
+# leyendo los cuerpos sin pasarlos por `sanitizar` y sin llamar a `registrar`.
+# Observado el 2026-08-07 con el skill cargado en un cliente de terceros: los
+# dos correos se movieron de verdad, `tmp/` quedó tocado, y session_log.jsonl
+# no recibió ni una línea. El resultado era correcto y el pipeline no se había
+# ejecutado: sin S0 no hubo defensa contra inyección, y sin registro el bucle
+# de calibración no tuvo de qué aprender.
+#
+# Este subcomando convierte "hubo triaje" en una PROPIEDAD COMPROBABLE en vez
+# de una afirmación del modelo: cuenta las líneas que la sesión dejó de verdad
+# y las compara con las que dice haber movido. El SKILL.md exige llamarlo
+# antes de dar un triaje por bueno.
+
+RUTA_SESSION_LOG = "~/.email-triage/session_log.jsonl"
+MAX_LINEAS_SESSION_LOG = 50_000
+
+
+def cmd_verificar_sesion(datos: dict) -> dict:
+    """Comprueba que `session_id` dejó tantos registros como movimientos declara.
+
+    Entrada: {"session_id": str, "esperados": int, "ruta": str opcional}.
+    Salida: veredicto en {"valido", "incompleto", "sin_registro"} más los
+    message_id encontrados, para poder señalar cuáles faltan.
+
+    TOTAL: cualquier entrada devuelve un dict serializable; nunca lanza. Un
+    fichero ausente NO es un error del comando — es el hallazgo que buscamos, y
+    se reporta como veredicto "sin_registro".
+    """
+    if not isinstance(datos, dict):
+        return {"ok": False, "error": "se esperaba un objeto JSON",
+                "veredicto": "sin_registro", "registrados": 0}
+
+    sid = datos.get("session_id")
+    if not isinstance(sid, str) or not sid.strip():
+        return {"ok": False, "error": "session_id ausente o no es una cadena",
+                "veredicto": "sin_registro", "registrados": 0}
+    sid = sid.strip()
+
+    esperados = datos.get("esperados", 0)
+    if isinstance(esperados, bool) or not isinstance(esperados, int):
+        return {"ok": False,
+                "error": "esperados debe ser un entero (movimientos declarados)",
+                "veredicto": "sin_registro", "registrados": 0, "session_id": sid}
+    if esperados < 0:
+        esperados = 0
+
+    ruta = datos.get("ruta") or RUTA_SESSION_LOG
+    if not isinstance(ruta, str):
+        return {"ok": False, "error": "ruta debe ser una cadena",
+                "veredicto": "sin_registro", "registrados": 0, "session_id": sid}
+    ruta_exp = os.path.expanduser(ruta)
+
+    encontrados, truncado = [], False
+    try:
+        with open(ruta_exp, encoding="utf-8", errors="replace") as fh:
+            for n, linea in enumerate(fh):
+                if n >= MAX_LINEAS_SESSION_LOG:
+                    truncado = True
+                    break
+                linea = linea.strip()
+                if not linea:
+                    continue
+                try:
+                    reg = json.loads(linea)
+                except (ValueError, TypeError):
+                    continue          # línea corrupta: no cuenta, no revienta
+                if not isinstance(reg, dict) or reg.get("session_id") != sid:
+                    continue
+                # Solo cuentan los registros de MOVIMIENTO: un registro sin
+                # to_folder es telemetría, no prueba de que se movió nada.
+                if not reg.get("to_folder"):
+                    continue
+                mid = reg.get("message_id")
+                encontrados.append(mid if isinstance(mid, str) else None)
+    except FileNotFoundError:
+        return {"ok": False, "veredicto": "sin_registro", "session_id": sid,
+                "registrados": 0, "esperados": esperados, "faltan": esperados,
+                "ruta": ruta_exp, "message_ids": [],
+                "error": "no existe %s: la sesión no registró nada. Si se "
+                         "movió correo, se movió fuera del pipeline." % ruta_exp}
+    except OSError as e:
+        return {"ok": False, "veredicto": "sin_registro", "session_id": sid,
+                "registrados": 0, "esperados": esperados, "faltan": esperados,
+                "ruta": ruta_exp, "message_ids": [],
+                "error": "no se pudo leer %s: %s" % (ruta_exp, e)}
+
+    registrados = len(encontrados)
+    faltan = max(0, esperados - registrados)
+    if registrados == 0:
+        veredicto = "sin_registro"
+    elif faltan or registrados != esperados:
+        veredicto = "incompleto"
+    else:
+        veredicto = "valido"
+
+    salida = {"ok": veredicto == "valido", "veredicto": veredicto,
+              "session_id": sid, "registrados": registrados,
+              "esperados": esperados, "faltan": faltan, "ruta": ruta_exp,
+              "message_ids": encontrados}
+    if truncado:
+        salida["truncado"] = True
+        salida["aviso"] = ("se leyeron las primeras %d líneas; compacta el log"
+                           % MAX_LINEAS_SESSION_LOG)
+    if veredicto != "valido":
+        salida["error"] = (
+            "el triaje NO es válido: declara %d movimiento(s) y el log tiene "
+            "%d. Un resultado correcto sin registro significa que el correo se "
+            "movió fuera del pipeline (sin S0, sin escapado de message-id y "
+            "sin nada que calibrar)." % (esperados, registrados))
+    return salida
+
+
+# ════════════════════════════════════════════════════════════════
 # PASO 2 — calibración estadística mecanizada (CM2, auditoría 2026-07-19)
 # ════════════════════════════════════════════════════════════════
 
@@ -2509,6 +2631,9 @@ def _construir_parser():
     pe = sub.add_parser("escapar-applescript")
     pe.add_argument("--valores", default=None,
                     help='JSON {"valores":[...]}; sin él se lee de stdin')
+    pv = sub.add_parser("verificar-sesion")
+    pv.add_argument("--datos", default=None,
+                    help='JSON {"session_id":..,"esperados":N}; sin él, stdin')
     pc = sub.add_parser("compactar")
     pc.add_argument("--archivo",
                     default=os.path.expanduser("~/.email-triage/correcciones.jsonl"))
@@ -2663,6 +2788,16 @@ def main():
             out = {"ok": False, "error": "JSON inválido: %s" % e}
         else:
             out = cmd_montar_consulta_enviados(data)
+    elif args.cmd == "verificar-sesion":
+        crudo = (args.datos if args.datos is not None
+                 else sys.stdin.read(MAX_INGESTA_BYTES))
+        try:
+            data = json.loads(crudo or "{}")
+        except json.JSONDecodeError as e:
+            out = {"ok": False, "error": "JSON inválido: %s" % e,
+                   "veredicto": "sin_registro", "registrados": 0}
+        else:
+            out = cmd_verificar_sesion(data)
     elif args.cmd in ("montar-leer-metadatos", "montar-leer-cuerpos",
                       "agrupar-hilos", "gate-cuerpo"):
         # 4 subcomandos aditivos v3.8.19: mismo contrato de entrada que

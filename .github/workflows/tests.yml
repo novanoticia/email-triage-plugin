@@ -263,5 +263,6 @@ jobs:
                     rng.choice([1500, 800, 0, -3, 1]),
                     tt._rand_texto(rng), tt._rand_texto(rng))
               total(th.cmd_calibrar, tt._rand_json(rng))
-          print(f"OK: fuzz de totalidad, semilla {semilla}, {N} iters x 4 entradas")
+              total(th.cmd_verificar_sesion, tt._rand_json(rng))
+          print(f"OK: fuzz de totalidad, semilla {semilla}, {N} iters x 5 entradas")
           PY

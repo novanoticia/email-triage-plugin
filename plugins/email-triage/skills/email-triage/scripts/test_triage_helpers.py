@@ -2934,5 +2934,113 @@ class TestParserV3819(unittest.TestCase):
             self.assertIn("--datos", flags)
 
 
+
+class TestVerificarSesion(unittest.TestCase):
+    """v3.11.0: `verificar-sesion` convierte "hubo triaje" en una propiedad
+    comprobable. Un cliente con osascript puede mover el correo correctamente
+    saltándose el pipeline (observado el 2026-08-07: dos correos movidos de
+    verdad, cero líneas en session_log.jsonl). El veredicto no depende de lo
+    que diga el modelo, sino de lo que hay escrito en el log."""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.ruta = os.path.join(self.dir, "session_log.jsonl")
+
+    def tearDown(self):
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def _escribir(self, registros):
+        with open(self.ruta, "w", encoding="utf-8") as fh:
+            for r in registros:
+                fh.write(json.dumps(r, ensure_ascii=False) + "\n")
+
+    def _mov(self, sid, mid, carpeta="ARCHIVE-TRIAGE"):
+        return {"session_id": sid, "message_id": mid, "to_folder": carpeta,
+                "tier": "ARCHIVE"}
+
+    def test_sesion_completa_es_valida(self):
+        self._escribir([self._mov("S1", "a@x"), self._mov("S1", "b@x")])
+        out = th.cmd_verificar_sesion(
+            {"session_id": "S1", "esperados": 2, "ruta": self.ruta})
+        self.assertTrue(out["ok"])
+        self.assertEqual(out["veredicto"], "valido")
+        self.assertEqual(out["registrados"], 2)
+        self.assertEqual(out["faltan"], 0)
+        self.assertEqual(out["message_ids"], ["a@x", "b@x"])
+
+    def test_log_ausente_es_sin_registro_no_error_de_comando(self):
+        """El caso que motivó el subcomando: el fichero no existe porque la
+        sesión nunca registró. Es un hallazgo, no un fallo del comando."""
+        out = th.cmd_verificar_sesion(
+            {"session_id": "S1", "esperados": 2,
+             "ruta": os.path.join(self.dir, "no-existe.jsonl")})
+        self.assertFalse(out["ok"])
+        self.assertEqual(out["veredicto"], "sin_registro")
+        self.assertEqual(out["registrados"], 0)
+        self.assertEqual(out["faltan"], 2)
+
+    def test_declara_mas_de_lo_que_registro(self):
+        self._escribir([self._mov("S1", "a@x"), self._mov("S1", "b@x")])
+        out = th.cmd_verificar_sesion(
+            {"session_id": "S1", "esperados": 5, "ruta": self.ruta})
+        self.assertFalse(out["ok"])
+        self.assertEqual(out["veredicto"], "incompleto")
+        self.assertEqual(out["faltan"], 3)
+
+    def test_no_cuenta_otras_sesiones(self):
+        self._escribir([self._mov("S1", "a@x"), self._mov("OTRA", "z@x")])
+        out = th.cmd_verificar_sesion(
+            {"session_id": "S1", "esperados": 1, "ruta": self.ruta})
+        self.assertEqual(out["registrados"], 1)
+        self.assertEqual(out["message_ids"], ["a@x"])
+
+    def test_registro_sin_to_folder_no_prueba_movimiento(self):
+        """Telemetría sí, prueba de movimiento no: sin to_folder no se movió."""
+        self._escribir([{"session_id": "S2", "message_id": "c@x",
+                         "tier": "REVIEW"}])
+        out = th.cmd_verificar_sesion(
+            {"session_id": "S2", "esperados": 1, "ruta": self.ruta})
+        self.assertEqual(out["veredicto"], "sin_registro")
+        self.assertEqual(out["registrados"], 0)
+
+    def test_linea_corrupta_se_ignora_sin_reventar(self):
+        with open(self.ruta, "w", encoding="utf-8") as fh:
+            fh.write("esto no es json\n")
+            fh.write(json.dumps(self._mov("S3", "d@x")) + "\n")
+        out = th.cmd_verificar_sesion(
+            {"session_id": "S3", "esperados": 1, "ruta": self.ruta})
+        self.assertTrue(out["ok"])
+        self.assertEqual(out["registrados"], 1)
+
+    def test_entradas_invalidas_devuelven_dict_sin_lanzar(self):
+        for datos in (None, [], "x", 3, {}, {"session_id": ""},
+                      {"session_id": "S1", "esperados": "dos"},
+                      {"session_id": "S1", "esperados": True},
+                      {"session_id": "S1", "esperados": -1, "ruta": 5}):
+            out = th.cmd_verificar_sesion(datos)
+            self.assertIsInstance(out, dict, datos)
+            self.assertIn("veredicto", out)
+            json.dumps(out, ensure_ascii=False)
+
+    def test_esperados_negativo_se_normaliza_a_cero(self):
+        self._escribir([self._mov("S1", "a@x")])
+        out = th.cmd_verificar_sesion(
+            {"session_id": "S1", "esperados": -3, "ruta": self.ruta})
+        self.assertEqual(out["esperados"], 0)
+
+    def test_expone_subcomando_en_el_cli(self):
+        """Sin entrada en el argparse el SKILL.md no puede invocarlo, y la
+        guarda quedaría en una intención escrita sin mecanismo detrás."""
+        parser = th._construir_parser()
+        import argparse
+        sub = next(a for a in parser._actions
+                   if isinstance(a, argparse._SubParsersAction))
+        self.assertIn("verificar-sesion", sub.choices)
+        flags = {o for a in sub.choices["verificar-sesion"]._actions
+                 for o in a.option_strings if o.startswith("--")}
+        self.assertIn("--datos", flags)
+
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
