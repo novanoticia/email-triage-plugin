@@ -38,10 +38,11 @@ Si dudas dónde va algo: ¿es reproducible y verificable con un test? → Python
 scripts/install-plugin.sh               # instalador (marketplace + caché)
 scripts/bump-version.sh                 # ÚNICA vía de subir versión
 fix-cowork-version.sh                   # sync caché Claude Code; rpm solo con --cowork
-plugins/email-triage/
-  .claude-plugin/plugin.json            # manifiesto del plugin (versión)
-  .mcp.json                             # proveedor de correo (Gmail MCP)
-  commands/triage.md                    # comando /triage
+plugins/email-triage/                   # ← RAÍZ DEL PLUGIN (plugin root)
+  plugin.json                           # manifiesto PORTABLE Agent Plugins 1.0.0 (versión)
+  .claude-plugin/plugin.json            # manifiesto de Claude Code (versión)
+  .mcp.json                             # config MCP de Claude — hoy VACÍA (ver abajo)
+  commands/triage.md                    # comando /triage (solo Claude Code)
   skills/email-triage/
     SKILL.md                            # el skill (juicio del modelo) — H1 lleva versión
     config.yaml                         # PLANTILLA (el config del usuario vive fuera)
@@ -55,6 +56,44 @@ plugins/email-triage/
 **No crees `plugins/email-triage/scripts/`** ni dupliques `triage_helpers.py` en
 otra ruta: Cowork empaqueta `skills/email-triage/scripts/` y una copia paralela
 haría que se sirviera la versión vieja. El CI falla si esto ocurre (gate #4).
+
+## Los dos manifiestos (Agent Plugins 1.0.0)
+
+Desde v3.10.0 el plugin conforma con **[Agent Plugins 1.0.0](https://agent-plugins.org/specification)**,
+el formato portátil de la Agentic AI Foundation. Eso obliga a **dos manifiestos
+en paralelo**, y no son intercambiables:
+
+- `plugins/email-triage/plugin.json` — el **portable**. Va en la raíz del
+  plugin porque el §5.1 lo exige ahí: sin él, un cliente conformante rechaza el
+  plugin entero y no llega a buscar componentes. Su esquema es **cerrado**: solo
+  `$schema`, `name`, `version`, `description`, `author`, `homepage`,
+  `repository`, `license`, `keywords`, `extensions`. Cualquier campo propio va
+  bajo `extensions` con namespace de dominio invertido, nunca al nivel superior.
+- `plugins/email-triage/.claude-plugin/plugin.json` — el de **Claude Code**, que
+  es el único que Claude lee hoy. No lo borres.
+
+Tres reglas que el gate #7 vigila y que es fácil romper sin darse cuenta:
+
+1. **El frontmatter del `SKILL.md` es un conjunto cerrado**: `name`,
+   `description`, `license`, `compatibility`, `metadata`, `allowed-tools`. Una
+   clave de más y un cliente conformante **se salta el skill** (§7.1) — el
+   plugin se instala vacío. Por eso `version` vive en `metadata.version` y no
+   al nivel superior, donde estuvo hasta v3.9.0.
+2. **`description` ≤ 1024 caracteres** y `compatibility` ≤ 500. Los requisitos
+   de entorno (macOS, Mail.app/AppleScript, Python) van en `compatibility`, que
+   es el campo que la spec reserva para eso — no los metas en la `description`.
+3. **`mcp.json` (sin punto) es la ruta portable**, y hoy **no lo publicamos**: el
+   §6.2 dice que una ubicación ausente no es error, y el MCP de Gmail lo
+   gestiona el cliente, no lo empaqueta el plugin. `.mcp.json` sigue ahí para
+   Claude Code pero está **vacío**. Si algún día lleva servidores, hay que
+   añadir `mcp.json` con su `$schema` y la **misma versión** de spec que
+   `plugin.json` (§10.1), o el CI lo rechaza.
+
+Lo que **no** es portable, y no pasa nada: `commands/triage.md` (v1 solo define
+skills y MCP; los clientes deben ignorar el resto, así que `/triage` es de
+Claude Code) y todo el aparato de distribución (`marketplace.json`,
+`install-plugin.sh`, `fix-cowork-version.sh`), que la spec deja
+deliberadamente a cada cliente.
 
 ## Cómo correr los tests
 
@@ -74,7 +113,7 @@ lo necesitan los tests de `validar-config` / `_cargar_config`.
 1. **Tests** — `unittest discover` sobre `scripts/`.
 2. **Integridad de `config.yaml`** — parsea con YAML 1.1 y exige **exactamente 30
    criterios** y **cero claves booleanas** (ver gotcha abajo).
-3. **Coherencia de versiones** — los 6 sitios de semver completo, la cabecera
+3. **Coherencia de versiones** — los 7 sitios de semver completo, la cabecera
    `major.minor` de `config.yaml` y el **H1 del `SKILL.md`** deben coincidir.
 4. **Unicidad de scripts** — `triage_helpers.py`/`test_triage_helpers.py` en una
    sola ruta canónica; sin árbol paralelo.
@@ -85,19 +124,31 @@ lo necesitan los tests de `validar-config` / `_cargar_config`.
    `cmd_scoring_dispatch`, `cmd_montar_mover` y `cmd_sanitizar` nunca lanzan y
    siempre devuelven un dict serializable, para CUALQUIER entrada. Convierte
    las guardas de forma (añadidas caso a caso) en una propiedad universal.
+7. **Conformidad con Agent Plugins 1.0.0** — valida el manifiesto portable
+   (esquema cerrado, `$schema` exacto, `name` contra §5.5, `author` como objeto),
+   el frontmatter del `SKILL.md` (conjunto cerrado, `name` == directorio,
+   presupuestos de 1024/500), el `mcp.json` si existe, y que ningún symlink
+   escape de la raíz del plugin (§4.1). Convierte la portabilidad en un
+   invariante mecánico en vez de una buena intención.
 
 ## Disciplina de versión
 
-**Nunca edites la versión a mano.** Vive en 8 sitios (6 semver — incluida la
-cabecera del docstring de `triage_helpers.py` — + cabecera de config + H1 del
-SKILL) y derivó en el pasado. Usa siempre:
+**Nunca edites la versión a mano.** Vive en 9 sitios (7 semver — incluidos los
+DOS manifiestos de plugin, el portable y el de Claude, y la cabecera del
+docstring de `triage_helpers.py` — + cabecera de config + H1 del SKILL) y
+derivó en el pasado. Usa siempre:
 
 ```bash
 ./scripts/bump-version.sh 3.8.4
 ```
 
-Actualiza los 8 sitios de una pasada y valida con el mismo criterio del CI.
+Actualiza los 9 sitios de una pasada y valida con el mismo criterio del CI.
 Luego añade la entrada de changelog en `README.md` a mano y corre los tests.
+
+Ojo con uno: el semver del `SKILL.md` está en **`metadata.version`**, indentado.
+El `sed` del bump se acota al bloque de frontmatter para no pisar otro
+`version:` del cuerpo. Si lo subes al nivel superior "para que sea más visible",
+rompes la conformidad (gate #7) y el skill deja de cargar fuera de Claude.
 
 ## Invariantes de seguridad (no las relajes)
 
