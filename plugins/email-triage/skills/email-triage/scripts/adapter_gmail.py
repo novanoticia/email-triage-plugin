@@ -13,6 +13,10 @@ Cuando se aborde de verdad (ver MIGRACion-FASE-A.md, "Fase B"), este adaptador:
     normalmente SIN fecha_corte;
   - `mover` aplicará/quitará LABELS en vez de mover entre buzones.
 El núcleo (sanitizar/scoring/agrupar-hilos/...) se reutiliza SIN cambios.
+
+ESTADO: EXPERIMENTAL — este módulo NO está en la ruta de ejecución: nada
+fuera de los tests lo importa. Describe la arquitectura OBJETIVO.
+Ver ARCHITECTURE.md → "Estado: EXPERIMENTAL" (CM1, auditoría 2026-08-07).
 """
 from __future__ import annotations
 

@@ -3028,6 +3028,43 @@ class TestVerificarSesion(unittest.TestCase):
             {"session_id": "S1", "esperados": -3, "ruta": self.ruta})
         self.assertEqual(out["esperados"], 0)
 
+    def test_dir_preexistente_laxo_se_reafirma_a_700(self):
+        """QW5 (auditoría 2026-08-07, F8): mode= en os.makedirs solo aplica al
+        directorio que la llamada CREA. Un ~/.email-triage heredado con
+        permisos laxos guardaba metadatos de correo legibles por otros."""
+        if os.name != "posix":
+            self.skipTest("permisos POSIX")
+        laxo = os.path.join(self.dir, "estado")
+        os.makedirs(laxo)
+        os.chmod(laxo, 0o755)   # el mode= de makedirs lo recorta el umask
+        self.assertEqual(os.stat(laxo).st_mode & 0o777, 0o755)
+        out = th.cmd_registrar(os.path.join(laxo, "session_log.jsonl"),
+                               {"session_id": "S1", "message_id": "a@x",
+                                "to_folder": "ARCHIVE-TRIAGE"})
+        self.assertTrue(out["ok"], out)
+        self.assertEqual(os.stat(laxo).st_mode & 0o777, 0o700)
+
+    def test_log_grande_encuentra_la_sesion_del_final(self):
+        """QW1 (auditoría 2026-08-07, F1): el log es append-only, así que la
+        sesión recién ejecutada está al FINAL. Leyendo por la cabeza, un log
+        que superara el tope daba 'sin_registro' falso — el veredicto que
+        significa 'el correo se movió fuera del pipeline'."""
+        original = th.MAX_LINEAS_SESSION_LOG
+        th.MAX_LINEAS_SESSION_LOG = 10
+        try:
+            viejos = [self._mov("VIEJA", "old%d@x" % i) for i in range(50)]
+            self._escribir(viejos + [self._mov("HOY", "a@x"),
+                                     self._mov("HOY", "b@x")])
+            out = th.cmd_verificar_sesion(
+                {"session_id": "HOY", "esperados": 2, "ruta": self.ruta})
+            self.assertTrue(out["ok"], out)
+            self.assertEqual(out["veredicto"], "valido")
+            self.assertEqual(out["message_ids"], ["a@x", "b@x"])
+            self.assertTrue(out.get("truncado"))
+            self.assertIn("últimas", out["aviso"])
+        finally:
+            th.MAX_LINEAS_SESSION_LOG = original
+
     def test_expone_subcomando_en_el_cli(self):
         """Sin entrada en el argparse el SKILL.md no puede invocarlo, y la
         guarda quedaría en una intención escrita sin mecanismo detrás."""

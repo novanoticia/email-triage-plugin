@@ -1151,6 +1151,23 @@ def cmd_validar_config(ruta: str) -> dict:
 # (fcntl.flock) y con newline garantizado: una escritura, una línea,
 # atómica frente a otras instancias que usen el mismo helper.
 
+def _asegurar_dir_privado(directorio):
+    """Crea `directorio` en 700 y REAFIRMA el modo si ya existía.
+
+    QW5 (auditoría 2026-08-07, F8): el `mode=` de os.makedirs solo se aplica a
+    los directorios que la llamada CREA. Un ~/.email-triage heredado de una
+    restauración de copia, de un umask laxo o de una versión antigua se queda
+    con sus permisos originales para siempre — y ahí dentro hay metadatos de
+    correo. El chmod es best-effort: si falla (p. ej. el directorio es de otro
+    usuario) no bloquea la escritura, que es la función principal.
+    """
+    os.makedirs(directorio, mode=0o700, exist_ok=True)
+    try:
+        os.chmod(directorio, 0o700)
+    except OSError:
+        pass
+
+
 def _fd_apunta_a(fd, ruta):
     """True si el descriptor abierto sigue siendo el fichero que AHORA está en
     `ruta`. Si `compactar` hizo os.replace entre nuestro os.open y el flock, el
@@ -1181,7 +1198,7 @@ def cmd_registrar(ruta: str, registro: dict) -> dict:
     ruta = os.path.expanduser(ruta)
     directorio = os.path.dirname(ruta) or "."
     try:
-        os.makedirs(directorio, mode=0o700, exist_ok=True)
+        _asegurar_dir_privado(directorio)
     except OSError as e:
         return {"ok": False, "error": "no se pudo preparar %s: %s" % (ruta, e)}
     datos = (linea + "\n").encode("utf-8")
@@ -1445,26 +1462,36 @@ def cmd_verificar_sesion(datos: dict) -> dict:
 
     encontrados, truncado = [], False
     try:
+        # QW1 (auditoría 2026-08-07, F1): session_log.jsonl es APPEND-ONLY, así
+        # que la sesión que se acaba de ejecutar está al FINAL. Leer las
+        # PRIMERAS MAX_LINEAS_SESSION_LOG líneas hacía que, en cuanto el log
+        # superara el tope, este subcomando devolviera "sin_registro" falso —
+        # justo el veredicto que significa "el correo se movió fuera del
+        # pipeline". Mismo patrón que _contar_y_ultimas: deque en streaming
+        # (memoria acotada) sobre la COLA del fichero, no sobre su cabeza.
+        total = 0
+        ultimas = deque(maxlen=MAX_LINEAS_SESSION_LOG)
         with open(ruta_exp, encoding="utf-8", errors="replace") as fh:
-            for n, linea in enumerate(fh):
-                if n >= MAX_LINEAS_SESSION_LOG:
-                    truncado = True
-                    break
-                linea = linea.strip()
-                if not linea:
-                    continue
-                try:
-                    reg = json.loads(linea)
-                except (ValueError, TypeError):
-                    continue          # línea corrupta: no cuenta, no revienta
-                if not isinstance(reg, dict) or reg.get("session_id") != sid:
-                    continue
-                # Solo cuentan los registros de MOVIMIENTO: un registro sin
-                # to_folder es telemetría, no prueba de que se movió nada.
-                if not reg.get("to_folder"):
-                    continue
-                mid = reg.get("message_id")
-                encontrados.append(mid if isinstance(mid, str) else None)
+            for linea in fh:
+                total += 1
+                ultimas.append(linea)
+        truncado = total > MAX_LINEAS_SESSION_LOG
+        for linea in ultimas:
+            linea = linea.strip()
+            if not linea:
+                continue
+            try:
+                reg = json.loads(linea)
+            except (ValueError, TypeError):
+                continue              # línea corrupta: no cuenta, no revienta
+            if not isinstance(reg, dict) or reg.get("session_id") != sid:
+                continue
+            # Solo cuentan los registros de MOVIMIENTO: un registro sin
+            # to_folder es telemetría, no prueba de que se movió nada.
+            if not reg.get("to_folder"):
+                continue
+            mid = reg.get("message_id")
+            encontrados.append(mid if isinstance(mid, str) else None)
     except FileNotFoundError:
         return {"ok": False, "veredicto": "sin_registro", "session_id": sid,
                 "registrados": 0, "esperados": esperados, "faltan": esperados,
@@ -1492,8 +1519,8 @@ def cmd_verificar_sesion(datos: dict) -> dict:
               "message_ids": encontrados}
     if truncado:
         salida["truncado"] = True
-        salida["aviso"] = ("se leyeron las primeras %d líneas; compacta el log"
-                           % MAX_LINEAS_SESSION_LOG)
+        salida["aviso"] = ("se leyeron las últimas %d líneas de %d; compacta "
+                           "el log" % (MAX_LINEAS_SESSION_LOG, total))
     if veredicto != "valido":
         salida["error"] = (
             "el triaje NO es válido: declara %d movimiento(s) y el log tiene "
@@ -1640,7 +1667,7 @@ def _escribir_snapshot_json(obj, ruta, prefijo) -> dict:
     ruta = os.path.expanduser(str(ruta))
     directorio = os.path.dirname(ruta) or "."
     try:
-        os.makedirs(directorio, mode=0o700, exist_ok=True)
+        _asegurar_dir_privado(directorio)
     except OSError as e:
         return {"ok": False, "error": "no se pudo preparar %s: %s" % (ruta, e)}
     import tempfile

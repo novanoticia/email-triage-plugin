@@ -109,6 +109,30 @@ ARCHITECTURE.md                este documento
 MIGRACION-FASE-A.md            integración + Fase A.2 (split) + Fase B (Gmail)
 ```
 
+## Estado: EXPERIMENTAL — fuera de la ruta de ejecución
+
+> ⚠️ **`contracts.py`, `adapter_mailapp.py`, `adapter_gmail.py` y `core.py` son
+> EXPERIMENTALES.** Ningún código de producción los importa: el flujo real sigue
+> siendo `SKILL.md` → subcomandos de `triage_helpers.py`. Verificable en un
+> comando: `grep -rn "from core\|adapter_mailapp\|from contracts" --include=*.py
+> .` solo devuelve `test_*`.
+>
+> Esto es una decisión, no un olvido (ver MIGRACION-FASE-A.md §5). Pero tiene un
+> coste que la auditoría 2026-08-07 hizo visible: `MailAppAdapter
+> .construir_script_leer_cuerpos` llevaba un default (`prefijo="/tmp/tbody_"`)
+> que el núcleo rechaza siempre, y nadie lo notó porque nada lo ejecuta. **Una
+> capa que no corre no se verifica sola.**
+>
+> **Regla mientras dure el estado experimental:** este documento describe la
+> arquitectura *objetivo*, no la vigente. Ante una discrepancia entre lo que
+> dice aquí y lo que hace `triage_helpers.py`, manda `triage_helpers.py`.
+>
+> **Condición de salida (CM1, auditoría 2026-08-07):** se promueve a estable
+> cuando exista un segundo backend real (Gmail, Fase B) que lo justifique — no
+> antes. Completar la Fase A.2 hoy movería ~2.700 líneas detrás de la fachada y
+> rompería los 44 tests de contrato doc↔código a cambio de cero funcionalidad
+> nueva, con el plugin en uso diario.
+
 ## Qué NO hace la Fase A (a propósito)
 
 - No implementa Gmail (stub que levanta `NotImplementedError`).
