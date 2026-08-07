@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.9.0
+# Email Triage Plugin v3.10.0
 
 Filtrado epistémico de correo electrónico para Claude Cowork y Claude Code.
 
@@ -17,6 +17,56 @@ La mayoría de clasificadores de correo preguntan "¿es urgente?". Este plugin p
 - ¿Está anclado a hechos verificables? (Entangled Truths)
 
 El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decisional, calidad epistémica, coste cognitivo y riesgo de manipulación.
+## Novedades en v3.10.0
+El plugin pasa a conformar con **[Agent Plugins 1.0.0](https://agent-plugins.org/specification)**,
+el formato portátil de empaquetado publicado el 6 de agosto de 2026 por la
+Agentic AI Foundation (OpenAI, Amazon, Microsoft, Cursor y Vercel, con Google
+como *core maintainer*), que estandariza cómo se distribuyen skills y servidores
+MCP entre clientes que compiten entre sí. Cambio **puramente estructural**: no
+toca el motor de scoring, ni S0–S5, ni un solo veredicto. Los 287 tests siguen
+verdes.
+
+Dos de los tres arreglos eran fallos reales que no se veían porque Claude Code
+es permisivo donde la spec es estricta:
+
+- **El `SKILL.md` no validaba.** El frontmatter de Agent Skills es un conjunto
+  **cerrado** (`name`, `description`, `license`, `compatibility`, `metadata`,
+  `allowed-tools`) y el nuestro tenía dos infracciones: una clave `version` al
+  nivel superior, y una `description` de **1475 caracteres** contra un máximo de
+  1024. Cualquiera de las dos, por separado, obliga a un cliente conformante a
+  **saltarse el skill** (§7.1) — es decir, el plugin se instalaba y quedaba
+  vacío en cualquier cliente que no fuera Claude. Ahora la versión vive en
+  `metadata.version` y la `description` mide 886 caracteres, sin perder ninguna
+  frase de activación.
+- **Los requisitos de entorno tienen por fin su sitio.** macOS, Mail.app vía
+  AppleScript o el MCP de Gmail, y Python 3.9+ estaban solo en prosa dentro de
+  la `description`. Pasan al campo `compatibility`, que es el que la spec
+  reserva para eso (≤ 500 caracteres). Un cliente en Linux ahora puede saber
+  que no va a poder ejecutarlo *antes* de intentarlo.
+- **Manifiesto portable en la raíz del plugin**: `plugins/email-triage/plugin.json`,
+  con el `$schema` canónico. El §5.1 lo exige ahí, y sin él un cliente
+  conformante rechaza el plugin sin llegar a mirar los componentes.
+  `.claude-plugin/plugin.json` **se queda**: es el único que Claude Code lee hoy.
+  Los dos conviven y el CI los mantiene sincronizados.
+- **Gate #7 de CI**: valida el esquema cerrado del manifiesto, el `$schema`
+  exacto, el `name` contra las reglas del §5.5, el frontmatter del `SKILL.md`
+  con sus presupuestos de 1024/500, el `mcp.json` si algún día existe, y que
+  ningún symlink escape de la raíz del plugin (§4.1). Verificado contra seis
+  mutaciones deliberadas: las seis rompen el gate.
+- **La versión pasa a vivir en 9 sitios** (antes 8) y `bump-version.sh` los
+  actualiza de una pasada. La del `SKILL.md` está ahora indentada bajo
+  `metadata:`, así que el `sed` se acota al bloque de frontmatter para no pisar
+  otro `version:` del cuerpo.
+
+Qué **no** cambia, para dejarlo claro: `/triage` sigue siendo de Claude Code
+(Agent Plugins v1 solo define skills y MCP como componentes portables; los
+clientes deben ignorar el resto), y el aparato de distribución
+(`marketplace.json`, `install-plugin.sh`) sigue igual porque la spec deja
+instalación y permisos a cada cliente. Y una advertencia honesta: la
+documentación de Claude Code no menciona todavía Agent Plugins, así que hoy esto
+**no** añade compatibilidad efectiva con otros clientes — posiciona el plugin
+para cuando la haya, y arregla por el camino dos defectos que ya existían.
+
 ## Novedades en v3.9.0
 Capa de arquitectura nueva (aditiva, sin tocar el motor): se establece la
 **frontera núcleo ↔ adaptador de correo**, preparando el plugin para servir a

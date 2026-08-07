@@ -1,31 +1,29 @@
 ---
 name: email-triage
-version: "3.9.0"
 description: >
-  Triaje inteligente de correo electrónico: analiza bandejas de entrada y carpetas
-  de lectura pendiente para identificar correos de alto valor usando criterios
-  epistémicos inspirados en racionalidad bayesiana (LessWrong Sequences).
-  No pregunta "¿es importante?" sino "¿leer esto cambiaría algo concreto para
-  el usuario?" y evalúa calidad evidencial, riesgo de manipulación, coste
-  cognitivo y necesidad de acción.
-  Soporta iCloud (Mail.app vía AppleScript), Gmail (vía MCP) y cualquier cliente
-  compatible con Cowork. Incluye calibración estadística basada en historial,
-  scoring multi-eje con 30 criterios epistémicos, routing por 4 tiers
-  (reply_needed, review, reading_later, archive) y explicación de cada decisión.
-  Actívalo cuando el usuario diga "filtra mi correo", "revisa mi bandeja",
-  "triaje de emails", "qué correos son importantes", "email triage",
-  "clasifica mis correos", "qué debería leer", "hay algo urgente en mi correo",
-  "revisa Leer Después", "filtra newsletters", o cualquier petición que implique
-  evaluar, priorizar o clasificar correos electrónicos.
-  También se activa si el usuario pide mover correos entre carpetas basándose
-  en relevancia o importancia.
-  Se activa en modo simulación (dry-run, sin mover nada) cuando el usuario diga
-  "simula el triaje", "prueba sin mover", "dry-run", "qué movería", "muéstrame
-  qué haría sin ejecutarlo", "prueba los nuevos pesos", "test del triaje" o
-  cualquier petición que implique ejecutar el análisis pero sin efectos reales.
+  Triaje epistémico de correo: analiza bandejas de entrada y carpetas de lectura
+  pendiente con 30 criterios de racionalidad bayesiana (LessWrong Sequences) para
+  responder no "¿es importante?" sino "¿leer esto cambiaría algo concreto para el
+  usuario?". Puntúa valor decisional, calidad evidencial, riesgo de manipulación y
+  coste cognitivo, clasifica en 4 tiers (reply_needed, review, reading_later,
+  archive) y explica cada decisión. Actívalo cuando el usuario diga "filtra mi
+  correo", "revisa mi bandeja", "triaje de emails", "email triage", "clasifica mis
+  correos", "qué correos son importantes", "qué debería leer", "hay algo urgente en
+  mi correo", "revisa Leer Después", "filtra newsletters", o pida evaluar, priorizar
+  o mover correos según su relevancia. Modo simulación, sin mover nada, con "simula
+  el triaje", "dry-run", "qué movería", "prueba sin mover", "test del triaje",
+  "muéstrame qué haría sin ejecutarlo" o "prueba los nuevos pesos".
+compatibility: >
+  macOS. Correo vía Mail.app/AppleScript (iCloud) o el MCP de Gmail. Requiere
+  Python 3.9+ (stdlib; PyYAML opcional) y un cliente con ejecución de scripts.
+  Pensado para Claude Cowork y Claude Code.
+license: Apache-2.0
+metadata:
+  version: "3.10.0"
+  author: novanoticia
 ---
 
-# Email Triage v3.9 — Filtrado epistémico por valor diferencial
+# Email Triage v3.10 — Filtrado epistémico por valor diferencial
 
 ## Qué hace este skill
 

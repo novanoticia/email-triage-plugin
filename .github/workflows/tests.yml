@@ -50,17 +50,25 @@ jobs:
           def jver(p): return json.loads((r/p).read_text(encoding='utf-8'))['version']
           pj   = jver('.claude-plugin/plugin.json')
           inn  = jver('plugins/email-triage/.claude-plugin/plugin.json')
+          port = jver('plugins/email-triage/plugin.json')
           mk   = re.search(r'"version"\s*:\s*"([^"]+)"',
                            (r/'.claude-plugin/marketplace.json').read_text(encoding='utf-8')).group(1)
-          sk   = re.search(r'(?m)^version:\s*"?([0-9.]+)"?',
-                           (r/'plugins/email-triage/skills/email-triage/SKILL.md').read_text(encoding='utf-8')).group(1)
+          skill_txt = (r/'plugins/email-triage/skills/email-triage/SKILL.md'
+                       ).read_text(encoding='utf-8')
+          # `version` no es clave permitida en el frontmatter de Agent Skills:
+          # vive bajo `metadata:`. Se acota el bloque antes de buscarla para no
+          # casar con un `version:` cualquiera del cuerpo.
+          fm = re.match(r'\A---\r?\n(.*?)\r?\n---', skill_txt, re.S)
+          assert fm, "SKILL.md sin frontmatter YAML al inicio"
+          sk   = re.search(r'(?m)^\s+version:\s*"?([0-9.]+)"?', fm.group(1)).group(1)
           rd   = re.search(r'(?m)^#\s+Email Triage Plugin v([0-9.]+)',
                            (r/'README.md').read_text(encoding='utf-8')).group(1)
           th   = re.search(r'email-triage \(v([0-9.]+)\)',
                            (r/'plugins/email-triage/skills/email-triage/scripts/triage_helpers.py'
                             ).read_text(encoding='utf-8')).group(1)
           vers = {'plugin.json(root)': pj, 'plugin.json(inner)': inn,
-                  'marketplace.json': mk, 'SKILL.md': sk, 'README.md': rd,
+                  'plugin.json(portable)': port,
+                  'marketplace.json': mk, 'SKILL.md metadata': sk, 'README.md': rd,
                   'triage_helpers.py': th}
           assert len(set(vers.values())) == 1, f"versiones divergentes: {vers}"
           mm = '.'.join(pj.split('.')[:2])
@@ -70,8 +78,7 @@ jobs:
               assert m.group(1) == mm, f"config.yaml header v{m.group(1)} != v{mm}"
           # H1 del SKILL.md: derivó en el pasado (quedó en v3.4 en un plugin
           # v3.8). Ahora también es un gate — major.minor debe coincidir (#5).
-          skill = (r/'plugins/email-triage/skills/email-triage/SKILL.md').read_text(encoding='utf-8')
-          h1 = re.search(r'(?m)^#\s+Email Triage v([0-9]+\.[0-9]+)\s+—', skill)
+          h1 = re.search(r'(?m)^#\s+Email Triage v([0-9]+\.[0-9]+)\s+—', skill_txt)
           assert h1, "no se encontró el H1 '# Email Triage vX.Y —' en SKILL.md"
           assert h1.group(1) == mm, f"H1 del SKILL.md v{h1.group(1)} != v{mm}"
           print(f"OK: todo en {pj} (config + H1 SKILL en v{mm})")
@@ -116,6 +123,115 @@ jobs:
               f"la primera seccion de novedades del README es v{m.group(1)}, "
               f"no v{v}: la entrada nueva va por encima de las anteriores")
           print(f"OK: changelog del README al dia (v{v})")
+          PY
+
+      - name: Conformidad con Agent Plugins 1.0.0 y Agent Skills
+        run: |
+          python3 - <<'PY'
+          import json, re, pathlib, yaml
+          r = pathlib.Path('.')
+          P = r / 'plugins/email-triage'          # raíz del plugin (§4)
+          SPEC = 'https://agent-plugins.org/schemas/1.0.0'
+          errs = []
+
+          # ── §5: manifiesto portable en la RAÍZ del plugin, esquema cerrado ──
+          man_path = P / 'plugin.json'
+          if not man_path.is_file():
+              errs.append(f"falta el manifiesto portable {man_path} (§5.1: un "
+                          f"cliente conformante rechaza el plugin sin él)")
+              man = {}
+          else:
+              man = json.loads(man_path.read_text(encoding='utf-8'))
+          PERMITIDOS = {'$schema', 'name', 'version', 'description', 'author',
+                        'homepage', 'repository', 'license', 'keywords',
+                        'extensions'}
+          extra = set(man) - PERMITIDOS
+          if extra:
+              errs.append(f"plugin.json con campos fuera del esquema cerrado "
+                          f"(§5.2): {sorted(extra)}")
+          if man.get('$schema') != f'{SPEC}/plugin.schema.json':
+              errs.append(f"plugin.json: $schema debe ser exactamente "
+                          f"{SPEC}/plugin.schema.json (§5.2/§5.3)")
+          nombre = man.get('name', '')
+          # §5.5: 1-64, [a-z0-9.-], extremos alfanuméricos, sin '--' ni '..'
+          if not re.fullmatch(r'(?!.*(?:--|\.\.))[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?',
+                              nombre) or len(nombre) > 64:
+              errs.append(f"plugin.json: name {nombre!r} viola §5.5")
+          autor = man.get('author', {})
+          if not isinstance(autor, dict) or set(autor) - {'name', 'email', 'url'}:
+              errs.append(f"plugin.json: author debe ser objeto con solo "
+                          f"name/email/url (§5.4), es {autor!r}")
+
+          # ── §6.1/§7.1: skills en skills/<nombre>/SKILL.md, sin recursión ──
+          sk_dir = P / 'skills'
+          if not sk_dir.is_dir():
+              errs.append("falta skills/ (§6.1)")
+          skills = sorted(d for d in sk_dir.iterdir()
+                          if d.is_dir() and (d / 'SKILL.md').is_file()) \
+                   if sk_dir.is_dir() else []
+          if not skills:
+              errs.append("§7.1: ningún skills/<dir>/SKILL.md descubrible")
+
+          # ── Agent Skills: frontmatter de conjunto CERRADO ──
+          CLAVES = {'name', 'description', 'license', 'compatibility',
+                    'metadata', 'allowed-tools'}
+          for d in skills:
+              txt = (d / 'SKILL.md').read_text(encoding='utf-8')
+              m = re.match(r'\A---\r?\n(.*?)\r?\n---', txt, re.S)
+              if not m:
+                  errs.append(f"{d.name}: SKILL.md sin frontmatter en el byte 0")
+                  continue
+              fm = yaml.safe_load(m.group(1)) or {}
+              sobra = set(fm) - CLAVES
+              if sobra:
+                  errs.append(f"{d.name}: claves no permitidas en frontmatter "
+                              f"{sorted(sobra)} — un cliente conformante SE SALTA "
+                              f"el skill (§7.1). 'version' va en metadata.")
+              if fm.get('name') != d.name:
+                  errs.append(f"{d.name}: frontmatter name {fm.get('name')!r} "
+                              f"!= nombre del directorio")
+              desc = (fm.get('description') or '').strip()
+              if not 1 <= len(desc) <= 1024:
+                  errs.append(f"{d.name}: description mide {len(desc)} chars "
+                              f"(el máximo es 1024)")
+              comp = (fm.get('compatibility') or '').strip()
+              if len(comp) > 500:
+                  errs.append(f"{d.name}: compatibility mide {len(comp)} "
+                              f"chars (el máximo es 500)")
+              meta = fm.get('metadata', {})
+              if meta and (not isinstance(meta, dict) or
+                           not all(isinstance(k, str) and isinstance(v, str)
+                                   for k, v in meta.items())):
+                  errs.append(f"{d.name}: metadata debe mapear string->string, "
+                              f"es {meta!r}")
+
+          # ── §7.2: mcp.json es OPCIONAL (§6.2) pero si existe, cerrado ──
+          mcp = P / 'mcp.json'
+          if mcp.is_file():
+              cfg = json.loads(mcp.read_text(encoding='utf-8'))
+              if set(cfg) != {'$schema', 'mcpServers'}:
+                  errs.append(f"mcp.json: solo se permiten $schema y mcpServers "
+                              f"(§7.2.1), hay {sorted(cfg)}")
+              if cfg.get('$schema') != f'{SPEC}/mcp.schema.json':
+                  errs.append(f"mcp.json: $schema debe ser {SPEC}/mcp.schema.json")
+              # §10.1: la versión de mcp.json debe casar con la de plugin.json
+              if (cfg.get('$schema') or '').rsplit('/', 2)[-2:-1] != \
+                 (man.get('$schema') or '').rsplit('/', 2)[-2:-1]:
+                  errs.append("mcp.json apunta a otra versión de Agent Plugins "
+                              "que plugin.json (§10.1)")
+
+          # ── §4.1: nada del paquete puede resolver fuera de la raíz ──
+          for p in P.rglob('*'):
+              if p.is_symlink():
+                  destino = p.resolve()
+                  if not str(destino).startswith(str(P.resolve())):
+                      errs.append(f"§4.1: {p} escapa de la raíz -> {destino}")
+
+          assert not errs, "No conforma con Agent Plugins 1.0.0:\n  - " + \
+                           "\n  - ".join(errs)
+          print(f"OK: plugin {nombre!r} conforma con Agent Plugins 1.0.0 "
+                f"({len(skills)} skill(s), mcp.json "
+                f"{'presente' if mcp.is_file() else 'ausente (§6.2: válido)'})")
           PY
 
       - name: Fuzz de totalidad de los puntos de entrada (semilla rotativa)
