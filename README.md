@@ -2,6 +2,20 @@
 
 Filtrado epistémico de correo electrónico para Claude Cowork y Claude Code.
 
+> **Compatible con [Agent Plugins 1.0.0](https://agent-plugins.org/specification)** — el
+> formato portátil de empaquetado de la Agentic AI Foundation (OpenAI, Amazon, Microsoft,
+> Cursor y Vercel, con Google como *core maintainer*). El paquete lleva el manifiesto
+> portable `plugin.json` en la raíz del plugin y el skill en
+> `plugins/email-triage/skills/email-triage/SKILL.md`, así que cualquier cliente
+> conformante lo descubre. Un gate de CI lo verifica en cada commit.
+>
+> **Sobre ChatGPT:** el formato es portable y ChatGPT cargará el skill, pero **no podrá
+> ejecutarlo**. Este plugin lee y mueve correo en Mail.app por AppleScript y ejecuta
+> Python en local, lo que exige macOS y un cliente capaz de lanzar `osascript`. Fuera de
+> ese entorno el skill se carga y no puede hacer nada. Lo declara su campo
+> `compatibility`, que es donde la especificación de Agent Skills manda poner los
+> requisitos de entorno.
+
 ## Qué hace
 Evalúa correos electrónicos usando un marco de racionalidad bayesiana inspirado en las [LessWrong Sequences](https://www.lesswrong.com/rationality): no "¿es importante?" sino "¿leer esto cambiaría algo concreto para mí?"
 
