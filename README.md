@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.10.0
+# Email Triage Plugin v3.11.0
 
 Filtrado epistémico de correo electrónico para Claude Cowork y Claude Code.
 
@@ -9,12 +9,20 @@ Filtrado epistémico de correo electrónico para Claude Cowork y Claude Code.
 > `plugins/email-triage/skills/email-triage/SKILL.md`, así que cualquier cliente
 > conformante lo descubre. Un gate de CI lo verifica en cada commit.
 >
-> **Sobre ChatGPT:** el formato es portable y ChatGPT cargará el skill, pero **no podrá
-> ejecutarlo**. Este plugin lee y mueve correo en Mail.app por AppleScript y ejecuta
-> Python en local, lo que exige macOS y un cliente capaz de lanzar `osascript`. Fuera de
-> ese entorno el skill se carga y no puede hacer nada. Lo declara su campo
-> `compatibility`, que es donde la especificación de Agent Skills manda poner los
-> requisitos de entorno.
+> **Qué necesita el cliente para ejecutarlo.** El skill viaja a cualquier cliente
+> conformante, pero para *actuar* sobre el correo el cliente tiene que poder hacer dos
+> cosas: **alcanzar el buzón** (Mail.app en macOS, el MCP de Gmail, u otra vía de acceso
+> a la cuenta) y **ejecutar los scripts de `scripts/`** — Python 3.9+, solo stdlib, para
+> el sanitizado S0–S5 y la aritmética del scoring. Un cliente que cumpla ambas cosas lo
+> ejecuta; uno que no, puede leer el skill y razonar con sus criterios, pero no mover
+> nada. Está declarado en el campo `compatibility`, que es donde la especificación de
+> Agent Skills manda poner los requisitos de entorno.
+>
+> Deliberadamente no lleva una lista de qué productos pueden y no pueden: las
+> capacidades de cada cliente cambian, y una lista así envejece mal. Verificado en
+> agosto de 2026: **ChatGPT sí llega al buzón de iCloud y mueve correos** con el skill
+> cargado. Si tu cliente puede acceder a tu correo, pruébalo — en seco primero, con
+> «simula el triaje», que no mueve nada.
 
 ## Qué hace
 Evalúa correos electrónicos usando un marco de racionalidad bayesiana inspirado en las [LessWrong Sequences](https://www.lesswrong.com/rationality): no "¿es importante?" sino "¿leer esto cambiaría algo concreto para mí?"
@@ -31,6 +39,24 @@ La mayoría de clasificadores de correo preguntan "¿es urgente?". Este plugin p
 - ¿Está anclado a hechos verificables? (Entangled Truths)
 
 El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decisional, calidad epistémica, coste cognitivo y riesgo de manipulación.
+## Novedades en v3.11.0
+
+**Un cliente puede acertar el resultado saltándose el pipeline, y hasta ahora no había forma de detectarlo.** Observado el 2026-08-07 con este skill cargado en un cliente de terceros capaz de ejecutar `osascript`: se le pidió el triaje de la bandeja de iCloud, clasificó dos correos y **los movió de verdad** —verificado en el buzón, no en su respuesta—. Pero `session_log.jsonl` no recibió ni una línea, ni `scores.jsonl`. El resultado era correcto y el pipeline no se había ejecutado: improvisó su propio AppleScript y no llamó a `registrar`.
+
+Eso tiene dos costes que no se ven mirando la bandeja:
+
+- **Sin `sanitizar` no hubo S0.** No intervino la defensa contra inyección de prompts ni el escapado del message-id. Con dos newsletters da igual; con un correo hostil, no.
+- **Sin `registrar` no hay nada que calibrar.** El PASO 0.B aprende de `correcciones.jsonl` y el PASO 2 de `session_log.jsonl`. Una sesión sin registro es invisible para ambos, así que la clasificación se pierde en lugar de mejorar el sistema.
+
+La respuesta no es desconfiar del modelo, es convertir «hubo triaje» en una propiedad comprobable:
+
+- **Nuevo subcomando `verificar-sesion`.** Cuenta los registros de movimiento que una sesión dejó de verdad en `session_log.jsonl` y los compara con los que declara. Devuelve `valido`, `incompleto` o `sin_registro`. Un log ausente no es un error del comando: es el hallazgo, y se reporta como tal. Total como el resto de puntos de entrada —cualquier entrada devuelve un dict serializable— y ya incluido en el fuzz del CI, que pasa de 4 a 5 entradas.
+- **Nuevo PASO 5.V en el `SKILL.md`**, obligatorio antes del resumen. El veredicto del script manda sobre la impresión del modelo de haber terminado. Con `incompleto` o `sin_registro`, el triaje **no es válido** y hay que decirlo en el resumen en vez de informar de éxito.
+- **Cuatro reglas duras explícitas**: los cuerpos se leen solo por el PASO 1.B, los movimientos se construyen solo con `montar-mover` (que es lo que escapa el message-id), todo movimiento se registra antes de informarlo, y nunca se dice «N/N movidos» sin la salida del comando que los movió.
+- **Nueve tests nuevos** que fijan el comportamiento, incluido el caso que lo motivó: log ausente → `sin_registro`, y un registro sin `to_folder` no prueba que se moviera nada.
+
+También se corrige la declaración de compatibilidad, que era **falsa**: decía que ChatGPT cargaría el skill pero «no podrá ejecutarlo». La prueba lo desmiente. El README y el campo `compatibility` pasan a describir **qué capacidad hace falta** —alcanzar el buzón y poder ejecutar los scripts— en lugar de enumerar qué productos no pueden, porque esas listas caducan solas.
+
 ## Novedades en v3.10.0
 El plugin pasa a conformar con **[Agent Plugins 1.0.0](https://agent-plugins.org/specification)**,
 el formato portátil de empaquetado publicado el 6 de agosto de 2026 por la
