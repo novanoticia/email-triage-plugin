@@ -9,12 +9,20 @@ Filtrado epistémico de correo electrónico para Claude Cowork y Claude Code.
 > `plugins/email-triage/skills/email-triage/SKILL.md`, así que cualquier cliente
 > conformante lo descubre. Un gate de CI lo verifica en cada commit.
 >
-> **Sobre ChatGPT:** el formato es portable y ChatGPT cargará el skill, pero **no podrá
-> ejecutarlo**. Este plugin lee y mueve correo en Mail.app por AppleScript y ejecuta
-> Python en local, lo que exige macOS y un cliente capaz de lanzar `osascript`. Fuera de
-> ese entorno el skill se carga y no puede hacer nada. Lo declara su campo
-> `compatibility`, que es donde la especificación de Agent Skills manda poner los
-> requisitos de entorno.
+> **Qué necesita el cliente para ejecutarlo.** El skill viaja a cualquier cliente
+> conformante, pero para *actuar* sobre el correo el cliente tiene que poder hacer dos
+> cosas: **alcanzar el buzón** (Mail.app en macOS, el MCP de Gmail, u otra vía de acceso
+> a la cuenta) y **ejecutar los scripts de `scripts/`** — Python 3.9+, solo stdlib, para
+> el sanitizado S0–S5 y la aritmética del scoring. Un cliente que cumpla ambas cosas lo
+> ejecuta; uno que no, puede leer el skill y razonar con sus criterios, pero no mover
+> nada. Está declarado en el campo `compatibility`, que es donde la especificación de
+> Agent Skills manda poner los requisitos de entorno.
+>
+> Deliberadamente no lleva una lista de qué productos pueden y no pueden: las
+> capacidades de cada cliente cambian, y una lista así envejece mal. Verificado en
+> agosto de 2026: **ChatGPT sí llega al buzón de iCloud y mueve correos** con el skill
+> cargado. Si tu cliente puede acceder a tu correo, pruébalo — en seco primero, con
+> «simula el triaje», que no mueve nada.
 
 ## Qué hace
 Evalúa correos electrónicos usando un marco de racionalidad bayesiana inspirado en las [LessWrong Sequences](https://www.lesswrong.com/rationality): no "¿es importante?" sino "¿leer esto cambiaría algo concreto para mí?"

@@ -14,9 +14,11 @@ description: >
   el triaje", "dry-run", "qué movería", "prueba sin mover", "test del triaje",
   "muéstrame qué haría sin ejecutarlo" o "prueba los nuevos pesos".
 compatibility: >
-  macOS. Correo vía Mail.app/AppleScript (iCloud) o el MCP de Gmail. Requiere
-  Python 3.9+ (stdlib; PyYAML opcional) y un cliente con ejecución de scripts.
-  Pensado para Claude Cowork y Claude Code.
+  Requiere que el cliente pueda alcanzar el buzón (Mail.app/AppleScript en macOS
+  para iCloud, el MCP de Gmail, u otra vía de acceso a la cuenta) y ejecutar los
+  scripts de scripts/ con Python 3.9+ (stdlib; PyYAML opcional). Sin acceso al
+  buzón puede razonar con los criterios, pero no mover correo. Verificado en
+  Claude Code, Claude Cowork y ChatGPT.
 license: Apache-2.0
 metadata:
   version: "3.10.0"
