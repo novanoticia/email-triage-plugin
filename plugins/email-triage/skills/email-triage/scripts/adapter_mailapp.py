@@ -13,6 +13,10 @@ y los parsers son 100% testeables; solo la ejecución real requiere macOS.
 Nota de contrato: los NOMBRES DE CARPETA destino son configuración del
 adaptador (Mail.app mueve entre buzones), NO del puerto neutral —Gmail usaría
 labels—. Por eso se fijan al construir el adaptador, no en la firma de mover().
+
+ESTADO: EXPERIMENTAL — este módulo NO está en la ruta de ejecución: nada
+fuera de los tests lo importa. Describe la arquitectura OBJETIVO.
+Ver ARCHITECTURE.md → "Estado: EXPERIMENTAL" (CM1, auditoría 2026-08-07).
 """
 from __future__ import annotations
 
@@ -61,7 +65,12 @@ class MailAppAdapter(AdaptadorCorreo):
 
     def construir_script_leer_cuerpos(self, handles: Sequence[str],
                                       origen: Optional[str] = None,
-                                      prefijo: str = "/tmp/tbody_") -> str:
+                                      prefijo: str = "tbody_") -> str:
+        """QW2 (auditoría 2026-08-07, F2): el default era "/tmp/tbody_", que el
+        núcleo RECHAZA siempre (`_RE_PREFIJO_TBODY` admite solo [A-Za-z0-9_]),
+        así que este método no podía tener éxito con sus propios valores por
+        defecto. El prefijo NO es una ruta: el script generado escribe siempre
+        bajo ~/.email-triage/tmp/ en 700, no en /tmp."""
         r = th.cmd_montar_leer_cuerpos(
             {"cuenta": self.cuenta, "origen": origen or self.carpetas["origen"],
              "mids": list(handles), "prefijo": prefijo})
@@ -165,7 +174,8 @@ class MailAppAdapter(AdaptadorCorreo):
 
     def leer_cuerpos(self, correos: Sequence[NormalizedEmail]
                      ) -> List[NormalizedEmail]:
-        # La lectura real vuelca cuerpos a /tmp/tbody_N y el orquestador los
+        # La lectura real vuelca cuerpos a ~/.email-triage/tmp/tbody_N.txt
+        # (dir privado 700; NO /tmp, endurecido en v3.x) y el orquestador los
         # reasocia por handle. En Fase A el puerto queda definido; la
         # reasociación fina se hereda del flujo del SKILL.md (Fase A.2).
         raise AdaptadorNoDisponible(

@@ -10,6 +10,10 @@ Split SEGURO: NO mueve las ~2.700 líneas del motor —eso sería la Fase A.2
 completa, deliberadamente diferida por riesgo/valor (ver MIGRACION-FASE-A.md
 §5)—. Aquí solo se NOMBRA la frontera; `triage_helpers.py` sigue siendo la
 única fuente de verdad y el comportamiento es idéntico.
+
+ESTADO: EXPERIMENTAL — este módulo NO está en la ruta de ejecución: nada
+fuera de los tests lo importa. Describe la arquitectura OBJETIVO.
+Ver ARCHITECTURE.md → "Estado: EXPERIMENTAL" (CM1, auditoría 2026-08-07).
 """
 from triage_helpers import (
     cmd_sanitizar as sanitizar,

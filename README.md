@@ -112,6 +112,13 @@ Capa de arquitectura nueva (aditiva, sin tocar el motor): se establece la
 **frontera núcleo ↔ adaptador de correo**, preparando el plugin para servir a
 más de un backend (Mail.app hoy; Gmail/otros en el futuro) desde un mismo
 núcleo de scoring. No cambia ni un veredicto: los tests previos siguen verdes.
+> ⚠️ **Estado: EXPERIMENTAL.** Esta capa (`contracts.py`, `adapter_*.py`,
+> `core.py`) **no está en la ruta de ejecución**: nada fuera de los tests la
+> importa y el flujo real sigue siendo `SKILL.md` → subcomandos de
+> `triage_helpers.py`. Describe la arquitectura *objetivo*. Se promoverá a
+> estable cuando exista un segundo backend real que lo justifique (Fase B /
+> Gmail). Ver `ARCHITECTURE.md` → "Estado: EXPERIMENTAL".
+
 - **`contracts.py`**: define `NormalizedEmail` (objeto de intercambio crudo,
   pre-sanitización) y el puerto `AdaptadorCorreo` (4 verbos: `leer_bandeja`,
   `leer_cuerpos`, `estado_hilo`, `mover`). Platform-agnostic: no importa

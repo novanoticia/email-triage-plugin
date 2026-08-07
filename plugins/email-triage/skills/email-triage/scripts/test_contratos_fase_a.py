@@ -126,6 +126,20 @@ class TestMailAppEjecucionAislada(unittest.TestCase):
                 ad.leer_bandeja()
 
 
+class TestMailAppDefaultsUsables(unittest.TestCase):
+    """QW2 (auditoría 2026-08-07, F2): un método público cuyos propios valores
+    por defecto el núcleo rechaza siempre es un contrato roto. Nadie lo llamaba
+    con defaults, así que nadie lo notaba."""
+
+    def test_construir_script_leer_cuerpos_con_defaults(self):
+        ad = MailAppAdapter(cuenta="iCloud")
+        script = ad.construir_script_leer_cuerpos(["<abc@example.com>"])
+        self.assertIn("tell application \"Mail\"", script)
+        # El destino es el directorio privado, nunca /tmp.
+        self.assertIn(".email-triage/tmp", script)
+        self.assertNotIn("/tmp/tbody_", script)
+
+
 class TestGmailStub(unittest.TestCase):
     def setUp(self):
         self.ad = GmailAdapter()

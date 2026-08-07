@@ -13,6 +13,10 @@ ninguna API. Es el contrato, no una implementación. Ver ARCHITECTURE.md.
 
 Los invariantes de esta frontera (endurecidos tras revisión adversarial) están
 documentados campo a campo abajo; respétalos en cada adaptador.
+
+ESTADO: EXPERIMENTAL — este módulo NO está en la ruta de ejecución: nada
+fuera de los tests lo importa. Describe la arquitectura OBJETIVO.
+Ver ARCHITECTURE.md → "Estado: EXPERIMENTAL" (CM1, auditoría 2026-08-07).
 """
 from __future__ import annotations
 
