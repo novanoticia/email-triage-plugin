@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.11.0
+# Email Triage Plugin v3.12.0
 
 Filtrado epistémico de correo electrónico para Claude Cowork y Claude Code.
 
@@ -39,6 +39,24 @@ La mayoría de clasificadores de correo preguntan "¿es urgente?". Este plugin p
 - ¿Está anclado a hechos verificables? (Entangled Truths)
 
 El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decisional, calidad epistémica, coste cognitivo y riesgo de manipulación.
+## Novedades en v3.12.0
+
+**Una auditoría externa del repo encontró un verificador que verificaba lo que no era.** `verificar-sesion`, el subcomando que v3.11 introdujo para detectar que un cliente se salte el pipeline, leía las **primeras** 50.000 líneas de `session_log.jsonl`. El log es append-only: la sesión que acaba de ejecutarse está al **final**. En cuanto el fichero superara el tope, el veredicto habría sido `sin_registro` —"el correo se movió fuera del pipeline"— en cada sesión, siendo falso. Un verificador que miente es peor que no tenerlo.
+
+Los cinco arreglos, con su test de regresión cada uno (todos verificados fallando contra el código anterior, para que ninguno sea un gate vacío):
+
+- **`verificar-sesion` lee la cola, no la cabeza** (`deque` en streaming, mismo patrón que ya usaba `_contar_y_ultimas`). El aviso de truncado ahora dice cuántas líneas se leyeron **de cuántas**.
+- **`MailAppAdapter.construir_script_leer_cuerpos` tenía un default imposible**: `prefijo="/tmp/tbody_"`, que el núcleo rechaza siempre (`[A-Za-z0-9_]{1,32}`). El método no podía tener éxito con sus propios valores por defecto, y nadie lo notó porque nada lo ejecuta. Además su docstring seguía documentando `/tmp`, la ruta que v3.x endureció a `~/.email-triage/tmp` en `700`.
+- **El `700` se reafirma en directorios preexistentes**: el `mode=` de `os.makedirs` solo aplica a lo que la llamada crea. Un `~/.email-triage` heredado de una restauración o de un umask laxo conservaba sus permisos originales, con metadatos de correo dentro.
+- **La capa de adaptadores queda declarada EXPERIMENTAL** en `ARCHITECTURE.md`, `README.md` y el docstring de los cuatro módulos, con su condición de salida escrita: se promueve cuando exista un segundo backend real que lo justifique, no antes. `contracts.py`, `adapter_*.py` y `core.py` no están en la ruta de ejecución —nada fuera de los tests los importa— y mantener dos arquitecturas descritas como si ambas fueran la vigente es lo que hizo invisible el bug del adaptador. Nueva regla de desempate: ante discrepancia entre la documentación y `triage_helpers.py`, manda `triage_helpers.py`.
+
+**Divulgación progresiva del SKILL.md, segunda pasada: 71 → 53 KB (−26%), 1.460 → 1.043 líneas.** En v3.6 ya bajó de 1.760 a 1.318; para v3.11 había vuelto a 1.460. La conclusión no es el número, es que esto no es un refactor que se hace una vez, es mantenimiento recurrente. Se extraen a `references/` los bloques **condicionales**, cada uno con un stub que declara su condición de entrada: PASO 1.C + 4.J (hilos, solo si `agrupar_hilos`), PASO 2 (calibración), los resúmenes de modo simulación y modo rutina, PASO 5.B (telemetría, solo si está configurada) y el inventario de personalización. Lo no negociable se queda en línea.
+
+Eso crea una dependencia nueva —si una referencia no llega al disco, el paso degrada en silencio— y dos mecanismos la cubren:
+
+- **`install-plugin.sh` deriva la lista de ficheros a verificar** de las rutas `references/…` que el propio `SKILL.md` cita, en vez de una lista escrita a mano que ya se había quedado corta (verificaba 4 de 12 referencias reales). No vuelve a desactualizarse.
+- **Dos gates nuevos en `test_contrato_skill.py`**: toda referencia citada por la doctrina debe existir en disco, y el `SKILL.md` no puede superar 60 KB (con suelo de 30 KB para que un fichero truncado no pase el techo alegremente). El mensaje de fallo no regaña: dice cuántos bytes sobran y propone el patrón de extracción. Lo que ese techo prohíbe no es crecer, es crecer **sin decidir**.
+
 ## Novedades en v3.11.0
 
 **Un cliente puede acertar el resultado saltándose el pipeline, y hasta ahora no había forma de detectarlo.** Observado el 2026-08-07 con este skill cargado en un cliente de terceros capaz de ejecutar `osascript`: se le pidió el triaje de la bandeja de iCloud, clasificó dos correos y **los movió de verdad** —verificado en el buzón, no en su respuesta—. Pero `session_log.jsonl` no recibió ni una línea, ni `scores.jsonl`. El resultado era correcto y el pipeline no se había ejecutado: improvisó su propio AppleScript y no llamó a `registrar`.
