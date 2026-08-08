@@ -360,207 +360,26 @@ informar una sola vez:
 
 Ejecutar DESPUÉS del PASO 1.B (sanitización) y ANTES del PASO 2.
 Transforma la lista plana de mensajes en unidades de evaluación: mensajes
-individuales o hilos agrupados. Esto es lo que garantiza que `presion_accion`
-y `hilo_esperando_respuesta` se evalúen sobre el hilo completo, no sobre
-un fragmento aislado.
+individuales o hilos agrupados. Es lo que garantiza que `presion_accion` y
+`hilo_esperando_respuesta` se evalúen sobre el hilo completo.
 
-**Vía preferente (determinista, v3.8.19)**: para iCloud, no agrupes a ojo — la
-normalización de asunto y la unión por participante compartido son
-deterministas y reproducibles con `triage_helpers.py agrupar-hilos`. Pásale
-los metadatos ya recogidos (SCRIPT 1A) y usa las `unidades` que devuelve:
+**Si `agrupar_hilos: false` en `config.yaml`, sáltate este paso**: cada
+mensaje es su propia unidad y el PASO 2 recibe la lista plana.
 
-```bash
-echo '{"correos":[{"id":1,"remitente":"A <a@x.com>","asunto":"Reunión"},
-                  {"id":2,"remitente":"B <x.com>","asunto":"Re: Reunión"}]}' \
-  | python3 "<ruta-del-skill>/scripts/triage_helpers.py" agrupar-hilos
-```
-
-Devuelve `{"unidades":[{tipo, clave_hilo, count, participantes, miembros}]}`.
-En Gmail sigue mandando el hilo nativo (paso 0 de abajo); el algoritmo manual
-que sigue es la especificación que `agrupar-hilos` implementa (fallback si el
-script no está disponible).
-
-### Algoritmo de agrupación
-
-**0. Gmail: usar el hilo nativo (v3.5)**
-
-Si el proveedor es Gmail, NO usar la heurística de asunto: el MCP de
-Gmail ya agrupa por `threadId` nativo (basado en References/In-Reply-To,
-más fiable que cualquier heurística). Cada thread devuelto ES la unidad
-de evaluación. Como el hilo nativo incluye también los mensajes
-enviados por el usuario, `usuario_es_ultimo_en_responder` se lee
-directamente del último mensaje del thread (señal con
-`verificacion: nativa`). Los pasos 1-2 siguientes aplican SOLO a
-iCloud/Mail.app.
-
-**1. Normalizar el asunto de cada mensaje**
-
-Eliminar prefijos de respuesta/reenvío para obtener el asunto raíz:
-- Eliminar: `Re:`, `RE:`, `Fwd:`, `FWD:`, `RV:`, `Aw:`, `SV:`, `TR:`
-  (y sus variantes con espacios o combinadas, ej: `Re: Fwd:`)
-- Trim de espacios y normalizar a minúsculas
-- El resultado es la `clave_hilo`
-
-**2. Agrupar por clave_hilo + participante común**
-
-Dos mensajes pertenecen al mismo hilo si:
-- Tienen la misma `clave_hilo`, Y
-- Comparten al menos un participante (el dominio del remitente de uno
-  aparece como dominio del remitente del otro, o el mismo remitente exacto)
-
-Esto evita falsos positivos con asuntos genéricos como "Hola" o "Reunión"
-entre remitentes sin relación.
-
-**3. Clasificar el resultado**
-
-- Grupo de 1 mensaje → `tipo: individual`
-- Grupo de 2+ mensajes → `tipo: hilo`, ordenar por fecha (más antiguo primero)
-
-### Estructura del hilo
-
-Para cada hilo detectado, construir este objeto interno:
-
-```
-HILO [clave_hilo]
-  mensajes: [lista ordenada por fecha, más antiguo primero]
-  count: N
-  primer_mensaje: {from, date, subject original}
-  ultimo_mensaje: {from, date, body_sanitizado}
-  participantes: [lista de remitentes únicos]
-  usuario_es_ultimo_en_responder: true / false / desconocido
-    → true si el último mensaje del hilo COMPLETO (incluyendo Enviados)
-      es del usuario (comparar `from` con `correo.cuenta` del config)
-    → false si otro participante escribió después del último envío del
-      usuario, o el usuario nunca escribió — CONFIRMADO contra Enviados
-    → desconocido si no se pudo verificar
-  verificacion: nativa (Gmail) / enviados (iCloud) / ninguna
-```
-
-**Verificación contra Enviados — iCloud (v3.5).** La carpeta que se está
-triando no contiene tus propios envíos, así que sin este paso la señal
-daría `false` para casi cualquier hilo y el +5 se aplicaría siempre
-(sesgo estructural al alza). Para cada HILO detectado (no para mensajes
-individuales), hacer UNA consulta acotada al buzón de Enviados.
-
-**Regla no negociable (F1):** `clave_hilo` deriva del **asunto** (superficie
-del remitente) y `correo.cuenta` de tu config. **Nunca los interpoles a mano
-en el AppleScript**: una comilla en el asunto —común en correo legítimo
-(`Re: "urgente"`)— rompe el literal o altera el predicado `whose`. Monta la
-consulta con el mecanismo, que los escapa como `montar-mover` escapa el mover:
-
-```bash
-echo '{"cuenta":"<correo.cuenta>","clave_hilo":"<clave_hilo>","fecha_corte":"<fecha del último recibido del hilo>"}' \
-  | python3 "${CLAUDE_PLUGIN_ROOT}/skills/email-triage/scripts/triage_helpers.py" montar-consulta-enviados
-```
-
-Escribe el `script` devuelto a un fichero temporal y ejecútalo con `osascript`;
-`return (count of respuestasUsuario)` da el conteo. Si `sospechoso` no es null,
-refléjalo en el resumen (el escape ya neutralizó el valor). Solo LEE, no mueve.
-
-- count > 0 → el usuario respondió después del último recibido →
-  `usuario_es_ultimo_en_responder: true`
-- count = 0 → `false` (confirmado)
-- error de AppleScript o buzón inaccesible → `desconocido` (NUNCA asumir
-  `false` por defecto: ese era el sesgo que esta verificación corrige)
-
-Acotar siempre con `date sent >` para que la consulta sea barata incluso
-en buzones grandes. Si el lote tiene más de 10 hilos, verificar los 10
-más recientes y marcar el resto como `desconocido`.
-
-`usuario_es_ultimo_en_responder` alimenta la hard rule
-`hilo_esperando_respuesta_del_usuario`: **+5 solo con `false`
-confirmado; +2 si `desconocido`; 0 si `true`** (ver 4.A).
-
-### Casos especiales
-
-- **Asunto vacío o solo prefijos**: tratar como `tipo: individual`
-  (no se puede agrupar de forma fiable)
-- **Hilo con >10 mensajes**: procesar solo los últimos 5 para el análisis
-  del cuerpo; el `count` real se refleja en el score (+1 por profundidad)
-- **Mensajes de distintas carpetas en el mismo hilo**: posible si el usuario
-  archivó parte del hilo. No agrupar entre carpetas — evaluar solo los
-  mensajes presentes en la carpeta actual del triaje
-
-### Impacto en el lote
-
-Contar cada **hilo** como una unidad para el límite de `limite_por_sesion`,
-no cada mensaje. Un hilo de 5 mensajes cuenta como 1 unidad del lote.
-Informar al usuario: "N unidades procesadas (X mensajes individuales +
-Y hilos con Z mensajes en total)."
-
----
-
+**En cualquier otro caso, lee `references/paso-1c-hilos.md` AHORA** y aplica
+su procedimiento. Contiene la vía determinista (`agrupar-hilos`), el
+algoritmo de agrupación, la estructura del hilo, los casos especiales, el
+impacto en el lote y el procedimiento **4.J** (evaluación del hilo como
+unidad), que se aplica en el PASO 4 a toda unidad `tipo: hilo`.
 ## PASO 2 — CALIBRACIÓN ESTADÍSTICA
 
-La calibración extrae patrones reales del historial del usuario. No es una
-descripción conceptual: es un análisis cuantitativo que produce datos usables.
+La calibración extrae patrones reales del historial del usuario: no es una
+descripción conceptual, es un análisis cuantitativo que produce datos
+usables por el PASO 4.
 
-### Procedimiento concreto
-
-1. Accede a `carpetas.historial` (por defecto "Conservar").
-
-2. Lee los últimos 100 correos con asunto, remitente y fecha.
-
-3. **Extrae las métricas exactas CON EL SCRIPT** (CM2/F11): la aritmética
-   de conteos ya no se hace mentalmente — mismo lote, mismo perfil,
-   reproducible. Pasa los metadatos recopilados a `calibrar`:
-
-   ```bash
-   echo '{"correos": [
-     {"remitente": "Ana López <ana@substack.com>", "asunto": "Update semanal"},
-     {"remitente": "luis@gmail.com", "asunto": "Re: presupuesto"}
-   ]}' \
-     | python3 "<ruta-del-skill>/scripts/triage_helpers.py" calibrar --guardar
-   ```
-
-   Devuelve el perfil determinista y, con `--guardar`, lo cachea además
-   como snapshot atómico en `~/.email-triage/calibracion.json` (esquema 1;
-   es lo que el modo veloz reutiliza vía `calibrar --leer`):
-
-   **a) `top_remitentes`** — top 10, con `conteo` y `porcentaje` sobre
-   `n_correos`;
-
-   **b) `top_dominios`** — top 5, formato `@dominio.com`;
-
-   **c) `top_keywords`** — top 15 de los asuntos: minúsculas, tokens de ≥3
-   caracteres, sin stopwords ES/EN (la MISMA tokenización que los ajustes
-   del PASO 0.B: un solo espacio de keywords).
-
-   Dos observaciones siguen siendo TU juicio — el script no las calcula y
-   no requieren conteo exacto:
-
-   **d) Distribución temporal**: rango de fechas y pico de conservación
-   (mañana/tarde/noche), a ojo sobre los metadatos ya leídos.
-
-   **e) Tipos detectados**: proporción aproximada de newsletters /
-   comunicaciones directas / notificaciones de servicio / otros.
-
-4. **Almacena el perfil** como contexto interno para las fases siguientes.
-   Úsalo para:
-   - Dar +2 puntos a remitentes que aparecen 5+ veces en historial
-   - Dar +1 punto a dominios frecuentes
-   - Dar +1 punto a correos cuyo asunto contiene keywords del top 15
-
-5. Si `mostrar_calibracion: true`, presenta las métricas al usuario.
-   Si no, solo confirma: "Calibración lista: X correos analizados, Y remitentes
-   frecuentes, Z keywords identificadas."
-
-### Cuándo recalibrar
-
-- A petición del usuario
-- Si más de 3 "No" consecutivos en modo confirmación
-- Si la carpeta de historial ha cambiado significativamente (>50 correos nuevos)
-- En modo veloz decide el script: `triage_helpers.py calibrar --leer` responde
-  `vigente: false` cuando la caché supera el TTL (`--ttl-dias`, por defecto 7)
-  o es ilegible — entonces recalibra y regenera con `calibrar --guardar`
-
-### Calidad de la calibración
-
-Si la carpeta tiene contenido muy heterogéneo, informa y sugiere acotar
-por rango de fechas o excluir ciertos dominios del análisis.
-
----
-
+**Lee `references/paso-2-calibracion.md` AHORA** y sigue su procedimiento
+(acceso a `carpetas.historial`, invocación de `calibrar`, interpretación de
+la salida, cuándo recalibrar y cómo juzgar la calidad de la muestra).
 ## PASO 3 — BANDEJA DE ENTRADA (urgentes)
 
 Revisa `carpetas.entrada` (últimas 48-72 horas).
@@ -970,67 +789,12 @@ Los colores de tier en el formato de presentación:
 
 ### 4.J — Evaluación de hilos como unidad
 
-Cuando PASO 1.C clasifica una unidad como `tipo: hilo`, aplicar este
-procedimiento en lugar de evaluar cada mensaje por separado.
-
-#### Qué se evalúa
-
-- **Cuerpo**: usar el `body_sanitizado` del `ultimo_mensaje` (el más reciente
-  es lo que el usuario necesita procesar ahora)
-- **Metadatos de contexto**: usar `count`, `participantes`, y
-  `usuario_es_ultimo_en_responder` para informar criterios específicos
-- **Asunto**: usar el asunto del `ultimo_mensaje`
-- **Remitente**: usar el remitente del `ultimo_mensaje`
-
-#### Hard rules específicas de hilo (añadir a las de 4.A)
-
-| Fuente | Puntos | Condición |
-|--------|--------|-----------|
-| **Hilo esperando respuesta** | +5 / +2 | +5 con `false` confirmado (verificación nativa o Enviados); +2 con `desconocido` |
-| **Profundidad de hilo** | +1 | `count >= 3` (conversación activa) |
-| **Hilo muy largo** | -1 | `count >= 10` (posible ruido acumulado) |
-| **Único participante externo** | +1 | Solo hay un remitente externo (conversación directa, no lista) |
-
-#### Criterios epistémicos afectados por el contexto de hilo
-
-Estos criterios deben considerar el hilo completo, no solo el último mensaje:
-
-- **`presion_accion`**: evaluar si hay una pregunta o acción pendiente del
-  último mensaje *y* si el usuario no ha respondido aún. Si
-  `usuario_es_ultimo_en_responder: true`, bajar `presion_accion` (ya respondió)
-- **`urgencia_real_vs_fabricada`**: un hilo largo con múltiples intercambios
-  sin resolución es evidencia de urgencia real, no fabricada
-- **`sorpresa_bayesiana`**: si el hilo muestra un cambio de posición o nueva
-  información respecto al mensaje inicial, sube este criterio
-- **`relevancia_longitudinal`**: hilos con ≥3 participantes distintos suelen
-  tener mayor relevancia longitudinal
-
-#### Tier y movimiento del hilo
-
-El tier se asigna al **hilo completo**. Al mover, mover **todos los mensajes
-del hilo** juntos usando el patrón de referencias del PASO 1. Nunca mover
-un mensaje de un hilo sin mover el resto — dejaría el hilo partido entre
-carpetas.
-
-En el session log (PASO 4.I), registrar una entrada por mensaje del hilo,
-todas con el mismo `thread_id: [clave_hilo]`, para que el undo revierta
-el hilo completo.
-
-#### Formato de presentación de hilo
-
-```
-🧵 [Asunto raíz] — hilo de N mensajes
-   Participantes: [remitente1], [remitente2]... | Último: [DD/MM] de [remitente]
-   ⏳ Esperando tu respuesta: [Sí / No]
-📝 Resumen del último mensaje: [2-3 líneas]
-📊 Puntuación: X (decisional +N, epistémica +N, manipulación N, cognitivo N, acción +N, hilo +N)
-[🔴|🟡|🔵|⚪] Tier: [REPLY_NEEDED | REVIEW | READING_LATER | ARCHIVE]
-   ▲ [razón positiva 1] | [razón positiva 2] | [razón positiva 3]
-   ▼ [razón negativa 1] | [razón negativa 2] | [razón negativa 3]
-💬 [Rationale: 1-2 frases que mencionan explícitamente si hay respuesta pendiente]
-🔵 Recomendación: MOVER hilo completo (N mensajes) → [destino] / DEJAR / ARCHIVAR
-```
-
+Solo aplica si el PASO 1.C clasificó alguna unidad como `tipo: hilo`.
+En ese caso el hilo se evalúa **como una sola unidad**, no mensaje a
+mensaje: el procedimiento completo (qué cuerpo usar, qué metadatos
+alimentan `presion_accion` y `hilo_esperando_respuesta`, cómo se
+presenta y cómo se mueve el hilo entero) está en
+`references/paso-1c-hilos.md`, que ya habrás leído en el PASO 1.C.
 ### 4.H — Gestión de escala
 
 - **Lote estándar**: hasta 50 correos por ejecución (configurable con `limite_por_sesion`)
@@ -1194,173 +958,23 @@ RESUMEN DE TRIAJE v3.0
 ───────────────────────────────────
 ```
 
-### Resumen de sesión en modo simulación
+### Resumen de sesión en modo simulación y en modo rutina
 
-Cuando `modo_simulacion: true`, sustituir el resumen anterior por este formato.
-El encabezado y pie deben dejar claro que NADA se ha movido.
-
-```
-───────────────────────────────────
-🧪 SIMULACIÓN DE TRIAJE — NADA HA SIDO MOVIDO
-───────────────────────────────────
-📥 Bandeja de entrada: X correos analizados (sin cambios)
-   → Y habrían requerido atención inmediata
-
-📂 [Carpeta pendiente]: X correos analizados (sin cambios)
-
-   Lo que HABRÍA ocurrido:
-   🔴 REPLY_NEEDED: N correos → habrían ido a [destino]
-   🟡 REVIEW:       N correos → habrían ido a [destino]
-   🔵 READING_LATER: N correos → habrían quedado en [pendiente]
-   ⚪ ARCHIVE:       N correos → habrían sido archivados
-
-📊 Scoring simulado:
-   Puntuación media: X.X | Máxima: X | Mínima: X
-   Ejes dominantes: [eje con más peso]
-
-📈 Criterios más activados en la simulación:
-   ▲ [criterio positivo más frecuente]: N veces
-   ▼ [criterio negativo más frecuente]: N veces
-
-🔄 Correcciones del usuario durante la revisión: N
-   [Estas correcciones SÍ se han guardado como datos de aprendizaje]
-
-🧠 Ajustes aprendidos que se habrían aplicado:
-   [igual que en sesión real, si los hay]
-
-💡 Para ejecutar este triaje en real: di "ejecuta el triaje" o
-   cambia `modo` en config.yaml a `confirmacion`, `lote` o `silencioso`
-───────────────────────────────────
-🧪 FIN DE SIMULACIÓN — tu bandeja no ha cambiado
-───────────────────────────────────
-```
-
-### Resumen de sesión en modo rutina (NUEVO en v3.3)
-
-Cuando `modo_rutina: true`, sustituir el resumen anterior por este formato.
-La diferencia clave respecto al modo `silencioso` normal: aparece un bloque
-explícito de **CANDIDATOS DUDOSOS** que el humano revisará después, y se
-marcan timestamps de inicio/fin con duración total.
-
-```
-⏱️ Inicio: HH:MM:SS — modo rutina
-⏱️ Fin:    HH:MM:SS — duración: M min S s
-
-───────────────────────────────────
-RUTINA DE TRIAJE — [fecha YYYY-MM-DD]
-───────────────────────────────────
-📥 Bandeja de entrada: X correos analizados
-📂 [Carpeta pendiente]: X correos analizados
-
-✅ MOVIDOS automáticamente a [destino] (score ≥ umbral_mover):
-   N. [Asunto] — [Remitente] — score X — [razón breve, 1 línea]
-   ...
-   Total: N
-
-🟡 CANDIDATOS DUDOSOS (sin mover, requieren tu decisión):
-   N. [Asunto] — [Remitente] — score X — recomendación tentativa: MOVER/DEJAR
-   ...
-   Total: M
-
-⚪ DEJADOS sin tocar: T correos
-   Desglose por motivo:
-   - Newsletter genérica: N
-   - Información recuperable: N
-   - Sin acción ni info útil: N
-   - Otros: N
-
-📝 Decisiones autónomas tomadas (si las hubo):
-   - [nota breve sobre cualquier ambigüedad resuelta sin preguntar]
-───────────────────────────────────
-```
-
-Tras imprimir el resumen, lanzar la notificación de macOS si
-`rutina.notificacion_macos: true`. Usar `osascript` vía el conector
-"Control your Mac":
-
-```applescript
-display notification "Triaje: N movidos, M dudosos en T min" ¬
-    with title "Email-Triage" ¬
-    sound name "Glass"
-```
-
-(Sustituir `Glass` por el valor de `rutina.sonido_notificacion`.)
-
-Si la notificación falla (permisos, conector no disponible), continuar
-sin error — el resumen ya está impreso en la conversación.
-
----
-
+El formato de arriba es el del **modo real**. Si la sesión corre en modo
+simulación (`modo_simulacion: true`) o en modo rutina (scheduled task),
+**lee `references/salidas-por-modo.md` AHORA** y usa el formato que
+corresponda: cambian el encabezado, el pie y —en rutina— el destinatario y
+el nivel de detalle. En simulación el pie debe dejar claro que NADA se ha
+movido.
 ## PASO 5.B — ESCRITURA DE TELEMETRÍA
 
-Si `telemetria` está configurada en `config.yaml`, ejecutar este paso
-DESPUÉS de presentar el resumen al usuario y ANTES de cerrar la sesión.
+**Si `telemetria` no está configurada en `config.yaml`, sáltate este paso.**
 
-**La telemetría se escribe siempre en `~/.email-triage/`**. Si el directorio
-no existe, crearlo con Desktop Commander (`create_directory`). Si alguna
-escritura falla, registrar el error en el resumen pero no abortar.
-
-### Archivos y formato
-
-#### `guardar_score: true` → `scores.jsonl`
-
-Una línea JSON por correo procesado en la sesión:
-
-```json
-{"session_id":"YYYYMMDD-HHMMSS","ts":"ISO8601","message_id":"<id>","subject":"...","from":"...","tier":"REVIEW","score_final":7,"valor_decisional":3,"calidad_epistemica":2,"riesgo_manipulacion":-1,"coste_cognitivo":-1,"presion_accion":4,"puntos_hard_rules":0}
-```
-
-#### `guardar_explicacion: true` → `explicaciones.jsonl`
-
-Una línea JSON por correo con el rationale completo:
-
-```json
-{"session_id":"YYYYMMDD-HHMMSS","message_id":"<id>","subject":"...","from":"...","tier":"REVIEW","razones_positivas":["...","...","..."],"razones_negativas":["...","...","..."],"rationale":"..."}
-```
-
-#### `guardar_vector: true` → `vectors.jsonl`
-
-Una línea JSON por correo con el vector binario de criterios activados
-(1 = criterio activo/aplicado, 0 = no aplica):
-
-```json
-{"session_id":"YYYYMMDD-HHMMSS","message_id":"<id>","tier":"REVIEW","score_final":7,"criterios":{"cambia_algo_concreto":1,"cambio_predicciones":1,"sorpresa_bayesiana":0,"evidencia_filtrada":1,"forward_backward_flow":0,"impacto_causal_real":1,"urgencia_real_vs_fabricada":0,"argument_screens_off_authority":1,"hug_the_query":1,"semantic_stopsigns":0,"entangled_truths":1,"absence_of_expected_evidence":0,"distancia_inferencial":0}}
-```
-
-#### `guardar_correccion: true` → `correcciones.jsonl`
-
-Solo se escribe cuando el usuario cambia el tier asignado (override). Se registra
-en el momento en que el usuario da la corrección, no al final de la sesión:
-
-```json
-{"session_id":"YYYYMMDD-HHMMSS","ts":"ISO8601","message_id":"<id>","subject":"...","from":"...","tier_asignado":"ARCHIVE","tier_corregido":"REVIEW","score_final":-2,"rationale_usuario":"(si el usuario da explicación)","simulacion":false}
-```
-
-El campo `simulacion` es opcional: su ausencia equivale a `false` (sesión
-real). En modo simulación DEBE escribirse a `true` (ver PASO 4.G) — el
-PASO 0.B pondera esas correcciones a la mitad.
-
-#### `exportar_mal_clasificados: true` → `mal_clasificados.jsonl`
-
-Alias de las entradas de `correcciones.jsonl` donde `tier_asignado != tier_corregido`.
-Se escribe al mismo tiempo que `guardar_correccion`. Permite filtrar rápidamente
-los errores del modelo sin parsear todo el log de correcciones.
-
-### Cuándo NO escribir
-
-- Si todos los flags de `telemetria` son `false`, omitir este paso completamente
-- No escribir entradas de correos que se saltaron (remitentes en `ignorar`)
-- No escribir entradas de correos en modo degradado `[solo metadatos]` en
-  `vectors.jsonl` (el vector estaría incompleto y contaminaría el dataset)
-
-### Retención
-
-Los archivos de telemetría crecen indefinidamente. No purgar automáticamente
-(a diferencia del session log) — son datos históricos valiosos para el usuario.
-Advertir si algún archivo supera 10 MB.
-
----
-
+Si lo está, ejecutar DESPUÉS de presentar el resumen y ANTES de cerrar la
+sesión: **lee `references/paso-5b-telemetria.md` AHORA** (ficheros, formato,
+escritura atómica, cuándo NO escribir y retención). La telemetría se escribe
+siempre bajo `~/.email-triage/`; un fallo de escritura se reporta en el
+resumen, nunca aborta la sesión.
 ## PASO 6 — DESHACER ÚLTIMA SESIÓN
 
 Se activa con "deshaz el triaje", "undo", "revierte los movimientos" o similar.
@@ -1424,37 +1038,7 @@ en MANEJO DE ERRORES.
 
 ## Personalización (ver config.yaml)
 
-### Filtros y keywords (heredados de v2.0)
-- `remitentes_prioritarios` — boost de calibración (+3): va en `extra_points`, no es clave de `hard_rules` (ver 4.A.2)
-- `remitentes_ignorar` — skip total (-99)
-- `palabras_clave_boost` — con peso: `alto` (+3), `medio` (+2), `bajo` (+1)
-- `palabras_clave_penalizar` — reducen puntuación (-2)
-- `limite_por_sesion` — máximo por ejecución (default: 50)
-- `leer_cuerpo` — `true`/`false`, activa lectura del contenido del email
-- `modo` — `confirmacion` (default) | `lote` | `silencioso` | `simulacion`
-  (`simulacion` activa dry-run permanente desde config; también se puede
-  pedir por lenguaje natural en cada sesión sin cambiar el config)
-
-### Tiers y umbrales (nuevo en v3.0)
-- `tiers.reply_needed` — umbral mínimo para tier de respuesta (default: 10)
-- `tiers.review` — umbral mínimo para revisión (default: 4)
-- `tiers.reading_later` — umbral mínimo para lectura futura (default: 0)
-- `tiers.archive` — todo lo que quede por debajo (default: -1)
-
-### Criterios epistémicos (nuevo en v3.0)
-- Los 30 criterios con sus pesos están definidos en `criterios_epistemicos`
-- Se pueden activar/desactivar individualmente con `activo: true/false`
-- Los pesos son ajustables por el usuario
-
-### Telemetría (nuevo en v3.0)
-
-Todos los archivos se escriben en `~/.email-triage/` al final de cada sesión
-(PASO 5.B). Formato JSONL — una línea por correo, append incremental.
-
-- `telemetria.guardar_vector` → `~/.email-triage/vectors.jsonl` — vector binario de criterios activados por correo
-- `telemetria.guardar_score` → `~/.email-triage/scores.jsonl` — score final y desglose por eje
-- `telemetria.guardar_explicacion` → `~/.email-triage/explicaciones.jsonl` — razones positivas/negativas y rationale
-- `telemetria.guardar_correccion` → `~/.email-triage/correcciones.jsonl` — overrides del usuario (tier asignado vs corregido)
-- `telemetria.exportar_mal_clasificados` → `~/.email-triage/mal_clasificados.jsonl` — subconjunto de correcciones donde el modelo se equivocó
-
-Ver PASO 5.B para los esquemas JSON completos de cada archivo.
+El inventario de opciones —filtros y keywords, tiers y umbrales, criterios
+epistémicos y telemetría— está en `references/personalizacion.md`. Es
+material de consulta: léelo solo si el usuario pregunta qué se puede
+configurar o pide cambiar el comportamiento del skill.

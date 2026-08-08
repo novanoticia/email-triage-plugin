@@ -1323,5 +1323,41 @@ class ContratoDoctrinaDocstringHelpers(unittest.TestCase):
 
 
 
+class TestReferenciasCitadasExisten(unittest.TestCase):
+    """Gate de CM2 (auditoria 2026-08-07). La divulgacion progresiva mueve
+    pasos enteros del SKILL.md a references/ y deja un stub que dice 'lee
+    references/X.md AHORA'. Si ese fichero no existe —renombrado, no incluido
+    en el paquete, borrado— el paso no revienta: DEGRADA EN SILENCIO, que es
+    justo el modo de fallo que este plugin persigue en todo lo demas. Aqui la
+    cita de la doctrina es la especificacion, y el disco tiene que cumplirla.
+    """
+
+    RE_REF = re.compile(r"references/[A-Za-z0-9._-]+\.(?:md|applescript)")
+
+    def _citadas(self):
+        citas = {}
+        for ruta in DOCS:
+            for rel in self.RE_REF.findall(_texto_doc(ruta)):
+                citas.setdefault(rel, set()).add(os.path.basename(ruta))
+        return citas
+
+    def test_no_vacuo(self):
+        """Si el escaner deja de encontrar citas, el gate pasaria vacio."""
+        self.assertGreaterEqual(
+            len(self._citadas()), 5,
+            "el escaner de referencias no encontro citas en la doctrina: el "
+            "gate estaria pasando en vacio")
+
+    def test_toda_referencia_citada_existe(self):
+        faltan = []
+        for rel, fuentes in sorted(self._citadas().items()):
+            if not os.path.exists(os.path.join(SKILL_DIR, rel)):
+                faltan.append("%s (citada en %s)" % (rel, ", ".join(sorted(fuentes))))
+        self.assertFalse(
+            faltan,
+            "referencia(s) citadas por la doctrina que no existen en disco: "
+            "%s — el paso que las necesita degradaria en silencio" % faltan)
+
+
 if __name__ == "__main__":
     unittest.main()
