@@ -163,11 +163,19 @@ ESPERADOS=(
   "config-veloz.yaml"
   "scripts/triage_helpers.py"
   "references/mail-consolidado.applescript"
-  "references/sanitizacion-manual.md"
-  "references/paso-0b-manual.md"
-  "references/criterios-catalogo.md"
-  "references/lecciones-produccion.md"
 )
+# CM2 (auditoría 2026-08-07): el resto de referencias NO se enumera a mano. La
+# divulgación progresiva mueve pasos enteros a references/ (1.C hilos, 2
+# calibración, 5.B telemetría…) y una lista escrita a mano se queda corta en
+# silencio justo cuando más importa: un fichero ausente no rompe la ejecución,
+# solo degrada el paso. Derivamos la lista de lo que el propio SKILL.md cita,
+# que es la definición operativa de "referencia que hace falta".
+if [ -f "$SKILL_DIR/SKILL.md" ]; then
+  while IFS= read -r rel; do
+    [ -n "$rel" ] && ESPERADOS+=("$rel")
+  done < <(grep -oE 'references/[A-Za-z0-9._-]+\.(md|applescript)' \
+             "$SKILL_DIR/SKILL.md" | sort -u)
+fi
 faltan=()
 for rel in "${ESPERADOS[@]}"; do
   [ -f "$SKILL_DIR/$rel" ] || faltan+=("$rel")
