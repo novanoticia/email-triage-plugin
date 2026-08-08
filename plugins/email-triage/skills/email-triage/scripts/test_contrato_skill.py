@@ -1359,5 +1359,53 @@ class TestReferenciasCitadasExisten(unittest.TestCase):
             "%s — el paso que las necesita degradaria en silencio" % faltan)
 
 
+class TestTamanoSkill(unittest.TestCase):
+    """Gate de CM2 (auditoria 2026-08-07). La divulgacion progresiva no es un
+    refactor que se hace una vez: es mantenimiento recurrente. En v3.6 el
+    SKILL.md bajo de 1.760 a 1.318 lineas y para v3.11 habia vuelto a 1.460 —
+    nadie lo noto porque nada lo vigilaba. El coste no es estetico: el SKILL.md
+    entero entra en contexto en CADA activacion, y en contexto largo las
+    instrucciones del medio son las que primero se pierden.
+
+    El umbral no dice 'este tamano es correcto', dice 'a partir de aqui hay que
+    DECIDIR': o se extrae un bloque condicional a references/, o se sube el
+    umbral a conciencia dejando por que en el commit. Lo que este gate impide
+    es la tercera via, que es la que ha pasado siempre: crecer sin que nadie
+    tome ninguna decision.
+    """
+
+    # 60_000 B con el fichero en ~53_000: ~13% de margen. Suficiente para
+    # crecimiento legitimo entre versiones, insuficiente para que se cuele un
+    # PASO entero sin que salte.
+    MAX_BYTES = 60_000
+    # Suelo de no-vacuidad: un SKILL.md truncado o vacio pasaria el techo
+    # alegremente y este gate estaria dando un OK sobre la nada.
+    MIN_BYTES = 30_000
+
+    def _bytes(self):
+        with open(DOCS[0], "rb") as fh:
+            return len(fh.read())
+
+    def test_no_vacuo(self):
+        n = self._bytes()
+        self.assertGreater(
+            n, self.MIN_BYTES,
+            "SKILL.md ocupa %d B, por debajo del suelo de %d: o esta truncado "
+            "o la doctrina se ha vaciado. El techo de este gate estaria "
+            "pasando sobre un fichero que ya no dice nada" % (n, self.MIN_BYTES))
+
+    def test_no_supera_el_techo(self):
+        n = self._bytes()
+        self.assertLessEqual(
+            n, self.MAX_BYTES,
+            "SKILL.md ocupa %d B y el techo son %d (+%d). Se carga entero en "
+            "cada activacion. Antes de subir MAX_BYTES, mira si hay un bloque "
+            "CONDICIONAL que pueda irse a references/ con un stub que declare "
+            "su condicion de entrada (patron: PASO 1.C, PASO 5.B, "
+            "personalizacion). Si de verdad toca subirlo, subelo y explica por "
+            "que en el commit — lo que este gate prohibe es crecer sin "
+            "decidir" % (n, self.MAX_BYTES, n - self.MAX_BYTES))
+
+
 if __name__ == "__main__":
     unittest.main()
