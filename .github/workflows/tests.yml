@@ -266,3 +266,62 @@ jobs:
               total(th.cmd_verificar_sesion, tt._rand_json(rng))
           print(f"OK: fuzz de totalidad, semilla {semilla}, {N} iters x 5 entradas")
           PY
+
+  # ── Gate F10 (auditoría 2026-08-07) ─────────────────────────────────
+  # v3.11.0 se publicó y main siguió avanzando tres PRs con la misma
+  # versión declarada. Ningún gate lo vio: el de coherencia solo compara
+  # los 7 sitios ENTRE SÍ (los siete decían 3.11.0, y estaban de acuerdo
+  # en algo falso), y el de changelog solo comprueba que exista la
+  # sección de esa versión. Ninguno comparaba el repo con lo PUBLICADO.
+  # Resultado: quien instalara por tag se llevaba el código sin los
+  # arreglos, y el marketplace anunciaba una versión que no era esa.
+  #
+  # Este job falla SOLO en ese estado concreto: la versión declarada ya
+  # tiene tag Y el contenido distribuible ha cambiado desde él. Si la
+  # versión aún no está publicada, pasa (es el estado normal mientras se
+  # trabaja hacia la siguiente release). Se resuelve solo en cuanto se
+  # sube versión: la nueva no tiene tag todavía.
+  sincronia-con-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # historia completa: hace falta comparar
+          fetch-tags: true
+
+      - name: La versión declarada no puede llevar contenido sin publicar
+        run: |
+          set -euo pipefail
+          V=$(python3 -c "import json;print(json.load(open('.claude-plugin/plugin.json'))['version'])")
+          TAG="v$V"
+          echo "Versión declarada: $V"
+
+          if ! git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "✅ $TAG aún no está publicada: estado normal de trabajo"
+            echo "   hacia la siguiente release. Nada que comparar."
+            exit 0
+          fi
+
+          # Solo cuenta lo que se DISTRIBUYE. Un retoque de CI, de
+          # ARCHITECTURE.md o de los tests no obliga a publicar nada.
+          RUTAS="plugins/ scripts/install-plugin.sh .claude-plugin/"
+          if git diff --quiet "$TAG" HEAD -- $RUTAS; then
+            echo "✅ $TAG y HEAD coinciden en el contenido distribuible."
+            exit 0
+          fi
+
+          N=$(git rev-list "$TAG"..HEAD --count -- $RUTAS)
+          echo ""
+          echo "❌ $TAG ya está publicada y el contenido distribuible ha"
+          echo "   cambiado desde entonces ($N commit(s)). Quien instale por"
+          echo "   tag NO recibirá estos cambios, y el marketplace anuncia"
+          echo "   $V para un código que ya no es ese."
+          echo ""
+          echo "   Ficheros que difieren respecto a $TAG:"
+          git diff --name-only "$TAG" HEAD -- $RUTAS | sed 's/^/     - /'
+          echo ""
+          echo "   Arréglalo en ESTA rama, no después:"
+          echo "     ./scripts/bump-version.sh X.Y.Z"
+          echo "     y añade '## Novedades en vX.Y.Z' al README.md"
+          echo "   Tras el merge: Actions → release → Run workflow."
+          exit 1
