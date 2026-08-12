@@ -25,11 +25,16 @@ contador de SCRIPTs y completitud del bloque 'Uso:'.
 """
 import os
 import re
+import sys
 import unittest
 
-import triage_helpers as th
+_RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _RAIZ not in sys.path:
+    sys.path.insert(0, _RAIZ)
+from tests import DIR_SCRIPTS  # noqa: E402  (pone scripts/ en sys.path)
+import triage_helpers as th  # noqa: E402
 
-AQUI = os.path.dirname(os.path.abspath(__file__))
+AQUI = DIR_SCRIPTS
 SKILL_DIR = os.path.normpath(os.path.join(AQUI, ".."))
 PLUGIN_DIR = os.path.normpath(os.path.join(SKILL_DIR, "..", ".."))
 

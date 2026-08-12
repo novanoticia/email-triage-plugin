@@ -1,8 +1,16 @@
 #!/usr/bin/env python3
 """Tests de la fachada core (Fase A.2, split seguro). Aditivo, sin tocar motor."""
+import os
+import sys
 import unittest
-import core
-import triage_helpers as th
+
+_RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _RAIZ not in sys.path:
+    sys.path.insert(0, _RAIZ)
+import tests  # noqa: E402,F401  (su __init__ pone scripts/ en sys.path)
+
+import core  # noqa: E402
+import triage_helpers as th  # noqa: E402
 
 
 class TestFachadaCore(unittest.TestCase):

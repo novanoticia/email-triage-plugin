@@ -6,9 +6,16 @@ construye scripts reales (vía los montar-* de triage_helpers) y parsea el
 formato real, y que GmailAdapter cumple la interfaz. La ejecución osascript
 es solo-Mac; aquí se verifica que en un entorno sin osascript degrada limpio.
 """
+import os
+import sys
 import unittest
 
-import contracts
+_RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _RAIZ not in sys.path:
+    sys.path.insert(0, _RAIZ)
+import tests  # noqa: E402,F401  (su __init__ pone scripts/ en sys.path)
+
+import contracts  # noqa: E402
 from contracts import AdaptadorCorreo, NormalizedEmail, AdaptadorNoDisponible
 from adapter_mailapp import MailAppAdapter
 from adapter_gmail import GmailAdapter

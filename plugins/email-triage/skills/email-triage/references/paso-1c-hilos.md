@@ -96,7 +96,7 @@ consulta con el mecanismo, que los escapa como `montar-mover` escapa el mover:
 
 ```bash
 echo '{"cuenta":"<correo.cuenta>","clave_hilo":"<clave_hilo>","fecha_corte":"<fecha del último recibido del hilo>"}' \
-  | python3 "${CLAUDE_PLUGIN_ROOT}/skills/email-triage/scripts/triage_helpers.py" montar-consulta-enviados
+  | python3 "<ruta-del-skill>/scripts/triage_helpers.py" montar-consulta-enviados
 ```
 
 Escribe el `script` devuelto a un fichero temporal y ejecútalo con `osascript`;
