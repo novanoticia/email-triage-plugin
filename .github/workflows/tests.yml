@@ -18,8 +18,10 @@ jobs:
         with:
           python-version: "${{ matrix.python-version }}"
 
+      # Desde requirements.txt, no 'pip install pyyaml' suelto: si el pin y lo
+      # que instala el CI pueden divergir, el pin no prueba nada.
       - name: Dependencias (PyYAML — lo usan los tests de _cargar_config)
-        run: pip install --quiet pyyaml
+        run: pip install --quiet -r requirements.txt
 
       # Los tests viven en tests/, FUERA de la skill: skills/<n>/scripts/ se
       # empaqueta entero al exportar a Agent Skills y 217 KB de tests viajaban

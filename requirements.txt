@@ -6,4 +6,15 @@
 # parsear config.yaml.
 #
 # En macOS con Python del sistema:  pip install -r requirements.txt --break-system-packages
-PyYAML>=6.0
+#
+# Fijada con '==' y no con '>=': un rango deja que la version que se instale
+# hoy no sea la que se probo, y config.yaml lo parsea justo esta libreria.
+# El CI instala DESDE ESTE FICHERO, asi que lo que se prueba es lo que se
+# declara. Para subirla: cambiar el pin, correr la suite y actualizarlo aqui.
+#
+# Sin hashes a proposito. En cuanto UNA linea lleva hash, pip exige
+# --require-hashes para todas y falla si el wheel de la plataforma del usuario
+# no esta listado; PyYAML publica decenas por release. Para un unico dependency
+# opcional, eso convierte un 'pip install' documentado en una trampa. Si algun
+# dia se quiere: pip-compile --generate-hashes, y verificar en macOS y Linux.
+PyYAML==6.0.3
