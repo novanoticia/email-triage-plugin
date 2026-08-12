@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.12.0
+# Email Triage Plugin v3.13.0
 
 Filtrado epistémico de correo electrónico para Claude Cowork y Claude Code.
 
@@ -39,6 +39,19 @@ La mayoría de clasificadores de correo preguntan "¿es urgente?". Este plugin p
 - ¿Está anclado a hechos verificables? (Entangled Truths)
 
 El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decisional, calidad epistémica, coste cognitivo y riesgo de manipulación.
+## Novedades en v3.13.0
+
+**Exportar la skill al estándar abierto Agent Skills estaba bloqueado por su propia documentación.** La revisión de seguridad del conversor paraba el empaquetado con dos hallazgos de severidad alta, y los dos eran el mismo fenómeno: la defensa anti-inyección explicándose a sí misma. En `SKILL.md` había un display-name de ejemplo con la formulación literal de una inyección, y en `triage_helpers.py` el PoC completo de descarga-y-ejecución remota que motiva el escape de message-ids. Estaban entrecomillados y declarados como ejemplos, pero un detector léxico no puede ver eso: lee la frase, no el párrafo. Es un coste que paga cualquier proyecto que documente bien su modelo de amenazas — cuanto mejor describes el ataque, más te pareces a él.
+
+Los dos se reformulan conservando el sentido docente. **El payload literal sigue existiendo donde sirve de algo**: en `TestEscaparApplescript.MID_ATAQUE`, donde se EJECUTA contra el escape en vez de quedarse como texto.
+
+- **Los tests salen del paquete.** Los cuatro `test_*.py` pasan de `skills/email-triage/scripts/` a `tests/`. Eran 217 KB de los 384 KB de la skill y viajaban dentro de cada `.zip` exportado sin aportar nada al agente de destino, además de arrastrar sus fixtures de ataque al ámbito empaquetado. El gate de unicidad del árbol se invierte —`test_triage_helpers.py` ahora DEBE estar fuera— y se le añade la invariante que protege el cambio: ni un `test_*.py` dentro de la skill.
+- **`EMAIL_TRIAGE_HOME`, y la tilde deja de ser un acto de fe.** `~/.email-triage` daba por hecho que `~` apunta al home del usuario. No siempre: hay entornos de agente donde `$HOME` vale `/`, y entonces el skill escribía en la raíz. Ahora `base_estado()` resuelve la base una sola vez —`$EMAIL_TRIAGE_HOME`, si no `~` cuando es un directorio real distinto de `/`, si no un temporal— y `base_estado_es_efimera()` permite avisar cuando el estado no persiste. Esto último importa más de lo que parece: el fallo silencioso de escritura es justo lo que lleva a reconstruir de memoria un registro que nunca se escribió, y un historial inventado con aspecto de real es peor que no tener historial.
+- **La `description` del frontmatter se reescribe a mano**: 962 → 454 bytes, con los disparadores de activación delante. Cabe entera en el presupuesto más estrecho (490 B, el de los destinos que instalan por carpeta), así que el conversor ya no recorta ni reordena nada — y el `.zip` y la carpeta salen idénticos, sin la trampa habitual de que descomprimir el zip no sirva para instalar por directorio. El precio: menos frases de activación (se conservan las cinco más usadas más las de dry-run).
+- **`references/paso-1c-hilos.md`** usaba `${CLAUDE_PLUGIN_ROOT}`, que sólo existe dentro de un plugin de Claude Code y que el conversor no reescribe fuera del `SKILL.md`. Pasa a `<ruta-del-skill>`, la convención que ya usaba el resto del árbol.
+
+Medido con el conversor: código de salida 3 → 2 (se escriben artefactos), Claude Code de «compatible con adaptación» a **compatible** sin ninguna adaptación, y la dimensión de comportamiento de la revisión de seguridad de alto a bajo. Los otros cuatro destinos siguen «no compatible» por razones que ningún empaquetado arregla: dependen de AppleScript, de poder ejecutar Python o de no cortar cada llamada a los 90 segundos.
+
 ## Novedades en v3.12.0
 
 **Una auditoría externa del repo encontró un verificador que verificaba lo que no era.** `verificar-sesion`, el subcomando que v3.11 introdujo para detectar que un cliente se salte el pipeline, leía las **primeras** 50.000 líneas de `session_log.jsonl`. El log es append-only: la sesión que acaba de ejecutarse está al **final**. En cuanto el fichero superara el tope, el veredicto habría sido `sin_registro` —"el correo se movió fuera del pipeline"— en cada sesión, siendo falso. Un verificador que miente es peor que no tenerlo.

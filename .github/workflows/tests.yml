@@ -18,11 +18,17 @@ jobs:
         with:
           python-version: "${{ matrix.python-version }}"
 
+      # Desde requirements.txt, no 'pip install pyyaml' suelto: si el pin y lo
+      # que instala el CI pueden divergir, el pin no prueba nada.
       - name: Dependencias (PyYAML — lo usan los tests de _cargar_config)
-        run: pip install --quiet pyyaml
+        run: pip install --quiet -r requirements.txt
 
+      # Los tests viven en tests/, FUERA de la skill: skills/<n>/scripts/ se
+      # empaqueta entero al exportar a Agent Skills y 217 KB de tests viajaban
+      # dentro de cada .zip. `-t .` hace que `tests` se importe como paquete,
+      # y su __init__ pone scripts/ en sys.path antes que ningun test.
       - name: Tests de triage_helpers (S0-S5 y PASO 0.B)
-        run: python3 -m unittest discover -s plugins/email-triage/skills/email-triage/scripts -v
+        run: python3 -m unittest discover -s tests -t . -v
 
       - name: config.yaml parsea sin trampas YAML 1.1
         run: |
@@ -84,25 +90,38 @@ jobs:
           print(f"OK: todo en {pj} (config + H1 SKILL en v{mm})")
           PY
 
-      - name: Unicidad del árbol de scripts (no duplicar triage_helpers.py)
+      - name: Unicidad del árbol de scripts y tests fuera del paquete
         run: |
           python3 - <<'PY'
           import pathlib
           r = pathlib.Path('.')
           canon = 'plugins/email-triage/skills/email-triage/scripts'
+          skill = 'plugins/email-triage/skills/email-triage'
+          # Cada fichero, en su única raíz. test_triage_helpers.py ya NO vive
+          # bajo scripts/: la carpeta de la skill se empaqueta entera al
+          # exportar a Agent Skills, y los tests no deben viajar dentro.
+          esperado = {'triage_helpers.py': canon, 'test_triage_helpers.py': 'tests'}
           bad = []
-          for name in ('triage_helpers.py', 'test_triage_helpers.py'):
+          for name, raiz in esperado.items():
               hits = [str(p).replace('\\', '/') for p in r.rglob(name)
                       if '.git' not in p.parts]
               if len(hits) != 1:
                   bad.append(f"{name}: {len(hits)} copias -> {hits}")
-              elif not hits[0].startswith(canon):
-                  bad.append(f"{name} fuera de {canon}/ -> {hits[0]}")
+              elif not hits[0].startswith(raiz + '/'):
+                  bad.append(f"{name} fuera de {raiz}/ -> {hits[0]}")
           stray = r / 'plugins/email-triage/scripts'
           if stray.exists():
               bad.append(f"árbol paralelo presente: {stray} (Cowork empaquetaría el viejo)")
-          assert not bad, "Duplicación del árbol de scripts:\n  " + "\n  ".join(bad)
-          print(f"OK: scripts canónicos únicos en {canon}/")
+          # La invariante que protege el adelgazamiento del paquete: ni un
+          # test_*.py dentro de la skill. Si vuelve uno, vuelve a los .zip.
+          colados = sorted(str(p).replace('\\', '/')
+                           for p in (r / skill).rglob('test_*.py'))
+          if colados:
+              bad.append("tests dentro de la skill (viajarían en el paquete "
+                         f"exportado): {colados}")
+          assert not bad, "Árbol de scripts/tests incorrecto:\n  " + "\n  ".join(bad)
+          print(f"OK: scripts canónicos en {canon}/, tests en tests/, "
+                f"0 tests dentro de la skill")
           PY
 
       - name: Changelog del README en sincronía con la versión
@@ -238,9 +257,11 @@ jobs:
         run: |
           python3 - <<'PY'
           import sys, json, random, datetime
-          sys.path.insert(0, 'plugins/email-triage/skills/email-triage/scripts')
+          sys.path.insert(0, '.')
+          # tests/__init__.py pone scripts/ en sys.path al importar el paquete,
+          # así que este import tiene que ir ANTES que el de triage_helpers.
+          from tests import test_triage_helpers as tt
           import triage_helpers as th
-          import test_triage_helpers as tt
           # Semilla derivada de la fecha: la suite local es reproducible
           # (semilla fija), el CI explora entradas nuevas cada día. La
           # invariante es la misma: total + dict serializable.
