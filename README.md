@@ -1,6 +1,8 @@
-# Email Triage Plugin v3.13.3
+# Email Triage Plugin v3.13.4
 
 Filtrado epistémico de correo electrónico para Claude Cowork y Claude Code.
+
+[Privacy](PRIVACY.md) · [Licencia Apache-2.0](LICENSE)
 
 > **Compatible con [Agent Plugins 1.0.0](https://agent-plugins.org/specification)** — el
 > formato portátil de empaquetado de la Agentic AI Foundation (OpenAI, Amazon, Microsoft,
@@ -39,6 +41,13 @@ La mayoría de clasificadores de correo preguntan "¿es urgente?". Este plugin p
 - ¿Está anclado a hechos verificables? (Entangled Truths)
 
 El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decisional, calidad epistémica, coste cognitivo y riesgo de manipulación.
+## Novedades en v3.13.4
+
+**Política de privacidad publicada.** Nuevo `PRIVACY.md` con qué datos lee el
+plugin, adónde van (proveedor de correo, Claude) y qué guarda en local
+(`~/.email-triage/`). Los dos manifiestos de Claude declaran
+`privacyPolicyUrl` y los dos README enlazan a ella con un enlace «Privacy».
+
 ## Novedades en v3.13.3
 
 **Manifiesto raíz conforme al validador del directorio de Claude.** En
