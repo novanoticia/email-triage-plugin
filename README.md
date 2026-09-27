@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.13.1
+# Email Triage Plugin v3.13.2
 
 Filtrado epistémico de correo electrónico para Claude Cowork y Claude Code.
 
@@ -39,6 +39,14 @@ La mayoría de clasificadores de correo preguntan "¿es urgente?". Este plugin p
 - ¿Está anclado a hechos verificables? (Entangled Truths)
 
 El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decisional, calidad epistémica, coste cognitivo y riesgo de manipulación.
+## Novedades en v3.13.2
+
+**Icono listo para cualquier fondo.** `icon.png` pasa a 512×512 con canal alfa:
+las esquinas de la baldosa son transparentes y el borde está suavizado, así
+que ya no aparece un recuadro blanco cuando el directorio lo muestra sobre un
+fondo oscuro. Los tres manifiestos y el marketplace comparten además una única
+descripción en inglés, y el marketplace declara su propia `description`.
+
 ## Novedades en v3.13.1
 
 **El paquete queda preparado para la validación del directorio de Claude.** La
