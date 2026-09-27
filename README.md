@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.13.0
+# Email Triage Plugin v3.13.1
 
 Filtrado epistémico de correo electrónico para Claude Cowork y Claude Code.
 
@@ -39,6 +39,18 @@ La mayoría de clasificadores de correo preguntan "¿es urgente?". Este plugin p
 - ¿Está anclado a hechos verificables? (Entangled Truths)
 
 El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decisional, calidad epistémica, coste cognitivo y riesgo de manipulación.
+## Novedades en v3.13.1
+
+**El paquete queda preparado para la validación del directorio de Claude.** La
+carpeta publicable `plugins/email-triage/` incorpora el icono del proyecto y un
+README propio que explica qué hace el plugin, qué datos de correo utiliza,
+dónde guarda su telemetría local opcional y cuándo los datos pueden pasar por
+un conector externo elegido por el usuario. El manifiesto de Claude declara
+`displayName` e `icon`; no se añade una política de privacidad remota porque el
+plugin no empaqueta ningún servidor ni envía datos a infraestructura del autor.
+Tampoco hay lanzadores `npx` o `uvx` que fijar: `.mcp.json` permanece vacío y
+los scripts locales usan Python directamente.
+
 ## Novedades en v3.13.0
 
 **Exportar la skill al estándar abierto Agent Skills estaba bloqueado por su propia documentación.** La revisión de seguridad del conversor paraba el empaquetado con dos hallazgos de severidad alta, y los dos eran el mismo fenómeno: la defensa anti-inyección explicándose a sí misma. En `SKILL.md` había un display-name de ejemplo con la formulación literal de una inyección, y en `triage_helpers.py` el PoC completo de descarga-y-ejecución remota que motiva el escape de message-ids. Estaban entrecomillados y declarados como ejemplos, pero un detector léxico no puede ver eso: lee la frase, no el párrafo. Es un coste que paga cualquier proyecto que documente bien su modelo de amenazas — cuanto mejor describes el ataque, más te pareces a él.
@@ -745,7 +757,7 @@ Este plugin no envía el contenido de los correos a servidores operados por este
 Si en una versión futura se añade un servicio remoto operado por el proyecto, se publicará una política de privacidad antes de habilitarlo.
 
 ## Créditos
-Diseñado por Pablo Rodríguez López ([mindandhealth.org](https://mindandhealth.org/)) con asistencia de Claude.
+Diseñado por Pablo Rodríguez López ([mindandhealth.org](https://mindandhealth.org/)) con asistencia de Claude y ChatGPT. Consulta [CONTRIBUTORS.md](CONTRIBUTORS.md) para el detalle de las contribuciones.
 
 Criterios epistémicos basados en las [Sequences](https://www.lesswrong.com/rationality) de Eliezer Yudkowsky (LessWrong).
 
