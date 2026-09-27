@@ -44,6 +44,8 @@ necesarios pasan por ese conector y quedan sujetos a la política de privacidad
 del proveedor que el usuario haya configurado. El plugin no empaqueta ni
 selecciona ese servicio: su archivo `.mcp.json` no declara servidores.
 
+Política de privacidad completa: [Privacy](https://github.com/novanoticia/email-triage-plugin/blob/main/PRIVACY.md).
+
 ## Requisitos
 
 - macOS para la integración con Mail.app mediante AppleScript, o un conector de
