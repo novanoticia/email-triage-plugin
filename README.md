@@ -733,6 +733,17 @@ necesariamente las palabras exactas de quien las tomó.
     en REVIEW; la corrección manual (que alimenta el aprendizaje) es la vía para
     subirlo.
 
+## Privacidad y comunicaciones de red
+
+Este plugin no envía el contenido de los correos a servidores operados por este proyecto.
+
+- En macOS, trabaja localmente mediante Mail.app y AppleScript.
+- Puede utilizar un acceso a Gmail u otro proveedor si el usuario configura un conector en su cliente de IA.
+- Los datos locales de configuración, calibración y registro se guardan en el directorio de estado del plugin (`EMAIL_TRIAGE_HOME` o una ubicación equivalente).
+- El proyecto no incorpora telemetría, analítica ni servicios remotos propios.
+
+Si en una versión futura se añade un servicio remoto operado por el proyecto, se publicará una política de privacidad antes de habilitarlo.
+
 ## Créditos
 Diseñado por Pablo Rodríguez López ([mindandhealth.org](https://mindandhealth.org/)) con asistencia de Claude.
 
