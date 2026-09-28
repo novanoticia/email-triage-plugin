@@ -780,6 +780,26 @@ Este plugin no envía el contenido de los correos a servidores operados por este
 
 Si en una versión futura se añade un servicio remoto operado por el proyecto, se publicará una política de privacidad antes de habilitarlo.
 
+## Notes for reviewers
+
+These notes explain the automated findings of the Claude plugin directory
+scan.
+
+- **Scope.** The repository root also holds development tooling (tests, CI
+  workflows, maintainer scripts) that is not part of the installed plugin. The
+  distributable plugin lives in [`plugins/email-triage/`](plugins/email-triage/).
+- **"Uses a credential from the user's machine".** The plugin itself reads no
+  credentials. The finding most likely comes from development tooling: the
+  `GH_TOKEN` provided by GitHub Actions in `.github/workflows/release.yml`,
+  and/or `fix-cowork-version.sh`, a local maintainer script. The plugin runs
+  neither.
+- **"Contains a download-and-run command".** The `curl …|bash` strings are
+  prompt-injection payloads inside unit tests (`tests/test_triage_helpers.py`).
+  The tests check that they are escaped and never executed.
+- **"Image or font file that the plugin's code could run".** `icon.png` is
+  only the listing icon. No code opens or executes it.
+- **Privacy.** See [PRIVACY.md](PRIVACY.md).
+
 ## Créditos
 Diseñado por Pablo Rodríguez López ([mindandhealth.org](https://mindandhealth.org/)) con asistencia de Claude y ChatGPT. Consulta [CONTRIBUTORS.md](CONTRIBUTORS.md) para el detalle de las contribuciones.
 
