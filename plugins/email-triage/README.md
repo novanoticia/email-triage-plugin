@@ -71,3 +71,5 @@ Apache-2.0. Código fuente, documentación completa e incidencias:
 Autor: Pablo Rodríguez López. Esta versión se preparó con asistencia de
 ChatGPT (OpenAI); el historial completo de contribuciones está documentado en
 el repositorio de código fuente.
+
+El icono del plugin ha sido creado con ChatGPT (OpenAI).

@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.13.4
+# Email Triage Plugin v3.13.5
 
 Filtrado epistémico de correo electrónico para Claude Cowork y Claude Code.
 
@@ -41,6 +41,13 @@ La mayoría de clasificadores de correo preguntan "¿es urgente?". Este plugin p
 - ¿Está anclado a hechos verificables? (Entangled Truths)
 
 El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decisional, calidad epistémica, coste cognitivo y riesgo de manipulación.
+## Novedades en v3.13.5
+
+**Nuevo icono.** `icon.png` se sustituye por un diseño plano: un sobre que se
+bifurca hacia cuatro puntos con los colores de los tiers (rojo, amarillo, azul
+y gris). Es de 512×512 con fondo transparente y se lee bien incluso a 32 px.
+El icono ha sido creado con ChatGPT (OpenAI).
+
 ## Novedades en v3.13.4
 
 **Política de privacidad publicada.** Nuevo `PRIVACY.md` con qué datos lee el
