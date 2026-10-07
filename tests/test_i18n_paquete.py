@@ -33,7 +33,8 @@ class TestPaquete(unittest.TestCase):
         self.assertEqual(malos, [])
 
     def test_las_herramientas_viven_en_scripts_de_la_raiz(self):
-        for r in ("i18n_baseline.py", "i18n_extraer.py", "i18n_validar.py", "i18n_fuentes.yaml"):
+        for r in ("i18n_baseline.py", "i18n_extraer.py", "i18n_validar.py", "i18n_fuentes.yaml",
+                  "i18n_mutar.py"):
             self.assertTrue(os.path.exists(os.path.join(RAIZ, "scripts", r)), r)
 
     def test_los_catalogos_no_son_vacios_ni_symlinks(self):
