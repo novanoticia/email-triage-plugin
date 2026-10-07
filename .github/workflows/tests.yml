@@ -346,3 +346,40 @@ jobs:
           echo "     y añade '## Novedades en vX.Y.Z' al README.md"
           echo "   Tras el merge: Actions → release → Run workflow."
           exit 1
+
+  # ── i18n (v3.14) ────────────────────────────────────────────────────
+  # Soporte multiidioma (es/en/fr). El check se llama «i18n» (id del job,
+  # sin `name:` propio): ese es el nombre exacto que habría que exigir si
+  # algún día se activa la protección de rama. Comprueba:
+  #   1. los catálogos de i18n/ son válidos (mismas claves, huecos, tiers,
+  #      emojis, glosario y estado coherente entre idiomas);
+  #   2. es.yaml es EXACTAMENTE lo que se extrae del original (no se edita
+  #      a mano: se regenera y no puede haber diferencia);
+  #   3. las pruebas i18n (línea base del idioma por defecto, resolver del
+  #      idioma, extracción, validador, bloque de SKILL.md, documentación).
+  i18n:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Dependencias (PyYAML — lo usan el extractor y el validador)
+        run: pip install --quiet -r requirements.txt
+
+      - name: Catálogos válidos
+        run: python3 scripts/i18n_validar.py
+
+      - name: es.yaml coincide con lo que se extrae del original
+        run: |
+          python3 scripts/i18n_extraer.py generar
+          git diff --exit-code -- plugins/email-triage/skills/email-triage/i18n/es.yaml
+
+      - name: Pruebas i18n (idioma por defecto sin cambios, resolver, bloque, docs)
+        run: |
+          python3 -m unittest discover -s tests -t . -p "test_i18n*.py" -v
+          python3 -m unittest tests.test_idioma -v
