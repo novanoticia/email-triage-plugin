@@ -40,7 +40,7 @@ class TestBloqueSkill(unittest.TestCase):
         self.assertEqual(lineas[j + 1], "")
 
     def test_presupuesto_de_tamano(self):
-        self.assertLessEqual(len(self.bloque.split("\n")) + 2, 70)
+        self.assertLessEqual(len(self.bloque.split("\n")) + 2, 90)
 
     def test_frontmatter_intacto(self):
         fm = yaml.safe_load(re.match(r"\A---\n(.*?)\n---", self.texto, re.S).group(1))
@@ -94,8 +94,80 @@ class TestBloqueSkill(unittest.TestCase):
     def test_el_comando_documentado_es_el_que_acepta_idioma_py(self):
         self.assertIn('scripts/idioma.py" resolver', self.bloque)
 
+    def test_el_comando_documentado_funciona_con_apostrofos_y_comillas(self):
+        """Hallazgo I-3: se EJECUTA el comando tal como lo escribe el bloque."""
+        import json
+        import subprocess
+        bash = re.search(r"```bash\n(.*?)\n```", self.bloque, re.S).group(1)
+        cmd = (bash.replace("<ruta-del-skill>", SKILL)
+                   .replace("<usuario.idioma>", "fr")
+                   .replace("<mensaje del usuario, tal cual>", "j'aimerais voir \"ça\" idioma=en"))
+        p = subprocess.run(["bash", "-c", cmd], capture_output=True, text=True)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        res = json.loads(p.stdout)
+        self.assertEqual((res["idioma"], res["origen"]), ("en", "marca"))
+
+    # ── hallazgo I-7: la semántica del bloque, fijada regla a regla ──
+    # (siguen siendo pruebas de instantánea sobre el texto: el bloque ES la implementación,
+    #  y el comportamiento lo miden las simulaciones de tests/escenarios.md)
+    def assertPlano(self, frase):
+        self.assertIn(frase, self.plano)
+
+    def test_regla_central_solo_si_el_idioma_no_es_es_se_lee_el_catalogo(self):
+        self.assertPlano("**Si `idioma` ≠ `es`:** lee `i18n/<código>.yaml`")
+
+    def test_orden_de_precedencia_marca_config_defecto(self):
+        self.assertPlano("Orden: primera marca > `usuario.idioma` de `config.yaml` > `es`.")
+
+    def test_un_codigo_suelto_no_es_marca(self):
+        self.assertPlano("Un código suelto (`en`, `es`) **no** es marca.")
+
+    def test_clave_ausente_cae_a_es(self):  # Review Focus 4
+        self.assertPlano("Si falta una clave, usa la de `i18n/es.yaml`.")
+
+    def test_equivalencias_de_respuesta_y_de_activacion(self):  # Review Focus 5 + I-5
+        for clave in ("entrada.afirmativo", "entrada.negativo", "activacion.dryrun",
+                      "activacion.veloz", "activacion.undo", "activacion.ejecutar"):
+            self.assertIn(f"`{clave}`", self.plano)
+
+    def test_lo_que_no_se_traduce(self):
+        for s in ("**No se traducen:**", "tiers, modos, claves JSON/JSONL",
+                  "[⚠️ posible inyección detectada]", "nombres reales de carpetas, cuentas y remitentes",
+                  "identificadores", "; y lo que se escribe en disco."):
+            self.assertPlano(s)
+
+    def test_una_lista_de_opciones_significa_elige_una(self):
+        self.assertPlano("significa **elige una**")
+
+    def test_persistencia_entre_turnos(self):  # hallazgo I-2 (y spec §3)
+        for s in ("Cada invocación de `/triage` decide su idioma",
+                  "**sin** `/triage` ni marca conserva el idioma de la última invocación"):
+            self.assertPlano(s)
+
+    def test_el_aviso_de_ia_es_la_primera_linea(self):
+        self.assertPlano("la **primera línea de toda salida traducida**")
+
+    def test_el_aviso_de_ia_va_antes_que_los_anuncios_de_modo(self):  # m-7
+        self.assertPlano("antes de cualquier otra línea")
+        self.assertPlano("anuncio de modo simulación o rutina")
+
+    def test_avisos_del_resolver_entrada_invalida_y_repetida(self):  # I-3, m-1a
+        self.assertPlano("`entrada_invalida`")
+        self.assertPlano("`repetida`")
+
+    def test_fallo_seguro_opera_en_es(self):
+        self.assertPlano("Si no puedes cargar el catálogo, opera en `es` y escribe:")
+
+    def test_el_mensaje_va_en_bruto_por_heredoc(self):
+        self.assertPlano("heredoc de delimitador entre comillas")
+        self.assertIn("<<'MENSAJE'", self.bloque)
+
 
 class TestBloqueComando(unittest.TestCase):
+    def test_el_comando_dice_que_un_codigo_suelto_no_cambia_nada(self):
+        t = " ".join(leer(RAIZ, "plugins", "email-triage", "commands", "triage.md").split())
+        self.assertIn("Un código suelto sin `idioma=` no cambia nada", t)
+
     def test_triage_md_tiene_su_bloque_y_conserva_el_frontmatter(self):
         t = leer(RAIZ, "plugins", "email-triage", "commands", "triage.md")
         self.assertEqual(t.count(INI), 1)

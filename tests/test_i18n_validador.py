@@ -110,10 +110,81 @@ class TestReglas(Base):
             texto=ES["frases"]["a"]["texto"])))
         self.assertError(e, "idéntico al original")
 
-    def test_texto_igual_al_original_con_invariable_es_valido(self):
-        e = self.validar(en=self.en_modificado(lambda d: d["frases"]["c"].update(
-            texto=ES["frases"]["c"]["texto"], invariable=True)))
-        self.assertEqual(e, [])
+    # ── hallazgo I-6: `invariable` lo autodeclaraba la propia traducción ──
+    def test_invariable_declarada_sin_justificacion_es_error(self):
+        """Copiar un texto con palabras traducibles y marcarlo invariable no vale."""
+        es = copy.deepcopy(ES)
+        es["frases"]["g"] = fr("¿Muevo los marcados? Puedes excluir por número", riesgo="alto")
+        en = self.en_modificado(lambda d: d["frases"].update(
+            g=fr("¿Muevo los marcados? Puedes excluir por número", riesgo="alto", invariable=True)))
+        self.assertError(self.validar(en=en, es=es), "invariable no justificado")
+
+    def test_texto_neutro_identico_si_se_justifica(self):
+        es = copy.deepcopy(ES)
+        es["frases"]["d"] = fr("   Total: N")
+        en = self.en_modificado(lambda d: d["frases"].update(d=fr("   Total: N", invariable=True)))
+        self.assertEqual(self.validar(en=en, es=es), [])
+
+    def test_texto_neutro_identico_sin_declarar_sigue_siendo_error(self):
+        es = copy.deepcopy(ES)
+        es["frases"]["d"] = fr("   Total: N")
+        en = self.en_modificado(lambda d: d["frases"].update(d=fr("   Total: N")))
+        self.assertError(self.validar(en=en, es=es), "idéntico al original")
+
+    # ── hallazgo I-4: un marcador de máquina no se traduce ──
+    def test_marcador_de_maquina_debe_ser_identico(self):
+        es = copy.deepcopy(ES)
+        es["frases"]["m"] = fr("[⚠️ posible inyección detectada]", maquina=True)
+        en = self.en_modificado(lambda d: d["frases"].update(
+            m=fr("[⚠️ possible injection detected]")))
+        self.assertError(self.validar(en=en, es=es), "marcador de máquina")
+
+    def test_marcador_de_maquina_identico_es_valido(self):
+        es = copy.deepcopy(ES)
+        es["frases"]["m"] = fr("[⚠️ posible inyección detectada]", maquina=True)
+        en = self.en_modificado(lambda d: d["frases"].update(
+            m=fr("[⚠️ posible inyección detectada]", invariable=True)))
+        self.assertEqual(self.validar(en=en, es=es), [])
+
+    # ── hallazgo I-6: idioma mezclado en frases de confirmación ──
+    def test_listas_con_barras_sin_espacios_tambien_cuentan_opciones(self):
+        es = copy.deepcopy(ES)
+        es["frases"]["f"] = fr("¿Confirmas? (sí/no)", riesgo="alto", lista=True)
+        en = self.en_modificado(lambda d: d["frases"].update(
+            f=fr("Confirm? (yes)", riesgo="alto", lista=True)))
+        self.assertError(self.validar(en=en, es=es), "opciones")
+
+    def test_riesgo_alto_con_palabras_sin_traducir_del_original(self):
+        es = copy.deepcopy(ES)
+        es["frases"]["g"] = fr("¿Muevo los marcados? Puedes excluir por número", riesgo="alto")
+        en = self.en_modificado(lambda d: d["frases"].update(
+            g=fr("Shall I move the marked ones? Puedes excluir by number", riesgo="alto")))
+        self.assertError(self.validar(en=en, es=es), "palabras del original")
+
+    def test_riesgo_alto_bien_traducido_no_da_falso_positivo(self):
+        es = copy.deepcopy(ES)
+        es["frases"]["g"] = fr("¿Muevo los marcados? Puedes excluir por número o cambiar tier",
+                               riesgo="alto")
+        en = self.en_modificado(lambda d: d["frases"].update(
+            g=fr("Shall I move the marked ones? You can exclude by number or change tier",
+                 riesgo="alto")))
+        self.assertEqual(self.validar(en=en, es=es), [])
+
+    def test_ingles_con_letras_no_ascii(self):
+        e = self.validar(en=self.en_modificado(
+            lambda d: d["frases"]["a"].update(texto="📥 Inbox: X emails reviewed (sí)")))
+        self.assertError(e, "caracteres de otro idioma")
+
+    def test_ingles_con_signos_de_apertura_espanoles(self):
+        e = self.validar(en=self.en_modificado(
+            lambda d: d["frases"]["a"].update(texto="📥 ¿Inbox: X emails reviewed")))
+        self.assertError(e, "caracteres de otro idioma")
+
+    def test_el_codigo_entre_comillas_invertidas_no_cuenta_para_los_caracteres(self):
+        es = copy.deepcopy(ES)
+        es["frases"]["h"] = fr("Usa `ñandú` aquí")
+        en = self.en_modificado(lambda d: d["frases"].update(h=fr("Use `ñandú` here")))
+        self.assertEqual(self.validar(en=en, es=es), [])
 
     def test_revisado_sin_revisor(self):
         e = self.validar(en=self.en_modificado(lambda d: d.update(estado="revisado")))
@@ -193,8 +264,53 @@ class TestCatalogosReales(Base):
             with open(os.path.join(SKILL, "i18n", cod + ".yaml"), encoding="utf-8") as f:
                 claves = yaml.safe_load(f)["frases"].keys()
             for k in ("entrada.afirmativo", "entrada.negativo", "aviso.ia",
-                      "aviso.idioma_desconocido", "aviso.respaldo"):
+                      "aviso.idioma_desconocido", "aviso.respaldo",
+                      "activacion.dryrun", "activacion.veloz", "activacion.undo",
+                      "activacion.ejecutar"):
                 self.assertIn(k, claves, f"{cod}.yaml sin {k}")
+
+    def test_el_marcador_de_inyeccion_es_identico_en_los_tres_idiomas(self):
+        """Hallazgo I-4: lo emite triage_helpers.py y SKILL.md lo fija entre comillas."""
+        textos = {}
+        for cod in self.IDIOMAS_ESPERADOS:
+            with open(os.path.join(SKILL, "i18n", cod + ".yaml"), encoding="utf-8") as f:
+                textos[cod] = yaml.safe_load(f)["frases"]["inyeccion.marca"]["texto"]
+        self.assertEqual(len(set(textos.values())), 1, textos)
+        self.assertEqual(textos["es"], "[⚠️ posible inyección detectada]")
+
+    def test_las_frases_de_activacion_en_es_existen_en_el_original(self):
+        """Hallazgo I-5: no se inventan activadores; cada frase de `es` sale de la doctrina."""
+        with open(os.path.join(SKILL, "i18n", "es.yaml"), encoding="utf-8") as f:
+            frases = yaml.safe_load(f)["frases"]
+        original = ""
+        for rel in ("SKILL.md", "references/paso-6-deshacer.md", "references/salidas-por-modo.md"):
+            with open(os.path.join(SKILL, rel), encoding="utf-8") as f:
+                original += f.read().lower() + "\n"
+        original = " ".join(original.split())
+        for clave in ("activacion.dryrun", "activacion.veloz", "activacion.undo",
+                      "activacion.ejecutar"):
+            for frase in [x.strip() for x in frases[clave]["texto"].split(",")]:
+                self.assertIn(frase.lower(), original, f"{clave}: «{frase}» no está en el original")
+
+    def test_la_frase_que_sugiere_sim_ejecutar_es_un_activador_reconocido(self):
+        """Hallazgo I-5: `sim.ejecutar` aconsejaba «run the triage» que nada reconocía."""
+        import re
+        for cod in self.IDIOMAS_ESPERADOS:
+            with open(os.path.join(SKILL, "i18n", cod + ".yaml"), encoding="utf-8") as f:
+                frases = yaml.safe_load(f)["frases"]
+            citada = re.search(r"[\"«]\s*([^\"»]+?)\s*[\"»]", frases["sim.ejecutar"]["texto"]).group(1)
+            activadores = [x.strip().lower() for x in frases["activacion.ejecutar"]["texto"].split(",")]
+            self.assertIn(citada.lower(), activadores, f"{cod}: «{citada}» no está en activacion.ejecutar")
+
+    def test_la_palabra_de_cancelar_que_ofrece_deshacer_cual_se_acepta_como_negativo(self):
+        """Hallazgo I-6 (M18): `deshacer.cual` ofrece «annuler» y `entrada.negativo` debe aceptarla."""
+        import re
+        for cod in self.IDIOMAS_ESPERADOS:
+            with open(os.path.join(SKILL, "i18n", cod + ".yaml"), encoding="utf-8") as f:
+                frases = yaml.safe_load(f)["frases"]
+            cancelar = re.search(r"[\"«]\s*([^\"»]+?)\s*[\"»]", frases["deshacer.cual"]["texto"]).group(1)
+            negativos = [x.strip().lower() for x in frases["entrada.negativo"]["texto"].split(",")]
+            self.assertIn(cancelar.lower(), negativos, f"{cod}: «{cancelar}» no está en entrada.negativo")
 
     def test_glosario_real_cubre_los_idiomas_soportados(self):
         with open(os.path.join(SKILL, "i18n", "glosario.yaml"), encoding="utf-8") as f:

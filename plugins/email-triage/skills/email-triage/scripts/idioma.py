@@ -13,9 +13,13 @@ Orden: primera marca > `usuario.idioma` de config.yaml > `es`.
 Un código vacío, mal formado o sin catálogo no rompe nada: se ejecuta en `es` y
 se devuelve un aviso para que el skill lo muestre al principio de la salida.
 
-Uso:
-  echo '{"argumentos":"dry-run idioma=en","config_idioma":"es"}' \
-    | python3 idioma.py resolver [--i18n DIR]
+Uso (recomendado: el mensaje en bruto por stdin con un heredoc de delimitador entre
+comillas; así ningún apóstrofo ni comilla del mensaje rompe el comando):
+  python3 idioma.py resolver --texto [--config-idioma fr] <<'MENSAJE'
+  <mensaje del usuario, tal cual>
+  MENSAJE
+También acepta JSON: {"argumentos": "...", "config_idioma": "..."}. Si el JSON es
+inválido devuelve `es` con un aviso `entrada_invalida` (nunca en silencio).
 """
 import argparse
 import json
@@ -85,16 +89,31 @@ def resolver(argumentos, config_idioma, dir_i18n):
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Resolución del idioma de salida")
     sub = ap.add_subparsers(dest="cmd", required=True)
-    r = sub.add_parser("resolver", help="JSON por stdin -> JSON por stdout")
+    r = sub.add_parser("resolver", help="stdin -> JSON por stdout")
     r.add_argument("--i18n", default=DIR_I18N)
+    r.add_argument("--texto", action="store_true",
+                   help="stdin es el mensaje del usuario en bruto (sin JSON); evita que las "
+                        "comillas y apóstrofos del mensaje rompan el comando")
+    r.add_argument("--config-idioma", default=None,
+                   help="valor de usuario.idioma (solo con --texto)")
     args = ap.parse_args(sys.argv[1:] if argv is None else argv)
-    try:
-        datos = json.loads(sys.stdin.read() or "{}")
-    except ValueError:
-        datos = {}
-    if not isinstance(datos, dict):
-        datos = {}
-    salida = resolver(datos.get("argumentos"), datos.get("config_idioma"), args.i18n)
+    entrada = sys.stdin.read()
+    avisos_extra = []
+    if args.texto:
+        argumentos, config_idioma = entrada, args.config_idioma
+    else:
+        argumentos = config_idioma = None
+        try:
+            datos = json.loads(entrada or "{}")
+            if not isinstance(datos, dict):
+                raise ValueError("no es un objeto JSON")
+            argumentos, config_idioma = datos.get("argumentos"), datos.get("config_idioma")
+        except ValueError:
+            # Un JSON roto NO puede degradar a `es` en silencio: se avisa para que el
+            # skill aplique la regla a mano o use --texto.
+            avisos_extra.append({"motivo": "entrada_invalida", "codigo": ""})
+    salida = resolver(argumentos, config_idioma, args.i18n)
+    salida["avisos"] = salida["avisos"] + avisos_extra
     print(json.dumps(salida, ensure_ascii=False))
     return 0
 

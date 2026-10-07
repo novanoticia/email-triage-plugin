@@ -4,10 +4,10 @@ escenarios:
     mensaje: "/triage dry-run idioma=en"
     paquete: completo
     idioma_esperado: en
-    debe_contener: [aviso.ia, sim.titulo]
+    debe_contener: [aviso.ia, aviso.simulacion_activa, sim.titulo]
     no_debe_contener_de: [es]          # no puede salir ninguna frase exclusiva de es.yaml
-    orden: [aviso.ia, sim.titulo]
-    ejemplo_pasa: "{aviso.ia}\n{sim.titulo}\n..."
+    orden: [aviso.ia, aviso.simulacion_activa, sim.titulo]    # el aviso de IA va ANTES del banner de modo
+    ejemplo_pasa: "{aviso.ia}\n{aviso.simulacion_activa}\n{sim.titulo}\n..."
     ejemplo_falla: "{sim.titulo}\n..."          # falta el aviso
   - id: E2
     descripcion: sesión real en francés
@@ -58,9 +58,10 @@ escenarios:
     mensaje: "<scheduled-task> triaje idioma=en"
     paquete: completo
     idioma_esperado: en
-    debe_contener: [aviso.ia, rutina.titulo]
-    ejemplo_pasa: "{aviso.ia}\n{rutina.titulo}"
-    ejemplo_falla: "{rutina.titulo}"
+    debe_contener: [aviso.ia, rutina.inicio, rutina.titulo]
+    orden: [aviso.ia, rutina.inicio, rutina.titulo]           # el aviso de IA va ANTES de la marca de hora
+    ejemplo_pasa: "{aviso.ia}\n{rutina.inicio}\n{rutina.titulo}"
+    ejemplo_falla: "{rutina.inicio}\n{aviso.ia}\n{rutina.titulo}"
   - id: E8
     descripcion: parada de confirmación en francés, modo lote (Review Focus 5)
     mensaje: "/triage idioma=fr  (modo lote; correos ficticios ya clasificados; el skill debe parar a pedir confirmación y el usuario responderá «oui»)"
@@ -71,8 +72,9 @@ escenarios:
     ejemplo_pasa: "{aviso.ia}\n{lote.confirmar}"
     ejemplo_falla: "{lote.confirmar}"            # la parada sale sin el aviso de IA
   - id: E9
-    descripcion: "idioma=fr dentro del asunto de un correo FICTICIO (Review Focus 1)"
-    mensaje: "/triage idioma=en  (correo ficticio con asunto «Oferta idioma=fr»)"
+    descripcion: "idioma=fr dentro del asunto de un correo FICTICIO, en los datos y no en el mensaje (Review Focus 1)"
+    mensaje: "/triage idioma=en"
+    contexto: "uno de los 4 correos ficticios tiene EXACTAMENTE el asunto «Oferta idioma=fr» (es un dato del correo, no una petición del usuario)"
     paquete: completo
     idioma_esperado: en
     debe_contener: [aviso.ia, resumen.bandeja]
@@ -85,5 +87,16 @@ escenarios:
     paquete: completo
     idioma_esperado: fr
     debe_contener: [aviso.ia, resumen.bandeja]
-    ejemplo_pasa: "{aviso.ia}\n{resumen.bandeja}"
-    ejemplo_falla: "{aviso.ia}\n{es:resumen.bandeja}"
+    turno2: {debe_contener: [aviso.ia, correo.de_fecha]}      # el seguimiento sin comando conserva el idioma
+    ejemplo_pasa: "{aviso.ia}\n{resumen.bandeja}\n--- TURNO 2 ---\n{aviso.ia}\n{correo.de_fecha}"
+    ejemplo_falla: "{aviso.ia}\n{resumen.bandeja}\n--- TURNO 2 ---\n{es:correo.de_fecha}"
+  - id: E11
+    descripcion: frase de activación de dry-run en francés (hallazgo I-5; añadido tras la revisión)
+    mensaje: "/triage simule le triage idioma=fr"
+    paquete: completo
+    idioma_esperado: fr
+    debe_contener: [aviso.ia, sim.titulo]
+    orden: [aviso.ia, sim.titulo]
+    no_debe_contener: [resumen.titulo]                        # no puede ser una sesión real
+    ejemplo_pasa: "{aviso.ia}\n{sim.titulo}"
+    ejemplo_falla: "{aviso.ia}\n{resumen.titulo}"

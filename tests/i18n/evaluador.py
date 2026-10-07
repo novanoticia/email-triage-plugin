@@ -27,11 +27,22 @@ def _relleno(token):
 
 def patron(texto):
     """Regex que casa con la frase del catálogo con sus huecos y números rellenados."""
-    if re.fullmatch(r"\[[^\[\]\n]*\]", texto):
+    if re.fullmatch(r"\s*\[[^\[\]\n]*\]\s*", texto):
         return re.compile(re.escape(texto))  # un marcador entero entre corchetes es literal
     partes = _HUECO.split(texto)
     return re.compile("".join(re.escape(p) if i % 2 == 0 else _relleno(p)
                               for i, p in enumerate(partes)))
+
+
+def letras_fijas(texto):
+    """Nº de letras del texto fijo (sin huecos ni números rellenables) de una frase.
+
+    Una plantilla cuyo texto fijo es neutro («   ▲ [..] | [..]») casa con cualquier
+    respuesta y no sirve para detectar que se coló una frase de otro idioma.
+    """
+    if re.fullmatch(r"\s*\[[^\[\]\n]*\]\s*", texto):
+        return sum(c.isalpha() for c in texto)  # marcador entero: es literal
+    return sum(c.isalpha() for c in _HUECO.sub("", texto))
 
 
 def expandir(plantilla, catalogos, idioma):
@@ -56,8 +67,17 @@ def evaluar(esc, respuesta, catalogos):
     for otro in esc.get("no_debe_contener_de", []):
         for k, d in catalogos[otro].items():
             mio = cat.get(k, {}).get("texto")
-            if d["texto"] != mio and len(d["texto"]) > 12 and patron(d["texto"]).search(respuesta):
+            if (d["texto"] != mio and letras_fijas(d["texto"]) >= 8
+                    and patron(d["texto"]).search(respuesta)):
                 fallos.append(f"aparece una frase exclusiva de {otro}: {k}")
+    t2 = esc.get("turno2")
+    if t2:
+        _, sep, parte = respuesta.partition("--- TURNO 2 ---")
+        if not sep:
+            fallos.append("falta el turno 2")
+        else:
+            sub = {"id": esc.get("id"), "idioma_esperado": esc["idioma_esperado"], **t2}
+            fallos += [f"turno 2: {f}" for f in evaluar(sub, parte, catalogos)]
     orden = esc.get("orden")
     if orden:
         pos = []

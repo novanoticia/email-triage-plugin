@@ -76,7 +76,81 @@ MUTANTES = [
      'if token.startswith("["):\n        return r".+?"', 'if token.startswith("["):\n        return r"NUNCA"'),
     ("escenario E1: el ejemplo que debe fallar pasa", "tests/escenarios_i18n.yaml",
      'ejemplo_falla: "{sim.titulo}\\n..."          # falta el aviso',
-     'ejemplo_falla: "{aviso.ia}\\n{sim.titulo}\\n..."'),
+     'ejemplo_falla: "{aviso.ia}\\n{aviso.simulacion_activa}\\n{sim.titulo}\\n..."'),
+    # ── hallazgos de la revisión independiente: semántica del bloque (I-7) ──
+    ("bloque: la regla central se invierte (si idioma = es)", f"{SK}/SKILL.md",
+     "**Si `idioma` ≠ `es`:**", "**Si `idioma` = `es`:**"),
+    ("bloque: la config gana a la marca", f"{SK}/SKILL.md",
+     "primera marca > `usuario.idioma` de\n`config.yaml` > `es`.",
+     "`usuario.idioma` de\n`config.yaml` > primera marca > `es`."),
+    ("bloque: el fallo seguro opera en en", f"{SK}/SKILL.md",
+     "Si no puedes cargar el catálogo, opera en `es` y escribe:",
+     "Si no puedes cargar el catálogo, opera en `en` y escribe:"),
+    ("bloque: el aviso de IA pasa a ser la última línea", f"{SK}/SKILL.md",
+     "**primera línea de toda salida traducida**", "**última línea de toda salida traducida**"),
+    ("bloque: el aviso de IA va después de los banners", f"{SK}/SKILL.md",
+     "es `aviso.ia`, antes de", "es `aviso.ia`, después de"),
+    ("bloque: se borra la regla de clave ausente (Review Focus 4)", f"{SK}/SKILL.md",
+     "Si falta una clave, usa la de `i18n/es.yaml`. ", ""),
+    ("bloque: las equivalencias pasan a solo sí/no (Review Focus 5)", f"{SK}/SKILL.md",
+     "`entrada.afirmativo` y `entrada.negativo`,", "`sí` y `no`,"),
+    ("bloque: un código suelto también es marca", f"{SK}/SKILL.md",
+     "**no** es marca.", "**también** es marca."),
+    ("bloque: lo que se escribe en disco sí se traduce", f"{SK}/SKILL.md",
+     "; y lo que se escribe en disco.", "; y lo que se escribe en disco sí se traduce."),
+    ("bloque: el seguimiento sin comando vuelve a es (persistencia)", f"{SK}/SKILL.md",
+     "conserva el idioma de la última invocación", "vuelve a `es`"),
+    ("bloque: se deja de avisar de entrada_invalida", f"{SK}/SKILL.md",
+     "Si `avisos` trae `entrada_invalida`,", "Si `avisos` trae `nada`,"),
+    ("triage.md: se quita «un código suelto no cambia nada»", "plugins/email-triage/commands/triage.md",
+     " Un código suelto sin `idioma=` no cambia nada.", ""),
+    # ── catálogos: idioma mezclado y marcador de máquina (I-4, I-6) ──
+    ("en.yaml: respuesta afirmativa en español", f"{SK}/i18n/en.yaml",
+     "texto: yes, y, ok, go ahead", "texto: sí, y, ok, go ahead"),
+    ("en.yaml: la confirmación de deshacer mezcla (sí/no)", f"{SK}/i18n/en.yaml",
+     "texto: Confirm? (yes/no)", "texto: Confirm? (sí/no)"),
+    ("fr.yaml: el aviso de IA sale en inglés", f"{SK}/i18n/fr.yaml",
+     "texto: Traduction générée par une IA, non relue par un humain.",
+     "texto: AI-generated translation, not reviewed by a human."),
+    ("en.yaml: lote.confirmar copiado de es y marcado invariable", f"{SK}/i18n/en.yaml",
+     "texto: Shall I move the marked ones? You can exclude by number or change tier\n    origen: original\n    fuente: SKILL.md:737\n    riesgo: alto\n    lista: false\n    invariable: false",
+     "texto: ¿Muevo los marcados? Puedes excluir por número o cambiar tier\n    origen: original\n    fuente: SKILL.md:737\n    riesgo: alto\n    lista: false\n    invariable: true"),
+    ("fr.yaml: entrada.negativo pierde «annuler»", f"{SK}/i18n/fr.yaml",
+     "texto: non, n, annuler, stop", "texto: non, n, stop"),
+    ("en.yaml: correo.recomendacion con opciones en español", f"{SK}/i18n/en.yaml",
+     "texto: '🔵 Recommendation: MOVE → [destination] / LEAVE / ARCHIVE'",
+     "texto: '🔵 Recommendation: MOVER → [destination] / DEJAR / ARCHIVAR'"),
+    ("fr.yaml: lote.confirmar con «Puedes»", f"{SK}/i18n/fr.yaml",
+     "Vous pouvez en exclure par numéro", "Puedes en exclure par numéro"),
+    ("en.yaml: el marcador de inyección se traduce", f"{SK}/i18n/en.yaml",
+     "texto: '[⚠️ posible inyección detectada]'", "texto: '[⚠️ possible injection detected]'"),
+    # ── herramientas ──
+    ("resolver: un JSON inválido degrada sin avisar", f"{SK}/scripts/idioma.py",
+     'avisos_extra.append({"motivo": "entrada_invalida", "codigo": ""})', "pass"),
+    ("resolver: el modo --texto ignora el mensaje", f"{SK}/scripts/idioma.py",
+     "argumentos, config_idioma = entrada, args.config_idioma",
+     "argumentos, config_idioma = None, None"),
+    ("validador: deja de exigir marcadores de máquina idénticos", "scripts/i18n_validar.py",
+     'if o.get("maquina"):', "if False:"),
+    ("validador: deja de comparar palabras del original en riesgo alto", "scripts/i18n_validar.py",
+     'if o.get("riesgo") == "alto" and not o.get("maquina") and t != ot:', "if False:"),
+    ("validador: deja de vigilar letras no ASCII en inglés", "scripts/i18n_validar.py",
+     'if cod == "en" and any(c.isalpha() and ord(c) > 127 for c in fuera):', "if False:"),
+    ("validador: `invariable` vuelve a bastar con declararlo", "scripts/i18n_validar.py",
+     'if _residuo_de_letras(ot) == 0 and d.get("invariable", False):', 'if d.get("invariable", False):'),
+    ("extractor: no vuelca la marca maquina", "scripts/i18n_extraer.py",
+     '            salida[clave]["maquina"] = True', "            pass"),
+    ("línea base: deja de vigilar references/*", "scripts/i18n_baseline.py",
+     'f"{SKILL}/references/*", f"{SKILL}/scripts/*.py"]', 'f"{SKILL}/scripts/*.py"]'),
+    ("evaluador: el umbral de letras fijas se anula", "tests/i18n/evaluador.py",
+     'letras_fijas(d["texto"]) >= 8', 'letras_fijas(d["texto"]) >= 0'),
+    ("evaluador: se ignora el turno 2", "tests/i18n/evaluador.py",
+     't2 = esc.get("turno2")', "t2 = None"),
+    ("escenario E10: se quita el criterio del turno 2", "tests/escenarios_i18n.yaml",
+     "turno2: {debe_contener: [aviso.ia, correo.de_fecha]}", "turno2: {}"),
+    ("CI: el job i18n vuelve a un clon superficial", ".github/workflows/tests.yml",
+     "fetch-depth: 0        # historial completo: la línea base",
+     "fetch-depth: 1        # historial completo: la línea base"),
     # ── CI ──
     ("CI: el job i18n cambia de nombre (cambia el check)", ".github/workflows/tests.yml",
      "  i18n:\n    runs-on", "  i18nx:\n    runs-on"),
@@ -104,14 +178,32 @@ def _correr_pruebas(copia):
     return p.returncode
 
 
+class SuiteSinMutarRoja(Exception):
+    """La suite NO pasa antes de mutar: cualquier mutante «moriría» por ese fallo previo."""
+
+
+def _copiar(raiz, destino):
+    # Se copia .git: sin él, el test que contrasta la línea base con el commit base se
+    # omite y los mutantes sobre lo que se vigila sobrevivirían (hallazgo m-5).
+    shutil.copytree(raiz, destino, ignore=shutil.ignore_patterns("__pycache__", ".superpowers"))
+
+
 def ejecutar(mutantes, raiz=RAIZ, correr=_correr_pruebas):
-    """Devuelve la lista de descripciones de los mutantes que SOBREVIVEN."""
+    """Devuelve la lista de descripciones de los mutantes que SOBREVIVEN.
+
+    Antes de mutar nada se comprueba que la suite SIN mutar pasa en una copia: si no,
+    se aborta (auto-muerte: todos los mutantes «morirían» por un fallo que ya estaba).
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        copia = os.path.join(tmp, "r")
+        _copiar(raiz, copia)
+        if correr(copia) != 0:
+            raise SuiteSinMutarRoja("la suite sin mutar no pasa: arréglala antes de medir mutantes")
     sobreviven = []
     for desc, rel, buscar, nuevo in mutantes:
         with tempfile.TemporaryDirectory() as tmp:
             copia = os.path.join(tmp, "r")
-            shutil.copytree(raiz, copia, ignore=shutil.ignore_patterns(
-                ".git", "__pycache__", ".superpowers"))
+            _copiar(raiz, copia)
             ruta = os.path.join(copia, rel)
             with open(ruta, encoding="utf-8") as f:
                 t = f.read()
@@ -130,7 +222,11 @@ def codigo_de_salida(sobreviven):
 
 
 def main():
-    sobreviven = ejecutar(MUTANTES)
+    try:
+        sobreviven = ejecutar(MUTANTES)
+    except SuiteSinMutarRoja as e:
+        print(f"ABORTADO: {e}")
+        return 2
     print(f"MUTANTES: {len(MUTANTES)}, MATADOS: {len(MUTANTES) - len(sobreviven)}, "
           f"SOBREVIVEN: {sobreviven}")
     return codigo_de_salida(sobreviven)

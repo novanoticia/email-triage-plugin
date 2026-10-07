@@ -170,10 +170,43 @@ class TestCLI(Base):
         res = self.run_cli(json.dumps({"argumentos": "idioma=fr", "config_idioma": "es"}))
         self.assertEqual(res["idioma"], "fr")
 
-    def test_cli_con_basura_degrada(self):
-        for entrada in ("", "no es json", "[1,2]", "5"):
+    def test_cli_con_basura_degrada_pero_avisa(self):
+        """Hallazgo I-3 de la revisión: un JSON roto NO puede degradar a `es` en silencio."""
+        for entrada in ("no es json", "[1,2]", "5", '{"argumentos": "dis "bonjour" idioma=fr"}'):
             with self.subTest(entrada=entrada):
-                self.assertEqual(self.run_cli(entrada)["idioma"], "es")
+                res = self.run_cli(entrada)
+                self.assertEqual(res["idioma"], "es")
+                self.assertEqual(self.motivos(res), ["entrada_invalida"])
+
+    def test_cli_con_entrada_vacia_no_avisa(self):
+        res = self.run_cli("")
+        self.assertEqual((res["idioma"], res["avisos"]), ("es", []))
+
+    def run_texto(self, mensaje, *extra):
+        p = subprocess.run([sys.executable, SCRIPT, "resolver", "--texto", "--i18n", self.dir, *extra],
+                           input=mensaje, capture_output=True, text=True)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        return json.loads(p.stdout)
+
+    def test_modo_texto_acepta_apostrofos_y_comillas(self):
+        """El mensaje va en bruto por stdin (heredoc de comillas): en francés el apóstrofo es habitual."""
+        for msg in ("j'aimerais voir idioma=fr", 'dis "bonjour" idioma=fr',
+                    "l'été, \"oui\", idioma=fr\nsegunda línea", "idioma=fr $(whoami) `id` \\"):
+            with self.subTest(msg=msg):
+                res = self.run_texto(msg)
+                self.assertEqual((res["idioma"], res["origen"], res["avisos"]), ("fr", "marca", []))
+
+    def test_modo_texto_sin_marca_usa_la_config(self):
+        res = self.run_texto("revisa mi bandeja", "--config-idioma", "fr")
+        self.assertEqual((res["idioma"], res["origen"]), ("fr", "config"))
+
+    def test_modo_texto_vacio_y_sin_config_es_el_defecto(self):
+        res = self.run_texto("")
+        self.assertEqual((res["idioma"], res["origen"], res["avisos"]), ("es", "defecto", []))
+
+    def test_modo_texto_json_no_se_interpreta(self):
+        res = self.run_texto('{"config_idioma": "fr"}')
+        self.assertEqual(res["origen"], "defecto")  # en modo texto el JSON es solo texto
 
 
 if __name__ == "__main__":

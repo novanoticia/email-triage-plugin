@@ -9,7 +9,7 @@ RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DIR = os.path.join(RAIZ, "plugins", "email-triage", "skills", "email-triage", "i18n")
 _FUNC_ES = re.compile(r"\b(el|la|los|las|del|con|para|por|una|que|se|tu|sus|puede|correos?|bandeja|carpeta|hilo)\b", re.I)
 _FUNC_ES_PARA_FR = re.compile(r"\b(el|los|las|del|con|para|por|una|sus|puede|correos?|bandeja|carpeta|hilo)\b", re.I)
-_FUNC_EN_PARA_FR = re.compile(r"\b(the|your|you|with|from|and|of|inbox|emails?|folder|thread)\b", re.I)
+_FUNC_EN_PARA_FR = re.compile(r"\b(the|your|you|with|from|and|of|inbox|emails?|folder|thread|translation|generated|reviewed|human|not|by|for|this|that)\b", re.I)
 _FUNC_FR = re.compile(r"\b(le|les|des|du|une|votre|vos|avec|dans|sont|boîte|dossier)\b", re.I)
 
 
@@ -85,6 +85,25 @@ class TestMarcadoresFr(unittest.TestCase):
     def test_comillas_francesas_en_lugar_de_rectas(self):
         malas = [k for k, d in cargar("fr").items() if '"' in d["texto"]]
         self.assertEqual(malas, [], "usa « » en fr.yaml")
+
+
+class TestAvisoDeIa(unittest.TestCase):
+    """Hallazgo I-6 (M11): `fr.aviso.ia` en inglés pasaba todos los controles."""
+
+    def textos(self):
+        return {c: cargar(c)["aviso.ia"]["texto"] for c in ("es", "en", "fr")}
+
+    def test_es_distinto_en_cada_idioma(self):
+        self.assertEqual(len(set(self.textos().values())), 3)
+
+    def test_cada_idioma_lleva_su_marca(self):
+        t = self.textos()
+        self.assertIn("IA", t["es"])
+        self.assertIn("AI", t["en"])
+        self.assertRegex(t["fr"], r"\bIA\b")
+        self.assertIn("Traduction", t["fr"])
+        self.assertIn("translation", t["en"])
+        self.assertIn("Traducción", t["es"])
 
 
 class TestEstadoVigilado(unittest.TestCase):

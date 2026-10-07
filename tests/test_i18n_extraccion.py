@@ -146,8 +146,8 @@ class TestEsYaml(unittest.TestCase):
         with open(os.path.join(SKILL, "i18n", "es.yaml"), encoding="utf-8") as f:
             es = yaml.safe_load(f)
         self.assertEqual(es["estado"], "referencia")
-        self.assertEqual({k: v["texto"] for k, v in es["frases"].items()},
-                         {k: v["texto"] for k, v in self.frases.items()})
+        # entradas COMPLETAS (texto, fuente, riesgo, lista, invariable, maquina), no solo el texto
+        self.assertEqual(es["frases"], self.frases)
 
     def test_riesgo_alto_en_las_frases_que_confirman_acciones(self):
         for k in ("correo.recomendacion", "lote.confirmar", "deshacer.confirmar"):

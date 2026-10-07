@@ -363,6 +363,8 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # historial completo: la línea base se contrasta con git (commit 2c98507)
 
       - uses: actions/setup-python@v5
         with:

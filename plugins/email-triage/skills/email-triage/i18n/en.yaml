@@ -161,12 +161,12 @@ frases:
     lista: false
     invariable: false
   inyeccion.marca:
-    texto: '[⚠️ possible injection detected]'
+    texto: '[⚠️ posible inyección detectada]'
     origen: original
     fuente: SKILL.md:311
     riesgo: normal
     lista: false
-    invariable: false
+    invariable: true
   inyeccion.razon:
     texto: Contains patterns that try to manipulate the classifier
     origen: original
@@ -262,7 +262,7 @@ frases:
     origen: original
     fuente: SKILL.md:950
     riesgo: alto
-    lista: false
+    lista: true
     invariable: false
   resumen.scoring:
     texto: '📊 Scoring:'
@@ -374,14 +374,14 @@ frases:
     origen: original
     fuente: references/paso-6-deshacer.md:23
     riesgo: alto
-    lista: false
+    lista: true
     invariable: false
   deshacer.confirmar:
     texto: Confirm? (yes/no)
     origen: original
     fuente: references/paso-6-deshacer.md:29
     riesgo: alto
-    lista: false
+    lista: true
     invariable: false
   desglose.puntuacion:
     texto: '📊 Score: 6'
@@ -838,5 +838,33 @@ frases:
     origen: nuevo
     fuente: manifiesto
     riesgo: normal
+    lista: false
+    invariable: false
+  activacion.dryrun:
+    texto: simulate, dry-run, test without moving, what would you move
+    origen: nuevo
+    fuente: manifiesto
+    riesgo: normal
+    lista: false
+    invariable: false
+  activacion.veloz:
+    texto: fast triage, fast mode, quick and cheap
+    origen: nuevo
+    fuente: manifiesto
+    riesgo: normal
+    lista: false
+    invariable: false
+  activacion.undo:
+    texto: undo the triage, undo, revert the moves, put it back as it was
+    origen: nuevo
+    fuente: manifiesto
+    riesgo: alto
+    lista: false
+    invariable: false
+  activacion.ejecutar:
+    texto: run the triage, run
+    origen: nuevo
+    fuente: manifiesto
+    riesgo: alto
     lista: false
     invariable: false

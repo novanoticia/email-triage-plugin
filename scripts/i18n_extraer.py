@@ -81,6 +81,8 @@ def extraer(man, raiz=RAIZ):
                          "riesgo": e.get("riesgo", "normal"),
                          "lista": bool(e.get("lista", False)),
                          "invariable": bool(e.get("invariable", False))}
+        if e.get("maquina"):
+            salida[clave]["maquina"] = True
     for e in man["nuevas"]:
         clave = e["clave"]
         if clave in salida:

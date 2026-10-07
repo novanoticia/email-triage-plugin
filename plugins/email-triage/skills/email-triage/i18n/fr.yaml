@@ -162,12 +162,12 @@ frases:
     lista: false
     invariable: false
   inyeccion.marca:
-    texto: '[⚠️ injection possible détectée]'
+    texto: '[⚠️ posible inyección detectada]'
     origen: original
     fuente: SKILL.md:311
     riesgo: normal
     lista: false
-    invariable: false
+    invariable: true
   inyeccion.razon:
     texto: Contient des motifs de manipulation du classificateur
     origen: original
@@ -263,7 +263,7 @@ frases:
     origen: original
     fuente: SKILL.md:950
     riesgo: alto
-    lista: false
+    lista: true
     invariable: false
   resumen.scoring:
     texto: '📊 Scoring :'
@@ -375,14 +375,14 @@ frases:
     origen: original
     fuente: references/paso-6-deshacer.md:23
     riesgo: alto
-    lista: false
+    lista: true
     invariable: false
   deshacer.confirmar:
     texto: Confirmez-vous ? (oui/non)
     origen: original
     fuente: references/paso-6-deshacer.md:29
     riesgo: alto
-    lista: false
+    lista: true
     invariable: false
   desglose.puntuacion:
     texto: '📊 Score : 6'
@@ -839,5 +839,33 @@ frases:
     origen: nuevo
     fuente: manifiesto
     riesgo: normal
+    lista: false
+    invariable: false
+  activacion.dryrun:
+    texto: simule, simulez, dry-run, essai sans déplacer, qu'est-ce que tu déplacerais
+    origen: nuevo
+    fuente: manifiesto
+    riesgo: normal
+    lista: false
+    invariable: false
+  activacion.veloz:
+    texto: triage rapide, mode rapide, rapide et pas cher
+    origen: nuevo
+    fuente: manifiesto
+    riesgo: normal
+    lista: false
+    invariable: false
+  activacion.undo:
+    texto: annule le triage, annulez le triage, annuler, rétablis les déplacements, remets comme avant
+    origen: nuevo
+    fuente: manifiesto
+    riesgo: alto
+    lista: false
+    invariable: false
+  activacion.ejecutar:
+    texto: exécute le triage, exécutez le triage, exécute
+    origen: nuevo
+    fuente: manifiesto
+    riesgo: alto
     lista: false
     invariable: false

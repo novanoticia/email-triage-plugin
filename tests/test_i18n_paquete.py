@@ -82,6 +82,12 @@ class TestWorkflowI18n(unittest.TestCase):
         self.assertIn("-p \"test_i18n*.py\"", cmds)
         self.assertIn("tests.test_idioma", cmds)
 
+    def test_el_job_descarga_el_historial_para_contrastar_la_linea_base_con_git(self):
+        """Hallazgo m-5: con un clon superficial el test de la base contra el commit se omite y
+        un cambio en PATRONES (dejar de vigilar `references/*`) sobrevivía en el CI."""
+        checkout = next(s for s in self.job["steps"] if s.get("uses", "").startswith("actions/checkout@"))
+        self.assertEqual(checkout.get("with", {}).get("fetch-depth"), 0)
+
     def test_el_orden_es_extraer_y_luego_comparar(self):
         cmds = "\n".join(s.get("run", "") for s in self.job["steps"])
         self.assertLess(cmds.index("i18n_extraer.py generar"), cmds.index("git diff --exit-code"))

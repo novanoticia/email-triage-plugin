@@ -51,8 +51,9 @@ El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decis
 petición, por ejemplo `/triage dry-run idioma=fr`. Un código suelto como `en` o `es` no
 cuenta: chocaría con la preposición o el verbo españoles. También puedes fijarlo en tu
 config personal (`~/.email-triage/config.yaml`) con `usuario.idioma`; la marca de la
-petición manda sobre ese valor. Sin nada de eso, el plugin funciona en español
-exactamente como siempre. Un código vacío, mal formado o sin catálogo no rompe nada: se
+petición manda sobre ese valor. Un mensaje de seguimiento de la misma conversación, sin
+`/triage` ni marca, conserva el idioma de la última invocación. Sin nada de eso, el
+plugin funciona en español exactamente como siempre. Un código vacío, mal formado o sin catálogo no rompe nada: se
 avisa y se continúa en español.
 
 **Qué se traduce y qué no.** Se traduce lo que el skill te muestra (resumen de sesión,
@@ -100,12 +101,15 @@ sigue exactamente igual que en v3.13.5.
   borradores escritos por una IA.
 - `scripts/idioma.py`: resuelve el código de idioma con una regla única (marca explícita
   `idioma=`/`lang=` > `usuario.idioma` > `es`), normaliza `EN`, `en-US` o `fr_FR.UTF-8`, y
-  ante un código vacío, mal formado o sin catálogo avisa y continúa en español.
-- Catálogos `i18n/es.yaml`, `en.yaml` y `fr.yaml` con 118 frases (113 del original y 5
-  nuevas: avisos y respuestas aceptadas), `glosario.yaml` e `i18n/README.md`. Añadir un
+  ante un código vacío, mal formado o sin catálogo avisa y continúa en español. Recibe el
+  mensaje en bruto (`--texto`, por un heredoc) para que los apóstrofos del francés no
+  rompan el comando, y un JSON inválido ya no degrada a español en silencio.
+- Catálogos `i18n/es.yaml`, `en.yaml` y `fr.yaml` con 122 frases (113 del original y 9
+  nuevas: avisos, respuestas aceptadas y frases con las que se activan dry-run, modo
+  veloz, deshacer y ejecutar), `glosario.yaml` e `i18n/README.md`. Añadir un
   idioma es soltar un fichero: se descubre solo y un validador dice qué falta.
   `es.yaml` no se escribe a mano: lo genera un extractor que lee los literales reales.
-- Bloque delimitado de 58 líneas en `SKILL.md` y de 4 líneas en `commands/triage.md`, con
+- Bloque delimitado de 72 líneas en `SKILL.md` y de 4 líneas en `commands/triage.md`, con
   el alcance y la precedencia de la regla nombrados uno a uno.
 - Herramientas de desarrollo en `scripts/` (no viajan en el paquete): `i18n_extraer.py`,
   `i18n_validar.py`, `i18n_baseline.py` e `i18n_mutar.py`, y el job `i18n` en el CI.

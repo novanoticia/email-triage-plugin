@@ -40,7 +40,7 @@ frases:
   - {clave: tier.later, fichero: SKILL.md, patron: '^(- `🔵 READING_LATER` — azul: lectura futura)$'}
   - {clave: tier.archive, fichero: SKILL.md, patron: '^(- `⚪ ARCHIVE` — gris: descartable)$'}
   # ── SKILL.md · inyección, feedback, lote ──
-  - {clave: inyeccion.marca, fichero: SKILL.md, patron: '(\[⚠️ posible inyección detectada\])'}
+  - {clave: inyeccion.marca, fichero: SKILL.md, maquina: true, patron: '(\[⚠️ posible inyección detectada\])'}
   - {clave: inyeccion.razon, fichero: SKILL.md, tambien: [references/sanitizacion-manual.md],
      patron: '"(Contiene patrones de manipulación del clasificador)"'}
   - {clave: inyeccion.resumen, fichero: SKILL.md, tambien: [references/sanitizacion-manual.md],
@@ -58,7 +58,7 @@ frases:
   - {clave: resumen.tier_reply, fichero: SKILL.md, patron: '^(   🔴 REPLY_NEEDED: N correos → movidos a \[destino\])$'}
   - {clave: resumen.tier_review, fichero: SKILL.md, patron: '^(   🟡 REVIEW:       N correos → movidos a \[destino\])$'}
   - {clave: resumen.tier_later, fichero: SKILL.md, patron: '^(   🔵 READING_LATER: N correos → dejados en \[pendiente\])$'}
-  - {clave: resumen.tier_archive, fichero: SKILL.md, riesgo: alto,
+  - {clave: resumen.tier_archive, lista: true, fichero: SKILL.md, riesgo: alto,
      patron: '^(   ⚪ ARCHIVE:       N correos → movidos a \[destino_archive\] / archivados / dejados)$'}
   - {clave: resumen.scoring, fichero: SKILL.md, patron: '^(📊 Scoring:)$'}
   - {clave: resumen.puntuacion, fichero: SKILL.md, tambien: [references/salidas-por-modo.md],
@@ -89,9 +89,9 @@ frases:
      patron: '"(No puedo acceder a Gmail\. Verifica que el conector Gmail MCP esté activo en Configuración → Conectores)"'}
   - {clave: deshacer.sin_sesiones, fichero: references/paso-6-deshacer.md,
      patron: '"(No hay sesiones anteriores registradas\.)"'}
-  - {clave: deshacer.cual, fichero: references/paso-6-deshacer.md, riesgo: alto,
+  - {clave: deshacer.cual, lista: true, fichero: references/paso-6-deshacer.md, riesgo: alto,
      patron: '^\s*(¿Cuál quieres deshacer\? \(1/2/3 o "cancelar"\))$'}
-  - {clave: deshacer.confirmar, fichero: references/paso-6-deshacer.md, riesgo: alto,
+  - {clave: deshacer.confirmar, lista: true, fichero: references/paso-6-deshacer.md, riesgo: alto,
      patron: '^\s*(¿Confirmas\? \(sí/no\))$'}
 
   # ── SKILL.md · desglose de ejemplo y resumen ──
@@ -199,3 +199,9 @@ nuevas:           # claves sin literal original: origen «nuevo»; texto de refe
   - {clave: aviso.ia, texto: "Traducción generada por IA, sin revisión humana."}
   - {clave: aviso.idioma_desconocido, texto: "El idioma pedido no está disponible; se continúa en español. Idiomas disponibles:"}
   - {clave: aviso.respaldo, texto: "No se han podido cargar los catálogos de idioma; se continúa en español."}
+  # Frases con las que la persona activa un modo. Cada frase de `es` sale TAL CUAL de la
+  # doctrina original (un test lo comprueba): no se inventan activadores.
+  - {clave: activacion.dryrun, texto: "simula, dry-run, prueba sin mover, qué movería"}
+  - {clave: activacion.veloz, texto: "triaje veloz, modo veloz, rápido y barato"}
+  - {clave: activacion.undo, riesgo: alto, texto: "deshaz el triaje, undo, revierte los movimientos, vuelve a como estaba"}
+  - {clave: activacion.ejecutar, riesgo: alto, texto: "ejecuta el triaje, ejecuta"}

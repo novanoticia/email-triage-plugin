@@ -15,7 +15,7 @@ límites**. Distingue tres niveles y nunca los mezcla:
 
 Herramienta: `python3 scripts/i18n_mutar.py` (aplica cada mutación sobre una copia del
 repositorio y ejecuta toda la suite; un mutante que sobrevive es un hueco).
-Resultado el 2026-10-07: **27 mutantes**, 27 muertos, 0 sobreviven.
+Resultado el 2026-10-07: **59 mutantes**, 59 muertos, 0 sobreviven.
 
 | # | Mutante | Fichero | Resultado |
 |---|---------|---------|-----------|
@@ -45,7 +45,39 @@ Resultado el 2026-10-07: **27 mutantes**, 27 muertos, 0 sobreviven.
 | 24 | evaluador: debe_contener siempre pasa | `tests/i18n/evaluador.py` | muerto |
 | 25 | evaluador: los huecos entre corchetes no se rellenan | `tests/i18n/evaluador.py` | muerto |
 | 26 | escenario E1: el ejemplo que debe fallar pasa | `tests/escenarios_i18n.yaml` | muerto |
-| 27 | CI: el job i18n cambia de nombre (cambia el check) | `.github/workflows/tests.yml` | muerto |
+| 27 | bloque: la regla central se invierte (si idioma = es) | `plugins/email-triage/skills/email-triage/SKILL.md` | muerto |
+| 28 | bloque: la config gana a la marca | `plugins/email-triage/skills/email-triage/SKILL.md` | muerto |
+| 29 | bloque: el fallo seguro opera en en | `plugins/email-triage/skills/email-triage/SKILL.md` | muerto |
+| 30 | bloque: el aviso de IA pasa a ser la última línea | `plugins/email-triage/skills/email-triage/SKILL.md` | muerto |
+| 31 | bloque: el aviso de IA va después de los banners | `plugins/email-triage/skills/email-triage/SKILL.md` | muerto |
+| 32 | bloque: se borra la regla de clave ausente (Review Focus 4) | `plugins/email-triage/skills/email-triage/SKILL.md` | muerto |
+| 33 | bloque: las equivalencias pasan a solo sí/no (Review Focus 5) | `plugins/email-triage/skills/email-triage/SKILL.md` | muerto |
+| 34 | bloque: un código suelto también es marca | `plugins/email-triage/skills/email-triage/SKILL.md` | muerto |
+| 35 | bloque: lo que se escribe en disco sí se traduce | `plugins/email-triage/skills/email-triage/SKILL.md` | muerto |
+| 36 | bloque: el seguimiento sin comando vuelve a es (persistencia) | `plugins/email-triage/skills/email-triage/SKILL.md` | muerto |
+| 37 | bloque: se deja de avisar de entrada_invalida | `plugins/email-triage/skills/email-triage/SKILL.md` | muerto |
+| 38 | triage.md: se quita «un código suelto no cambia nada» | `plugins/email-triage/commands/triage.md` | muerto |
+| 39 | en.yaml: respuesta afirmativa en español | `plugins/email-triage/skills/email-triage/i18n/en.yaml` | muerto |
+| 40 | en.yaml: la confirmación de deshacer mezcla (sí/no) | `plugins/email-triage/skills/email-triage/i18n/en.yaml` | muerto |
+| 41 | fr.yaml: el aviso de IA sale en inglés | `plugins/email-triage/skills/email-triage/i18n/fr.yaml` | muerto |
+| 42 | en.yaml: lote.confirmar copiado de es y marcado invariable | `plugins/email-triage/skills/email-triage/i18n/en.yaml` | muerto |
+| 43 | fr.yaml: entrada.negativo pierde «annuler» | `plugins/email-triage/skills/email-triage/i18n/fr.yaml` | muerto |
+| 44 | en.yaml: correo.recomendacion con opciones en español | `plugins/email-triage/skills/email-triage/i18n/en.yaml` | muerto |
+| 45 | fr.yaml: lote.confirmar con «Puedes» | `plugins/email-triage/skills/email-triage/i18n/fr.yaml` | muerto |
+| 46 | en.yaml: el marcador de inyección se traduce | `plugins/email-triage/skills/email-triage/i18n/en.yaml` | muerto |
+| 47 | resolver: un JSON inválido degrada sin avisar | `plugins/email-triage/skills/email-triage/scripts/idioma.py` | muerto |
+| 48 | resolver: el modo --texto ignora el mensaje | `plugins/email-triage/skills/email-triage/scripts/idioma.py` | muerto |
+| 49 | validador: deja de exigir marcadores de máquina idénticos | `scripts/i18n_validar.py` | muerto |
+| 50 | validador: deja de comparar palabras del original en riesgo alto | `scripts/i18n_validar.py` | muerto |
+| 51 | validador: deja de vigilar letras no ASCII en inglés | `scripts/i18n_validar.py` | muerto |
+| 52 | validador: `invariable` vuelve a bastar con declararlo | `scripts/i18n_validar.py` | muerto |
+| 53 | extractor: no vuelca la marca maquina | `scripts/i18n_extraer.py` | muerto |
+| 54 | línea base: deja de vigilar references/* | `scripts/i18n_baseline.py` | muerto |
+| 55 | evaluador: el umbral de letras fijas se anula | `tests/i18n/evaluador.py` | muerto |
+| 56 | evaluador: se ignora el turno 2 | `tests/i18n/evaluador.py` | muerto |
+| 57 | escenario E10: se quita el criterio del turno 2 | `tests/escenarios_i18n.yaml` | muerto |
+| 58 | CI: el job i18n vuelve a un clon superficial | `.github/workflows/tests.yml` | muerto |
+| 59 | CI: el job i18n cambia de nombre (cambia el check) | `.github/workflows/tests.yml` | muerto |
 
 **Corrección importante (Tarea 12): la auto-muerte de los mutantes.** Las dos primeras
 ejecuciones de la herramienta (23 de 23 en la Tarea 10 y 27 de 27 en la Tarea 11) **no
@@ -75,9 +107,12 @@ reporta como «no aplicable» (cuenta como superviviente).
 | 12 | Auto-muerte: el test de aplicabilidad hacía «morir» a todo mutante (ver arriba) | `I18N_MUTANDO` + `TestLaCopiaMutadaNoSeAutoMata` |
 | 12 | Sobrevivía la aclaración de S0 de la sección Language / Langue (el changelog repite la frase) | `test_la_aclaracion_esta_en_la_seccion_language_langue…` |
 
+| 13 | Revisión independiente: 22 de sus 25 mutantes sobrevivían (el bloque de `SKILL.md` solo tenía pruebas de subcadenas sueltas; `invariable` autodeclarado; idioma mezclado en frases de riesgo alto) | pruebas semánticas del bloque, validador endurecido y 32 mutantes nuevos en la herramienta |
+| 13 | **Segunda auto-muerte**: con el registro de mutantes desactualizado, la suite fallaba en TODA copia y los «59 de 59» no valían | la herramienta se niega a medir si la suite sin mutar no pasa (`SuiteSinMutarRoja`) |
+
 ### Mutantes equivalentes razonados
 
-Ninguno entre los 27: cada uno cambia comportamiento observable por alguna prueba.
+Ninguno entre los 59: cada uno cambia comportamiento observable por alguna prueba.
 
 ## Qué tipo de pruebas son
 
@@ -109,13 +144,34 @@ rotos (`tests/test_i18n_validador.py`) y el extractor (`tests/test_i18n_extracci
 
 ### Preregistro
 
-Fecha: 2026-10-07, **antes de lanzar ningún simulador**. Los criterios se afinaron
-durante la Tarea 11 (E3 pasó a exigir también el título en español; E8 pasó a medir la
-pregunta de parada y el aviso en lugar de una respuesta que el texto no puede mostrar;
-el evaluador tolera huecos y números rellenados por el simulador). Esos ajustes son
+Fecha: 2026-10-07, **antes de lanzar ningún simulador**: E1–E10 con sus criterios. Los
+ajustes hechos durante la Tarea 11 (E3 exige también el título en español; E8 mide la
+pregunta de parada y el aviso; el evaluador tolera huecos y números rellenados) son
 anteriores a cualquier resultado y no cuentan como cambios posteriores.
 
-**Cambios posteriores** (un criterio modificado después de ver resultados): ninguno.
+**Cambios posteriores** (criterios o evaluador modificados DESPUÉS de ver resultados de la
+ronda 1; el registro anterior decía «ninguno» y era falso en cuanto se tocó el evaluador:
+hallazgo I-1 de la revisión independiente):
+
+1. **Cambio posterior 1 — evaluador (falsos positivos).** `tests/i18n/evaluador.py` marcaba
+   como «frase exclusiva de otro idioma» plantillas casi todo huecos (`   ▲ [..] | [..]`) y
+   marcadores entre corchetes con sangría, que casaban con cualquier texto. Afectó a E1, E4,
+   E5 y E9 (cuatro «FALLA» que eran respuestas correctas, leídas a mano). Se corrigió
+   (`letras_fijas` ≥ 8 y marcador entero entre corchetes = literal) con 4 tests.
+2. **Cambio posterior 2 — E10 mide el turno 2.** E10 pasaba con el turno 2 en español porque el
+   criterio solo miraba el turno 1: ahora exige `aviso.ia` y la etiqueta del idioma en el
+   turno 2 (`turno2` en el criterio y evaluador).
+3. **Cambio posterior 3 — E9 sin contaminación.** El mensaje preregistrado de E9 llevaba el
+   asunto «Oferta idioma=fr» DENTRO del mensaje del usuario, así que no probaba el riesgo real
+   (la marca en los datos). Ahora el mensaje es `/triage idioma=en` y el asunto va como contexto.
+4. **Cambio posterior 4 — E1 y E7 exigen el orden del aviso.** El aviso de IA debe ir antes del
+   banner de modo (E1) y antes de la marca de hora (E7): regla explícita añadida al bloque tras
+   las notas de los simuladores y el hallazgo m-7 de la revisión.
+5. **Cambio posterior 5 — E11 nuevo.** Frase de activación de dry-run en francés (hallazgo I-5):
+   escenario añadido tras la revisión, no preregistrado.
+
+Los cambios 2–5 solo **endurecen** criterios (no relajan ninguno); el 1 corrige un evaluador que
+fallaba respuestas correctas.
 
 | Id | Qué comprueba | Mensaje | Paquete | Idioma esperado |
 |----|---------------|---------|---------|-----------------|
@@ -127,13 +183,40 @@ anteriores a cualquier resultado y no cuentan como cambios posteriores.
 | E6 | solo SKILL.md, sin catálogos, pide fr | `/triage idioma=fr` | solo_skill | es |
 | E7 | modo rutina en inglés | `<scheduled-task> triaje idioma=en` | completo | en |
 | E8 | parada de confirmación en francés, modo lote (Review Focus 5) | `/triage idioma=fr` | completo | fr |
-| E9 | idioma=fr dentro del asunto de un correo FICTICIO (Review Focus 1) | `/triage idioma=en` | completo | en |
+| E9 | idioma=fr dentro del asunto de un correo FICTICIO, en los datos y no en el mensaje (Review Focus 1) | `/triage idioma=en` | completo | en |
 | E10 | seguimiento sin comando tras fr | `[turno 1] /triage idioma=fr  [turno 2] «y los de ayer?»` | completo | fr |
+| E11 | frase de activación de dry-run en francés (hallazgo I-5; añadido tras la revisión) | `/triage simule le triage idioma=fr` | completo | fr |
 
 ### Resultados
 
-- Ronda 1: (pendiente)
-- Ronda 2: (pendiente)
+**Ronda 1 (2026-10-07, 10 simuladores `sonnet`, paquete = carpeta de la skill en el commit
+`f8092d6`; E6 solo con `SKILL.md`).** Resultado del evaluador: tras el cambio posterior 1,
+10 de 10 «PASA»; con el evaluador original, 4 «FALLA» (todos falsos positivos). **Pasar los
+criterios no es lo importante**: lo que cuenta salió de leer las respuestas y las notas.
+
+| Id | Evaluador | Qué reveló la lectura de respuesta y notas |
+|----|-----------|--------------------------------------------|
+| E1 | PASA | El aviso de IA iba primero, pero el paquete no ordenaba aviso vs banner de simulación (ambigüedad citada). La «lista de opciones es un literal, no una instrucción» se leyó como «elige una». Plurales «1 emails» (igual que «1 correos» en `es`). |
+| E2 | PASA | Correcto en francés. Duda: ¿los nombres reales de carpeta y de criterios se traducen? (no estaba dicho). |
+| E3 | PASA | Aviso de idioma desconocido al principio y sesión en `es`: correcto. Formato de la lista de disponibles improvisado. |
+| E4 | PASA | `es` sin marca idéntico al original, sin leer catálogos. |
+| E5 | PASA | «en» suelto tratado como texto: `es`, sin catálogos. |
+| E6 | PASA | Con solo `SKILL.md`: línea multilingüe de respaldo y salida en `es`. Duda: ¿hace falta `aviso.ia` en el fallo? (no: nada sale traducido; ahora dicho). |
+| E7 | PASA | Aviso antes de las horas. Ambigüedad entre el anuncio inicial y la línea de resumen de rutina (dos claves). |
+| E8 | PASA | Parada en francés con aviso primero. El simulador declaró que trataría «oui» como afirmativo citando `entrada.afirmativo`. |
+| E9 | PASA | La marca del asunto se trató como dato. Pero el mensaje contaminaba el escenario (cambio 3) y `idioma.py` devolvió un aviso `repetida` que el paquete no decía si mostrar. |
+| E10 | PASA | **Hueco real:** el turno 2 (sin marca) salió en **español** y sin aviso de IA: el bloque no definía la persistencia entre turnos. El criterio original no lo medía (cambio 2). |
+
+Ronda 2: se repiten solo los escenarios afectados por los arreglos (E1, E2, E6, E7, E8, E9,
+E10 y E11 nuevo): **(pendiente de ejecutar en este momento)**.
+
+### Revisión independiente (Tarea 13)
+
+Revisor de contexto limpio, solo lectura, sobre `f8092d6`: **0 críticos, 7 importantes, 13
+menores**. De sus 25 mutantes propios, **22 sobrevivían** a la suite de entonces (3 muertos,
+todos por causas incidentales): las pruebas del bloque de `SKILL.md` eran de instantánea sobre
+subcadenas sueltas. Los 7 importantes se corrigen en la pasada de arreglos con pruebas
+previas (ver ledger en el informe final); los menores quedan como pendientes.
 
 ### Límites del método (léelos antes de fiarte de un resultado)
 

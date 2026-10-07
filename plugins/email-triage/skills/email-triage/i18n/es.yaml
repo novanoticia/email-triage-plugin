@@ -166,6 +166,7 @@ frases:
     riesgo: normal
     lista: false
     invariable: false
+    maquina: true
   inyeccion.razon:
     texto: Contiene patrones de manipulación del clasificador
     origen: original
@@ -261,7 +262,7 @@ frases:
     origen: original
     fuente: SKILL.md:950
     riesgo: alto
-    lista: false
+    lista: true
     invariable: false
   resumen.scoring:
     texto: '📊 Scoring:'
@@ -373,14 +374,14 @@ frases:
     origen: original
     fuente: references/paso-6-deshacer.md:23
     riesgo: alto
-    lista: false
+    lista: true
     invariable: false
   deshacer.confirmar:
     texto: ¿Confirmas? (sí/no)
     origen: original
     fuente: references/paso-6-deshacer.md:29
     riesgo: alto
-    lista: false
+    lista: true
     invariable: false
   desglose.puntuacion:
     texto: '📊 Puntuación: 6'
@@ -837,5 +838,33 @@ frases:
     origen: nuevo
     fuente: manifiesto
     riesgo: normal
+    lista: false
+    invariable: false
+  activacion.dryrun:
+    texto: simula, dry-run, prueba sin mover, qué movería
+    origen: nuevo
+    fuente: manifiesto
+    riesgo: normal
+    lista: false
+    invariable: false
+  activacion.veloz:
+    texto: triaje veloz, modo veloz, rápido y barato
+    origen: nuevo
+    fuente: manifiesto
+    riesgo: normal
+    lista: false
+    invariable: false
+  activacion.undo:
+    texto: deshaz el triaje, undo, revierte los movimientos, vuelve a como estaba
+    origen: nuevo
+    fuente: manifiesto
+    riesgo: alto
+    lista: false
+    invariable: false
+  activacion.ejecutar:
+    texto: ejecuta el triaje, ejecuta
+    origen: nuevo
+    fuente: manifiesto
+    riesgo: alto
     lista: false
     invariable: false
