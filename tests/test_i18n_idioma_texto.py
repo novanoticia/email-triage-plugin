@@ -106,7 +106,7 @@ class TestEstadoVigilado(unittest.TestCase):
     def test_la_afirmacion_del_readme_se_retira_si_algun_idioma_se_revisa(self):
         hay_revisado = any(d["estado"] == "revisado" for d in self.estados().values())
         with open(os.path.join(RAIZ, "README.md"), encoding="utf-8") as f:
-            readme = f.read().lower()
+            readme = " ".join(f.read().lower().split())  # el README reflujea las frases
         if hay_revisado:
             self.assertNotIn(self.AFIRMACION, readme,
                              "algún catálogo está revisado: retira la afirmación del README")

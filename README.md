@@ -41,6 +41,50 @@ La mayoría de clasificadores de correo preguntan "¿es urgente?". Este plugin p
 - ¿Está anclado a hechos verificables? (Entangled Truths)
 
 El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decisional, calidad epistémica, coste cognitivo y riesgo de manipulación.
+## Language / Langue
+
+> Elaborado con asistencia de IA; requiere revisión humana.
+
+**Idiomas disponibles:** español (`es`, por defecto), inglés (`en`) y francés (`fr`).
+
+**Cómo elegir el idioma.** Añade `idioma=en` o `idioma=fr` (también vale `lang=`) a tu
+petición, por ejemplo `/triage dry-run idioma=fr`. Un código suelto como `en` o `es` no
+cuenta: chocaría con la preposición o el verbo españoles. También puedes fijarlo en tu
+config personal (`~/.email-triage/config.yaml`) con `usuario.idioma`; la marca de la
+petición manda sobre ese valor. Sin nada de eso, el plugin funciona en español
+exactamente como siempre. Un código vacío, mal formado o sin catálogo no rompe nada: se
+avisa y se continúa en español.
+
+**Qué se traduce y qué no.** Se traduce lo que el skill te muestra (resumen de sesión,
+tablas, preguntas de confirmación, errores) y el agente responde en ese idioma. No se
+traducen los tiers (`REPLY_NEEDED`, `REVIEW`, `READING_LATER`, `ARCHIVE`), los modos, las
+claves JSON, lo que se escribe en disco (JSONL, telemetría) ni las instrucciones
+internas del skill.
+
+**Cómo añadir un idioma.** Se suelta un fichero `i18n/<código>.yaml` y se valida con
+`python3 scripts/i18n_validar.py`; los pasos están en
+[`i18n/README.md`](plugins/email-triage/skills/email-triage/i18n/README.md).
+
+**Estado de las traducciones — léelo antes de fiarte de ellas:**
+
+- Las traducciones `en` y `fr` las ha escrito una IA: **ninguna traducción está
+  revisada** por una persona. Las frases que confirman mover, archivar o deshacer
+  (`riesgo: alto` en el catálogo) necesitan revisión humana.
+- El **texto libre** que el modelo redacta en el momento (resúmenes, razones, notas) sale
+  en el idioma elegido y **no está revisado**.
+- La detección de inyección de prompts (S0) cubre **solo español e inglés** y **no cambia
+  con `idioma=`**: depende del idioma del correo recibido, no del de la interfaz. Pedir
+  `idioma=fr` no añade protección en francés; un correo hostil en cualquier otro idioma
+  puede evadirla con más facilidad. El escapado mecánico y el tratamiento del cuerpo como
+  dato siguen vigentes.
+- Los mensajes de error de los scripts siguen en español; el modelo los explica en el
+  idioma elegido.
+- Sin prueba en plataforma real (Claude Code / Cowork): hasta ahora solo pruebas
+  automáticas y simulaciones.
+
+Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
+relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
 ## Novedades en v3.13.5
 
 **Nuevo icono.** `icon.png` se sustituye por un diseño plano: un sobre que se
