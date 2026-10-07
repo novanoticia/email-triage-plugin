@@ -48,8 +48,10 @@ plugins/email-triage/                   # ← RAÍZ DEL PLUGIN (plugin root)
     config.yaml                         # PLANTILLA (el config del usuario vive fuera)
     config-veloz.yaml                   # overrides del modo veloz
     references/                         # applescript + procedimientos manuales
+    i18n/                               # catálogos de idioma (es generado, en/fr borrador-ia)
     scripts/                            # ← ÚNICA ubicación de los scripts
       triage_helpers.py                 # toda la lógica determinista
+      idioma.py                         # resuelve el código de idioma (i18n)
       test_triage_helpers.py            # tests de regresión (stdlib)
 ```
 
@@ -105,6 +107,13 @@ python3 -m unittest discover -s plugins/email-triage/skills/email-triage/scripts
 La suite es solo stdlib, sin red y sin efectos fuera de tempfiles (el
 recuento exacto lo imprime el propio runner). PyYAML solo
 lo necesitan los tests de `validar-config` / `_cargar_config`.
+
+Las pruebas i18n viven en `tests/` y se descubren con `-t .`:
+
+```bash
+python3 -m unittest discover -s tests -t .
+python3 scripts/i18n_validar.py
+```
 
 ## Los gates de CI (deben quedar en verde)
 
@@ -198,6 +207,37 @@ rompes la conformidad (gate #7) y el skill deja de cargar fuera de Claude.
   borran tras leerlos.
 - El **config del usuario vive FUERA del repo** en `~/.email-triage/config.yaml`.
   El `config.yaml` del repo es solo plantilla y se sobrescribe en cada update.
+
+## Multiidioma (i18n)
+
+El skill muestra lo que genera en `es` (por defecto, idéntico al original), `en` o `fr`.
+El idioma se pide con `idioma=<código>` / `lang=<código>` en el mensaje del usuario
+(un código suelto no cuenta); sin marca se lee `usuario.idioma` de `config.yaml`, y sin
+eso `es`. La regla vive en `scripts/idioma.py` y en un bloque de `SKILL.md`.
+
+- **Todo lo añadido va en bloques delimitados** `<!-- i18n:inicio -->` …
+  `<!-- i18n:fin -->` (con línea en blanco antes y después) en `SKILL.md`,
+  `commands/triage.md` y cualquier `references/*.md`. No toques el frontmatter del
+  `SKILL.md` (conjunto cerrado). La línea base `tests/i18n/linea_base.json` falla si
+  cambia una sola línea original fuera de esos bloques (salvo los tokens de versión).
+- **No escribas literales visibles nuevos fuera del catálogo.** Una frase nueva que la
+  persona vea es una clave de `i18n/*.yaml`; añádela al manifiesto
+  `scripts/i18n_fuentes.yaml` (es una regex sobre el original, nunca el texto copiado) y
+  regenera la referencia con `python3 scripts/i18n_extraer.py generar`. `i18n/es.yaml`
+  **no se edita a mano**.
+- **Valida los catálogos:** `python3 scripts/i18n_validar.py` (mismas claves, huecos,
+  tiers, emojis, glosario y estado coherente entre idiomas).
+- `triage_helpers.py` no se toca para esto; los mensajes de error de los scripts siguen
+  en español y el modelo los explica en el idioma elegido.
+- Las frases marcadas `riesgo: alto` (confirmar mover, archivar o deshacer) exigen
+  **revisión humana del diff**. `en` y `fr` son `borrador-ia`: ninguna traducción está
+  revisada. Un idioma sin revisor no puede figurar `revisado` (lo vigila un test).
+- **S0 y los idiomas.** La detección de inyección S0 cubre **solo español e inglés** y
+  **no cambia con `idioma=`**: es una propiedad del idioma del correo recibido, no de la
+  interfaz. Ampliar los patrones es un pendiente ajeno; no se amplían exenciones de
+  seguridad para los catálogos.
+- **Pendientes ajenos conocidos:** `SKILL.md` dice «13 core» (l.160, 614) y «12 core»
+  (l.1014); patrones S0 en otros idiomas; README completos en `en` y `fr`.
 
 ## Convenciones
 

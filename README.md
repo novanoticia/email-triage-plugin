@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.13.5
+# Email Triage Plugin v3.14.0
 
 Filtrado epistémico de correo electrónico para Claude Cowork y Claude Code.
 
@@ -41,6 +41,107 @@ La mayoría de clasificadores de correo preguntan "¿es urgente?". Este plugin p
 - ¿Está anclado a hechos verificables? (Entangled Truths)
 
 El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decisional, calidad epistémica, coste cognitivo y riesgo de manipulación.
+## Language / Langue
+
+> Elaborado con asistencia de IA; requiere revisión humana.
+
+**Idiomas disponibles:** español (`es`, por defecto), inglés (`en`) y francés (`fr`).
+
+**Cómo elegir el idioma.** Añade `idioma=en` o `idioma=fr` (también vale `lang=`) a tu
+petición, por ejemplo `/triage dry-run idioma=fr`. Un código suelto como `en` o `es` no
+cuenta: chocaría con la preposición o el verbo españoles. También puedes fijarlo en tu
+config personal (`~/.email-triage/config.yaml`) con `usuario.idioma`; la marca de la
+petición manda sobre ese valor. Un mensaje de seguimiento de la misma conversación, sin
+`/triage` ni marca, conserva el idioma de la última invocación. Sin nada de eso, el
+plugin funciona en español exactamente como siempre. Un código vacío, mal formado o sin catálogo no rompe nada: se
+avisa y se continúa en español.
+
+**Qué se traduce y qué no.** Se traduce lo que el skill te muestra (resumen de sesión,
+tablas, preguntas de confirmación, errores) y el agente responde en ese idioma. No se
+traducen los tiers (`REPLY_NEEDED`, `REVIEW`, `READING_LATER`, `ARCHIVE`), los modos, las
+claves JSON, lo que se escribe en disco (JSONL, telemetría) ni las instrucciones
+internas del skill.
+
+**Cómo añadir un idioma.** Se suelta un fichero `i18n/<código>.yaml` y se valida con
+`python3 scripts/i18n_validar.py`; los pasos están en
+[`i18n/README.md`](plugins/email-triage/skills/email-triage/i18n/README.md).
+
+**Estado de las traducciones — léelo antes de fiarte de ellas:**
+
+- Las traducciones `en` y `fr` las ha escrito una IA: **ninguna traducción está
+  revisada** por una persona. Las frases que confirman mover, archivar o deshacer
+  (`riesgo: alto` en el catálogo) necesitan revisión humana.
+- El **texto libre** que el modelo redacta en el momento (resúmenes, razones, notas) sale
+  en el idioma elegido y **no está revisado**.
+- La detección de inyección de prompts (S0) cubre **solo español e inglés** y **no cambia
+  con `idioma=`**: depende del idioma del correo recibido, no del de la interfaz. Pedir
+  `idioma=fr` no añade protección en francés; un correo hostil en cualquier otro idioma
+  puede evadirla con más facilidad. El escapado mecánico y el tratamiento del cuerpo como
+  dato siguen vigentes.
+- Los mensajes de error de los scripts siguen en español; el modelo los explica en el
+  idioma elegido.
+- Sin prueba en plataforma real (Claude Code / Cowork): hasta ahora solo pruebas
+  automáticas y simulaciones.
+
+Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
+relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.14.0
+
+> Elaborado con asistencia de IA; requiere revisión humana.
+
+**Soporte multiidioma: español (por defecto), inglés y francés.** Se pide con
+`idioma=en` o `idioma=fr` (ver [Language / Langue](#language--langue)); sin marca todo
+sigue exactamente igual que en v3.13.5.
+
+### Añadido
+
+- Idioma de salida `en` y `fr`: lo que el skill muestra (resumen de sesión, tablas,
+  preguntas de confirmación, errores) y la respuesta del agente salen en ese idioma. Son
+  borradores escritos por una IA.
+- `scripts/idioma.py`: resuelve el código de idioma con una regla única (marca explícita
+  `idioma=`/`lang=` > `usuario.idioma` > `es`), normaliza `EN`, `en-US` o `fr_FR.UTF-8`, y
+  ante un código vacío, mal formado o sin catálogo avisa y continúa en español. Recibe el
+  mensaje en bruto (`--texto`, por un heredoc) para que los apóstrofos del francés no
+  rompan el comando, y un JSON inválido ya no degrada a español en silencio.
+- Catálogos `i18n/es.yaml`, `en.yaml` y `fr.yaml` con 122 frases (113 del original y 9
+  nuevas: avisos, respuestas aceptadas y frases con las que se activan dry-run, modo
+  veloz, deshacer y ejecutar), `glosario.yaml` e `i18n/README.md`. Añadir un
+  idioma es soltar un fichero: se descubre solo y un validador dice qué falta.
+  `es.yaml` no se escribe a mano: lo genera un extractor que lee los literales reales.
+- Bloque delimitado de 72 líneas en `SKILL.md` y de 4 líneas en `commands/triage.md`, con
+  el alcance y la precedencia de la regla nombrados uno a uno.
+- Herramientas de desarrollo en `scripts/` (no viajan en el paquete): `i18n_extraer.py`,
+  `i18n_validar.py`, `i18n_baseline.py` e `i18n_mutar.py`, y el job `i18n` en el CI.
+- Pruebas: línea base del idioma por defecto (hash por línea del original), tabla de casos
+  del resolver, validador con catálogos rotos a propósito, 11 escenarios de simulación
+  preregistrados con su evaluador y 59 mutantes de sabotaje (registro en
+  `tests/escenarios.md`).
+
+### Cambiado
+
+- `usuario.idioma` de `config.yaml` ahora se lee; antes se ignoraba. Quien lo hubiera
+  cambiado a `en` o `fr` verá ese idioma.
+- Líneas del original modificadas: ninguna, salvo las de versión que mecaniza
+  `bump-version.sh` (metadata y H1 de `SKILL.md`, cabecera de `config.yaml`, docstring de
+  `triage_helpers.py`). Todo lo demás son adiciones. `triage_helpers.py` no se toca.
+
+### Limitaciones
+
+- Las traducciones `en` y `fr` las ha escrito una IA: **ninguna traducción está
+  revisada** por una persona. Las frases de confirmar mover, archivar o deshacer
+  (`riesgo: alto` en el catálogo) necesitan revisión humana. El francés es el idioma que
+  la IA redactora juzga con menos seguridad.
+- El **texto libre** que redacta el modelo (resúmenes, razones, notas) sale en el idioma
+  elegido y no está revisado.
+- La detección de inyección S0 cubre **solo español e inglés** y **no cambia con
+  `idioma=`**: depende del idioma del correo recibido, no del de la interfaz.
+- Los mensajes de error de los scripts siguen en español.
+- Sin prueba en plataforma real (Claude Code / Cowork): hasta ahora solo pruebas
+  automáticas y simulaciones con modelos, que no sustituyen a una ejecución real.
+- Hay ficheros nuevos en la carpeta de la skill: quien tenga una versión anterior debe
+  reinstalar el plugin completo.
+
 ## Novedades en v3.13.5
 
 **Nuevo icono.** `icon.png` se sustituye por un diseño plano: un sobre que se

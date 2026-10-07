@@ -19,4 +19,8 @@ Según el argumento:
 
 Lee el skill completo en `${CLAUDE_PLUGIN_ROOT}/skills/email-triage/SKILL.md` para criterios, tiers y protocolo.
 
+<!-- i18n:inicio -->
+**Idioma (opcional):** añade `idioma=en` o `idioma=fr` para recibir los resultados en ese idioma (por defecto, español). Un código suelto sin `idioma=` no cambia nada. Las traducciones son borradores de IA sin revisión humana.
+<!-- i18n:fin -->
+
 Contexto inicial: $ARGUMENTS

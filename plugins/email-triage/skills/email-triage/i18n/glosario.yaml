@@ -1,0 +1,10 @@
+# Glosario es -> en/fr. Si el texto `es` de una frase contiene el término `es`
+# (sin distinguir mayúsculas), la traducción debe contener el término de su idioma.
+# Lo comprueba scripts/i18n_validar.py. Para un idioma nuevo, añade su clave a cada término.
+terminos:
+  - {es: "bandeja de entrada", en: "inbox", fr: "boîte de réception"}
+  - {es: "puntuación", en: "score", fr: "score"}
+  - {es: "simulación", en: "simulation", fr: "simulation"}
+  - {es: "correo", en: "email", fr: "e-mail"}
+  - {es: "hilo", en: "thread", fr: "fil"}
+  - {es: "carpeta", en: "folder", fr: "dossier"}

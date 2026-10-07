@@ -1,0 +1,85 @@
+"""El idioma por defecto no cambia: línea base por hashes de línea."""
+import json
+import os
+import sys
+import unittest
+
+RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(RAIZ, "scripts"))
+import i18n_baseline as lb  # noqa: E402
+
+
+class TestQuitarBloques(unittest.TestCase):
+    def test_quita_bloque_y_una_linea_en_blanco(self):
+        ent = ["a", "", lb.INI, "x", lb.FIN, "", "b"]
+        self.assertEqual(lb.quitar_bloques(ent), ["a", "", "b"])
+
+    def test_bloque_sin_cerrar_falla(self):
+        with self.assertRaises(ValueError):
+            lb.quitar_bloques(["a", lb.INI, "x"])
+
+    def test_fin_sin_inicio_falla(self):
+        with self.assertRaises(ValueError):
+            lb.quitar_bloques(["a", lb.FIN])
+
+    def test_texto_sin_bloques_no_cambia(self):
+        self.assertEqual(lb.quitar_bloques(["a", "b"]), ["a", "b"])
+
+
+class TestNormalizacionDeVersion(unittest.TestCase):
+    """El bump de versión es la única excepción: lo normalizado no puede ocultar otros cambios."""
+
+    def h(self, linea):
+        return lb.hash_linea(linea)
+
+    def test_misma_linea_con_distinta_version_da_el_mismo_hash(self):
+        pares = [('  version: "3.13.5"', '  version: "3.14.0"'),
+                 ("# Email Triage v3.13 — Filtrado", "# Email Triage v3.14 — Filtrado"),
+                 ("# EMAIL TRIAGE v3.13", "# EMAIL TRIAGE v3.14"),
+                 ("plugin email-triage (v3.13.5)", "plugin email-triage (v3.14.0)")]
+        for a, b in pares:
+            with self.subTest(a=a):
+                self.assertEqual(self.h(a), self.h(b))
+
+    def test_otros_numeros_no_se_normalizan(self):
+        for a, b in [("RESUMEN DE TRIAJE v3.0", "RESUMEN DE TRIAJE v3.1"),
+                     ("hasta 3.9 usuarios", "hasta 3.8 usuarios"),
+                     ("versión 13.13.5", "versión 13.14.5"),
+                     ("# Email Triage v3.13 — A", "# Email Triage v3.13 — B")]:
+            with self.subTest(a=a):
+                self.assertNotEqual(self.h(a), self.h(b))
+
+
+class TestLineaBase(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        with open(lb.RUTA_BASE, encoding="utf-8") as f:
+            cls.base = json.load(f)
+
+    def test_la_base_coincide_con_el_commit_base_si_esta_disponible(self):
+        import subprocess
+        try:
+            subprocess.run(["git", "cat-file", "-e", self.base["commit_base"] + "^{commit}"],
+                           cwd=RAIZ, check=True, capture_output=True)
+        except (OSError, subprocess.CalledProcessError):
+            self.skipTest("el commit base %s no está en este clon (¿clon superficial del CI?): "
+                          "la línea base solo se contrasta con git cuando existe" % self.base["commit_base"])
+        recien = lb.calcular(commit=self.base["commit_base"])
+        self.assertEqual(recien["ficheros"], self.base["ficheros"])
+
+    def test_hay_ficheros_en_la_base(self):
+        self.assertGreaterEqual(len(self.base["ficheros"]), 15)
+
+    def test_cada_fichero_original_conserva_sus_lineas(self):
+        for rel, esperado in self.base["ficheros"].items():
+            with self.subTest(fichero=rel):
+                actual = lb.hashes_de(os.path.join(RAIZ, rel))
+                if actual != esperado:
+                    n = next((i for i, (a, b) in enumerate(zip(actual, esperado)) if a != b),
+                             min(len(actual), len(esperado)))
+                    self.fail(f"{rel}: difiere desde la línea {n + 1} "
+                              f"(actual {len(actual)} líneas, base {len(esperado)})")
+
+
+if __name__ == "__main__":
+    unittest.main()

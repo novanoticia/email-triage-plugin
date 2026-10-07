@@ -1,0 +1,207 @@
+# Manifiesto de extracción i18n. Cada entrada declara fichero (relativo a la
+# carpeta de la skill) y una regex con UN grupo: el literal es ese grupo en la
+# ÚNICA coincidencia real. Nunca se copia texto aquí: si una regex no coincide,
+# se corrige la regex leyendo el fichero, jamás el fichero.
+frases:
+  # ── SKILL.md · avisos de modo ──
+  - {clave: aviso.simulacion_activa, fichero: SKILL.md, cita: true,
+     patron: '(?s)^(> 🧪 \*\*Modo simulación activo\*\* — analizaré y clasificaré todos los correos\n> pero NO moveré ninguno\. Al final verás exactamente qué habría ocurrido\.)$'}
+  - {clave: aviso.rutina_inicio, fichero: SKILL.md, cita: true,
+     patron: '^\s*(> ⏱️ \*\*Inicio:\*\* HH:MM:SS — modo rutina \(silencioso con umbral\))$'}
+  - {clave: config.plantilla, fichero: SKILL.md, plano: true, riesgo: normal,
+     patron: '(?s)"(He encontrado solo la plantilla\..*?sobreviva a las\s+actualizaciones\?)"'}
+  # ── SKILL.md · PASO 3 urgentes ──
+  - {clave: urgentes.asunto, fichero: SKILL.md, patron: '^(📬 \[Asunto\])$'}
+  - {clave: urgentes.remitente, fichero: SKILL.md, patron: '^(   De: \[Remitente\])$'}
+  - {clave: urgentes.resumen, fichero: SKILL.md, patron: '^(📝 Resumen: \[2-3 líneas del contenido\])$'}
+  - {clave: urgentes.por_que_ahora, fichero: SKILL.md, patron: '^(⚡ Por qué ahora: \[ventana temporal\])$'}
+  - {clave: urgentes.recomendacion, fichero: SKILL.md, lista: true,
+     patron: '^(🔵 Recomendación: LEER AHORA / PUEDE ESPERAR)$'}
+  - {clave: urgentes.vacio, fichero: SKILL.md,
+     patron: '"(Nada en la bandeja requiere atención inmediata\.)"'}
+  # ── SKILL.md · 4.F presentación por correo ──
+  - {clave: correo.asunto, fichero: SKILL.md, patron: '^(📧 \[Asunto\])$'}
+  - {clave: correo.de_fecha, fichero: SKILL.md, patron: '^(   De: \[Remitente\] \| Fecha: \[DD/MM\])$'}
+  - {clave: correo.resumen, fichero: SKILL.md, patron: '^(📝 Resumen: \[2-3 líneas del contenido real\])$'}
+  - {clave: correo.puntuacion, fichero: SKILL.md,
+     patron: '^(📊 Puntuación: X \(desglose: decisional \+N, epistémica \+N, manipulación N, cognitivo N, acción \+N\))$'}
+  - {clave: correo.tier, fichero: SKILL.md, tambien: [references/paso-1c-hilos.md],
+     patron: '^(\[🔴\|🟡\|🔵\|⚪\] Tier: \[REPLY_NEEDED \| REVIEW \| READING_LATER \| ARCHIVE\])$'}
+  - {clave: correo.razones_positivas, fichero: SKILL.md, tambien: [references/paso-1c-hilos.md],
+     patron: '^(   ▲ \[razón positiva 1\] \| \[razón positiva 2\] \| \[razón positiva 3\])$'}
+  - {clave: correo.razones_negativas, fichero: SKILL.md, tambien: [references/paso-1c-hilos.md],
+     patron: '^(   ▼ \[razón negativa 1\] \| \[razón negativa 2\] \| \[razón negativa 3\])$'}
+  - {clave: correo.rationale, fichero: SKILL.md,
+     patron: '^(💬 \[Rationale en español llano: 1-2 frases\])$'}
+  - {clave: correo.recomendacion, fichero: SKILL.md, riesgo: alto, lista: true,
+     patron: '^(🔵 Recomendación: MOVER → \[destino\] / DEJAR / ARCHIVAR)$'}
+  - {clave: tier.reply, fichero: SKILL.md, patron: '^(- `🔴 REPLY_NEEDED` — rojo: acción urgente)$'}
+  - {clave: tier.review, fichero: SKILL.md, patron: '^(- `🟡 REVIEW` — amarillo: leer con atención)$'}
+  - {clave: tier.later, fichero: SKILL.md, patron: '^(- `🔵 READING_LATER` — azul: lectura futura)$'}
+  - {clave: tier.archive, fichero: SKILL.md, patron: '^(- `⚪ ARCHIVE` — gris: descartable)$'}
+  # ── SKILL.md · inyección, feedback, lote ──
+  - {clave: inyeccion.marca, fichero: SKILL.md, maquina: true, patron: '(\[⚠️ posible inyección detectada\])'}
+  - {clave: inyeccion.razon, fichero: SKILL.md, tambien: [references/sanitizacion-manual.md],
+     patron: '"(Contiene patrones de manipulación del clasificador)"'}
+  - {clave: inyeccion.resumen, fichero: SKILL.md, tambien: [references/sanitizacion-manual.md],
+     patron: '"(N correos con posible prompt injection descartados)"'}
+  - {clave: cuerpos.aviso, fichero: SKILL.md, cita: true,
+     patron: '(?s)^> "(N correos tenían cuerpo HTML/codificado.*?futuras sesiones\.)"$'}
+  - {clave: lote.confirmar, fichero: SKILL.md, riesgo: alto,
+     patron: '"(¿Muevo los marcados\? Puedes excluir por número o cambiar tier)"'}
+  # ── SKILL.md · PASO 5 resumen real ──
+  - {clave: resumen.titulo, fichero: SKILL.md, patron: '^(RESUMEN DE TRIAJE v3\.0)$'}
+  - {clave: resumen.bandeja, fichero: SKILL.md, patron: '^(📥 Bandeja de entrada: X correos revisados)$'}
+  - {clave: resumen.urgentes, fichero: SKILL.md, patron: '^(   → Y urgentes identificados)$'}
+  - {clave: resumen.pendiente, fichero: SKILL.md, patron: '^(📂 \[Carpeta pendiente\]: X correos revisados)$'}
+  - {clave: resumen.distribucion, fichero: SKILL.md, patron: '^(   Distribución por tier:)$'}
+  - {clave: resumen.tier_reply, fichero: SKILL.md, patron: '^(   🔴 REPLY_NEEDED: N correos → movidos a \[destino\])$'}
+  - {clave: resumen.tier_review, fichero: SKILL.md, patron: '^(   🟡 REVIEW:       N correos → movidos a \[destino\])$'}
+  - {clave: resumen.tier_later, fichero: SKILL.md, patron: '^(   🔵 READING_LATER: N correos → dejados en \[pendiente\])$'}
+  - {clave: resumen.tier_archive, lista: true, fichero: SKILL.md, riesgo: alto,
+     patron: '^(   ⚪ ARCHIVE:       N correos → movidos a \[destino_archive\] / archivados / dejados)$'}
+  - {clave: resumen.scoring, fichero: SKILL.md, patron: '^(📊 Scoring:)$'}
+  - {clave: resumen.puntuacion, fichero: SKILL.md, tambien: [references/salidas-por-modo.md],
+     patron: '^(   Puntuación media: X\.X \| Máxima: X \| Mínima: X)$'}
+  - {clave: resumen.ejes, fichero: SKILL.md,
+     patron: '^(   Ejes dominantes: \[eje con más peso en esta sesión\])$'}
+  - {clave: resumen.criterios, fichero: SKILL.md, patron: '^(📈 Criterios más activados:)$'}
+  - {clave: resumen.correcciones, fichero: SKILL.md,
+     patron: '^(🔄 Correcciones del usuario: N \(si hubo overrides\))$'}
+  - {clave: resumen.aprendidos, fichero: SKILL.md, patron: '^(🧠 Ajustes aprendidos aplicados:)$'}
+  # ── references/salidas-por-modo.md ──
+  - {clave: sim.titulo, fichero: references/salidas-por-modo.md,
+     patron: '^(🧪 SIMULACIÓN DE TRIAJE — NADA HA SIDO MOVIDO)$'}
+  - {clave: sim.fin, fichero: references/salidas-por-modo.md,
+     patron: '^(🧪 FIN DE SIMULACIÓN — tu bandeja no ha cambiado)$'}
+  - {clave: sim.ejecutar, fichero: references/salidas-por-modo.md, riesgo: alto,
+     patron: '^(💡 Para ejecutar este triaje en real: di "ejecuta el triaje" o)$'}
+  - {clave: rutina.titulo, fichero: references/salidas-por-modo.md,
+     patron: '^(RUTINA DE TRIAJE — \[fecha YYYY-MM-DD\])$'}
+  - {clave: rutina.movidos, fichero: references/salidas-por-modo.md, riesgo: alto,
+     patron: '^(✅ MOVIDOS automáticamente a \[destino\] \(score ≥ umbral_mover\):)$'}
+  - {clave: rutina.dudosos, fichero: references/salidas-por-modo.md, riesgo: alto,
+     patron: '^(🟡 CANDIDATOS DUDOSOS \(sin mover, requieren tu decisión\):)$'}
+  # ── references/manejo-errores.md y paso-6-deshacer.md ──
+  - {clave: error.mail_no_responde, fichero: references/manejo-errores.md,
+     patron: '"(Mail\.app no responde\. ¿Está abierto\?)"'}
+  - {clave: error.gmail_no_disponible, fichero: references/manejo-errores.md,
+     patron: '"(No puedo acceder a Gmail\. Verifica que el conector Gmail MCP esté activo en Configuración → Conectores)"'}
+  - {clave: deshacer.sin_sesiones, fichero: references/paso-6-deshacer.md,
+     patron: '"(No hay sesiones anteriores registradas\.)"'}
+  - {clave: deshacer.cual, lista: true, fichero: references/paso-6-deshacer.md, riesgo: alto,
+     patron: '^\s*(¿Cuál quieres deshacer\? \(1/2/3 o "cancelar"\))$'}
+  - {clave: deshacer.confirmar, lista: true, fichero: references/paso-6-deshacer.md, riesgo: alto,
+     patron: '^\s*(¿Confirmas\? \(sí/no\))$'}
+
+  # ── SKILL.md · desglose de ejemplo y resumen ──
+  - {clave: desglose.puntuacion, fichero: SKILL.md, patron: '^(📊 Puntuación: 6)$'}
+  - {clave: desglose.extra, fichero: SKILL.md, patron: '^(   Extra \(calibración\): \+1 \(dominio frecuente\))$'}
+  - {clave: desglose.aprendido, fichero: SKILL.md, patron: '^(   Aprendido:  \+2 \(remitente corregido 4 veces hacia arriba\))$'}
+  - {clave: desglose.epistemico, fichero: SKILL.md, patron: '^(   Epistémico: \+3 \(valor_decisional \+2, calidad_epistemica \+1\))$'}
+  - {clave: resumen.crit_pos1, fichero: SKILL.md, tambien: [references/salidas-por-modo.md],
+     patron: '^(   ▲ \[criterio positivo más frecuente\]: N veces)$'}
+  - {clave: resumen.crit_pos2, fichero: SKILL.md, patron: '^(   ▲ \[criterio positivo 2\]: N veces)$'}
+  - {clave: resumen.crit_neg1, fichero: SKILL.md, tambien: [references/salidas-por-modo.md],
+     patron: '^(   ▼ \[criterio negativo más frecuente\]: N veces)$'}
+  - {clave: resumen.crit_neg2, fichero: SKILL.md, patron: '^(   ▼ \[criterio negativo 2\]: N veces)$'}
+  - {clave: resumen.remitentes, fichero: SKILL.md, patron: '^(   Remitentes con boost: N \| con penalización: N)$'}
+  - {clave: resumen.keywords, fichero: SKILL.md, patron: '^(   Keywords ajustadas: N)$'}
+  - {clave: resumen.basado, fichero: SKILL.md, patron: '^(   Basado en X correcciones de los últimos 90 días)$'}
+  # ── references/salidas-por-modo.md · simulación ──
+  - {clave: sim.bandeja, fichero: references/salidas-por-modo.md, patron: '^(📥 Bandeja de entrada: X correos analizados \(sin cambios\))$'}
+  - {clave: sim.urgentes, fichero: references/salidas-por-modo.md, patron: '^(   → Y habrían requerido atención inmediata)$'}
+  - {clave: sim.pendiente, fichero: references/salidas-por-modo.md, patron: '^(📂 \[Carpeta pendiente\]: X correos analizados \(sin cambios\))$'}
+  - {clave: sim.habria, fichero: references/salidas-por-modo.md, patron: '^(   Lo que HABRÍA ocurrido:)$'}
+  - {clave: sim.tier_reply, fichero: references/salidas-por-modo.md, patron: '^(   🔴 REPLY_NEEDED: N correos → habrían ido a \[destino\])$'}
+  - {clave: sim.tier_review, fichero: references/salidas-por-modo.md, patron: '^(   🟡 REVIEW:       N correos → habrían ido a \[destino\])$'}
+  - {clave: sim.tier_later, fichero: references/salidas-por-modo.md, patron: '^(   🔵 READING_LATER: N correos → habrían quedado en \[pendiente\])$'}
+  - {clave: sim.tier_archive, fichero: references/salidas-por-modo.md, riesgo: alto, patron: '^(   ⚪ ARCHIVE:       N correos → habrían sido archivados)$'}
+  - {clave: sim.scoring, fichero: references/salidas-por-modo.md, patron: '^(📊 Scoring simulado:)$'}
+  - {clave: sim.ejes, fichero: references/salidas-por-modo.md, patron: '^(   Ejes dominantes: \[eje con más peso\])$'}
+  - {clave: sim.criterios, fichero: references/salidas-por-modo.md, patron: '^(📈 Criterios más activados en la simulación:)$'}
+  - {clave: sim.correcciones, fichero: references/salidas-por-modo.md, patron: '^(🔄 Correcciones del usuario durante la revisión: N)$'}
+  - {clave: sim.correcciones_nota, fichero: references/salidas-por-modo.md, patron: '^(   \[Estas correcciones SÍ se han guardado como datos de aprendizaje\])$'}
+  - {clave: sim.ajustes, fichero: references/salidas-por-modo.md, patron: '^(🧠 Ajustes aprendidos que se habrían aplicado:)$'}
+  - {clave: sim.ajustes_nota, fichero: references/salidas-por-modo.md, patron: '^(   \[igual que en sesión real, si los hay\])$'}
+  - {clave: sim.ejecutar2, fichero: references/salidas-por-modo.md, riesgo: alto,
+     patron: '^(   cambia `modo` en config\.yaml a `confirmacion`, `lote` o `silencioso`)$'}
+  # ── references/salidas-por-modo.md · rutina ──
+  - {clave: rutina.inicio, fichero: references/salidas-por-modo.md, patron: '^(⏱️ Inicio: HH:MM:SS — modo rutina)$'}
+  - {clave: rutina.fin, fichero: references/salidas-por-modo.md, patron: '^(⏱️ Fin:    HH:MM:SS — duración: M min S s)$'}
+  - {clave: rutina.bandeja, fichero: references/salidas-por-modo.md, patron: '^(📥 Bandeja de entrada: X correos analizados)$'}
+  - {clave: rutina.pendiente, fichero: references/salidas-por-modo.md, patron: '^(📂 \[Carpeta pendiente\]: X correos analizados)$'}
+  - {clave: rutina.movido_item, fichero: references/salidas-por-modo.md, riesgo: alto,
+     patron: '^(   N\. \[Asunto\] — \[Remitente\] — score X — \[razón breve, 1 línea\])$'}
+  - {clave: rutina.total_movidos, fichero: references/salidas-por-modo.md, patron: '^(   Total: N)$'}
+  - {clave: rutina.dudoso_item, fichero: references/salidas-por-modo.md, riesgo: alto, lista: true,
+     patron: '^(   N\. \[Asunto\] — \[Remitente\] — score X — recomendación tentativa: MOVER/DEJAR)$'}
+  - {clave: rutina.total_dudosos, fichero: references/salidas-por-modo.md, patron: '^(   Total: M)$'}
+  - {clave: rutina.dejados, fichero: references/salidas-por-modo.md, patron: '^(⚪ DEJADOS sin tocar: T correos)$'}
+  - {clave: rutina.desglose, fichero: references/salidas-por-modo.md, patron: '^(   Desglose por motivo:)$'}
+  - {clave: rutina.motivo_newsletter, fichero: references/salidas-por-modo.md, patron: '^(   - Newsletter genérica: N)$'}
+  - {clave: rutina.motivo_recuperable, fichero: references/salidas-por-modo.md, patron: '^(   - Información recuperable: N)$'}
+  - {clave: rutina.motivo_sin_accion, fichero: references/salidas-por-modo.md, patron: '^(   - Sin acción ni info útil: N)$'}
+  - {clave: rutina.motivo_otros, fichero: references/salidas-por-modo.md, patron: '^(   - Otros: N)$'}
+  - {clave: rutina.decisiones, fichero: references/salidas-por-modo.md, patron: '^(📝 Decisiones autónomas tomadas \(si las hubo\):)$'}
+  - {clave: rutina.decision_nota, fichero: references/salidas-por-modo.md,
+     patron: '^(   - \[nota breve sobre cualquier ambigüedad resuelta sin preguntar\])$'}
+  - {clave: rutina.notificacion, fichero: references/salidas-por-modo.md, patron: '"(Triaje: N movidos, M dudosos en T min)"'}
+  # ── references/paso-1c-hilos.md ──
+  - {clave: hilo.titulo, fichero: references/paso-1c-hilos.md, patron: '^(🧵 \[Asunto raíz\] — hilo de N mensajes)$'}
+  - {clave: hilo.participantes, fichero: references/paso-1c-hilos.md,
+     patron: '^(   Participantes: \[remitente1\], \[remitente2\]\.\.\. \| Último: \[DD/MM\] de \[remitente\])$'}
+  - {clave: hilo.esperando, fichero: references/paso-1c-hilos.md, lista: true,
+     patron: '^(   ⏳ Esperando tu respuesta: \[Sí / No\])$'}
+  - {clave: hilo.resumen, fichero: references/paso-1c-hilos.md, patron: '^(📝 Resumen del último mensaje: \[2-3 líneas\])$'}
+  - {clave: hilo.puntuacion, fichero: references/paso-1c-hilos.md,
+     patron: '^(📊 Puntuación: X \(decisional \+N, epistémica \+N, manipulación N, cognitivo N, acción \+N, hilo \+N\))$'}
+  - {clave: hilo.rationale, fichero: references/paso-1c-hilos.md,
+     patron: '^(💬 \[Rationale: 1-2 frases que mencionan explícitamente si hay respuesta pendiente\])$'}
+  - {clave: hilo.recomendacion, fichero: references/paso-1c-hilos.md, riesgo: alto, lista: true,
+     patron: '^(🔵 Recomendación: MOVER hilo completo \(N mensajes\) → \[destino\] / DEJAR / ARCHIVAR)$'}
+  # ── references/paso-1-doctrina-ejecucion.md ──
+  - {clave: calibracion.primera, fichero: references/paso-1-doctrina-ejecucion.md, cita: true,
+     patron: '(?s)^> (⏳ Primera ejecución: no hay calibración cacheada.*?reutilizarán la caché\.)$'}
+  # ── references/paso-6-deshacer.md y manejo-errores.md (resto) ──
+  - {clave: deshacer.titulo, fichero: references/paso-6-deshacer.md, patron: '^\s*(Sesiones disponibles para deshacer:)$'}
+  - {clave: deshacer.item1, fichero: references/paso-6-deshacer.md,
+     patron: '^\s*(1\. 20250407-143022 — 12 correos movidos \(hace 2 horas\))$'}
+  - {clave: deshacer.item2, fichero: references/paso-6-deshacer.md,
+     patron: '^\s*(2\. 20250406-091500 — 8 correos movidos \(ayer\))$'}
+  - {clave: deshacer.item3, fichero: references/paso-6-deshacer.md,
+     patron: '^\s*(3\. 20250405-162300 — 23 correos movidos \(hace 2 días\))$'}
+  - {clave: deshacer.revertir, fichero: references/paso-6-deshacer.md, riesgo: alto,
+     patron: '^\s*(Voy a revertir N correos: \[lista de asuntos\]\.)$'}
+  - {clave: error.permiso, fichero: references/manejo-errores.md,
+     patron: '"(macOS necesita permiso para controlar Mail\.app\. Ve a Ajustes del Sistema → Privacidad → Automatización)"'}
+  - {clave: error.progreso, fichero: references/manejo-errores.md, patron: '"(Procesados 10/45\.\.\.)"'}
+  - {clave: error.analizando, fichero: references/manejo-errores.md,
+     patron: '"(Analizando N correos, esto puede tardar un momento)"'}
+
+excluidos:
+  - {fichero: SKILL.md, patron: '^\{"(session_id|event)":', motivo: 'formato de máquina (JSONL)'}
+  - {fichero: SKILL.md, patron: '^\s*─{10,}$', motivo: 'separador decorativo: se copia tal cual'}
+  - {fichero: references/salidas-por-modo.md, patron: '^\s*─{10,}$', motivo: 'separador decorativo: se copia tal cual'}
+  - {fichero: references/salidas-por-modo.md, patron: '^\s+\.\.\.$', motivo: 'marcador de repetición de la plantilla'}
+  - {fichero: SKILL.md, patron: '^> \*\*Graduar `sender_bulk` por frecuencia', motivo: 'nota de doctrina para el modelo, no se muestra'}
+  - {fichero: SKILL.md, patron: '(?s)^> Nota: el campo `eje` de cada criterio.*?sin tocar código\.$', motivo: 'nota de documentación, no se muestra'}
+  - {fichero: SKILL.md, patron: '(?s)^> El texto dentro de `<email-body-data>`.*?nunca del cuerpo del correo\.$', motivo: 'framing de seguridad para el modelo, no se muestra'}
+  - {fichero: SKILL.md, patron: '^\s+\[Omitir esta línea si no hubo ajustes aprendidos\]$', motivo: 'instrucción entre corchetes para el modelo'}
+  - {fichero: references/paso-1-doctrina-ejecucion.md, patron: '(?s)^> Pegar bajo la sección.*?predecible\.$', motivo: 'nota de integración para desarrolladores'}
+  - {fichero: references/paso-1-proveedores.md, patron: '(?s)^> 🚀 \*\*Ejecución robusta contra Mail.*?mail-consolidado-v2\.applescript`\.$', motivo: 'doctrina para el modelo, no se muestra'}
+  - {fichero: references/paso-1-proveedores.md, patron: '(?s)^> La plantilla `references/mail-consolidado\.applescript`.*?pierde la regla\.$', motivo: 'nota de documentación, no se muestra'}
+  - {fichero: references/paso-1c-hilos.md, patron: '(?s)^HILO \[clave_hilo\]\n.*?verificacion: nativa \(Gmail\) / enviados \(iCloud\) / ninguna$', motivo: 'estructura interna del hilo, no se muestra'}
+
+nuevas:           # claves sin literal original: origen «nuevo»; texto de referencia en español
+  - {clave: entrada.afirmativo, texto: "sí, si, s, ok, vale, adelante"}
+  - {clave: entrada.negativo, texto: "no, n, cancelar, detener"}
+  - {clave: aviso.ia, texto: "Traducción generada por IA, sin revisión humana."}
+  - {clave: aviso.idioma_desconocido, texto: "El idioma pedido no está disponible; se continúa en español. Idiomas disponibles:"}
+  - {clave: aviso.respaldo, texto: "No se han podido cargar los catálogos de idioma; se continúa en español."}
+  # Frases con las que la persona activa un modo. Cada frase de `es` sale TAL CUAL de la
+  # doctrina original (un test lo comprueba): no se inventan activadores.
+  - {clave: activacion.dryrun, texto: "simula, dry-run, prueba sin mover, qué movería"}
+  - {clave: activacion.veloz, texto: "triaje veloz, modo veloz, rápido y barato"}
+  - {clave: activacion.undo, riesgo: alto, texto: "deshaz el triaje, undo, revierte los movimientos, vuelve a como estaba"}
+  - {clave: activacion.ejecutar, riesgo: alto, texto: "ejecuta el triaje, ejecuta"}

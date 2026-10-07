@@ -1,0 +1,871 @@
+# Traduction française rédigée par une IA. État : borrador-ia, SANS relecture humaine.
+# Le français est la langue que l’IA rédactrice juge avec le moins de certitude: relecture native indispensable.
+# Les phrases à riesgo: alto (confirmer déplacer, archiver, annuler) exigent une relecture humaine.
+estado: borrador-ia
+redactado_por: IA (Claude)
+revisado_por: null
+frases:
+  aviso.simulacion_activa:
+    texto: '🧪 **Mode simulation actif** — j’analyserai et classerai tous les e-mails
+
+      mais je n’en déplacerai AUCUN. À la fin, vous verrez exactement ce qui se serait passé.'
+    origen: original
+    fuente: SKILL.md:105
+    riesgo: normal
+    lista: false
+    invariable: false
+  aviso.rutina_inicio:
+    texto: ⏱️ **Début :** HH:MM:SS — mode routine (silencieux avec seuil)
+    origen: original
+    fuente: SKILL.md:125
+    riesgo: normal
+    lista: false
+    invariable: false
+  config.plantilla:
+    texto: J’ai trouvé uniquement le modèle. Voulez-vous que je crée votre config personnelle dans `~/.email-triage/config.yaml` afin qu’elle survive aux mises à jour ?
+    origen: original
+    fuente: SKILL.md:47
+    riesgo: normal
+    lista: false
+    invariable: false
+  urgentes.asunto:
+    texto: 📬 [Objet]
+    origen: original
+    fuente: SKILL.md:420
+    riesgo: normal
+    lista: false
+    invariable: false
+  urgentes.remitente:
+    texto: '   De : [Expéditeur]'
+    origen: original
+    fuente: SKILL.md:421
+    riesgo: normal
+    lista: false
+    invariable: false
+  urgentes.resumen:
+    texto: '📝 Résumé : [2-3 lignes du contenu]'
+    origen: original
+    fuente: SKILL.md:422
+    riesgo: normal
+    lista: false
+    invariable: false
+  urgentes.por_que_ahora:
+    texto: '⚡ Pourquoi maintenant : [fenêtre temporelle]'
+    origen: original
+    fuente: SKILL.md:423
+    riesgo: normal
+    lista: false
+    invariable: false
+  urgentes.recomendacion:
+    texto: '🔵 Recommandation : LIRE MAINTENANT / PEUT ATTENDRE'
+    origen: original
+    fuente: SKILL.md:424
+    riesgo: normal
+    lista: true
+    invariable: false
+  urgentes.vacio:
+    texto: Rien dans la boîte de réception ne demande une attention immédiate.
+    origen: original
+    fuente: SKILL.md:429
+    riesgo: normal
+    lista: false
+    invariable: false
+  correo.asunto:
+    texto: 📧 [Objet]
+    origen: original
+    fuente: SKILL.md:712
+    riesgo: normal
+    lista: false
+    invariable: false
+  correo.de_fecha:
+    texto: '   De : [Expéditeur] | Date : [DD/MM]'
+    origen: original
+    fuente: SKILL.md:713
+    riesgo: normal
+    lista: false
+    invariable: false
+  correo.resumen:
+    texto: '📝 Résumé : [2-3 lignes du contenu réel]'
+    origen: original
+    fuente: SKILL.md:714
+    riesgo: normal
+    lista: false
+    invariable: false
+  correo.puntuacion:
+    texto: '📊 Score : X (détail : décisionnel +N, épistémique +N, manipulation N, cognitif N, action +N)'
+    origen: original
+    fuente: SKILL.md:715
+    riesgo: normal
+    lista: false
+    invariable: false
+  correo.tier:
+    texto: '[🔴|🟡|🔵|⚪] Tier : [REPLY_NEEDED | REVIEW | READING_LATER | ARCHIVE]'
+    origen: original
+    fuente: SKILL.md:716
+    riesgo: normal
+    lista: false
+    invariable: false
+  correo.razones_positivas:
+    texto: '   ▲ [raison positive 1] | [raison positive 2] | [raison positive 3]'
+    origen: original
+    fuente: SKILL.md:717
+    riesgo: normal
+    lista: false
+    invariable: false
+  correo.razones_negativas:
+    texto: '   ▼ [raison négative 1] | [raison négative 2] | [raison négative 3]'
+    origen: original
+    fuente: SKILL.md:718
+    riesgo: normal
+    lista: false
+    invariable: false
+  correo.rationale:
+    texto: '💬 [Justification en langage clair : 1-2 phrases]'
+    origen: original
+    fuente: SKILL.md:719
+    riesgo: normal
+    lista: false
+    invariable: false
+  correo.recomendacion:
+    texto: '🔵 Recommandation : DÉPLACER → [destination] / LAISSER / ARCHIVER'
+    origen: original
+    fuente: SKILL.md:720
+    riesgo: alto
+    lista: true
+    invariable: false
+  tier.reply:
+    texto: '- `🔴 REPLY_NEEDED` — rouge : action urgente'
+    origen: original
+    fuente: SKILL.md:724
+    riesgo: normal
+    lista: false
+    invariable: false
+  tier.review:
+    texto: '- `🟡 REVIEW` — jaune : à lire attentivement'
+    origen: original
+    fuente: SKILL.md:725
+    riesgo: normal
+    lista: false
+    invariable: false
+  tier.later:
+    texto: '- `🔵 READING_LATER` — bleu : lecture différée'
+    origen: original
+    fuente: SKILL.md:726
+    riesgo: normal
+    lista: false
+    invariable: false
+  tier.archive:
+    texto: '- `⚪ ARCHIVE` — gris : jetable'
+    origen: original
+    fuente: SKILL.md:727
+    riesgo: normal
+    lista: false
+    invariable: false
+  inyeccion.marca:
+    texto: '[⚠️ posible inyección detectada]'
+    origen: original
+    fuente: SKILL.md:311
+    riesgo: normal
+    lista: false
+    invariable: true
+  inyeccion.razon:
+    texto: Contient des motifs de manipulation du classificateur
+    origen: original
+    fuente: SKILL.md:325
+    riesgo: normal
+    lista: false
+    invariable: false
+  inyeccion.resumen:
+    texto: N e-mails avec injection de prompt possible écartés
+    origen: original
+    fuente: SKILL.md:326
+    riesgo: normal
+    lista: false
+    invariable: false
+  cuerpos.aviso:
+    texto: 'N e-mails avaient un corps HTML/encodé sans texte brut extractible.
+
+      Ils ont été analysés d’après les métadonnées. Si vous voulez une meilleure précision pour ces expéditeurs,
+
+      configurez votre client de messagerie pour demander text/plain ou ajoutez-les à
+
+      `remitentes_prioritarios` pour forcer une lecture détaillée lors des prochaines sessions.'
+    origen: original
+    fuente: SKILL.md:363
+    riesgo: normal
+    lista: false
+    invariable: false
+  lote.confirmar:
+    texto: Dois-je déplacer ceux qui sont marqués ? Vous pouvez en exclure par numéro ou changer de tier
+    origen: original
+    fuente: SKILL.md:737
+    riesgo: alto
+    lista: false
+    invariable: false
+  resumen.titulo:
+    texto: RÉSUMÉ DU TRIAGE v3.0
+    origen: original
+    fuente: SKILL.md:939
+    riesgo: normal
+    lista: false
+    invariable: false
+  resumen.bandeja:
+    texto: '📥 Boîte de réception : X e-mails examinés'
+    origen: original
+    fuente: SKILL.md:941
+    riesgo: normal
+    lista: false
+    invariable: false
+  resumen.urgentes:
+    texto: '   → Y urgents identifiés'
+    origen: original
+    fuente: SKILL.md:942
+    riesgo: normal
+    lista: false
+    invariable: false
+  resumen.pendiente:
+    texto: '📂 [Dossier en attente] : X e-mails examinés'
+    origen: original
+    fuente: SKILL.md:944
+    riesgo: normal
+    lista: false
+    invariable: false
+  resumen.distribucion:
+    texto: '   Répartition par tier :'
+    origen: original
+    fuente: SKILL.md:946
+    riesgo: normal
+    lista: false
+    invariable: false
+  resumen.tier_reply:
+    texto: '   🔴 REPLY_NEEDED : N e-mails → déplacés vers [destination]'
+    origen: original
+    fuente: SKILL.md:947
+    riesgo: normal
+    lista: false
+    invariable: false
+  resumen.tier_review:
+    texto: '   🟡 REVIEW :       N e-mails → déplacés vers [destination]'
+    origen: original
+    fuente: SKILL.md:948
+    riesgo: normal
+    lista: false
+    invariable: false
+  resumen.tier_later:
+    texto: '   🔵 READING_LATER : N e-mails → laissés dans [en attente]'
+    origen: original
+    fuente: SKILL.md:949
+    riesgo: normal
+    lista: false
+    invariable: false
+  resumen.tier_archive:
+    texto: '   ⚪ ARCHIVE :       N e-mails → déplacés vers [destino_archive] / archivés / laissés'
+    origen: original
+    fuente: SKILL.md:950
+    riesgo: alto
+    lista: true
+    invariable: false
+  resumen.scoring:
+    texto: '📊 Scoring :'
+    origen: original
+    fuente: SKILL.md:952
+    riesgo: normal
+    lista: false
+    invariable: false
+  resumen.puntuacion:
+    texto: '   Score moyen : X.X | Maximum : X | Minimum : X'
+    origen: original
+    fuente: SKILL.md:953
+    riesgo: normal
+    lista: false
+    invariable: false
+  resumen.ejes:
+    texto: '   Axes dominants : [axe ayant le plus de poids dans cette session]'
+    origen: original
+    fuente: SKILL.md:954
+    riesgo: normal
+    lista: false
+    invariable: false
+  resumen.criterios:
+    texto: '📈 Critères les plus activés :'
+    origen: original
+    fuente: SKILL.md:956
+    riesgo: normal
+    lista: false
+    invariable: false
+  resumen.correcciones:
+    texto: '🔄 Corrections de l’utilisateur : N (en cas d’overrides)'
+    origen: original
+    fuente: SKILL.md:962
+    riesgo: normal
+    lista: false
+    invariable: false
+  resumen.aprendidos:
+    texto: '🧠 Ajustements appris appliqués :'
+    origen: original
+    fuente: SKILL.md:964
+    riesgo: normal
+    lista: false
+    invariable: false
+  sim.titulo:
+    texto: 🧪 SIMULATION DE TRIAGE — RIEN N’A ÉTÉ DÉPLACÉ
+    origen: original
+    fuente: references/salidas-por-modo.md:12
+    riesgo: normal
+    lista: false
+    invariable: false
+  sim.fin:
+    texto: 🧪 FIN DE LA SIMULATION — votre boîte n’a pas changé
+    origen: original
+    fuente: references/salidas-por-modo.md:42
+    riesgo: normal
+    lista: false
+    invariable: false
+  sim.ejecutar:
+    texto: 💡 Pour exécuter ce triage pour de bon, dites « exécute le triage » ou
+    origen: original
+    fuente: references/salidas-por-modo.md:39
+    riesgo: alto
+    lista: false
+    invariable: false
+  rutina.titulo:
+    texto: ROUTINE DE TRIAGE — [date YYYY-MM-DD]
+    origen: original
+    fuente: references/salidas-por-modo.md:58
+    riesgo: normal
+    lista: false
+    invariable: false
+  rutina.movidos:
+    texto: '✅ DÉPLACÉS automatiquement vers [destination] (score ≥ umbral_mover) :'
+    origen: original
+    fuente: references/salidas-por-modo.md:63
+    riesgo: alto
+    lista: false
+    invariable: false
+  rutina.dudosos:
+    texto: '🟡 CANDIDATS DOUTEUX (non déplacés, ils attendent votre décision) :'
+    origen: original
+    fuente: references/salidas-por-modo.md:68
+    riesgo: alto
+    lista: false
+    invariable: false
+  error.mail_no_responde:
+    texto: Mail.app ne répond pas. Est-il ouvert ?
+    origen: original
+    fuente: references/manejo-errores.md:24
+    riesgo: normal
+    lista: false
+    invariable: false
+  error.gmail_no_disponible:
+    texto: Je ne peux pas accéder à Gmail. Vérifiez que le connecteur Gmail MCP est actif dans Réglages → Connecteurs
+    origen: original
+    fuente: references/manejo-errores.md:25
+    riesgo: normal
+    lista: false
+    invariable: false
+  deshacer.sin_sesiones:
+    texto: Aucune session antérieure enregistrée.
+    origen: original
+    fuente: references/paso-6-deshacer.md:13
+    riesgo: normal
+    lista: false
+    invariable: false
+  deshacer.cual:
+    texto: Laquelle voulez-vous annuler ? (1/2/3 ou « annuler »)
+    origen: original
+    fuente: references/paso-6-deshacer.md:23
+    riesgo: alto
+    lista: true
+    invariable: false
+  deshacer.confirmar:
+    texto: Confirmez-vous ? (oui/non)
+    origen: original
+    fuente: references/paso-6-deshacer.md:29
+    riesgo: alto
+    lista: true
+    invariable: false
+  desglose.puntuacion:
+    texto: '📊 Score : 6'
+    origen: original
+    fuente: SKILL.md:513
+    riesgo: normal
+    lista: false
+    invariable: false
+  desglose.extra:
+    texto: '   Extra (calibration) : +1 (domaine fréquent)'
+    origen: original
+    fuente: SKILL.md:514
+    riesgo: normal
+    lista: false
+    invariable: false
+  desglose.aprendido:
+    texto: '   Appris :  +2 (expéditeur corrigé 4 fois à la hausse)'
+    origen: original
+    fuente: SKILL.md:515
+    riesgo: normal
+    lista: false
+    invariable: false
+  desglose.epistemico:
+    texto: '   Épistémique : +3 (valor_decisional +2, calidad_epistemica +1)'
+    origen: original
+    fuente: SKILL.md:516
+    riesgo: normal
+    lista: false
+    invariable: false
+  resumen.crit_pos1:
+    texto: '   ▲ [critère positif le plus fréquent] : N fois'
+    origen: original
+    fuente: SKILL.md:957
+    riesgo: normal
+    lista: false
+    invariable: false
+  resumen.crit_pos2:
+    texto: '   ▲ [critère positif 2] : N fois'
+    origen: original
+    fuente: SKILL.md:958
+    riesgo: normal
+    lista: false
+    invariable: false
+  resumen.crit_neg1:
+    texto: '   ▼ [critère négatif le plus fréquent] : N fois'
+    origen: original
+    fuente: SKILL.md:959
+    riesgo: normal
+    lista: false
+    invariable: false
+  resumen.crit_neg2:
+    texto: '   ▼ [critère négatif 2] : N fois'
+    origen: original
+    fuente: SKILL.md:960
+    riesgo: normal
+    lista: false
+    invariable: false
+  resumen.remitentes:
+    texto: '   Expéditeurs avec boost : N | avec pénalité : N'
+    origen: original
+    fuente: SKILL.md:965
+    riesgo: normal
+    lista: false
+    invariable: false
+  resumen.keywords:
+    texto: '   Mots-clés ajustés : N'
+    origen: original
+    fuente: SKILL.md:966
+    riesgo: normal
+    lista: false
+    invariable: false
+  resumen.basado:
+    texto: '   Basé sur X corrections des 90 derniers jours'
+    origen: original
+    fuente: SKILL.md:967
+    riesgo: normal
+    lista: false
+    invariable: false
+  sim.bandeja:
+    texto: '📥 Boîte de réception : X e-mails analysés (sans changement)'
+    origen: original
+    fuente: references/salidas-por-modo.md:14
+    riesgo: normal
+    lista: false
+    invariable: false
+  sim.urgentes:
+    texto: '   → Y auraient nécessité une attention immédiate'
+    origen: original
+    fuente: references/salidas-por-modo.md:15
+    riesgo: normal
+    lista: false
+    invariable: false
+  sim.pendiente:
+    texto: '📂 [Dossier en attente] : X e-mails analysés (sans changement)'
+    origen: original
+    fuente: references/salidas-por-modo.md:17
+    riesgo: normal
+    lista: false
+    invariable: false
+  sim.habria:
+    texto: '   Ce qui SE SERAIT passé :'
+    origen: original
+    fuente: references/salidas-por-modo.md:19
+    riesgo: normal
+    lista: false
+    invariable: false
+  sim.tier_reply:
+    texto: '   🔴 REPLY_NEEDED : N e-mails → seraient allés vers [destination]'
+    origen: original
+    fuente: references/salidas-por-modo.md:20
+    riesgo: normal
+    lista: false
+    invariable: false
+  sim.tier_review:
+    texto: '   🟡 REVIEW :       N e-mails → seraient allés vers [destination]'
+    origen: original
+    fuente: references/salidas-por-modo.md:21
+    riesgo: normal
+    lista: false
+    invariable: false
+  sim.tier_later:
+    texto: '   🔵 READING_LATER : N e-mails → seraient restés dans [en attente]'
+    origen: original
+    fuente: references/salidas-por-modo.md:22
+    riesgo: normal
+    lista: false
+    invariable: false
+  sim.tier_archive:
+    texto: '   ⚪ ARCHIVE :       N e-mails → auraient été archivés'
+    origen: original
+    fuente: references/salidas-por-modo.md:23
+    riesgo: alto
+    lista: false
+    invariable: false
+  sim.scoring:
+    texto: '📊 Scoring simulé :'
+    origen: original
+    fuente: references/salidas-por-modo.md:25
+    riesgo: normal
+    lista: false
+    invariable: false
+  sim.ejes:
+    texto: '   Axes dominants : [axe ayant le plus de poids]'
+    origen: original
+    fuente: references/salidas-por-modo.md:27
+    riesgo: normal
+    lista: false
+    invariable: false
+  sim.criterios:
+    texto: '📈 Critères les plus activés dans la simulation :'
+    origen: original
+    fuente: references/salidas-por-modo.md:29
+    riesgo: normal
+    lista: false
+    invariable: false
+  sim.correcciones:
+    texto: '🔄 Corrections de l’utilisateur pendant la revue : N'
+    origen: original
+    fuente: references/salidas-por-modo.md:33
+    riesgo: normal
+    lista: false
+    invariable: false
+  sim.correcciones_nota:
+    texto: '   [Ces corrections ONT été enregistrées comme données d’apprentissage]'
+    origen: original
+    fuente: references/salidas-por-modo.md:34
+    riesgo: normal
+    lista: false
+    invariable: false
+  sim.ajustes:
+    texto: '🧠 Ajustements appris qui auraient été appliqués :'
+    origen: original
+    fuente: references/salidas-por-modo.md:36
+    riesgo: normal
+    lista: false
+    invariable: false
+  sim.ajustes_nota:
+    texto: '   [comme dans une session réelle, le cas échéant]'
+    origen: original
+    fuente: references/salidas-por-modo.md:37
+    riesgo: normal
+    lista: false
+    invariable: false
+  sim.ejecutar2:
+    texto: '   changez `modo` dans config.yaml en `confirmacion`, `lote` ou `silencioso`'
+    origen: original
+    fuente: references/salidas-por-modo.md:40
+    riesgo: alto
+    lista: false
+    invariable: false
+  rutina.inicio:
+    texto: '⏱️ Début : HH:MM:SS — mode routine'
+    origen: original
+    fuente: references/salidas-por-modo.md:54
+    riesgo: normal
+    lista: false
+    invariable: false
+  rutina.fin:
+    texto: '⏱️ Fin :    HH:MM:SS — durée : M min S s'
+    origen: original
+    fuente: references/salidas-por-modo.md:55
+    riesgo: normal
+    lista: false
+    invariable: false
+  rutina.bandeja:
+    texto: '📥 Boîte de réception : X e-mails analysés'
+    origen: original
+    fuente: references/salidas-por-modo.md:60
+    riesgo: normal
+    lista: false
+    invariable: false
+  rutina.pendiente:
+    texto: '📂 [Dossier en attente] : X e-mails analysés'
+    origen: original
+    fuente: references/salidas-por-modo.md:61
+    riesgo: normal
+    lista: false
+    invariable: false
+  rutina.movido_item:
+    texto: '   N. [Objet] — [Expéditeur] — score X — [raison brève, 1 ligne]'
+    origen: original
+    fuente: references/salidas-por-modo.md:64
+    riesgo: alto
+    lista: false
+    invariable: false
+  rutina.total_movidos:
+    texto: '   Total : N'
+    origen: original
+    fuente: references/salidas-por-modo.md:66
+    riesgo: normal
+    lista: false
+    invariable: false
+  rutina.dudoso_item:
+    texto: '   N. [Objet] — [Expéditeur] — score X — recommandation provisoire : DÉPLACER/LAISSER'
+    origen: original
+    fuente: references/salidas-por-modo.md:69
+    riesgo: alto
+    lista: true
+    invariable: false
+  rutina.total_dudosos:
+    texto: '   Total : M'
+    origen: original
+    fuente: references/salidas-por-modo.md:71
+    riesgo: normal
+    lista: false
+    invariable: false
+  rutina.dejados:
+    texto: '⚪ LAISSÉS intacts : T e-mails'
+    origen: original
+    fuente: references/salidas-por-modo.md:73
+    riesgo: normal
+    lista: false
+    invariable: false
+  rutina.desglose:
+    texto: '   Détail par motif :'
+    origen: original
+    fuente: references/salidas-por-modo.md:74
+    riesgo: normal
+    lista: false
+    invariable: false
+  rutina.motivo_newsletter:
+    texto: '   - Newsletter générique : N'
+    origen: original
+    fuente: references/salidas-por-modo.md:75
+    riesgo: normal
+    lista: false
+    invariable: false
+  rutina.motivo_recuperable:
+    texto: '   - Information récupérable : N'
+    origen: original
+    fuente: references/salidas-por-modo.md:76
+    riesgo: normal
+    lista: false
+    invariable: false
+  rutina.motivo_sin_accion:
+    texto: '   - Sans action ni info utile : N'
+    origen: original
+    fuente: references/salidas-por-modo.md:77
+    riesgo: normal
+    lista: false
+    invariable: false
+  rutina.motivo_otros:
+    texto: '   - Autres : N'
+    origen: original
+    fuente: references/salidas-por-modo.md:78
+    riesgo: normal
+    lista: false
+    invariable: false
+  rutina.decisiones:
+    texto: '📝 Décisions autonomes prises (le cas échéant) :'
+    origen: original
+    fuente: references/salidas-por-modo.md:80
+    riesgo: normal
+    lista: false
+    invariable: false
+  rutina.decision_nota:
+    texto: '   - [brève note sur toute ambiguïté résolue sans poser la question]'
+    origen: original
+    fuente: references/salidas-por-modo.md:81
+    riesgo: normal
+    lista: false
+    invariable: false
+  rutina.notificacion:
+    texto: 'Triage : N déplacés, M douteux en T min'
+    origen: original
+    fuente: references/salidas-por-modo.md:90
+    riesgo: normal
+    lista: false
+    invariable: false
+  hilo.titulo:
+    texto: 🧵 [Objet d’origine] — fil de N messages
+    origen: original
+    fuente: references/paso-1c-hilos.md:191
+    riesgo: normal
+    lista: false
+    invariable: false
+  hilo.participantes:
+    texto: '   Participants : [expéditeur1], [expéditeur2]... | Dernier : [DD/MM] de [expéditeur]'
+    origen: original
+    fuente: references/paso-1c-hilos.md:192
+    riesgo: normal
+    lista: false
+    invariable: false
+  hilo.esperando:
+    texto: '   ⏳ En attente de votre réponse : [Oui / Non]'
+    origen: original
+    fuente: references/paso-1c-hilos.md:193
+    riesgo: normal
+    lista: true
+    invariable: false
+  hilo.resumen:
+    texto: '📝 Résumé du dernier message : [2-3 lignes]'
+    origen: original
+    fuente: references/paso-1c-hilos.md:194
+    riesgo: normal
+    lista: false
+    invariable: false
+  hilo.puntuacion:
+    texto: '📊 Score : X (décisionnel +N, épistémique +N, manipulation N, cognitif N, action +N, fil +N)'
+    origen: original
+    fuente: references/paso-1c-hilos.md:195
+    riesgo: normal
+    lista: false
+    invariable: false
+  hilo.rationale:
+    texto: '💬 [Justification : 1-2 phrases qui mentionnent explicitement si une réponse est en attente]'
+    origen: original
+    fuente: references/paso-1c-hilos.md:199
+    riesgo: normal
+    lista: false
+    invariable: false
+  hilo.recomendacion:
+    texto: '🔵 Recommandation : DÉPLACER le fil complet (N messages) → [destination] / LAISSER / ARCHIVER'
+    origen: original
+    fuente: references/paso-1c-hilos.md:200
+    riesgo: alto
+    lista: true
+    invariable: false
+  calibracion.primera:
+    texto: '⏳ Première exécution : aucune calibration en cache, je la génère maintenant (une lecture
+
+      supplémentaire de l’historique). Les prochaines sessions rapides réutiliseront le cache.'
+    origen: original
+    fuente: references/paso-1-doctrina-ejecucion.md:77
+    riesgo: normal
+    lista: false
+    invariable: false
+  deshacer.titulo:
+    texto: 'Sessions pouvant être annulées :'
+    origen: original
+    fuente: references/paso-6-deshacer.md:19
+    riesgo: normal
+    lista: false
+    invariable: false
+  deshacer.item1:
+    texto: 1. 20250407-143022 — 12 e-mails déplacés (il y a 2 heures)
+    origen: original
+    fuente: references/paso-6-deshacer.md:20
+    riesgo: normal
+    lista: false
+    invariable: false
+  deshacer.item2:
+    texto: 2. 20250406-091500 — 8 e-mails déplacés (hier)
+    origen: original
+    fuente: references/paso-6-deshacer.md:21
+    riesgo: normal
+    lista: false
+    invariable: false
+  deshacer.item3:
+    texto: 3. 20250405-162300 — 23 e-mails déplacés (il y a 2 jours)
+    origen: original
+    fuente: references/paso-6-deshacer.md:22
+    riesgo: normal
+    lista: false
+    invariable: false
+  deshacer.revertir:
+    texto: 'Je vais rétablir N e-mails : [liste des objets].'
+    origen: original
+    fuente: references/paso-6-deshacer.md:28
+    riesgo: alto
+    lista: false
+    invariable: false
+  error.permiso:
+    texto: macOS a besoin d’une autorisation pour contrôler Mail.app. Allez dans Réglages Système → Confidentialité → Automatisation
+    origen: original
+    fuente: references/manejo-errores.md:27
+    riesgo: normal
+    lista: false
+    invariable: false
+  error.progreso:
+    texto: Traités 10/45...
+    origen: original
+    fuente: references/manejo-errores.md:77
+    riesgo: normal
+    lista: false
+    invariable: false
+  error.analizando:
+    texto: Analyse de N e-mails, cela peut prendre un moment
+    origen: original
+    fuente: references/manejo-errores.md:79
+    riesgo: normal
+    lista: false
+    invariable: false
+  entrada.afirmativo:
+    texto: oui, o, ok, vas-y
+    origen: nuevo
+    fuente: manifiesto
+    riesgo: normal
+    lista: false
+    invariable: false
+  entrada.negativo:
+    texto: non, n, annuler, stop
+    origen: nuevo
+    fuente: manifiesto
+    riesgo: normal
+    lista: false
+    invariable: false
+  aviso.ia:
+    texto: Traduction générée par une IA, non relue par un humain.
+    origen: nuevo
+    fuente: manifiesto
+    riesgo: normal
+    lista: false
+    invariable: false
+  aviso.idioma_desconocido:
+    texto: 'La langue demandée n’est pas disponible ; on continue en espagnol. Langues disponibles :'
+    origen: nuevo
+    fuente: manifiesto
+    riesgo: normal
+    lista: false
+    invariable: false
+  aviso.respaldo:
+    texto: Les catalogues de langue n’ont pas pu être chargés ; on continue en espagnol.
+    origen: nuevo
+    fuente: manifiesto
+    riesgo: normal
+    lista: false
+    invariable: false
+  activacion.dryrun:
+    texto: simule, simulez, dry-run, essai sans déplacer, qu'est-ce que tu déplacerais
+    origen: nuevo
+    fuente: manifiesto
+    riesgo: normal
+    lista: false
+    invariable: false
+  activacion.veloz:
+    texto: triage rapide, mode rapide, rapide et pas cher
+    origen: nuevo
+    fuente: manifiesto
+    riesgo: normal
+    lista: false
+    invariable: false
+  activacion.undo:
+    texto: annule le triage, annulez le triage, annuler, rétablis les déplacements, remets comme avant
+    origen: nuevo
+    fuente: manifiesto
+    riesgo: alto
+    lista: false
+    invariable: false
+  activacion.ejecutar:
+    texto: exécute le triage, exécutez le triage, exécute
+    origen: nuevo
+    fuente: manifiesto
+    riesgo: alto
+    lista: false
+    invariable: false

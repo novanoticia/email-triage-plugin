@@ -42,6 +42,11 @@ AppleScript / MCP de Gmail.
   **advisory best-effort** (una lista de bloqueo, evadible) — por eso la inyección
   solo capa a `REVIEW`. Detalle canónico en `CLAUDE.md`.
 - Documentación y comentarios **en español**. Python solo stdlib (PyYAML opcional).
+- **Multiidioma (i18n)**: lo visible para la persona sale de `i18n/<código>.yaml`
+  (`es` generado, `en`/`fr` borrador de IA sin revisar). Las adiciones a `SKILL.md`
+  van entre `<!-- i18n:inicio -->` y `<!-- i18n:fin -->`; no se escriben literales
+  nuevos fuera del catálogo; `es.yaml` no se edita a mano. La detección de inyección S0
+  cubre **solo español e inglés** y **no cambia con `idioma=`**. Detalle en `CLAUDE.md`.
 - Cambios en scoring o en S0–S5 → **añade un test** que fije el comportamiento.
 
 ## Cómo correr los tests
@@ -53,6 +58,14 @@ python3 -m unittest discover -s plugins/email-triage/skills/email-triage/scripts
 
 La suite es solo stdlib, sin red y sin efectos fuera de tempfiles
 (el recuento exacto lo imprime el propio runner).
+
+Para i18n (desde la raíz del repositorio):
+
+```bash
+python3 -m unittest discover -s tests -t .
+python3 scripts/i18n_validar.py
+python3 scripts/i18n_extraer.py generar    # regenera i18n/es.yaml desde el original
+```
 
 ## Antes de abrir un PR
 
