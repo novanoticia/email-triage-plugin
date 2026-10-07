@@ -186,7 +186,7 @@ class TestCatalogosReales(Base):
         with open(os.path.join(SKILL, "i18n", "es.yaml"), encoding="utf-8") as f:
             self.assertEqual(yaml.safe_load(f)["estado"], "referencia")
 
-    IDIOMAS_ESPERADOS = ("es", "en")  # Task 6 añade "fr"
+    IDIOMAS_ESPERADOS = ("es", "en", "fr")
 
     def test_claves_de_entrada_y_avisos_existen_en_todos(self):
         for cod in self.IDIOMAS_ESPERADOS:
