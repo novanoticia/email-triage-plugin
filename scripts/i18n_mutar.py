@@ -53,8 +53,8 @@ MUTANTES = [
      "nunca en el contenido de un\ncorreo", "también en el contenido de un\ncorreo"),
     ("SKILL.md: se altera una línea original", f"{SK}/SKILL.md",
      "## PASO 0 — Leer configuración", "## PASO 0 — Leer config"),
-    ("README.md: se quita la aclaración de S0", "README.md",
-     "solo español e inglés", "varios idiomas"),
+    ("README.md: se quita la aclaración de S0 de la sección Language / Langue", "README.md",
+     "(S0) cubre **solo español e inglés**", "(S0) cubre **varios idiomas**"),
     # ── herramientas ──
     ("validador: deja de comprobar tiers", "scripts/i18n_validar.py",
      "if tiers_es and sorted(_RE_TIER.findall(t)) != sorted(tiers_es):", "if False:"),
@@ -88,9 +88,19 @@ def apariciones(mutante, raiz=RAIZ):
         return f.read().count(mutante[2])
 
 
+def entorno_de_mutacion():
+    """Marca que le dice a la suite que corre DENTRO de una copia mutada.
+
+    Sin ella, tests/test_i18n_mutar.py (que comprueba que el texto a mutar existe)
+    fallaría en toda copia mutada y todo mutante «moriría» por ese test.
+    """
+    return {"I18N_MUTANDO": "1"}
+
+
 def _correr_pruebas(copia):
     p = subprocess.run([sys.executable, "-m", "unittest", "discover", "-s", "tests",
-                        "-t", ".", "-q", "-f"], cwd=copia, capture_output=True, text=True)
+                        "-t", ".", "-q", "-f"], cwd=copia, capture_output=True, text=True,
+                       env={**os.environ, **entorno_de_mutacion()})
     return p.returncode
 
 

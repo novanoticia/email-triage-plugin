@@ -9,6 +9,8 @@ sys.path.insert(0, os.path.join(RAIZ, "scripts"))
 import i18n_mutar as mu  # noqa: E402
 
 
+@unittest.skipIf(os.environ.get("I18N_MUTANDO"),
+                 "dentro de la copia mutada este test fallaría siempre (ver TestLaCopiaMutadaNoSeAutoMata)")
 class TestAplicabilidad(unittest.TestCase):
     def test_cada_mutante_se_puede_aplicar_exactamente_una_vez_al_repositorio_real(self):
         for m in mu.MUTANTES:
@@ -41,11 +43,44 @@ class TestRegistro(unittest.TestCase):
     def test_el_recuento_citado_coincide_con_los_mutantes(self):
         self.assertIn(f"{len(mu.MUTANTES)} mutantes", self.doc)
 
+    def test_registra_la_correccion_de_la_auto_muerte_de_los_mutantes(self):
+        self.assertIn("auto-muerte", " ".join(self.doc.split()))
+        self.assertIn("26 de 27", " ".join(self.doc.split()))
+
     def test_declara_que_los_tests_de_frases_son_de_instantanea(self):
         self.assertIn("instantánea", self.doc)
 
     def test_declara_los_limites_de_la_simulacion_o_su_ausencia_de_plataforma_real(self):
         self.assertIn("no es una plataforma real", self.doc.lower().replace("**", ""))
+
+
+class TestLaCopiaMutadaNoSeAutoMata(unittest.TestCase):
+    """Dentro de la copia mutada, el test de aplicabilidad falla siempre (el texto ya no
+    está): sin evitarlo, TODO mutante «moriría» por ese test y el sabotaje no mediría nada."""
+
+    def test_el_entorno_de_mutacion_se_marca(self):
+        self.assertEqual(mu.entorno_de_mutacion().get("I18N_MUTANDO"), "1")
+
+    def test_la_aplicabilidad_se_omite_en_la_copia_mutada_y_falla_fuera_de_ella(self):
+        import shutil
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmp:
+            copia = os.path.join(tmp, "r")
+            shutil.copytree(RAIZ, copia, ignore=shutil.ignore_patterns(
+                ".git", "__pycache__", ".superpowers"))
+            ruta = os.path.join(copia, "plugins", "email-triage", "skills", "email-triage",
+                                "scripts", "idioma.py")
+            with open(ruta, encoding="utf-8") as f:
+                t = f.read()
+            with open(ruta, "w", encoding="utf-8") as f:
+                f.write(t.replace("marcas[0]", "marcas[-1]"))
+            cmd = [sys.executable, "-m", "unittest", "tests.test_i18n_mutar.TestAplicabilidad"]
+            fuera = subprocess.run(cmd, cwd=copia, capture_output=True, text=True,
+                                   env={**os.environ, "I18N_MUTANDO": ""})
+            dentro = subprocess.run(cmd, cwd=copia, capture_output=True, text=True,
+                                    env={**os.environ, **mu.entorno_de_mutacion()})
+            self.assertNotEqual(fuera.returncode, 0, "sin la marca, la aplicabilidad debe fallar")
+            self.assertEqual(dentro.returncode, 0, dentro.stderr[-400:])
 
 
 class TestMecanismo(unittest.TestCase):

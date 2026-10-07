@@ -35,7 +35,7 @@ Resultado el 2026-10-07: **27 mutantes**, 27 muertos, 0 sobreviven.
 | 14 | SKILL.md: el aviso de idioma desconocido va al final | `plugins/email-triage/skills/email-triage/SKILL.md` | muerto |
 | 15 | SKILL.md: la marca se leería también en los correos | `plugins/email-triage/skills/email-triage/SKILL.md` | muerto |
 | 16 | SKILL.md: se altera una línea original | `plugins/email-triage/skills/email-triage/SKILL.md` | muerto |
-| 17 | README.md: se quita la aclaración de S0 | `README.md` | muerto |
+| 17 | README.md: se quita la aclaración de S0 de la sección Language / Langue | `README.md` | muerto |
 | 18 | validador: deja de comprobar tiers | `scripts/i18n_validar.py` | muerto |
 | 19 | validador: el glosario no se aplica | `scripts/i18n_validar.py` | muerto |
 | 20 | extractor: acepta varias coincidencias | `scripts/i18n_extraer.py` | muerto |
@@ -46,6 +46,19 @@ Resultado el 2026-10-07: **27 mutantes**, 27 muertos, 0 sobreviven.
 | 25 | evaluador: los huecos entre corchetes no se rellenan | `tests/i18n/evaluador.py` | muerto |
 | 26 | escenario E1: el ejemplo que debe fallar pasa | `tests/escenarios_i18n.yaml` | muerto |
 | 27 | CI: el job i18n cambia de nombre (cambia el check) | `.github/workflows/tests.yml` | muerto |
+
+**Corrección importante (Tarea 12): la auto-muerte de los mutantes.** Las dos primeras
+ejecuciones de la herramienta (23 de 23 en la Tarea 10 y 27 de 27 en la Tarea 11) **no
+demostraban nada**: la suite se ejecuta dentro de la copia mutada, y
+`tests/test_i18n_mutar.py` comprueba que el texto a mutar existe, así que **fallaba en
+toda copia mutada** y todo mutante «moría» por ese test y no por una prueba del
+comportamiento. Se detectó porque un mutante del README «moría» sin que ninguna prueba de
+documentación lo notara. Arreglo: la herramienta marca `I18N_MUTANDO=1` y ese test se
+omite dentro de la copia (con un test que prueba que se omite allí y falla fuera).
+Primera ejecución honesta: **26 de 27** muertos; sobrevivía la aclaración de S0 de la
+sección Language / Langue (el README la repite en el changelog y el test aceptaba
+cualquiera de las dos). Se cerró exigiéndola dentro de esa sección. Resultado final: ver
+arriba.
 
 La herramienta se probó a sí misma: un mutante equivalente (cambiar solo el docstring de
 `idioma.py`) sí se reporta como superviviente, y un mutante cuyo texto no existe se
@@ -59,6 +72,8 @@ reporta como «no aplicable» (cuenta como superviviente).
 | 4 | Sobrevivían «estructura inválida» y «glosario ilegible» al anular cada comprobación del validador | `test_estructura_sin_frases`, `test_glosario_ilegible` |
 | 4 | Falso positivo: el verbo inglés «ARCHIVE» coincide con el tier | el validador compara tiers solo en frases cuyo original los nombra |
 | 8 | `TestEstadoVigilado` leía el README sin normalizar espacios: la frase vigilada está partida en dos líneas y la prueba pasaba en vacío | el test normaliza espacios; el mutante «fr revisado» ahora muere |
+| 12 | Auto-muerte: el test de aplicabilidad hacía «morir» a todo mutante (ver arriba) | `I18N_MUTANDO` + `TestLaCopiaMutadaNoSeAutoMata` |
+| 12 | Sobrevivía la aclaración de S0 de la sección Language / Langue (el changelog repite la frase) | `test_la_aclaracion_esta_en_la_seccion_language_langue…` |
 
 ### Mutantes equivalentes razonados
 

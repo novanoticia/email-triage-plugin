@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.13.5
+# Email Triage Plugin v3.14.0
 
 Filtrado epistémico de correo electrónico para Claude Cowork y Claude Code.
 
@@ -84,6 +84,59 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.14.0
+
+> Elaborado con asistencia de IA; requiere revisión humana.
+
+**Soporte multiidioma: español (por defecto), inglés y francés.** Se pide con
+`idioma=en` o `idioma=fr` (ver [Language / Langue](#language--langue)); sin marca todo
+sigue exactamente igual que en v3.13.5.
+
+### Añadido
+
+- Idioma de salida `en` y `fr`: lo que el skill muestra (resumen de sesión, tablas,
+  preguntas de confirmación, errores) y la respuesta del agente salen en ese idioma. Son
+  borradores escritos por una IA.
+- `scripts/idioma.py`: resuelve el código de idioma con una regla única (marca explícita
+  `idioma=`/`lang=` > `usuario.idioma` > `es`), normaliza `EN`, `en-US` o `fr_FR.UTF-8`, y
+  ante un código vacío, mal formado o sin catálogo avisa y continúa en español.
+- Catálogos `i18n/es.yaml`, `en.yaml` y `fr.yaml` con 118 frases (113 del original y 5
+  nuevas: avisos y respuestas aceptadas), `glosario.yaml` e `i18n/README.md`. Añadir un
+  idioma es soltar un fichero: se descubre solo y un validador dice qué falta.
+  `es.yaml` no se escribe a mano: lo genera un extractor que lee los literales reales.
+- Bloque delimitado de 58 líneas en `SKILL.md` y de 4 líneas en `commands/triage.md`, con
+  el alcance y la precedencia de la regla nombrados uno a uno.
+- Herramientas de desarrollo en `scripts/` (no viajan en el paquete): `i18n_extraer.py`,
+  `i18n_validar.py`, `i18n_baseline.py` e `i18n_mutar.py`, y el job `i18n` en el CI.
+- Pruebas: línea base del idioma por defecto (hash por línea del original), tabla de casos
+  del resolver, validador con catálogos rotos a propósito, 10 escenarios de simulación
+  preregistrados con su evaluador y 27 mutantes de sabotaje (registro en
+  `tests/escenarios.md`).
+
+### Cambiado
+
+- `usuario.idioma` de `config.yaml` ahora se lee; antes se ignoraba. Quien lo hubiera
+  cambiado a `en` o `fr` verá ese idioma.
+- Líneas del original modificadas: ninguna, salvo las de versión que mecaniza
+  `bump-version.sh` (metadata y H1 de `SKILL.md`, cabecera de `config.yaml`, docstring de
+  `triage_helpers.py`). Todo lo demás son adiciones. `triage_helpers.py` no se toca.
+
+### Limitaciones
+
+- Las traducciones `en` y `fr` las ha escrito una IA: **ninguna traducción está
+  revisada** por una persona. Las frases de confirmar mover, archivar o deshacer
+  (`riesgo: alto` en el catálogo) necesitan revisión humana. El francés es el idioma que
+  la IA redactora juzga con menos seguridad.
+- El **texto libre** que redacta el modelo (resúmenes, razones, notas) sale en el idioma
+  elegido y no está revisado.
+- La detección de inyección S0 cubre **solo español e inglés** y **no cambia con
+  `idioma=`**: depende del idioma del correo recibido, no del de la interfaz.
+- Los mensajes de error de los scripts siguen en español.
+- Sin prueba en plataforma real (Claude Code / Cowork): hasta ahora solo pruebas
+  automáticas y simulaciones con modelos, que no sustituyen a una ejecución real.
+- Hay ficheros nuevos en la carpeta de la skill: quien tenga una versión anterior debe
+  reinstalar el plugin completo.
 
 ## Novedades en v3.13.5
 

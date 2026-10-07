@@ -17,6 +17,12 @@ def plano(rel):
     return " ".join(leer(rel).split())
 
 
+def seccion_h2(rel, titulo):
+    """Texto (espacios normalizados) de una sección `## titulo` hasta la siguiente `## `."""
+    m = re.search(r"(?ms)^## %s\n(.*?)(?=^## )" % re.escape(titulo), leer(rel))
+    return " ".join(m.group(1).split()) if m else None
+
+
 class TestAclaracionS0(unittest.TestCase):
     SITIOS = ["README.md", "CLAUDE.md", "AGENTS.md",
               os.path.join(SKILL, "i18n", "README.md"),
@@ -35,6 +41,13 @@ class TestAclaracionS0(unittest.TestCase):
     def test_el_readme_distingue_idioma_del_correo_e_idioma_de_la_interfaz(self):
         t = plano("README.md")
         self.assertIn("idioma del correo recibido", t)
+
+    def test_la_aclaracion_esta_en_la_seccion_language_langue_y_no_solo_en_otro_sitio(self):
+        """El README la repite (changelog): hay que exigirla DONDE la lee quien elige idioma."""
+        sec = seccion_h2("README.md", "Language / Langue")
+        self.assertIsNotNone(sec)
+        for s in ("solo español e inglés", "no cambia con `idioma=`", "idioma del correo recibido"):
+            self.assertIn(s, sec)
 
     def test_el_changelog_no_se_adelanta_a_la_version(self):
         # Task 12 sube la versión y añade «## Novedades en v3.14.0»; hasta entonces

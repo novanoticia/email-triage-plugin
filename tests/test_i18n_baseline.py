@@ -26,11 +26,46 @@ class TestQuitarBloques(unittest.TestCase):
         self.assertEqual(lb.quitar_bloques(["a", "b"]), ["a", "b"])
 
 
+class TestNormalizacionDeVersion(unittest.TestCase):
+    """El bump de versión es la única excepción: lo normalizado no puede ocultar otros cambios."""
+
+    def h(self, linea):
+        return lb.hash_linea(linea)
+
+    def test_misma_linea_con_distinta_version_da_el_mismo_hash(self):
+        pares = [('  version: "3.13.5"', '  version: "3.14.0"'),
+                 ("# Email Triage v3.13 — Filtrado", "# Email Triage v3.14 — Filtrado"),
+                 ("# EMAIL TRIAGE v3.13", "# EMAIL TRIAGE v3.14"),
+                 ("plugin email-triage (v3.13.5)", "plugin email-triage (v3.14.0)")]
+        for a, b in pares:
+            with self.subTest(a=a):
+                self.assertEqual(self.h(a), self.h(b))
+
+    def test_otros_numeros_no_se_normalizan(self):
+        for a, b in [("RESUMEN DE TRIAJE v3.0", "RESUMEN DE TRIAJE v3.1"),
+                     ("hasta 3.9 usuarios", "hasta 3.8 usuarios"),
+                     ("versión 13.13.5", "versión 13.14.5"),
+                     ("# Email Triage v3.13 — A", "# Email Triage v3.13 — B")]:
+            with self.subTest(a=a):
+                self.assertNotEqual(self.h(a), self.h(b))
+
+
 class TestLineaBase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         with open(lb.RUTA_BASE, encoding="utf-8") as f:
             cls.base = json.load(f)
+
+    def test_la_base_coincide_con_el_commit_base_si_esta_disponible(self):
+        import subprocess
+        try:
+            subprocess.run(["git", "cat-file", "-e", self.base["commit_base"] + "^{commit}"],
+                           cwd=RAIZ, check=True, capture_output=True)
+        except (OSError, subprocess.CalledProcessError):
+            self.skipTest("el commit base %s no está en este clon (¿clon superficial del CI?): "
+                          "la línea base solo se contrasta con git cuando existe" % self.base["commit_base"])
+        recien = lb.calcular(commit=self.base["commit_base"])
+        self.assertEqual(recien["ficheros"], self.base["ficheros"])
 
     def test_hay_ficheros_en_la_base(self):
         self.assertGreaterEqual(len(self.base["ficheros"]), 15)
