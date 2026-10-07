@@ -15,7 +15,7 @@ límites**. Distingue tres niveles y nunca los mezcla:
 
 Herramienta: `python3 scripts/i18n_mutar.py` (aplica cada mutación sobre una copia del
 repositorio y ejecuta toda la suite; un mutante que sobrevive es un hueco).
-Resultado el 2026-10-07: **23 mutantes**, 23 muertos, 0 sobreviven.
+Resultado el 2026-10-07: **27 mutantes**, 27 muertos, 0 sobreviven.
 
 | # | Mutante | Fichero | Resultado |
 |---|---------|---------|-----------|
@@ -41,7 +41,11 @@ Resultado el 2026-10-07: **23 mutantes**, 23 muertos, 0 sobreviven.
 | 20 | extractor: acepta varias coincidencias | `scripts/i18n_extraer.py` | muerto |
 | 21 | extractor: cuenta las líneas con los bloques i18n | `scripts/i18n_extraer.py` | muerto |
 | 22 | línea base: no quita la línea en blanco del bloque | `scripts/i18n_baseline.py` | muerto |
-| 23 | CI: el job i18n cambia de nombre (cambia el check) | `.github/workflows/tests.yml` | muerto |
+| 23 | evaluador: no comprueba el orden | `tests/i18n/evaluador.py` | muerto |
+| 24 | evaluador: debe_contener siempre pasa | `tests/i18n/evaluador.py` | muerto |
+| 25 | evaluador: los huecos entre corchetes no se rellenan | `tests/i18n/evaluador.py` | muerto |
+| 26 | escenario E1: el ejemplo que debe fallar pasa | `tests/escenarios_i18n.yaml` | muerto |
+| 27 | CI: el job i18n cambia de nombre (cambia el check) | `.github/workflows/tests.yml` | muerto |
 
 La herramienta se probó a sí misma: un mutante equivalente (cambiar solo el docstring de
 `idioma.py`) sí se reporta como superviviente, y un mutante cuyo texto no existe se
@@ -58,7 +62,7 @@ reporta como «no aplicable» (cuenta como superviviente).
 
 ### Mutantes equivalentes razonados
 
-Ninguno entre los 23: cada uno cambia comportamiento observable por alguna prueba.
+Ninguno entre los 27: cada uno cambia comportamiento observable por alguna prueba.
 
 ## Qué tipo de pruebas son
 
@@ -72,7 +76,58 @@ rotos (`tests/test_i18n_validador.py`) y el extractor (`tests/test_i18n_extracci
 
 ## Escenarios de simulación (Tareas 11 y 13)
 
-(Se rellena en la Tarea 11: criterios preregistrados, y en la 13: resultados.)
+### Método
+
+- Cada escenario lo recibe un subagente **de contexto limpio** con **solo** el paquete
+  (la carpeta de la skill, copiada tal cual; no hay script de empaquetado) y el mensaje
+  del escenario **pegado en el prompt**. El simulador declara qué ficheros leyó y qué le
+  pareció ambiguo (citando la frase).
+- Los criterios están en `tests/escenarios_i18n.yaml` y los aplica
+  `tests/i18n/evaluador.py`. Los textos esperados salen de los catálogos, nunca escritos a
+  mano. Cada criterio lleva un ejemplo que debe pasar y otro que debe fallar, y una prueba
+  lo exige (`tests/test_i18n_escenarios.py`).
+- Se **leen las respuestas y las notas**, no solo el veredicto del evaluador: pueden
+  aparecer hallazgos que ningún criterio preveía.
+- Casos **ficticios**: ningún correo ni dirección reales.
+- Tras corregir, se repiten **solo los escenarios afectados** (ronda 2) con simuladores
+  nuevos y el paquete reconstruido; los criterios no cambian entre rondas.
+
+### Preregistro
+
+Fecha: 2026-10-07, **antes de lanzar ningún simulador**. Los criterios se afinaron
+durante la Tarea 11 (E3 pasó a exigir también el título en español; E8 pasó a medir la
+pregunta de parada y el aviso en lugar de una respuesta que el texto no puede mostrar;
+el evaluador tolera huecos y números rellenados por el simulador). Esos ajustes son
+anteriores a cualquier resultado y no cuentan como cambios posteriores.
+
+**Cambios posteriores** (un criterio modificado después de ver resultados): ninguno.
+
+| Id | Qué comprueba | Mensaje | Paquete | Idioma esperado |
+|----|---------------|---------|---------|-----------------|
+| E1 | dry-run en inglés | `/triage dry-run idioma=en` | completo | en |
+| E2 | sesión real en francés | `/triage idioma=fr` | completo | fr |
+| E3 | idioma sin catálogo (de) | `/triage idioma=de` | completo | es |
+| E4 | sin marca -> español idéntico, sin aviso | `/triage` | completo | es |
+| E5 | «en» suelto no es marca | `/triage filtra en Leer Después` | completo | es |
+| E6 | solo SKILL.md, sin catálogos, pide fr | `/triage idioma=fr` | solo_skill | es |
+| E7 | modo rutina en inglés | `<scheduled-task> triaje idioma=en` | completo | en |
+| E8 | parada de confirmación en francés, modo lote (Review Focus 5) | `/triage idioma=fr` | completo | fr |
+| E9 | idioma=fr dentro del asunto de un correo FICTICIO (Review Focus 1) | `/triage idioma=en` | completo | en |
+| E10 | seguimiento sin comando tras fr | `[turno 1] /triage idioma=fr  [turno 2] «y los de ayer?»` | completo | fr |
+
+### Resultados
+
+- Ronda 1: (pendiente)
+- Ronda 2: (pendiente)
+
+### Límites del método (léelos antes de fiarte de un resultado)
+
+- **Esto es una simulación, no una plataforma real**: no se ha ejecutado en Claude Code ni
+  en Cowork.
+- Los simuladores no están aislados a nivel de sistema: su lista de ficheros leídos es
+  **autodeclarada**.
+- Un simulador por escenario **no mide la variabilidad** del modelo.
+- El revisor y los simuladores son modelos: **no son revisión humana**.
 
 ## Registro de ejecuciones en plataforma real
 

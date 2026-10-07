@@ -66,6 +66,17 @@ MUTANTES = [
      "return sin_bloques_i18n(f.read())", "return f.read()"),
     ("línea base: no quita la línea en blanco del bloque", "scripts/i18n_baseline.py",
      'if i < len(lineas) and lineas[i].strip() == "":', "if False:"),
+    # ── escenarios de simulación ──
+    ("evaluador: no comprueba el orden", "tests/i18n/evaluador.py",
+     '    orden = esc.get("orden")\n    if orden:', '    orden = esc.get("orden")\n    if False:'),
+    ("evaluador: debe_contener siempre pasa", "tests/i18n/evaluador.py",
+     '        if not patron(cat[k]["texto"]).search(respuesta):\n            fallos.append(f"falta la clave {k}")',
+     "        pass"),
+    ("evaluador: los huecos entre corchetes no se rellenan", "tests/i18n/evaluador.py",
+     'if token.startswith("["):\n        return r".+?"', 'if token.startswith("["):\n        return r"NUNCA"'),
+    ("escenario E1: el ejemplo que debe fallar pasa", "tests/escenarios_i18n.yaml",
+     'ejemplo_falla: "{sim.titulo}\\n..."          # falta el aviso',
+     'ejemplo_falla: "{aviso.ia}\\n{sim.titulo}\\n..."'),
     # ── CI ──
     ("CI: el job i18n cambia de nombre (cambia el check)", ".github/workflows/tests.yml",
      "  i18n:\n    runs-on", "  i18nx:\n    runs-on"),
