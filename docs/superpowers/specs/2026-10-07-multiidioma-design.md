@@ -170,8 +170,17 @@ parada). Tabla de registro para las ejecuciones reales pendientes.
 
 - Traducciones escritas por una IA, sin revisión humana nativa ni de especialista.
 - El texto libre que el modelo redacta (resúmenes, razones, notas) no está revisado.
-- La detección de inyección S0 solo cubre patrones ES/EN; un correo en francés la evade
-  con más facilidad. Pendiente ajeno, no se amplía aquí.
+- **La detección de inyección S0 solo cubre patrones en español e inglés, y esto NO
+  cambia con este trabajo.** Es una propiedad del **idioma del correo recibido**, no del
+  idioma de la interfaz: elegir `idioma=fr` solo traduce lo que el skill muestra; no
+  añade patrones de detección en francés (ni en ningún otro idioma). Un correo hostil
+  redactado en francés, o en cualquier otro idioma distinto de es/en, puede evadir S0
+  con más facilidad. La defensa que sigue vigente en ese caso es el *escapado* mecánico
+  y el hecho de que el modelo trata todo cuerpo como dato, no como instrucción. S0 ya era
+  una lista de bloqueo *advisory best-effort* (ver CLAUDE.md). Ampliar los patrones es un
+  pendiente ajeno, fuera de este trabajo. Esta aclaración se escribe en: README (sección
+  Language / Langue y Limitaciones), CHANGELOG (Limitaciones), `i18n/README.md`,
+  CLAUDE.md y AGENTS.md, y una prueba comprueba que cada uno la contiene.
 - `fr` es el idioma que la IA que traduce juzga con menos seguridad.
 - Los mensajes de error de los scripts siguen en español; el modelo los explica en el
   idioma elegido.
