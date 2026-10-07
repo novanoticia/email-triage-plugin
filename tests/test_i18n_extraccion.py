@@ -62,6 +62,18 @@ class TestExtraerSintetico(unittest.TestCase):
         self.assertEqual(ex.extraer(m, self.raiz)["q"]["texto"],
                          "Hola mundo, esto sigue aquí y termina?")
 
+    def test_las_lineas_se_cuentan_sin_los_bloques_i18n(self):
+        """La fuente apunta al original: un bloque añadido no la desplaza ni cuenta como literal."""
+        with open(os.path.join(self.raiz, ex.SKILL_REL, "C.md"), "w", encoding="utf-8") as f:
+            f.write("uno\n\n<!-- i18n:inicio -->\nbloque\n📬 [Asunto]\n<!-- i18n:fin -->\n\n📬 [Asunto]\n")
+        m = {"frases": [dict(clave="k", fichero="C.md", patron=r"^(📬 \[Asunto\])$")],
+             "excluidos": [], "nuevas": []}
+        self.assertEqual(ex.extraer(m, self.raiz)["k"]["fuente"], "C.md:3")
+
+    def test_sin_bloques_i18n_quita_el_bloque_y_un_blanco(self):
+        self.assertEqual(ex.sin_bloques_i18n("a\n\n<!-- i18n:inicio -->\nx\n<!-- i18n:fin -->\n\nb"),
+                         "a\n\nb")
+
     def test_claves_nuevas_marcadas_origen_nuevo(self):
         m = self.man(r"^(uno)$")
         m["nuevas"] = [{"clave": "aviso.x", "texto": "hola"}]
@@ -109,7 +121,7 @@ class TestEsYaml(unittest.TestCase):
                 continue
             fichero = d["fuente"].rsplit(":", 1)[0]
             with open(os.path.join(SKILL, fichero), encoding="utf-8") as f:
-                original = f.read()
+                original = ex.sin_bloques_i18n(f.read())
             plano = " ".join(original.split())
             for l in d["texto"].split("\n"):
                 self.assertIn(" ".join(l.split()), plano, clave)
@@ -121,7 +133,7 @@ class TestEsYaml(unittest.TestCase):
                           | {e["fichero"] for e in self.man["excluidos"]}
                           | ex.FICHEROS_VISIBLES):
             with open(os.path.join(SKILL, rel), encoding="utf-8") as f:
-                texto = f.read()
+                texto = ex.sin_bloques_i18n(f.read())
             cubiertas = ex.lineas_cubiertas(self.man, rel, texto)
             for n, linea in ex.lineas_visibles(texto):
                 if not linea.strip() or n in cubiertas:

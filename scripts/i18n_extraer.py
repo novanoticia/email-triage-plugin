@@ -14,6 +14,8 @@ import sys
 
 import yaml
 
+from i18n_baseline import quitar_bloques
+
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SKILL_REL = "plugins/email-triage/skills/email-triage"
 FICHEROS_VISIBLES = {"SKILL.md", "references/salidas-por-modo.md",
@@ -40,9 +42,18 @@ def _flags(patron):
     return re.MULTILINE | (re.DOTALL if patron.startswith("(?s)") else 0)
 
 
+def sin_bloques_i18n(texto):
+    """El original, sin los bloques `<!-- i18n:inicio -->`..`<!-- i18n:fin -->` añadidos.
+
+    Las líneas de `fuente` se cuentan sobre este texto: apuntan al original y no se
+    desplazan al insertar un bloque (ni un literal del bloque puede casar con un patrón).
+    """
+    return "\n".join(quitar_bloques(texto.split("\n")))
+
+
 def _leer(raiz, fichero):
     with open(os.path.join(raiz, SKILL_REL, fichero), encoding="utf-8") as f:
-        return f.read()
+        return sin_bloques_i18n(f.read())
 
 
 def extraer(man, raiz=RAIZ):

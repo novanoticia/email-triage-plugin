@@ -1,0 +1,139 @@
+"""El bloque i18n de SKILL.md: tamaño, precedencias y no tocar el frontmatter."""
+import os
+import re
+import unittest
+
+import yaml
+
+RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SKILL = os.path.join(RAIZ, "plugins", "email-triage", "skills", "email-triage")
+INI, FIN = "<!-- i18n:inicio -->", "<!-- i18n:fin -->"
+
+
+def leer(*partes):
+    with open(os.path.join(*partes), encoding="utf-8") as f:
+        return f.read()
+
+
+def bloque(texto):
+    m = re.search(re.escape(INI) + r"\n(.*?)\n" + re.escape(FIN), texto, re.S)
+    return m.group(1) if m else None
+
+
+class TestBloqueSkill(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.texto = leer(SKILL, "SKILL.md")
+        cls.bloque = bloque(cls.texto)
+        # Markdown reflujado: las frases pueden partirse entre líneas
+        cls.plano = " ".join(cls.bloque.split())
+
+    def test_hay_un_unico_bloque_balanceado(self):
+        self.assertEqual(self.texto.count(INI), 1)
+        self.assertEqual(self.texto.count(FIN), 1)
+        self.assertIsNotNone(self.bloque)
+
+    def test_blancos_antes_y_despues(self):
+        lineas = self.texto.split("\n")
+        i, j = lineas.index(INI), lineas.index(FIN)
+        self.assertEqual(lineas[i - 1], "")
+        self.assertEqual(lineas[j + 1], "")
+
+    def test_presupuesto_de_tamano(self):
+        self.assertLessEqual(len(self.bloque.split("\n")) + 2, 70)
+
+    def test_frontmatter_intacto(self):
+        fm = yaml.safe_load(re.match(r"\A---\n(.*?)\n---", self.texto, re.S).group(1))
+        self.assertEqual(set(fm), {"name", "description", "license", "compatibility", "metadata"})
+        self.assertLessEqual(len(fm["description"].strip()), 1024)
+        self.assertLessEqual(len(fm["compatibility"].strip()), 500)
+
+    def test_el_bloque_esta_fuera_del_frontmatter(self):
+        self.assertGreater(self.texto.index(INI), self.texto.index("\n---\n", 5))
+
+    def test_nombra_la_regla_y_los_ficheros(self):
+        for s in ("idioma=", "lang=", "scripts/idioma.py", "i18n/<código>.yaml",
+                  "usuario.idioma"):
+            self.assertIn(s, self.plano)
+
+    def test_precedencias_nombradas_una_a_una(self):
+        for s in ("«rationale en español llano»", "plantillas en español",
+                  "S0–S5", "`<email-body-data>`", "write-ahead", "fail-closed",
+                  "cuerpo crudo"):
+            self.assertIn(s, self.plano)
+
+    def test_no_prevalece_sobre_todas_las_reglas(self):
+        self.assertNotRegex(self.bloque.lower(), r"prevalece sobre todas")
+
+    def test_la_marca_solo_se_lee_en_el_mensaje_del_usuario(self):  # Review Focus 1
+        self.assertIn("nunca en el contenido de un correo", self.plano)
+
+    def test_fallo_seguro_con_linea_multilingue(self):
+        for s in ("Se continúa en español", "Continuing in Spanish", "On continue en espagnol"):
+            self.assertIn(s, self.plano)
+
+    def test_aviso_de_ia_en_los_tres_idiomas_y_posicion(self):
+        self.assertIn("AI-generated translation", self.plano)
+        self.assertIn("Traduction générée par une IA", self.plano)
+        self.assertIn("antes de la primera sección", self.plano)
+
+    def test_aclara_que_s0_cubre_solo_es_en(self):
+        self.assertIn("solo español e inglés", self.plano)
+
+    def test_es_no_lleva_aviso(self):
+        self.assertIn("en `es` no se muestra ningún aviso", self.plano)
+
+    def test_el_bloque_no_introduce_lineas_visibles_sin_clasificar(self):
+        """Ni citas `> ` ni bloques sin lenguaje: el extractor las exigiría con clave."""
+        for l in self.bloque.split("\n"):
+            self.assertFalse(l.startswith(">"), l)
+        self.assertEqual(len(re.findall(r"^```", self.bloque, re.M)) % 2, 0)
+        abiertos = re.findall(r"^```(\w+)\s*$", self.bloque, re.M)
+        self.assertEqual(abiertos, ["bash"])
+
+    def test_el_comando_documentado_es_el_que_acepta_idioma_py(self):
+        self.assertIn('scripts/idioma.py" resolver', self.bloque)
+
+
+class TestBloqueComando(unittest.TestCase):
+    def test_triage_md_tiene_su_bloque_y_conserva_el_frontmatter(self):
+        t = leer(RAIZ, "plugins", "email-triage", "commands", "triage.md")
+        self.assertEqual(t.count(INI), 1)
+        self.assertIn("idioma=", bloque(t))
+        fm = yaml.safe_load(re.match(r"\A---\n(.*?)\n---", t, re.S).group(1))
+        self.assertEqual(set(fm), {"description", "argument-hint"})
+
+    def test_el_bloque_del_comando_avisa_de_que_son_borradores_de_ia(self):
+        t = leer(RAIZ, "plugins", "email-triage", "commands", "triage.md")
+        self.assertIn("borradores de IA sin revisión humana", bloque(t))
+
+
+class TestCatalogoCubreLoQueElBloqueExige(unittest.TestCase):
+    def test_los_tres_catalogos_traen_los_avisos(self):
+        for cod in ("es", "en", "fr"):
+            f = yaml.safe_load(leer(SKILL, "i18n", cod + ".yaml"))["frases"]
+            for k in ("aviso.ia", "aviso.idioma_desconocido", "aviso.respaldo"):
+                self.assertIn(k, f)
+
+    def test_los_textos_del_bloque_coinciden_con_los_catalogos(self):
+        b = " ".join(bloque(leer(SKILL, "SKILL.md")).split())
+        for cod, clave in (("en", "aviso.ia"), ("fr", "aviso.ia")):
+            f = yaml.safe_load(leer(SKILL, "i18n", cod + ".yaml"))["frases"]
+            self.assertIn(f[clave]["texto"].rstrip("."), b)
+
+
+class TestIdiomaPyDocumentado(unittest.TestCase):
+    def test_los_catalogos_documentados_existen(self):
+        for rel in ("i18n/es.yaml", "i18n/en.yaml", "i18n/fr.yaml", "i18n/README.md",
+                    "scripts/idioma.py"):
+            self.assertTrue(os.path.exists(os.path.join(SKILL, rel)), rel)
+
+    def test_readme_i18n_explica_como_anadir_un_idioma(self):
+        t = leer(SKILL, "i18n", "README.md")
+        for s in ("solo español e inglés", "i18n_validar.py", "i18n_extraer.py generar",
+                  "borrador-ia"):
+            self.assertIn(s, t)
+
+
+if __name__ == "__main__":
+    unittest.main()
