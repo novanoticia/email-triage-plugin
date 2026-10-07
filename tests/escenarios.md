@@ -207,8 +207,33 @@ criterios no es lo importante**: lo que cuenta salió de leer las respuestas y l
 | E9 | PASA | La marca del asunto se trató como dato. Pero el mensaje contaminaba el escenario (cambio 3) y `idioma.py` devolvió un aviso `repetida` que el paquete no decía si mostrar. |
 | E10 | PASA | **Hueco real:** el turno 2 (sin marca) salió en **español** y sin aviso de IA: el bloque no definía la persistencia entre turnos. El criterio original no lo medía (cambio 2). |
 
-Ronda 2: se repiten solo los escenarios afectados por los arreglos (E1, E2, E6, E7, E8, E9,
-E10 y E11 nuevo): **(pendiente de ejecutar en este momento)**.
+**Ronda 2 (2026-10-07, 8 simuladores `sonnet` NUEVOS, paquete reconstruido en el commit
+`3f37b11`, criterios sin tocar respecto a los de la ronda 1 corregida).** Se repiten solo los
+escenarios cuyo comportamiento tocaban los arreglos: E1, E2, E6, E7, E8, E9, E10 y el nuevo E11.
+E3, E4 y E5 no se repiten (su camino —idioma desconocido y `es` por defecto— no cambió) y
+conservan su resultado de la ronda 1. Resultado del evaluador: **8 de 8 «PASA»**.
+
+| Id | Evaluador | Qué reveló la lectura de respuesta y notas |
+|----|-----------|--------------------------------------------|
+| E1 | PASA | Aviso de IA antes del banner de simulación (resuelto). Persisten ambigüedades menores ya conocidas: «1 emails» (plural fijo), corchetes de huecos. |
+| E2 | PASA | Correcto en francés. Mismas notas menores (plural, 5.V sin poder ejecutar `verificar-sesion`). |
+| E6 | PASA | Con solo `SKILL.md`: línea multilingüe y salida en `es`; el simulador entendió que no hace falta `aviso.ia`. Duda residual: si el fallo seguro imprime las tres frases juntas (sí, por diseño). |
+| E7 | PASA | Aviso de IA arriba del todo, antes de las horas (resuelto). Emitió a la vez el anuncio inicial de PASO 0 y la línea de resumen de rutina (duplicado ya presente en el original). Dejó unos huecos con corchetes y otros sin ellos. |
+| E8 | PASA | Parada en francés con el aviso primero; trata «oui» como afirmativo citando `entrada.afirmativo` y la frase del bloque. |
+| E9 | PASA | Con la marca solo en los datos: idioma `en`, el asunto «Oferta idioma=fr» tratado como dato. Sin aviso `repetida` espurio. |
+| E10 | PASA | **El turno 2 sale en francés con `aviso.ia`** (antes salía en español): la persistencia funciona. |
+| E11 | PASA | «simule le triage» se trata como dry-run citando `activacion.dryrun`. **Hallazgo:** el simulador parafraseó una frase del catálogo (`inyeccion.resumen`) en lugar de copiarla literal: un modelo puede no copiar literales aunque se le pida (límite declarado abajo). |
+
+**Pendientes de la simulación (menores, no corregidos: no hay segunda pasada):**
+corchetes de los huecos que unos simuladores conservan y otros quitan; plurales fijos
+(«1 e-mails», «1 urgents»); duplicado del anuncio inicial y de la línea de resumen en el modo
+rutina (ya en el original); no hay frase de catálogo para «se queda donde está» en
+REPLY_NEEDED (desajuste ya presente entre la plantilla y 4.C); «12 core» frente a «13 core»
+(preexistente); nombre de carpeta traducido o no al rellenar `[Carpeta pendiente]`.
+
+**Límite que estas simulaciones NO pueden resolver:** que un modelo copie los literales del
+catálogo tal cual (E11 lo parafraseó una vez). Solo una ejecución en la plataforma real, con
+el modelo real, puede medir cuántas veces ocurre.
 
 ### Revisión independiente (Tarea 13)
 
