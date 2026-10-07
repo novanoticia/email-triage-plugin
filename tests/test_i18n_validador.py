@@ -186,6 +186,16 @@ class TestCatalogosReales(Base):
         with open(os.path.join(SKILL, "i18n", "es.yaml"), encoding="utf-8") as f:
             self.assertEqual(yaml.safe_load(f)["estado"], "referencia")
 
+    IDIOMAS_ESPERADOS = ("es", "en")  # Task 6 añade "fr"
+
+    def test_claves_de_entrada_y_avisos_existen_en_todos(self):
+        for cod in self.IDIOMAS_ESPERADOS:
+            with open(os.path.join(SKILL, "i18n", cod + ".yaml"), encoding="utf-8") as f:
+                claves = yaml.safe_load(f)["frases"].keys()
+            for k in ("entrada.afirmativo", "entrada.negativo", "aviso.ia",
+                      "aviso.idioma_desconocido", "aviso.respaldo"):
+                self.assertIn(k, claves, f"{cod}.yaml sin {k}")
+
     def test_glosario_real_cubre_los_idiomas_soportados(self):
         with open(os.path.join(SKILL, "i18n", "glosario.yaml"), encoding="utf-8") as f:
             terminos = yaml.safe_load(f)["terminos"]
