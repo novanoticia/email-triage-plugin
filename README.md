@@ -114,8 +114,8 @@ sigue exactamente igual que en v3.13.5.
 - Herramientas de desarrollo en `scripts/` (no viajan en el paquete): `i18n_extraer.py`,
   `i18n_validar.py`, `i18n_baseline.py` e `i18n_mutar.py`, y el job `i18n` en el CI.
 - Pruebas: línea base del idioma por defecto (hash por línea del original), tabla de casos
-  del resolver, validador con catálogos rotos a propósito, 10 escenarios de simulación
-  preregistrados con su evaluador y 27 mutantes de sabotaje (registro en
+  del resolver, validador con catálogos rotos a propósito, 11 escenarios de simulación
+  preregistrados con su evaluador y 59 mutantes de sabotaje (registro en
   `tests/escenarios.md`).
 
 ### Cambiado
