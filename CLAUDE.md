@@ -101,17 +101,19 @@ deliberadamente a cada cliente.
 
 ```bash
 python3 -m pip install pyyaml --break-system-packages    # solo la 1ª vez
-python3 -m unittest discover -s plugins/email-triage/skills/email-triage/scripts
+python3 -m unittest discover -s tests -t .               # suite completa, desde la raíz
 ```
+
+Todos los tests viven en `tests/` (ninguno dentro de `plugins/`); el comando antiguo
+`discover -s plugins/.../scripts` no encuentra ninguno («NO TESTS RAN»).
 
 La suite es solo stdlib, sin red y sin efectos fuera de tempfiles (el
 recuento exacto lo imprime el propio runner). PyYAML solo
 lo necesitan los tests de `validar-config` / `_cargar_config`.
 
-Las pruebas i18n viven en `tests/` y se descubren con `-t .`:
+Para i18n, además de la suite:
 
 ```bash
-python3 -m unittest discover -s tests -t .
 python3 scripts/i18n_validar.py
 ```
 
@@ -119,7 +121,7 @@ python3 scripts/i18n_validar.py
 
 `tests.yml` corre, en este orden:
 
-1. **Tests** — `unittest discover` sobre `scripts/`.
+1. **Tests** — `unittest discover -s tests -t .`.
 2. **Integridad de `config.yaml`** — parsea con YAML 1.1 y exige **exactamente 30
    criterios** y **cero claves booleanas** (ver gotcha abajo).
 3. **Coherencia de versiones** — los 7 sitios de semver completo, la cabecera

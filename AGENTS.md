@@ -53,16 +53,18 @@ AppleScript / MCP de Gmail.
 
 ```bash
 python3 -m pip install pyyaml --break-system-packages    # solo la 1ª vez
-python3 -m unittest discover -s plugins/email-triage/skills/email-triage/scripts
+python3 -m unittest discover -s tests -t .               # suite completa, desde la raíz
 ```
+
+Todos los tests viven en `tests/` (ninguno dentro de `plugins/`); el comando antiguo
+`discover -s plugins/.../scripts` no encuentra ninguno («NO TESTS RAN»).
 
 La suite es solo stdlib, sin red y sin efectos fuera de tempfiles
 (el recuento exacto lo imprime el propio runner).
 
-Para i18n (desde la raíz del repositorio):
+Para i18n (desde la raíz del repositorio), además de la suite:
 
 ```bash
-python3 -m unittest discover -s tests -t .
 python3 scripts/i18n_validar.py
 python3 scripts/i18n_extraer.py generar    # regenera i18n/es.yaml desde el original
 ```
