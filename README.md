@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.14.1
+# Email Triage Plugin v3.14.2
 
 Filtrado epistémico de correo electrónico para Claude Cowork y Claude Code.
 
@@ -86,6 +86,44 @@ internas del skill.
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
 
+## Novedades en v3.14.2
+
+> Elaborado con asistencia de IA; requiere revisión humana.
+
+Fixes de la auditoría 2026-10-08 sobre v3.14.0 y v3.14.1. Sin cambios en el scoring ni
+en S0–S5.
+
+### Añadido
+
+- Test `test_el_mensaje_no_puede_escapar_a_la_shell`: un mensaje con una línea
+  `MENSAJE`, `touch …` o `$(…)` no ejecuta nada al resolver el idioma.
+- Test que exige la cabecera de documento histórico en los planes ya ejecutados.
+
+### Cambiado
+
+- **Seguridad:** el mensaje del usuario ya no pasa por la shell al resolver el idioma.
+  Antes iba por un heredoc `<<'MENSAJE'`: una línea igual al delimitador (por ejemplo, en
+  un correo hostil pegado en `/triage`) cerraba el heredoc y el resto se ejecutaba como
+  comando. Ahora se escribe a `~/.email-triage/tmp/idioma_msg.txt` con la herramienta de
+  escritura del agente y entra por stdin.
+- **Atajo sin script:** sin marca `idioma=`/`lang=` y con `usuario.idioma` vacío o `es`,
+  no se ejecuta `idioma.py`. El caso habitual en español ya no cuesta ninguna llamada.
+- La línea base i18n normaliza cualquier parche de versión (`3.14.N`): antes cada bump la
+  rompía. El bloque S0 francés, única excepción funcional, queda congelado con una huella.
+- El plan `docs/superpowers/plans/2026-10-07-multiidioma.md` se marca como histórico:
+  sus órdenes de agente (sub-skills, permisos de push, firma de commits) no rigen ya.
+- `AGENTS.md` y `CLAUDE.md`: el comando de tests documentado no encontraba ningún test
+  («NO TESTS RAN»); ahora es `python3 -m unittest discover -s tests -t .`, el del CI.
+- El changelog de v3.14.1 sigue el formato del resto.
+
+### Limitaciones
+
+- La detección S0 sigue siendo heurística, incompleta y evadible.
+- Sin prueba en plataforma real del flujo `idioma=en`/`fr` con el fichero intermedio:
+  solo pruebas automáticas.
+- Quien tenga v3.14.0 o v3.14.1 instalada debe reinstalar el plugin para recibir el
+  arreglo de seguridad.
+
 ## Novedades en v3.14.1
 
 > Elaborado con asistencia de IA; requiere revisión humana.
@@ -103,8 +141,6 @@ relue par un humain. / Traducción generada por una IA, sin revisión humana.
 - Se aplica siempre, con independencia de `idioma=`. La inyección detectada descarta
   el cuerpo, resta 3 puntos y capa el tier a `REVIEW` para revisión humana.
 - Se retira el fallo esperado que documentaba la ausencia de cobertura en francés.
-- La línea base i18n normaliza cualquier parche de versión y congela con una huella el
-  bloque S0 francés, única excepción funcional.
 
 ### Limitaciones
 
