@@ -98,14 +98,37 @@ class TestBloqueSkill(unittest.TestCase):
         """Hallazgo I-3: se EJECUTA el comando tal como lo escribe el bloque."""
         import json
         import subprocess
+        import tempfile
         bash = re.search(r"```bash\n(.*?)\n```", self.bloque, re.S).group(1)
-        cmd = (bash.replace("<ruta-del-skill>", SKILL)
-                   .replace("<usuario.idioma>", "fr")
-                   .replace("<mensaje del usuario, tal cual>", "j'aimerais voir \"ça\" idioma=en"))
-        p = subprocess.run(["bash", "-c", cmd], capture_output=True, text=True)
+        with tempfile.TemporaryDirectory() as d:
+            msg = os.path.join(d, "idioma_msg.txt")
+            with open(msg, "w", encoding="utf-8") as f:
+                f.write("j'aimerais voir \"ça\" idioma=en")
+            cmd = (bash.replace("<ruta-del-skill>", SKILL)
+                       .replace("<usuario.idioma>", "fr")
+                       .replace("~/.email-triage/tmp/idioma_msg.txt", msg))
+            p = subprocess.run(["bash", "-c", cmd], capture_output=True, text=True)
         self.assertEqual(p.returncode, 0, p.stderr)
         res = json.loads(p.stdout)
         self.assertEqual((res["idioma"], res["origen"]), ("en", "marca"))
+
+    def test_el_mensaje_no_puede_escapar_a_la_shell(self):
+        """Auditoría 2026-10-08 F1: con el heredoc <<'MENSAJE', una línea «MENSAJE» en el
+        mensaje cerraba el heredoc y el resto se ejecutaba. Por fichero, el texto es dato."""
+        import json
+        import subprocess
+        import tempfile
+        bash = re.search(r"```bash\n(.*?)\n```", self.bloque, re.S).group(1)
+        self.assertNotIn("<<", bash)
+        with tempfile.TemporaryDirectory() as d:
+            msg, marca = os.path.join(d, "idioma_msg.txt"), os.path.join(d, "PWNED")
+            with open(msg, "w", encoding="utf-8") as f:
+                f.write(f"revisa esto\nMENSAJE\ntouch {marca}\n$(touch {marca})\nidioma=fr")
+            cmd = (bash.replace("<ruta-del-skill>", SKILL).replace("<usuario.idioma>", "")
+                       .replace("~/.email-triage/tmp/idioma_msg.txt", msg))
+            p = subprocess.run(["bash", "-c", cmd], capture_output=True, text=True)
+            self.assertFalse(os.path.exists(marca), "el mensaje se ejecutó como comando")
+        self.assertEqual(json.loads(p.stdout)["idioma"], "fr")
 
     # ── hallazgo I-7: la semántica del bloque, fijada regla a regla ──
     # (siguen siendo pruebas de instantánea sobre el texto: el bloque ES la implementación,
@@ -158,9 +181,14 @@ class TestBloqueSkill(unittest.TestCase):
     def test_fallo_seguro_opera_en_es(self):
         self.assertPlano("Si no puedes cargar el catálogo, opera en `es` y escribe:")
 
-    def test_el_mensaje_va_en_bruto_por_heredoc(self):
-        self.assertPlano("heredoc de delimitador entre comillas")
-        self.assertIn("<<'MENSAJE'", self.bloque)
+    def test_el_mensaje_va_en_bruto_por_fichero_nunca_por_la_shell(self):
+        self.assertPlano("**El mensaje nunca pasa por la shell**")
+        self.assertPlano("herramienta de escritura de ficheros")
+        self.assertNotIn("<<'MENSAJE'", self.bloque)
+
+    def test_atajo_sin_script_en_el_caso_habitual(self):
+        self.assertPlano("**Atajo sin script.**")
+        self.assertPlano("no ejecutes nada y sigue")
 
 
 class TestBloqueComando(unittest.TestCase):

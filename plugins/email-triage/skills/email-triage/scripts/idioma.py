@@ -13,11 +13,10 @@ Orden: primera marca > `usuario.idioma` de config.yaml > `es`.
 Un código vacío, mal formado o sin catálogo no rompe nada: se ejecuta en `es` y
 se devuelve un aviso para que el skill lo muestre al principio de la salida.
 
-Uso (recomendado: el mensaje en bruto por stdin con un heredoc de delimitador entre
-comillas; así ningún apóstrofo ni comilla del mensaje rompe el comando):
-  python3 idioma.py resolver --texto [--config-idioma fr] <<'MENSAJE'
-  <mensaje del usuario, tal cual>
-  MENSAJE
+Uso (recomendado: el mensaje en bruto por stdin desde un FICHERO escrito con la
+herramienta de escritura del agente; nunca por heredoc ni interpolado en la shell,
+porque una línea igual al delimitador cerraría el heredoc y ejecutaría el resto):
+  python3 idioma.py resolver --texto [--config-idioma fr] < ~/.email-triage/tmp/idioma_msg.txt
 También acepta JSON: {"argumentos": "...", "config_idioma": "..."}. Si el JSON es
 inválido devuelve `es` con un aviso `entrada_invalida` (nunca en silencio).
 """
