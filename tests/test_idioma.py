@@ -189,7 +189,7 @@ class TestCLI(Base):
         return json.loads(p.stdout)
 
     def test_modo_texto_acepta_apostrofos_y_comillas(self):
-        """El mensaje va en bruto por stdin (heredoc de comillas): en francés el apóstrofo es habitual."""
+        """El mensaje va en bruto por stdin (desde un fichero): en francés el apóstrofo es habitual."""
         for msg in ("j'aimerais voir idioma=fr", 'dis "bonjour" idioma=fr',
                     "l'été, \"oui\", idioma=fr\nsegunda línea", "idioma=fr $(whoami) `id` \\"):
             with self.subTest(msg=msg):

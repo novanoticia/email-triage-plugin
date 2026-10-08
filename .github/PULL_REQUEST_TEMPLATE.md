@@ -3,7 +3,7 @@
 <!-- 1-3 líneas: qué hace este PR y por qué. -->
 
 ## Comprobado
-- [ ] Tests OK: `python3 -m unittest discover -s plugins/email-triage/skills/email-triage/scripts`
+- [ ] Tests OK: `python3 -m unittest discover -s tests -t .`
 - [ ] Versión coherente (o sin tocar)
 - [ ] He revisado el diff
 

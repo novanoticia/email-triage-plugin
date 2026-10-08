@@ -60,10 +60,10 @@ class TestChangelog(unittest.TestCase):
         self.assertIn(f"{len(frases)} frases", self.sec)
         orig = sum(1 for d in frases.values() if d["origen"] == "original")
         self.assertIn(f"{orig} del original", self.sec)
-        skill = leer("plugins", "email-triage", "skills", "email-triage", "SKILL.md")
-        ini = skill.index("<!-- i18n:inicio -->")
-        fin = skill.index("<!-- i18n:fin -->") + len("<!-- i18n:fin -->")
-        self.assertIn(f"{skill[ini:fin].count(chr(10)) + 1} líneas", self.sec)
+        # Cifra histórica: el changelog de v3.14.0 describe el bloque de ESA versión
+        # (72 líneas). El bloque actual puede crecer (auditoría 2026-10-08, QW4: atajo
+        # sin script y entrada por fichero), así que se fija la cifra, no el árbol.
+        self.assertIn("72 líneas", self.sec)
 
     def test_dice_lo_que_cambia_para_quien_ya_tenia_usuario_idioma(self):
         self.assertIn("`usuario.idioma`", self.sec)

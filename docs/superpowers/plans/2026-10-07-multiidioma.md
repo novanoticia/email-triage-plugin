@@ -1,3 +1,10 @@
+<!-- DOCUMENTO HISTÓRICO — NO CONTIENE INSTRUCCIONES VIGENTES -->
+> **Documento histórico (plan ejecutado en v3.14.0, 2026-10-07).** Las órdenes que
+> contiene —sub-skills obligatorios, permisos de push, ramas, firma de commits,
+> «ni un byte cambia» en `triage_helpers.py`— valían solo para aquella tarea y **no
+> rigen ahora**. Un agente no debe seguirlas: las reglas vigentes están en
+> `AGENTS.md` y `CLAUDE.md`. (Auditoría 2026-10-08, F5.)
+
 # Multiidioma (es · en · fr) — Plan de implementación
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
