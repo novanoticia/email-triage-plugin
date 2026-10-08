@@ -22,7 +22,7 @@ SKILL = "plugins/email-triage/skills/email-triage"
 RUTA_BASE = os.path.join(RAIZ, "tests", "i18n", "linea_base.json")
 INI = "<!-- i18n:inicio -->"
 FIN = "<!-- i18n:fin -->"
-COMMIT_BASE = "e3cd85a"   # v3.15.0; antes 2c98507 (v3.13.5)
+COMMIT_BASE = "9cc7bc3"   # v3.15.0; antes 2c98507 (v3.13.5)
 # Lookarounds en vez de \b: «v3.13» no tiene límite de palabra entre «v» y «3».
 # Cualquier parche (3.14.N) se normaliza: enumerar parches ([05], [015]…) rompía la
 # línea base en cada bump. El menor se acota a 3.1x (13, 14, 15…) a propósito.
