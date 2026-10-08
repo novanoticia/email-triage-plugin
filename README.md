@@ -88,15 +88,29 @@ relue par un humain. / Traducción generada por una IA, sin revisión humana.
 
 ## Novedades en v3.14.1
 
+> Elaborado con asistencia de IA; requiere revisión humana.
+
+### Añadido
+
 - **Detección S0 en francés**, además de español e inglés: órdenes de ignorar
   instrucciones, suplantar roles IA y manipular la clasificación o el score del correo.
   Cubre cuerpo, asunto y remitente, con y sin acentos, y las vistas de detección
   existentes (HTML, normalización Unicode, invisibles y confusables).
+- Pruebas de regresión para ataques franceses y correo legítimo (`TestS0Frances`).
+
+### Cambiado
+
 - Se aplica siempre, con independencia de `idioma=`. La inyección detectada descarta
   el cuerpo, resta 3 puntos y capa el tier a `REVIEW` para revisión humana.
-- Pruebas de regresión para ataques franceses y correo legítimo; se retira el fallo
-  esperado que documentaba la ausencia de cobertura en francés.
+- Se retira el fallo esperado que documentaba la ausencia de cobertura en francés.
+- La línea base i18n normaliza cualquier parche de versión y congela con una huella el
+  bloque S0 francés, única excepción funcional.
+
+### Limitaciones
+
 - Sigue siendo una detección heurística, incompleta y evadible.
+- Hereda los falsos positivos de diseño de ES/EN: «Oubliez mon message précédent» o una
+  firma «Assistant : …» se marcan igual que «olvida mi mensaje anterior» en español.
 
 ## Novedades en v3.14.0
 
