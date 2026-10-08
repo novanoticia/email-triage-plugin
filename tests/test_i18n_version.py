@@ -36,8 +36,9 @@ class TestVersion(unittest.TestCase):
         self.assertRegex(leer("README.md"), r"(?m)^# Email Triage Plugin v%s$" % re.escape(VERSION_ACTUAL))
         self.assertIn(f"plugin email-triage (v{VERSION_ACTUAL})",
                       leer("plugins", "email-triage", "skills", "email-triage", "scripts", "triage_helpers.py"))
-        self.assertIn("EMAIL TRIAGE v3.14", leer("plugins", "email-triage", "skills", "email-triage", "config.yaml"))
-        self.assertRegex(skill, r"(?m)^# Email Triage v3\.14 —")
+        mm = VERSION_ACTUAL.rsplit(".", 1)[0]   # major.minor de los dos sitios documentales
+        self.assertIn(f"EMAIL TRIAGE v{mm}", leer("plugins", "email-triage", "skills", "email-triage", "config.yaml"))
+        self.assertRegex(skill, r"(?m)^# Email Triage v%s —" % re.escape(mm))
 
 
 class TestChangelog(unittest.TestCase):
