@@ -50,7 +50,7 @@ No hay que tocar ningún otro fichero: el idioma se descubre solo.
 
 ## Qué no cubre
 
-- La detección de inyección S0 cubre **solo español e inglés** y **no cambia con
+- La detección de inyección S0 cubre **español, inglés y francés** y **no cambia con
   `idioma=`**: es una propiedad del idioma del correo recibido, no de la interfaz.
 - El texto libre que redacta el modelo (resúmenes, razones, notas) no está revisado.
 - Los mensajes de error de los scripts siguen en español.

@@ -8,12 +8,15 @@ import yaml
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SKILL = os.path.join(RAIZ, "plugins", "email-triage", "skills", "email-triage")
-VERSION = "3.14.0"
+VERSION = "3.14.0"  # Changelog histórico de i18n.
 
 
 def leer(*partes):
     with open(os.path.join(RAIZ, *partes), encoding="utf-8") as f:
         return f.read()
+
+
+VERSION_ACTUAL = json.loads(leer(".claude-plugin", "plugin.json"))["version"]
 
 
 def seccion_novedades(readme, version):
@@ -24,14 +27,14 @@ def seccion_novedades(readme, version):
 class TestVersion(unittest.TestCase):
     def test_los_nueve_sitios_estan_en_la_version(self):
         j = lambda p: json.loads(leer(*p.split("/")))["version"]
-        self.assertEqual(j(".claude-plugin/plugin.json"), VERSION)
-        self.assertEqual(j("plugins/email-triage/.claude-plugin/plugin.json"), VERSION)
-        self.assertEqual(j("plugins/email-triage/plugin.json"), VERSION)
-        self.assertIn(f'"version": "{VERSION}"', leer(".claude-plugin", "marketplace.json"))
+        self.assertEqual(j(".claude-plugin/plugin.json"), VERSION_ACTUAL)
+        self.assertEqual(j("plugins/email-triage/.claude-plugin/plugin.json"), VERSION_ACTUAL)
+        self.assertEqual(j("plugins/email-triage/plugin.json"), VERSION_ACTUAL)
+        self.assertIn(f'"version": "{VERSION_ACTUAL}"', leer(".claude-plugin", "marketplace.json"))
         skill = leer("plugins", "email-triage", "skills", "email-triage", "SKILL.md")
-        self.assertIn(f'  version: "{VERSION}"', skill)
-        self.assertRegex(leer("README.md"), r"(?m)^# Email Triage Plugin v%s$" % re.escape(VERSION))
-        self.assertIn(f"plugin email-triage (v{VERSION})",
+        self.assertIn(f'  version: "{VERSION_ACTUAL}"', skill)
+        self.assertRegex(leer("README.md"), r"(?m)^# Email Triage Plugin v%s$" % re.escape(VERSION_ACTUAL))
+        self.assertIn(f"plugin email-triage (v{VERSION_ACTUAL})",
                       leer("plugins", "email-triage", "skills", "email-triage", "scripts", "triage_helpers.py"))
         self.assertIn("EMAIL TRIAGE v3.14", leer("plugins", "email-triage", "skills", "email-triage", "config.yaml"))
         self.assertRegex(skill, r"(?m)^# Email Triage v3\.14 —")
@@ -43,10 +46,10 @@ class TestChangelog(unittest.TestCase):
         cls.readme = leer("README.md")
         cls.sec = seccion_novedades(cls.readme, VERSION)
 
-    def test_la_seccion_existe_y_es_la_primera_de_novedades(self):
+    def test_la_seccion_historica_existe_y_la_actual_es_la_primera(self):
         self.assertIsNotNone(self.sec)
         primera = re.search(r"(?m)^## Novedades en v([0-9.]+)", self.readme).group(1)
-        self.assertEqual(primera, VERSION)
+        self.assertEqual(primera, VERSION_ACTUAL)
 
     def test_tiene_anadido_cambiado_y_limitaciones(self):
         for s in ("### Añadido", "### Cambiado", "### Limitaciones"):

@@ -187,7 +187,7 @@ rompes la conformidad (gate #7) y el skill deja de cargar fuera de Claude.
   **mecánico y completo**: la ruta de *mover* no se puede inyectar aunque S0 falle.
   La *detección* S0 es una **lista de bloqueo advisory best-effort** (patrones +
   invisibles + confusables): inherentemente incompleta —un payload novedoso,
-  multilingüe (los patrones son solo ES/EN) o con un invisible no cubierto puede
+  en idiomas sin patrones (S0 cubre ES/EN/FR) o con un invisible no cubierto puede
   evadirla—. Por eso la inyección detectada solo *capa a `REVIEW`* para que la vea
   un humano; no es un cortafuegos total. El endurecimiento es continuo (auditoría
   2026-07-12: QW1 pasó el filtro de invisibles a categorías Unicode).
@@ -219,7 +219,8 @@ eso `es`. La regla vive en `scripts/idioma.py` y en un bloque de `SKILL.md`.
   `<!-- i18n:fin -->` (con línea en blanco antes y después) en `SKILL.md`,
   `commands/triage.md` y cualquier `references/*.md`. No toques el frontmatter del
   `SKILL.md` (conjunto cerrado). La línea base `tests/i18n/linea_base.json` falla si
-  cambia una sola línea original fuera de esos bloques (salvo los tokens de versión).
+  cambia una sola línea original fuera de esos bloques (salvo los tokens de versión
+  y el bloque S0 francés añadido en v3.14.1, fijado por `TestS0Frances`).
 - **No escribas literales visibles nuevos fuera del catálogo.** Una frase nueva que la
   persona vea es una clave de `i18n/*.yaml`; añádela al manifiesto
   `scripts/i18n_fuentes.yaml` (es una regex sobre el original, nunca el texto copiado) y
@@ -232,10 +233,10 @@ eso `es`. La regla vive en `scripts/idioma.py` y en un bloque de `SKILL.md`.
 - Las frases marcadas `riesgo: alto` (confirmar mover, archivar o deshacer) exigen
   **revisión humana del diff**. `en` y `fr` son `borrador-ia`: ninguna traducción está
   revisada. Un idioma sin revisor no puede figurar `revisado` (lo vigila un test).
-- **S0 y los idiomas.** La detección de inyección S0 cubre **solo español e inglés** y
+- **S0 y los idiomas.** La detección de inyección S0 cubre **español, inglés y francés** y
   **no cambia con `idioma=`**: es una propiedad del idioma del correo recibido, no de la
-  interfaz. Ampliar los patrones es un pendiente ajeno; no se amplían exenciones de
-  seguridad para los catálogos.
+  interfaz. Los patrones franceses se aplican siempre, también con interfaz en
+  español; no se amplían exenciones de seguridad para los catálogos.
 - **Pendientes ajenos conocidos:** `SKILL.md` dice «13 core» (l.160, 614) y «12 core»
   (l.1014); patrones S0 en otros idiomas; README completos en `en` y `fr`.
 

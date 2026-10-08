@@ -77,8 +77,8 @@ class TestBloqueSkill(unittest.TestCase):
         self.assertIn("Traduction générée par une IA", self.plano)
         self.assertIn("antes de la primera sección", self.plano)
 
-    def test_aclara_que_s0_cubre_solo_es_en(self):
-        self.assertIn("solo español e inglés", self.plano)
+    def test_aclara_que_s0_cubre_es_en_fr(self):
+        self.assertIn("español, inglés y francés", self.plano)
 
     def test_es_no_lleva_aviso(self):
         self.assertIn("en `es` no se muestra ningún aviso", self.plano)
@@ -202,7 +202,7 @@ class TestIdiomaPyDocumentado(unittest.TestCase):
 
     def test_readme_i18n_explica_como_anadir_un_idioma(self):
         t = leer(SKILL, "i18n", "README.md")
-        for s in ("solo español e inglés", "i18n_validar.py", "i18n_extraer.py generar",
+        for s in ("español, inglés y francés", "i18n_validar.py", "i18n_extraer.py generar",
                   "borrador-ia"):
             self.assertIn(s, t)
 

@@ -34,9 +34,11 @@ class TestNormalizacionDeVersion(unittest.TestCase):
 
     def test_misma_linea_con_distinta_version_da_el_mismo_hash(self):
         pares = [('  version: "3.13.5"', '  version: "3.14.0"'),
+                 ('  version: "3.14.0"', '  version: "3.14.1"'),
                  ("# Email Triage v3.13 — Filtrado", "# Email Triage v3.14 — Filtrado"),
                  ("# EMAIL TRIAGE v3.13", "# EMAIL TRIAGE v3.14"),
-                 ("plugin email-triage (v3.13.5)", "plugin email-triage (v3.14.0)")]
+                 ("plugin email-triage (v3.13.5)", "plugin email-triage (v3.14.0)"),
+                 ("plugin email-triage (v3.14.0)", "plugin email-triage (v3.14.1)")]
         for a, b in pares:
             with self.subTest(a=a):
                 self.assertEqual(self.h(a), self.h(b))
@@ -74,6 +76,16 @@ class TestLineaBase(unittest.TestCase):
         for rel, esperado in self.base["ficheros"].items():
             with self.subTest(fichero=rel):
                 actual = lb.hashes_de(os.path.join(RAIZ, rel))
+                if rel.endswith("/scripts/triage_helpers.py"):
+                    # v3.14.1 amplía S0 con francés: cambio funcional deliberado,
+                    # fijado por TestS0Frances, no una traducción de la interfaz.
+                    # Solo se excluye el bloque añadido; el original se conserva.
+                    inicio = lb.hash_linea("# Francés: mismas categorías y mismas vistas S0, con independencia del idioma")
+                    fin = lb.hash_linea("S1_CORTES = [")
+                    if inicio in actual:
+                        i = actual.index(inicio)
+                        j = actual.index(fin, i)
+                        actual = actual[:i] + actual[j:]
                 if actual != esperado:
                     n = next((i for i, (a, b) in enumerate(zip(actual, esperado)) if a != b),
                              min(len(actual), len(esperado)))

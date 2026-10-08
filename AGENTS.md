@@ -46,7 +46,7 @@ AppleScript / MCP de Gmail.
   (`es` generado, `en`/`fr` borrador de IA sin revisar). Las adiciones a `SKILL.md`
   van entre `<!-- i18n:inicio -->` y `<!-- i18n:fin -->`; no se escriben literales
   nuevos fuera del catálogo; `es.yaml` no se edita a mano. La detección de inyección S0
-  cubre **solo español e inglés** y **no cambia con `idioma=`**. Detalle en `CLAUDE.md`.
+  cubre **español, inglés y francés** y **no cambia con `idioma=`**. Detalle en `CLAUDE.md`.
 - Cambios en scoring o en S0–S5 → **añade un test** que fije el comportamiento.
 
 ## Cómo correr los tests
