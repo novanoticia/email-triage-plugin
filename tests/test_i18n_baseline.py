@@ -38,7 +38,10 @@ class TestNormalizacionDeVersion(unittest.TestCase):
                  ("# Email Triage v3.13 — Filtrado", "# Email Triage v3.14 — Filtrado"),
                  ("# EMAIL TRIAGE v3.13", "# EMAIL TRIAGE v3.14"),
                  ("plugin email-triage (v3.13.5)", "plugin email-triage (v3.14.0)"),
-                 ("plugin email-triage (v3.14.0)", "plugin email-triage (v3.14.1)")]
+                 ("plugin email-triage (v3.14.0)", "plugin email-triage (v3.14.1)"),
+                 # Parches futuros: no exigen tocar el regex en cada bump.
+                 ('  version: "3.14.1"', '  version: "3.14.2"'),
+                 ("plugin email-triage (v3.14.1)", "plugin email-triage (v3.14.10)")]
         for a, b in pares:
             with self.subTest(a=a):
                 self.assertEqual(self.h(a), self.h(b))
