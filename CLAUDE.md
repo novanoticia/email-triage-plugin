@@ -221,8 +221,11 @@ eso `es`. La regla vive en `scripts/idioma.py` y en un bloque de `SKILL.md`.
   `<!-- i18n:fin -->` (con línea en blanco antes y después) en `SKILL.md`,
   `commands/triage.md` y cualquier `references/*.md`. No toques el frontmatter del
   `SKILL.md` (conjunto cerrado). La línea base `tests/i18n/linea_base.json` falla si
-  cambia una sola línea original fuera de esos bloques (salvo los tokens de versión
-  y el bloque S0 francés añadido en v3.14.1, fijado por `TestS0Frances`).
+  cambia una sola línea original fuera de esos bloques (salvo los tokens de versión).
+  Si el original en español cambia **a propósito** (v3.15.0, interfaz de revisión),
+  la base se mueve en un commit propio: `COMMIT_BASE` en `scripts/i18n_baseline.py`
+  al commit que contiene el cambio, `python3 scripts/i18n_baseline.py generar` y
+  explicación en el mensaje. Nunca para tapar un cambio accidental.
 - **No escribas literales visibles nuevos fuera del catálogo.** Una frase nueva que la
   persona vea es una clave de `i18n/*.yaml`; añádela al manifiesto
   `scripts/i18n_fuentes.yaml` (es una regex sobre el original, nunca el texto copiado) y

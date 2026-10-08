@@ -29,140 +29,140 @@ frases:
   urgentes.asunto:
     texto: 📬 [Asunto]
     origen: original
-    fuente: SKILL.md:420
+    fuente: SKILL.md:387
     riesgo: normal
     lista: false
     invariable: false
   urgentes.remitente:
     texto: '   De: [Remitente]'
     origen: original
-    fuente: SKILL.md:421
+    fuente: SKILL.md:388
     riesgo: normal
     lista: false
     invariable: false
   urgentes.resumen:
     texto: '📝 Resumen: [2-3 líneas del contenido]'
     origen: original
-    fuente: SKILL.md:422
+    fuente: SKILL.md:389
     riesgo: normal
     lista: false
     invariable: false
   urgentes.por_que_ahora:
     texto: '⚡ Por qué ahora: [ventana temporal]'
     origen: original
-    fuente: SKILL.md:423
+    fuente: SKILL.md:390
     riesgo: normal
     lista: false
     invariable: false
   urgentes.recomendacion:
     texto: '🔵 Recomendación: LEER AHORA / PUEDE ESPERAR'
     origen: original
-    fuente: SKILL.md:424
+    fuente: SKILL.md:391
     riesgo: normal
     lista: true
     invariable: false
   urgentes.vacio:
     texto: Nada en la bandeja requiere atención inmediata.
     origen: original
-    fuente: SKILL.md:429
+    fuente: SKILL.md:396
     riesgo: normal
     lista: false
     invariable: false
   correo.asunto:
     texto: 📧 [Asunto]
     origen: original
-    fuente: SKILL.md:712
+    fuente: SKILL.md:680
     riesgo: normal
     lista: false
     invariable: false
   correo.de_fecha:
     texto: '   De: [Remitente] | Fecha: [DD/MM]'
     origen: original
-    fuente: SKILL.md:713
+    fuente: SKILL.md:681
     riesgo: normal
     lista: false
     invariable: false
   correo.resumen:
     texto: '📝 Resumen: [2-3 líneas del contenido real]'
     origen: original
-    fuente: SKILL.md:714
+    fuente: SKILL.md:682
     riesgo: normal
     lista: false
     invariable: false
   correo.puntuacion:
     texto: '📊 Puntuación: X (desglose: decisional +N, epistémica +N, manipulación N, cognitivo N, acción +N)'
     origen: original
-    fuente: SKILL.md:715
+    fuente: SKILL.md:683
     riesgo: normal
     lista: false
     invariable: false
   correo.tier:
     texto: '[🔴|🟡|🔵|⚪] Tier: [REPLY_NEEDED | REVIEW | READING_LATER | ARCHIVE]'
     origen: original
-    fuente: SKILL.md:716
+    fuente: SKILL.md:684
     riesgo: normal
     lista: false
     invariable: false
   correo.razones_positivas:
     texto: '   ▲ [razón positiva 1] | [razón positiva 2] | [razón positiva 3]'
     origen: original
-    fuente: SKILL.md:717
+    fuente: SKILL.md:685
     riesgo: normal
     lista: false
     invariable: false
   correo.razones_negativas:
     texto: '   ▼ [razón negativa 1] | [razón negativa 2] | [razón negativa 3]'
     origen: original
-    fuente: SKILL.md:718
+    fuente: SKILL.md:686
     riesgo: normal
     lista: false
     invariable: false
   correo.rationale:
     texto: '💬 [Rationale en español llano: 1-2 frases]'
     origen: original
-    fuente: SKILL.md:719
+    fuente: SKILL.md:687
     riesgo: normal
     lista: false
     invariable: false
   correo.recomendacion:
     texto: '🔵 Recomendación: MOVER → [destino] / DEJAR / ARCHIVAR'
     origen: original
-    fuente: SKILL.md:720
+    fuente: SKILL.md:688
     riesgo: alto
     lista: true
     invariable: false
   tier.reply:
     texto: '- `🔴 REPLY_NEEDED` — rojo: acción urgente'
     origen: original
-    fuente: SKILL.md:724
+    fuente: SKILL.md:692
     riesgo: normal
     lista: false
     invariable: false
   tier.review:
     texto: '- `🟡 REVIEW` — amarillo: leer con atención'
     origen: original
-    fuente: SKILL.md:725
+    fuente: SKILL.md:693
     riesgo: normal
     lista: false
     invariable: false
   tier.later:
     texto: '- `🔵 READING_LATER` — azul: lectura futura'
     origen: original
-    fuente: SKILL.md:726
+    fuente: SKILL.md:694
     riesgo: normal
     lista: false
     invariable: false
   tier.archive:
     texto: '- `⚪ ARCHIVE` — gris: descartable'
     origen: original
-    fuente: SKILL.md:727
+    fuente: SKILL.md:695
     riesgo: normal
     lista: false
     invariable: false
   inyeccion.marca:
     texto: '[⚠️ posible inyección detectada]'
     origen: original
-    fuente: SKILL.md:311
+    fuente: SKILL.md:277
     riesgo: normal
     lista: false
     invariable: false
@@ -170,14 +170,14 @@ frases:
   inyeccion.razon:
     texto: Contiene patrones de manipulación del clasificador
     origen: original
-    fuente: SKILL.md:325
+    fuente: SKILL.md:291
     riesgo: normal
     lista: false
     invariable: false
   inyeccion.resumen:
     texto: N correos con posible prompt injection descartados
     origen: original
-    fuente: SKILL.md:326
+    fuente: SKILL.md:292
     riesgo: normal
     lista: false
     invariable: false
@@ -190,119 +190,196 @@ frases:
 
       `remitentes_prioritarios` para forzar lectura detallada en futuras sesiones.'
     origen: original
-    fuente: SKILL.md:363
+    fuente: SKILL.md:329
     riesgo: normal
     lista: false
     invariable: false
   lote.confirmar:
     texto: ¿Muevo los marcados? Puedes excluir por número o cambiar tier
     origen: original
-    fuente: SKILL.md:737
+    fuente: SKILL.md:710
+    riesgo: alto
+    lista: false
+    invariable: false
+  progreso.leyendo:
+    texto: ⏳ Leyendo [carpeta]…
+    origen: original
+    fuente: references/interfaz-revision.md:14
+    riesgo: normal
+    lista: false
+    invariable: false
+  progreso.carpeta:
+    texto: '📥 [carpeta]: N correos'
+    origen: original
+    fuente: references/interfaz-revision.md:15
+    riesgo: normal
+    lista: false
+    invariable: false
+  progreso.cuerpos:
+    texto: '⏳ Cuerpos: N/M'
+    origen: original
+    fuente: references/interfaz-revision.md:16
+    riesgo: normal
+    lista: false
+    invariable: false
+  compacto.cabecera:
+    texto: '[🔴|🟡|🔵|⚪] [TIER] (N) → [destino]'
+    origen: original
+    fuente: references/interfaz-revision.md:29
+    riesgo: normal
+    lista: false
+    invariable: false
+  compacto.columnas:
+    texto: '| # | Correo | Score | ▲ / ▼ |'
+    origen: original
+    fuente: references/interfaz-revision.md:30
+    riesgo: normal
+    lista: false
+    invariable: false
+  compacto.fila:
+    texto: '| #N | [Asunto] · [Remitente] · [DD/MM] | X | ▲ [razón] · ▼ [razón] |'
+    origen: original
+    fuente: references/interfaz-revision.md:31
+    riesgo: normal
+    lista: false
+    invariable: false
+  confirmar.opciones:
+    texto: Sí, los [N] / Sí, excepto… / No
+    origen: original
+    fuente: references/interfaz-revision.md:41
+    riesgo: alto
+    lista: true
+    invariable: false
+  confirmar.tier:
+    texto: '¿Muevo [N] correos de [tier] a [destino]? Responde sí, no o una corrección: #N se queda, #N → otro tier.'
+    origen: original
+    fuente: references/interfaz-revision.md:43
+    riesgo: alto
+    lista: false
+    invariable: false
+  confirmar.reintento:
+    texto: 'No he movido nada: necesito un sí explícito o una corrección (#N se queda, #N → otro tier).'
+    origen: original
+    fuente: references/interfaz-revision.md:58
     riesgo: alto
     lista: false
     invariable: false
   resumen.titulo:
-    texto: RESUMEN DE TRIAJE v3.0
+    texto: RESUMEN DE TRIAJE
     origen: original
-    fuente: SKILL.md:939
+    fuente: SKILL.md:925
     riesgo: normal
+    lista: false
+    invariable: false
+  resumen.informe:
+    texto: '📄 Informe: [ruta del informe]'
+    origen: original
+    fuente: SKILL.md:956
+    riesgo: normal
+    lista: false
+    invariable: false
+  resumen.deshacer:
+    texto: '↩️ Para deshacer: «deshaz el triaje»'
+    origen: original
+    fuente: SKILL.md:957
+    riesgo: alto
     lista: false
     invariable: false
   resumen.bandeja:
     texto: '📥 Bandeja de entrada: X correos revisados'
     origen: original
-    fuente: SKILL.md:941
+    fuente: SKILL.md:927
     riesgo: normal
     lista: false
     invariable: false
   resumen.urgentes:
     texto: '   → Y urgentes identificados'
     origen: original
-    fuente: SKILL.md:942
+    fuente: SKILL.md:928
     riesgo: normal
     lista: false
     invariable: false
   resumen.pendiente:
     texto: '📂 [Carpeta pendiente]: X correos revisados'
     origen: original
-    fuente: SKILL.md:944
+    fuente: SKILL.md:930
     riesgo: normal
     lista: false
     invariable: false
   resumen.distribucion:
     texto: '   Distribución por tier:'
     origen: original
-    fuente: SKILL.md:946
+    fuente: SKILL.md:932
     riesgo: normal
     lista: false
     invariable: false
   resumen.tier_reply:
     texto: '   🔴 REPLY_NEEDED: N correos → movidos a [destino]'
     origen: original
-    fuente: SKILL.md:947
+    fuente: SKILL.md:933
     riesgo: normal
     lista: false
     invariable: false
   resumen.tier_review:
     texto: '   🟡 REVIEW:       N correos → movidos a [destino]'
     origen: original
-    fuente: SKILL.md:948
+    fuente: SKILL.md:934
     riesgo: normal
     lista: false
     invariable: false
   resumen.tier_later:
     texto: '   🔵 READING_LATER: N correos → dejados en [pendiente]'
     origen: original
-    fuente: SKILL.md:949
+    fuente: SKILL.md:935
     riesgo: normal
     lista: false
     invariable: false
   resumen.tier_archive:
     texto: '   ⚪ ARCHIVE:       N correos → movidos a [destino_archive] / archivados / dejados'
     origen: original
-    fuente: SKILL.md:950
+    fuente: SKILL.md:936
     riesgo: alto
     lista: true
     invariable: false
   resumen.scoring:
     texto: '📊 Scoring:'
     origen: original
-    fuente: SKILL.md:952
+    fuente: SKILL.md:938
     riesgo: normal
     lista: false
     invariable: false
   resumen.puntuacion:
     texto: '   Puntuación media: X.X | Máxima: X | Mínima: X'
     origen: original
-    fuente: SKILL.md:953
+    fuente: SKILL.md:939
     riesgo: normal
     lista: false
     invariable: false
   resumen.ejes:
     texto: '   Ejes dominantes: [eje con más peso en esta sesión]'
     origen: original
-    fuente: SKILL.md:954
+    fuente: SKILL.md:940
     riesgo: normal
     lista: false
     invariable: false
   resumen.criterios:
     texto: '📈 Criterios más activados:'
     origen: original
-    fuente: SKILL.md:956
+    fuente: SKILL.md:942
     riesgo: normal
     lista: false
     invariable: false
   resumen.correcciones:
     texto: '🔄 Correcciones del usuario: N (si hubo overrides)'
     origen: original
-    fuente: SKILL.md:962
+    fuente: SKILL.md:948
     riesgo: normal
     lista: false
     invariable: false
   resumen.aprendidos:
     texto: '🧠 Ajustes aprendidos aplicados:'
     origen: original
-    fuente: SKILL.md:964
+    fuente: SKILL.md:950
     riesgo: normal
     lista: false
     invariable: false
@@ -386,77 +463,77 @@ frases:
   desglose.puntuacion:
     texto: '📊 Puntuación: 6'
     origen: original
-    fuente: SKILL.md:513
+    fuente: SKILL.md:480
     riesgo: normal
     lista: false
     invariable: false
   desglose.extra:
     texto: '   Extra (calibración): +1 (dominio frecuente)'
     origen: original
-    fuente: SKILL.md:514
+    fuente: SKILL.md:481
     riesgo: normal
     lista: false
     invariable: false
   desglose.aprendido:
     texto: '   Aprendido:  +2 (remitente corregido 4 veces hacia arriba)'
     origen: original
-    fuente: SKILL.md:515
+    fuente: SKILL.md:482
     riesgo: normal
     lista: false
     invariable: false
   desglose.epistemico:
     texto: '   Epistémico: +3 (valor_decisional +2, calidad_epistemica +1)'
     origen: original
-    fuente: SKILL.md:516
+    fuente: SKILL.md:483
     riesgo: normal
     lista: false
     invariable: false
   resumen.crit_pos1:
     texto: '   ▲ [criterio positivo más frecuente]: N veces'
     origen: original
-    fuente: SKILL.md:957
+    fuente: SKILL.md:943
     riesgo: normal
     lista: false
     invariable: false
   resumen.crit_pos2:
     texto: '   ▲ [criterio positivo 2]: N veces'
     origen: original
-    fuente: SKILL.md:958
+    fuente: SKILL.md:944
     riesgo: normal
     lista: false
     invariable: false
   resumen.crit_neg1:
     texto: '   ▼ [criterio negativo más frecuente]: N veces'
     origen: original
-    fuente: SKILL.md:959
+    fuente: SKILL.md:945
     riesgo: normal
     lista: false
     invariable: false
   resumen.crit_neg2:
     texto: '   ▼ [criterio negativo 2]: N veces'
     origen: original
-    fuente: SKILL.md:960
+    fuente: SKILL.md:946
     riesgo: normal
     lista: false
     invariable: false
   resumen.remitentes:
     texto: '   Remitentes con boost: N | con penalización: N'
     origen: original
-    fuente: SKILL.md:965
+    fuente: SKILL.md:951
     riesgo: normal
     lista: false
     invariable: false
   resumen.keywords:
     texto: '   Keywords ajustadas: N'
     origen: original
-    fuente: SKILL.md:966
+    fuente: SKILL.md:952
     riesgo: normal
     lista: false
     invariable: false
   resumen.basado:
     texto: '   Basado en X correcciones de los últimos 90 días'
     origen: original
-    fuente: SKILL.md:967
+    fuente: SKILL.md:953
     riesgo: normal
     lista: false
     invariable: false
@@ -694,49 +771,49 @@ frases:
   hilo.titulo:
     texto: 🧵 [Asunto raíz] — hilo de N mensajes
     origen: original
-    fuente: references/paso-1c-hilos.md:191
+    fuente: references/paso-1c-hilos.md:193
     riesgo: normal
     lista: false
     invariable: false
   hilo.participantes:
     texto: '   Participantes: [remitente1], [remitente2]... | Último: [DD/MM] de [remitente]'
     origen: original
-    fuente: references/paso-1c-hilos.md:192
+    fuente: references/paso-1c-hilos.md:194
     riesgo: normal
     lista: false
     invariable: false
   hilo.esperando:
     texto: '   ⏳ Esperando tu respuesta: [Sí / No]'
     origen: original
-    fuente: references/paso-1c-hilos.md:193
+    fuente: references/paso-1c-hilos.md:195
     riesgo: normal
     lista: true
     invariable: false
   hilo.resumen:
     texto: '📝 Resumen del último mensaje: [2-3 líneas]'
     origen: original
-    fuente: references/paso-1c-hilos.md:194
+    fuente: references/paso-1c-hilos.md:196
     riesgo: normal
     lista: false
     invariable: false
   hilo.puntuacion:
     texto: '📊 Puntuación: X (decisional +N, epistémica +N, manipulación N, cognitivo N, acción +N, hilo +N)'
     origen: original
-    fuente: references/paso-1c-hilos.md:195
+    fuente: references/paso-1c-hilos.md:197
     riesgo: normal
     lista: false
     invariable: false
   hilo.rationale:
     texto: '💬 [Rationale: 1-2 frases que mencionan explícitamente si hay respuesta pendiente]'
     origen: original
-    fuente: references/paso-1c-hilos.md:199
+    fuente: references/paso-1c-hilos.md:201
     riesgo: normal
     lista: false
     invariable: false
   hilo.recomendacion:
     texto: '🔵 Recomendación: MOVER hilo completo (N mensajes) → [destino] / DEJAR / ARCHIVAR'
     origen: original
-    fuente: references/paso-1c-hilos.md:200
+    fuente: references/paso-1c-hilos.md:202
     riesgo: alto
     lista: true
     invariable: false
@@ -863,6 +940,13 @@ frases:
     invariable: false
   activacion.ejecutar:
     texto: ejecuta el triaje, ejecuta
+    origen: nuevo
+    fuente: manifiesto
+    riesgo: alto
+    lista: false
+    invariable: false
+  entrada.correcciones:
+    texto: 'mueve todo, solo REVIEW, solo ARCHIVE, #N se queda, #N → REVIEW, detalle #N'
     origen: nuevo
     fuente: manifiesto
     riesgo: alto

@@ -49,8 +49,27 @@ frases:
      patron: '(?s)^> "(N correos tenían cuerpo HTML/codificado.*?futuras sesiones\.)"$'}
   - {clave: lote.confirmar, fichero: SKILL.md, riesgo: alto,
      patron: '"(¿Muevo los marcados\? Puedes excluir por número o cambiar tier)"'}
+  # ── references/interfaz-revision.md · 4.K interfaz de revisión (v3.15) ──
+  - {clave: progreso.leyendo, fichero: references/interfaz-revision.md, patron: '^(⏳ Leyendo \[carpeta\]…)$'}
+  - {clave: progreso.carpeta, fichero: references/interfaz-revision.md, patron: '^(📥 \[carpeta\]: N correos)$'}
+  - {clave: progreso.cuerpos, fichero: references/interfaz-revision.md, patron: '^(⏳ Cuerpos: N/M)$'}
+  - {clave: compacto.cabecera, fichero: references/interfaz-revision.md,
+     patron: '^(\[🔴\|🟡\|🔵\|⚪\] \[TIER\] \(N\) → \[destino\])$'}
+  - {clave: compacto.columnas, fichero: references/interfaz-revision.md,
+     patron: '^(\| # \| Correo \| Score \| ▲ / ▼ \|)$'}
+  - {clave: compacto.fila, fichero: references/interfaz-revision.md,
+     patron: '^(\| #N \| \[Asunto\] · \[Remitente\] · \[DD/MM\] \| X \| ▲ \[razón\] · ▼ \[razón\] \|)$'}
+  - {clave: confirmar.opciones, fichero: references/interfaz-revision.md, riesgo: alto, lista: true,
+     patron: '«(Sí, los \[N\] / Sí, excepto… / No)»'}
+  - {clave: confirmar.tier, fichero: references/interfaz-revision.md, riesgo: alto,
+     patron: '"(¿Muevo \[N\] correos de \[tier\] a \[destino\]\? Responde sí, no o una corrección: #N se queda, #N → otro tier\.)"'}
+  - {clave: confirmar.reintento, fichero: references/interfaz-revision.md, riesgo: alto,
+     patron: '"(No he movido nada: necesito un sí explícito o una corrección \(#N se queda, #N → otro tier\)\.)"'}
   # ── SKILL.md · PASO 5 resumen real ──
-  - {clave: resumen.titulo, fichero: SKILL.md, patron: '^(RESUMEN DE TRIAJE v3\.0)$'}
+  - {clave: resumen.titulo, fichero: SKILL.md, patron: '^(RESUMEN DE TRIAJE)$'}
+  - {clave: resumen.informe, fichero: SKILL.md, patron: '^(📄 Informe: \[ruta del informe\])$'}
+  - {clave: resumen.deshacer, fichero: SKILL.md, riesgo: alto,
+     patron: '^(↩️ Para deshacer: «deshaz el triaje»)$'}
   - {clave: resumen.bandeja, fichero: SKILL.md, patron: '^(📥 Bandeja de entrada: X correos revisados)$'}
   - {clave: resumen.urgentes, fichero: SKILL.md, patron: '^(   → Y urgentes identificados)$'}
   - {clave: resumen.pendiente, fichero: SKILL.md, patron: '^(📂 \[Carpeta pendiente\]: X correos revisados)$'}
@@ -205,3 +224,5 @@ nuevas:           # claves sin literal original: origen «nuevo»; texto de refe
   - {clave: activacion.veloz, texto: "triaje veloz, modo veloz, rápido y barato"}
   - {clave: activacion.undo, riesgo: alto, texto: "deshaz el triaje, undo, revierte los movimientos, vuelve a como estaba"}
   - {clave: activacion.ejecutar, riesgo: alto, texto: "ejecuta el triaje, ejecuta"}
+  # Respuestas cortas de la confirmación por tier (4.K, v3.15).
+  - {clave: entrada.correcciones, riesgo: alto, texto: "mueve todo, solo REVIEW, solo ARCHIVE, #N se queda, #N → REVIEW, detalle #N"}

@@ -1,5 +1,4 @@
 """El idioma por defecto no cambia: línea base por hashes de línea."""
-import hashlib
 import json
 import os
 import sys
@@ -9,10 +8,6 @@ RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(RAIZ, "scripts"))
 import i18n_baseline as lb  # noqa: E402
 
-# Huella del bloque S0 francés (v3.14.1), única excepción funcional a la línea base.
-# Congelarlo impide que cualquier otra línea colada en ese rango quede exenta.
-# Si cambias los patrones franceses a propósito: verifica TestS0Frances y recalcula.
-HUELLA_S0_FR = "93a5549fcaba6ec6e4b13e8ba49dc4fe44381dc5"
 
 
 class TestQuitarBloques(unittest.TestCase):
@@ -85,20 +80,6 @@ class TestLineaBase(unittest.TestCase):
         for rel, esperado in self.base["ficheros"].items():
             with self.subTest(fichero=rel):
                 actual = lb.hashes_de(os.path.join(RAIZ, rel))
-                if rel.endswith("/scripts/triage_helpers.py"):
-                    # v3.14.1 amplía S0 con francés: cambio funcional deliberado,
-                    # fijado por TestS0Frances, no una traducción de la interfaz.
-                    # Solo se excluye el bloque añadido; el original se conserva.
-                    inicio = lb.hash_linea("# Francés: mismas categorías y mismas vistas S0, con independencia del idioma")
-                    fin = lb.hash_linea("S1_CORTES = [")
-                    if inicio in actual:
-                        i = actual.index(inicio)
-                        j = actual.index(fin, i)
-                        huella = hashlib.sha1("".join(actual[i:j]).encode()).hexdigest()
-                        self.assertEqual(huella, HUELLA_S0_FR,
-                                         "el bloque S0 francés cambió: revisa TestS0Frances "
-                                         "y recalcula HUELLA_S0_FR a conciencia")
-                        actual = actual[:i] + actual[j:]
                 if actual != esperado:
                     n = next((i for i, (a, b) in enumerate(zip(actual, esperado)) if a != b),
                              min(len(actual), len(esperado)))

@@ -36,8 +36,9 @@ class TestVersion(unittest.TestCase):
         self.assertRegex(leer("README.md"), r"(?m)^# Email Triage Plugin v%s$" % re.escape(VERSION_ACTUAL))
         self.assertIn(f"plugin email-triage (v{VERSION_ACTUAL})",
                       leer("plugins", "email-triage", "skills", "email-triage", "scripts", "triage_helpers.py"))
-        self.assertIn("EMAIL TRIAGE v3.14", leer("plugins", "email-triage", "skills", "email-triage", "config.yaml"))
-        self.assertRegex(skill, r"(?m)^# Email Triage v3\.14 —")
+        mm = VERSION_ACTUAL.rsplit(".", 1)[0]   # major.minor de los dos sitios documentales
+        self.assertIn(f"EMAIL TRIAGE v{mm}", leer("plugins", "email-triage", "skills", "email-triage", "config.yaml"))
+        self.assertRegex(skill, r"(?m)^# Email Triage v%s —" % re.escape(mm))
 
 
 class TestChangelog(unittest.TestCase):
@@ -56,10 +57,14 @@ class TestChangelog(unittest.TestCase):
             self.assertIn(s, self.sec)
 
     def test_las_cifras_citadas_coinciden_con_la_realidad(self):
+        # Cifras históricas: el changelog de v3.14.0 describe los catálogos de ESA
+        # versión (122 frases, 113 del original). v3.15 añade frases de la interfaz
+        # de revisión, así que se fijan las cifras de entonces y se exige que el
+        # catálogo actual no haya perdido ninguna.
         frases = yaml.safe_load(leer("plugins", "email-triage", "skills", "email-triage", "i18n", "es.yaml"))["frases"]
-        self.assertIn(f"{len(frases)} frases", self.sec)
-        orig = sum(1 for d in frases.values() if d["origen"] == "original")
-        self.assertIn(f"{orig} del original", self.sec)
+        self.assertIn("122 frases", self.sec)
+        self.assertIn("113 del original", self.sec)
+        self.assertGreaterEqual(len(frases), 122)
         # Cifra histórica: el changelog de v3.14.0 describe el bloque de ESA versión
         # (72 líneas). El bloque actual puede crecer (auditoría 2026-10-08, QW4: atajo
         # sin script y entrada por fichero), así que se fija la cifra, no el árbol.

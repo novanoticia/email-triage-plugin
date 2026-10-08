@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Línea base del idioma por defecto: hash por línea de los ficheros originales.
 
-Se genera UNA vez, en el commit base (2c98507), y se compara tras cada tarea:
+Se genera en el commit base y se compara tras cada tarea. La base solo se mueve
+cuando el original en español cambia A PROPÓSITO (v3.15.0: interfaz de revisión;
+antes 2c98507), en un commit propio que lo explique:
 quitando los bloques `<!-- i18n:inicio -->`..`<!-- i18n:fin -->` (más la línea en
 blanco que los sigue), cada fichero original debe tener las mismas líneas.
 Los tokens de versión se normalizan: el bump de versión es la única excepción.
@@ -20,11 +22,11 @@ SKILL = "plugins/email-triage/skills/email-triage"
 RUTA_BASE = os.path.join(RAIZ, "tests", "i18n", "linea_base.json")
 INI = "<!-- i18n:inicio -->"
 FIN = "<!-- i18n:fin -->"
-COMMIT_BASE = "2c98507"
+COMMIT_BASE = "9cc7bc3"   # v3.15.0; antes 2c98507 (v3.13.5)
 # Lookarounds en vez de \b: «v3.13» no tiene límite de palabra entre «v» y «3».
 # Cualquier parche (3.14.N) se normaliza: enumerar parches ([05], [015]…) rompía la
-# línea base en cada bump. El menor sigue acotado a 13/14 a propósito.
-_RE_VERSION = re.compile(r"(?<![\d.])3\.1[34](?:\.\d+)?(?!\d)")
+# línea base en cada bump. El menor se acota a 3.1x (13, 14, 15…) a propósito.
+_RE_VERSION = re.compile(r"(?<![\d.])3\.1\d(?:\.\d+)?(?!\d)")
 PATRONES = [f"{SKILL}/SKILL.md", f"{SKILL}/config.yaml", f"{SKILL}/config-veloz.yaml",
             "plugins/email-triage/commands/triage.md",
             f"{SKILL}/references/*", f"{SKILL}/scripts/*.py"]

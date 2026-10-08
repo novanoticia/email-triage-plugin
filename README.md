@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.14.2
+# Email Triage Plugin v3.15.0
 
 Filtrado epistémico de correo electrónico para Claude Cowork y Claude Code.
 
@@ -85,6 +85,59 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.15.0
+
+> Elaborado con asistencia de IA; requiere revisión humana.
+
+**Seguridad (importante): ningún dato de un correo pasa ya por la shell.** Hasta v3.14.2
+los ejemplos del skill enseñaban `--asunto "…"` y `echo '{…}'` con asuntos, remitentes y
+message-ids; un `$(…)` o una comilla en el asunto de un correo podía ejecutar comandos en
+tu Mac antes de llegar a la detección de inyección. **Actualiza y reinstala.**
+
+**Interfaz de revisión.** Lo que en una sesión real con 39 correos hubo que improvisar
+(19 preguntas una a una, unas 350 líneas de salida, numeración inventada) pasa a ser
+contrato del skill.
+
+### Añadido
+
+- **Informe de sesión** (`triage_helpers.py informe`): cada sesión escribe
+  `~/.email-triage/informes/<session_id>.md` con una tabla por tier y enlaces
+  `message://` que abren el correo en Mail.app. El chat queda para decidir.
+- **Numeración `#N`** estable en toda la sesión y respuestas cortas: `mueve todo`,
+  `solo REVIEW`, `#N se queda`, `#N → REVIEW`, `detalle #N`.
+- **Hitos de progreso** durante las lecturas de Mail («⏳ Leyendo…», «⏳ Cuerpos: N/M»).
+- `sanitizar --metadatos RUTA`: asunto y remitente en un JSON por fichero.
+- 12 frases nuevas en los catálogos `es`/`en`/`fr` y 30 tests (informe, contrato de la
+  interfaz y datos por fichero).
+
+### Cambiado
+
+- **Datos por fichero:** los 12 ejemplos `echo '{…}' | …` del skill pasan a
+  `… < ~/.email-triage/tmp/<subcomando>.json`, y un test impide que vuelvan `echo`,
+  `--asunto "…"` o heredocs en los bloques bash de la documentación.
+- **Modo por defecto `por_tier`**: una pregunta por cada tier que se mueve, con las
+  opciones «Sí, los N / Sí, excepto… / No». `READING_LATER` no se pregunta. Los lotes de
+  8 unidades o menos (`umbral_uno_a_uno`) siguen confirmándose uno a uno.
+- **Respuesta segura:** solo un sí explícito mueve correo. Una respuesta vacía, sin
+  opción elegida o ambigua no mueve nada y se repregunta una sola vez.
+- **Formato compacto** por defecto (una línea por correo, agrupado por tier); el formato
+  largo queda para `REPLY_NEEDED` y para `detalle #N`.
+- El resumen deja de decir «v3.0» y añade la ruta del informe y cómo deshacer.
+- El detalle de la interfaz (4.K), del informe (5.R) y del modo veloz pasa a
+  `references/` con un stub en `SKILL.md`, que baja a unos 58 KB (techo 60 KB).
+- La línea base i18n se mueve al commit de v3.15.0: el original en español cambia a
+  propósito. Se retira la excepción del bloque S0 francés, que ya forma parte de la base.
+
+### Limitaciones
+
+- **Tu config personal no cambia sola:** si `~/.email-triage/config.yaml` dice
+  `modo: "confirmacion"`, sigue preguntando uno a uno. Para la interfaz nueva, cámbialo
+  a `modo: "por_tier"` y añade `umbral_uno_a_uno: 8`.
+- Los enlaces `message://` están verificados en Mail.app (macOS); en Gmail el informe
+  sale sin enlaces que abran el correo.
+- Las frases nuevas en `en` y `fr` son borrador de IA sin revisar.
+- Sin prueba en plataforma real de la interfaz nueva: solo pruebas automáticas.
 
 ## Novedades en v3.14.2
 
