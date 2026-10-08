@@ -489,6 +489,8 @@ RUTA_MANEJO_ERRORES = os.path.join(SKILL_DIR, "references",
                                    "manejo-errores.md")
 RUTA_SANITIZACION = os.path.join(SKILL_DIR, "references",
                                  "sanitizacion-manual.md")
+# v3.15: el detalle del modo veloz pasa de SKILL.md a una referencia con stub.
+RUTA_MODO_VELOZ = os.path.join(SKILL_DIR, "references", "modo-veloz.md")
 RUTA_CATALOGO = os.path.join(SKILL_DIR, "references",
                              "criterios-catalogo.md")
 RUTA_PLANTILLA_AS = os.path.join(SKILL_DIR, "references",
@@ -703,10 +705,10 @@ class ContratoDoctrinaVolumen(unittest.TestCase):
     def test_skill_veloz_cita_los_valores_del_yaml_veloz(self):
         _requiere_yaml(self)
         veloz = _cargar_config_veloz().get("puntuacion") or {}
-        m = RE_VELOZ_EN_SKILL.search(_texto_doc(DOCS[0]))
+        m = RE_VELOZ_EN_SKILL.search(_texto_doc(RUTA_MODO_VELOZ))
         self.assertTrue(
             m,
-            "SKILL.md ya no cita los limites veloz como "
+            "references/modo-veloz.md ya no cita los limites veloz como "
             "'`max_caracteres_cuerpo: N`, `max_lineas_cuerpo: N`' (item "
             "'Cuerpo recortado' del modo veloz); sin esa cita el gate no "
             "puede compararla con config-veloz.yaml")

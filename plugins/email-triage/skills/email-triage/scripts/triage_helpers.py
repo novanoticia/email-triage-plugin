@@ -76,8 +76,10 @@ Novedades v3.8.9 (cierre de los dos issues abiertos tras la auditoría):
 Uso:
   python3 triage_helpers.py ajustes [--correcciones RUTA]
   python3 triage_helpers.py sanitizar [--archivo RUTA] [--max-chars 1500]
-                            [--asunto TXT] [--remitente TXT]
-                            (sin --archivo lee de stdin)
+                            [--asunto TXT] [--remitente TXT] [--metadatos RUTA]
+                            (sin --archivo lee de stdin; --metadatos: JSON
+                            {"asunto","remitente"} — la vía segura, v3.15: el
+                            texto del remitente nunca pasa por la shell)
   python3 triage_helpers.py scoring [--config RUTA] [--config-veloz RUTA]
                             [--brief] [--desglose RUTA]
                             (lee payload JSON de stdin; single o {"emails":[...]};
@@ -2873,6 +2875,9 @@ def _construir_parser():
     ps.add_argument("--max-chars", type=int, default=1500)
     ps.add_argument("--asunto", default=None,
                     help="asunto del correo; también se escanea con S0")
+    ps.add_argument("--metadatos", default=None,
+                    help='JSON {"asunto","remitente"} en fichero; prevalece '
+                         'sobre --asunto/--remitente (v3.15, auditoría F8)')
     ps.add_argument("--remitente", default=None,
                     help="remitente (display-name) del correo; también S0")
     psc = sub.add_parser("scoring")
@@ -3095,8 +3100,31 @@ def main():
             # Lectura tolerante: un cuerpo en ISO-8859-1 o con bytes sueltos
             # no debe reventar el pipe (se sustituyen los ilegibles).
             texto = sys.stdin.buffer.read(MAX_INGESTA_BYTES).decode("utf-8", errors="replace")
-        out = cmd_sanitizar(texto, args.max_chars, asunto=args.asunto,
-                            remitente=args.remitente)
+        asunto, remitente = args.asunto, args.remitente
+        error_meta = None
+        if args.metadatos:
+            # F8 (auditoría 2026-10-08): asunto y remitente los escribe quien
+            # envía; como argumentos de shell, un «$(…)» se ejecutaba antes de
+            # llegar aquí. Por fichero son datos. Un fichero roto NO degrada a
+            # «sin metadatos» en silencio: se informa y no se sanitiza nada.
+            try:
+                with open(_expandir(args.metadatos), encoding="utf-8",
+                          errors="replace") as fh:
+                    meta = json.loads(fh.read(MAX_INGESTA_BYTES) or "{}")
+                if not isinstance(meta, dict):
+                    raise ValueError("se esperaba un objeto JSON")
+            except (OSError, ValueError) as e:
+                error_meta = "metadatos ilegibles (%s): %s" % (args.metadatos, e)
+            else:
+                if meta.get("asunto") is not None:
+                    asunto = str(meta["asunto"])
+                if meta.get("remitente") is not None:
+                    remitente = str(meta["remitente"])
+        if error_meta:
+            out = {"ok": False, "error": error_meta}
+        else:
+            out = cmd_sanitizar(texto, args.max_chars, asunto=asunto,
+                                remitente=remitente)
     json.dump(out, sys.stdout, ensure_ascii=False, indent=2)
     print()
 

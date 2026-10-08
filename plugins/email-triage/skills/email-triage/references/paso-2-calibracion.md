@@ -18,11 +18,12 @@ descripción conceptual: es un análisis cuantitativo que produce datos usables.
    reproducible. Pasa los metadatos recopilados a `calibrar`:
 
    ```bash
-   echo '{"correos": [
-     {"remitente": "Ana López <ana@substack.com>", "asunto": "Update semanal"},
-     {"remitente": "luis@gmail.com", "asunto": "Re: presupuesto"}
-   ]}' \
-     | python3 "<ruta-del-skill>/scripts/triage_helpers.py" calibrar --guardar
+   # calibrar.json:
+   #   {"correos": [
+   #   {"remitente": "Ana López <ana@substack.com>", "asunto": "Update semanal"},
+   #   {"remitente": "luis@gmail.com", "asunto": "Re: presupuesto"}
+   #   ]}
+   python3 "<ruta-del-skill>/scripts/triage_helpers.py" calibrar --guardar < ~/.email-triage/tmp/calibrar.json
    ```
 
    Devuelve el perfil determinista y, con `--guardar`, lo cachea además

@@ -34,7 +34,7 @@ Desktop Commander y ejecútalo con `osascript`). Ese script:
    `~/.email-triage/tmp/tbody_N.txt`, en un directorio privado `700` (en macOS
    `/tmp` es world-readable; ver la cabecera del propio script).
 3. Deja que PASO 1.B sanitice cada `tbody_N.txt` con
-   `triage_helpers.py sanitizar --archivo … --asunto …`: el modelo solo ve el
+   `triage_helpers.py sanitizar --archivo … --metadatos …`: el modelo solo ve el
    JSON ya filtrado (`texto` limpio + `injection`), nunca el crudo. Al terminar,
    el SCRIPT 4 del mismo fichero borra los `tbody_N.txt`.
 
@@ -200,8 +200,9 @@ que un `message-id` con una comilla cierre el literal e inyecte
 el helper y usa su campo `lista_applescript` tal cual:
 
 ```bash
-echo '{"valores":["<mid_review_1>","<mid_review_2>"]}' \
-  | python3 "<ruta-del-skill>/scripts/triage_helpers.py" escapar-applescript
+# escapar-applescript.json:
+#   {"valores":["<mid_review_1>","<mid_review_2>"]}
+python3 "<ruta-del-skill>/scripts/triage_helpers.py" escapar-applescript < ~/.email-triage/tmp/escapar-applescript.json
 # -> {"escapados":[...], "lista_applescript":"{\"...\", \"...\"}", "sospechosos":[...]}
 ```
 
@@ -217,12 +218,13 @@ carpetas y message-ids). Así ni el literal de la lista ni los nombres de
 carpeta/cuenta dependen de que el modelo se acuerde de escapar:
 
 ```bash
-echo '{"cuenta":"<cuenta>","origen":"<origen>",
-       "destino_review":"<carpeta_review>","destino_archive":"<carpeta_archive_o_vacio>",
-       "destino_reply_needed":"<carpeta_reply_needed_o_vacio>",
-       "mids_review":["<mid1>","<mid2>"],"mids_archive":["<mid3>"],
-       "mids_reply_needed":["<mid4>"]}' \
-  | python3 "<ruta-del-skill>/scripts/triage_helpers.py" montar-mover
+# montar-mover.json:
+#   {"cuenta":"<cuenta>","origen":"<origen>",
+#   "destino_review":"<carpeta_review>","destino_archive":"<carpeta_archive_o_vacio>",
+#   "destino_reply_needed":"<carpeta_reply_needed_o_vacio>",
+#   "mids_review":["<mid1>","<mid2>"],"mids_archive":["<mid3>"],
+#   "mids_reply_needed":["<mid4>"]}
+python3 "<ruta-del-skill>/scripts/triage_helpers.py" montar-mover < ~/.email-triage/tmp/montar-mover.json
 # -> {"ok":true,"script":"...SCRIPT 3 listo...","sospechosos":[...],
 #     "n_review":2,"n_archive":1,"n_reply_needed":1,
 #     "archivo_nativo":false,"reply_needed_movido":true}
@@ -270,8 +272,9 @@ entrecomillado por valor), en vez de envolver el nombre crudo entre comillas a
 mano:
 
 ```bash
-echo '{"valores":["<nombre_cuenta>","<carpeta_origen>","<carpeta_destino>"]}' \
-  | python3 "<ruta-del-skill>/scripts/triage_helpers.py" escapar-applescript
+# escapar-applescript.json:
+#   {"valores":["<nombre_cuenta>","<carpeta_origen>","<carpeta_destino>"]}
+python3 "<ruta-del-skill>/scripts/triage_helpers.py" escapar-applescript < ~/.email-triage/tmp/escapar-applescript.json
 # usa cada elemento de "escapados" TAL CUAL (ya lleva sus comillas):
 #   set acct to account <escapados[0]>
 #   set srcBox to mailbox <escapados[1]> of acct

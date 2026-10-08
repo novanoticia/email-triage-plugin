@@ -16,9 +16,10 @@ deterministas y reproducibles con `triage_helpers.py agrupar-hilos`. Pásale
 los metadatos ya recogidos (SCRIPT 1A) y usa las `unidades` que devuelve:
 
 ```bash
-echo '{"correos":[{"id":1,"remitente":"A <a@x.com>","asunto":"Reunión"},
-                  {"id":2,"remitente":"B <x.com>","asunto":"Re: Reunión"}]}' \
-  | python3 "<ruta-del-skill>/scripts/triage_helpers.py" agrupar-hilos
+# agrupar-hilos.json:
+#   {"correos":[{"id":1,"remitente":"A <a@x.com>","asunto":"Reunión"},
+#   {"id":2,"remitente":"B <x.com>","asunto":"Re: Reunión"}]}
+python3 "<ruta-del-skill>/scripts/triage_helpers.py" agrupar-hilos < ~/.email-triage/tmp/agrupar-hilos.json
 ```
 
 Devuelve `{"unidades":[{tipo, clave_hilo, count, participantes, miembros}]}`.
@@ -95,8 +96,9 @@ en el AppleScript**: una comilla en el asunto —común en correo legítimo
 consulta con el mecanismo, que los escapa como `montar-mover` escapa el mover:
 
 ```bash
-echo '{"cuenta":"<correo.cuenta>","clave_hilo":"<clave_hilo>","fecha_corte":"<fecha del último recibido del hilo>"}' \
-  | python3 "<ruta-del-skill>/scripts/triage_helpers.py" montar-consulta-enviados
+# montar-consulta-enviados.json:
+#   {"cuenta":"<correo.cuenta>","clave_hilo":"<clave_hilo>","fecha_corte":"<fecha del último recibido del hilo>"}
+python3 "<ruta-del-skill>/scripts/triage_helpers.py" montar-consulta-enviados < ~/.email-triage/tmp/montar-consulta-enviados.json
 ```
 
 Escribe el `script` devuelto a un fichero temporal y ejecútalo con `osascript`;
