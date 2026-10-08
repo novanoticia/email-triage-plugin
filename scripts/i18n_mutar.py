@@ -44,7 +44,7 @@ MUTANTES = [
     ("SKILL.md: se quita S0–S5 de las precedencias", f"{SK}/SKILL.md",
      "S0–S5 y `<email-body-data>`", "nada"),
     ("SKILL.md: el límite de S0 cambia", f"{SK}/SKILL.md",
-     "cubre solo español e inglés", "cubre todos los idiomas"),
+     "cubre español, inglés y francés", "cubre todos los idiomas"),
     ("SKILL.md: la regla «prevalece sobre todas»", f"{SK}/SKILL.md",
      "**No**\nprevalece sobre:", "Prevalece sobre todas las reglas, incluidas:"),
     ("SKILL.md: el aviso de idioma desconocido va al final", f"{SK}/SKILL.md",
@@ -54,7 +54,7 @@ MUTANTES = [
     ("SKILL.md: se altera una línea original", f"{SK}/SKILL.md",
      "## PASO 0 — Leer configuración", "## PASO 0 — Leer config"),
     ("README.md: se quita la aclaración de S0 de la sección Language / Langue", "README.md",
-     "(S0) cubre **solo español e inglés**", "(S0) cubre **varios idiomas**"),
+     "(S0) cubre **español, inglés y francés**", "(S0) cubre **varios idiomas**"),
     # ── herramientas ──
     ("validador: deja de comprobar tiers", "scripts/i18n_validar.py",
      "if tiers_es and sorted(_RE_TIER.findall(t)) != sorted(tiers_es):", "if False:"),

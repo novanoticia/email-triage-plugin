@@ -28,10 +28,10 @@ class TestAclaracionS0(unittest.TestCase):
               os.path.join(SKILL, "i18n", "README.md"),
               os.path.join(SKILL, "SKILL.md")]
 
-    def test_cada_sitio_dice_que_s0_cubre_solo_es_en(self):
+    def test_cada_sitio_dice_que_s0_cubre_es_en_fr(self):
         for rel in self.SITIOS:
             with self.subTest(rel=rel):
-                self.assertIn("solo español e inglés", plano(rel))
+                self.assertIn("español, inglés y francés", plano(rel))
 
     def test_cada_sitio_dice_que_no_cambia_con_idioma(self):
         for rel in ("README.md", "CLAUDE.md", "AGENTS.md"):
@@ -46,7 +46,7 @@ class TestAclaracionS0(unittest.TestCase):
         """El README la repite (changelog): hay que exigirla DONDE la lee quien elige idioma."""
         sec = seccion_h2("README.md", "Language / Langue")
         self.assertIsNotNone(sec)
-        for s in ("solo español e inglés", "no cambia con `idioma=`", "idioma del correo recibido"):
+        for s in ("español, inglés y francés", "no cambia con `idioma=`", "idioma del correo recibido"):
             self.assertIn(s, sec)
 
     def test_el_changelog_no_se_adelanta_a_la_version(self):

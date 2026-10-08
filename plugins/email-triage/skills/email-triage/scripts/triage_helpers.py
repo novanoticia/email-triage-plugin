@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.14.0).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.14.1).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -424,6 +424,39 @@ S0_PATRONES = [
                 r"|\bmu[eé]velo a\b.{0,25}\b(?:carpeta|bandeja|inbox|urgentes|"
                 + _TIER + r")\b"
                 r"|\bdale un score de\b", re.I)),
+]
+
+# Francés: mismas categorías y mismas vistas S0, con independencia del idioma
+# de salida. Las órdenes se anclan a instrucciones, roles IA o al correo para
+# no confundir una invitación, una reunión o una encuesta con una inyección.
+_CORREO_FR = r"(?:ce|cet)\s+(?:e-?mail|courriel|message|courrier)\b"
+_CIBLE_FR = r"(?:\s+" + _CORREO_FR + r"|-le\b)"
+_DESTINO_FR = r"(?:dossier|bo[iî]te\s+de\s+r[ée]ception|urgents?|" + _TIER + r")\b"
+S0_PATRONES += [
+    ("ignorar_instrucciones",
+     re.compile(r"\b(?:ignorez?|oublie(?:z)?|n[ée]glige(?:z)?|"
+                r"ne\s+(?:tiens|tenez)\s+pas\s+compte)\b.{0,40}\b"
+                r"(?:instructions?|consignes?|r[èe]gles?|prompts?|"
+                r"pr[ée]c[ée]dent\w*|ant[ée]rieur\w*|syst[èe]me)\b",
+                re.I | re.S)),
+    ("rol_sistema",
+     re.compile(r"\b(?:tu\s+es|vous\s+[êe]tes|"
+                r"agis(?:sez)?\s+(?:comme|en\s+tant\s+que)|"
+                r"joue(?:z)?\s+le\s+r[oô]le\s+de|"
+                r"comporte(?:-toi|z-vous)\s+comme)\b.{0,40}?\b"
+                r"(?:assistant|ia|llm|chatbot|mod[èe]le\s+(?:de\s+langage|ia)|"
+                r"classificateur\w*|agent\s+(?:de\s+triage|ia)|skill)\b"
+                r"|^\s*(?:syst[èe]me|assistant)\s*:", re.I | re.M | re.S)),
+    ("comando_directo",
+     re.compile(r"\b(?:marque(?:z)?|classe(?:z)?|[ée]tiqu(?:ette|etez))"
+                + _CIBLE_FR + r".{0,15}\bcomme\b.{0,15}\b"
+                r"(?:urgent|prioritaire|important|" + _TIER + r")\b"
+                r"|\b(?:d[ée]place(?:z)?|transf[èée]re(?:z)?)"
+                + _CIBLE_FR + r".{0,25}\b" + _DESTINO_FR +
+                r"|\b(?:donne(?:z)?|attribue(?:z)?)(?:\s+[àa]\s+"
+                + _CORREO_FR + r"|-lui\b).{0,15}\b(?:un\s+score|une\s+note)\s+de\b"
+                r"|\bnote(?:z)?" + _CIBLE_FR + r"\s+(?:[àa]\s+)?\d+\b",
+                re.I)),
 ]
 
 S1_CORTES = [

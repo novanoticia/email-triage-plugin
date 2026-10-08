@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.14.0
+# Email Triage Plugin v3.14.1
 
 Filtrado epistémico de correo electrónico para Claude Cowork y Claude Code.
 
@@ -73,11 +73,11 @@ internas del skill.
   (`riesgo: alto` en el catálogo) necesitan revisión humana.
 - El **texto libre** que el modelo redacta en el momento (resúmenes, razones, notas) sale
   en el idioma elegido y **no está revisado**.
-- La detección de inyección de prompts (S0) cubre **solo español e inglés** y **no cambia
-  con `idioma=`**: depende del idioma del correo recibido, no del de la interfaz. Pedir
-  `idioma=fr` no añade protección en francés; un correo hostil en cualquier otro idioma
-  puede evadirla con más facilidad. El escapado mecánico y el tratamiento del cuerpo como
-  dato siguen vigentes.
+- La detección de inyección de prompts (S0) cubre **español, inglés y francés** y **no cambia
+  con `idioma=`**: depende del idioma del correo recibido, no del de la interfaz. Los patrones
+  franceses se aplican también con interfaz en español. La detección es heurística;
+  un correo hostil en otros idiomas o con patrones nuevos puede evadirla. El escapado
+  mecánico y el tratamiento del cuerpo como dato siguen vigentes.
 - Los mensajes de error de los scripts siguen en español; el modelo los explica en el
   idioma elegido.
 - Sin prueba en plataforma real (Claude Code / Cowork): hasta ahora solo pruebas
@@ -85,6 +85,18 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.14.1
+
+- **Detección S0 en francés**, además de español e inglés: órdenes de ignorar
+  instrucciones, suplantar roles IA y manipular la clasificación o el score del correo.
+  Cubre cuerpo, asunto y remitente, con y sin acentos, y las vistas de detección
+  existentes (HTML, normalización Unicode, invisibles y confusables).
+- Se aplica siempre, con independencia de `idioma=`. La inyección detectada descarta
+  el cuerpo, resta 3 puntos y capa el tier a `REVIEW` para revisión humana.
+- Pruebas de regresión para ataques franceses y correo legítimo; se retira el fallo
+  esperado que documentaba la ausencia de cobertura en francés.
+- Sigue siendo una detección heurística, incompleta y evadible.
 
 ## Novedades en v3.14.0
 
