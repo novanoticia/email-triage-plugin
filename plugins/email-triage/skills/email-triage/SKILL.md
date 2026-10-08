@@ -808,7 +808,12 @@ Los colores de tier en el formato de presentación:
 
 ### 4.G — Control de flujo según modo
 
-**Modo `confirmacion`** (por defecto):
+**Modo `por_tier`** (por defecto desde v3.15):
+- Una pregunta por tier que se mueve, con el formato compacto y la numeración de 4.K
+- Si el lote tiene `interaccion.umbral_uno_a_uno` unidades o menos (por defecto 8),
+  se comporta como `confirmacion`
+
+**Modo `confirmacion`**:
 - Un correo a la vez, espera Sí/No antes de mover
 - Si el usuario corrige el tier, registrar como `user_override`
 
@@ -877,6 +882,18 @@ Los colores de tier en el formato de presentación:
 - Después de añadir/quitar remitentes de las listas
 - Al inicio de uso del plugin para entender su comportamiento sin riesgo
 - Para validar que los ajustes aprendidos (PASO 0.B) están funcionando bien
+
+### 4.K — Interfaz de revisión (NUEVO en v3.15)
+
+En toda sesión con una persona delante (no en rutina), **lee
+`references/interfaz-revision.md` al empezar**: progreso, numeración `#N`, formato
+compacto por tier, confirmación por tier y respuestas aceptadas. Prevalece sobre 4.F,
+que queda como formato de detalle, y sobre el «uno a uno» de 4.G.
+
+**Respuesta segura (no negociable, rige aunque no leas la referencia).** Solo un sí
+explícito mueve correo. Una respuesta vacía, sin opción elegida o ambigua **no mueve
+nada**: dilo y vuelve a preguntar una sola vez; si tampoco es explícita, cierra sin
+mover. El silencio nunca es aceptación.
 
 ### 4.J — Evaluación de hilos como unidad
 
@@ -1016,7 +1033,7 @@ tiene dos costes que no se ven en la bandeja:
 
 ```
 ───────────────────────────────────
-RESUMEN DE TRIAJE v3.0
+RESUMEN DE TRIAJE
 ───────────────────────────────────
 📥 Bandeja de entrada: X correos revisados
    → Y urgentes identificados
@@ -1046,6 +1063,9 @@ RESUMEN DE TRIAJE v3.0
    Keywords ajustadas: N
    Basado en X correcciones de los últimos 90 días
    [Omitir esta línea si no hubo ajustes aprendidos]
+
+📄 Informe: [ruta del informe]
+↩️ Para deshacer: «deshaz el triaje»
 ───────────────────────────────────
 ```
 
@@ -1057,6 +1077,15 @@ simulación (`modo_simulacion: true`) o en modo rutina (scheduled task),
 corresponda: cambian el encabezado, el pie y —en rutina— el destinatario y
 el nivel de detalle. En simulación el pie debe dejar claro que NADA se ha
 movido.
+
+## PASO 5.R — INFORME DE SESIÓN (NUEVO en v3.15)
+
+Al cerrar CUALQUIER sesión (real, simulación o rutina): **lee
+`references/paso-5r-informe.md` AHORA** y escribe el informe con
+`triage_helpers.py informe`, pasando los datos **por fichero** (nunca con `echo`
+ni heredoc: asunto, remitente y message-id son texto de un tercero). Cita su ruta
+en el resumen (`📄 Informe:`); un fallo se anota y no aborta la sesión.
+
 ## PASO 5.B — ESCRITURA DE TELEMETRÍA
 
 **Si `telemetria` no está configurada en `config.yaml`, sáltate este paso.**

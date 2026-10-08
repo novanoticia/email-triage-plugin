@@ -98,12 +98,16 @@ carpetas:
 # ───────────────────────────────────────────────────────────────
 
 interaccion:
-  modo: "confirmacion"
+  modo: "por_tier"
   # Opciones:
-  # - "confirmacion": pregunta uno a uno antes de mover (recomendado al inicio)
+  # - "por_tier": una pregunta por tier, formato compacto y numeración #N (v3.15, SKILL 4.K)
+  # - "confirmacion": pregunta uno a uno antes de mover
   # - "lote": presenta todos y pide confirmación global
   # - "silencioso": mueve automáticamente (solo tras varias ejecuciones exitosas)
   # - "simulacion": dry-run, no mueve nada (alias: dry-run desde la petición)
+
+  umbral_uno_a_uno: 8
+  # Con "por_tier", un lote de N unidades o menos se confirma uno a uno.
 
   limite_por_sesion: 50
   mostrar_calibracion: false
