@@ -1,5 +1,7 @@
 # Email Triage Plugin v3.15.0
 
+[![Versión actual en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20actual%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
+
 Filtrado epistémico de correo electrónico para Claude Cowork y Claude Code.
 
 [Privacy](PRIVACY.md) · [Licencia Apache-2.0](LICENSE)
