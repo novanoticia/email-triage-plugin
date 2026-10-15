@@ -1,0 +1,7 @@
+# Capa OPCIONAL. Copiar a ~/.email-triage/config-modelos.yaml para activarla.
+# Si falta, se usa el flujo actual. No modifica el config.yaml personal.
+# No contiene claves API, endpoints ni selección de otro proveedor.
+modo: actual               # actual | comparar | hibrido
+modelo: ""                 # vacío: resolver modelo económico del catálogo del host
+max_llamadas: 2             # por sesión, incluye intentos fallidos; una activa a la vez
+tamano_lote: 25             # unidades (correos/hilos), el resto lo evalúa el principal

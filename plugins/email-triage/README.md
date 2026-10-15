@@ -29,10 +29,10 @@ carpetas de origen y destino y las correcciones que aporte el usuario.
 
 El plugin no incluye un servidor remoto, no incorpora analítica remota y no
 envía telemetría a su autor. Sus scripts deterministas procesan los datos
-localmente; para realizar el juicio epistémico, Claude recibe los metadatos y
+localmente; para realizar el juicio epistémico, el modelo del cliente recibe los metadatos y
 el texto del correo después de la sanitización, como parte de la conversación
 del usuario. Ese procesamiento queda sujeto a los términos y controles de
-datos del plan de Claude con el que se ejecute el plugin. Los registros
+datos del plan y conexión con los que se ejecute el plugin. Los registros
 opcionales se guardan en el equipo del usuario, bajo
 `~/.email-triage/` (o en `EMAIL_TRIAGE_HOME` cuando se configura), y pueden
 contener metadatos, puntuaciones, explicaciones, destinos y correcciones. Los
@@ -56,6 +56,26 @@ Política de privacidad completa: [Privacy](https://github.com/novanoticia/email
 El plugin no usa lanzadores `npx` ni `uvx` y no instala paquetes al ejecutarse.
 
 ## Seguridad y control
+
+### Modelos nativos opcionales
+
+Por defecto se conserva el modelo actual. La capa personal `config-modelos.yaml`
+permite `comparar` (simulación sin movimientos) e `hibrido` (delegación de
+criterios con validación local y revisión del principal). La plantilla vive en
+`skills/email-triage/`; cópiala al directorio de estado solo si deseas activarla.
+También puedes pedir la comparación para una sola sesión.
+
+Solo se usan capacidades nativas verificadas del mismo proveedor y conexión.
+Claude Code incluye un agente `evaluador-criterios` sin herramientas; la selección
+de modelo depende del host. Otros clientes aplican el mismo contrato cuando lo
+permiten. Sin capacidades suficientes se conserva el principal. No hay APIs ni
+claves nuevas, y Jev queda como posibilidad futura sin implementación.
+
+El cliente puede crear contexto adicional de subagente bajo sus condiciones
+actuales de privacidad; el plugin no modifica esos controles. No se ha medido
+ahorro ni probado esta opción en una plataforma real.
+
+### Movimientos
 
 El contenido del correo se trata como datos, nunca como instrucciones. Los
 message IDs se escapan antes de interpolarlos en AppleScript, los movimientos

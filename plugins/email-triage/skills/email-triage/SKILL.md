@@ -16,11 +16,11 @@ compatibility: >
   Claude Code, Claude Cowork y ChatGPT.
 license: Apache-2.0
 metadata:
-  version: "3.15.0"
+  version: "3.16.0"
   author: novanoticia
 ---
 
-# Email Triage v3.15 — Filtrado epistémico por valor diferencial
+# Email Triage v3.16 — Filtrado epistémico por valor diferencial
 
 ## Qué hace este skill
 
@@ -113,6 +113,18 @@ rigiendo.
 <!-- i18n:fin -->
 
 ## PASO 0 — Leer configuración
+
+<!-- i18n:inicio -->
+**Modelos nativos opcionales.** Sin `~/.email-triage/config-modelos.yaml`, o con
+`modo: actual`, sigue el flujo habitual. Si la capa personal contiene `comparar`
+o `hibrido`, o el usuario pide esa opción para esta sesión, lee
+`references/modelos-nativos.md` antes de cualquier fase y comprueba capacidades.
+Solo permite modelos del mismo proveedor y conexión mediante delegación nativa;
+sin esa capacidad, usa el principal. `comparar` fuerza simulación sin movimientos.
+La capa solo controla modelos, nunca sobrescribe el config de scoring/correo.
+Un archivo ilegible o modo inválido se informa y deja activo el flujo actual.
+Resuelve la base de estado según las reglas de este PASO, también para esta capa.
+<!-- i18n:fin -->
 
 Lee la configuración antes de cualquier fase. Contiene perfil, carpetas y pesos.
 
@@ -564,6 +576,13 @@ explícitamente:
 ```
 
 ### 4.B — Criterios epistémicos (30 criterios, 5 ejes)
+
+<!-- i18n:inicio -->
+Con alternancia nativa activa, aplica `references/modelos-nativos.md`: delega
+solo los veredictos sobre texto sanitizado, valida con `scripts/modelos.py` y
+revisa la evidencia antes de reintegrar. Hard rules, señales de respuesta y caps
+permanecen bajo control del principal. Sin alternancia, aplica este paso tal cual.
+<!-- i18n:fin -->
 
 El modelo evalúa cada correo contra los criterios epistémicos definidos en
 `config.yaml` bajo la sección `criterios_epistemicos`. La evaluación produce

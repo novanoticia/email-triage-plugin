@@ -51,6 +51,7 @@ plugins/email-triage/                   # ← RAÍZ DEL PLUGIN (plugin root)
     i18n/                               # catálogos de idioma (es generado, en/fr borrador-ia)
     scripts/                            # ← ÚNICA ubicación de los scripts
       triage_helpers.py                 # toda la lógica determinista
+      modelos.py                        # contratos opcionales de delegación nativa; sin red/escrituras
       idioma.py                         # resuelve el código de idioma (i18n)
       test_triage_helpers.py            # tests de regresión (stdlib)
 ```
@@ -246,6 +247,21 @@ eso `es`. La regla vive en `scripts/idioma.py` y en un bloque de `SKILL.md`.
   (l.1014); patrones S0 en otros idiomas; README completos en `en` y `fr`.
 
 ## Convenciones
+
+### Modelos nativos opcionales (v3.16)
+
+`config-modelos.yaml` es una capa separada, desactivada por defecto; su ausencia
+preserva el flujo anterior. `references/modelos-nativos.md` implementa el contrato
+del orquestador y `scripts/modelos.py` valida capacidades declaradas, respuestas y
+comparaciones. No añadir red, escrituras ni invocaciones API a ese módulo. El
+agente `plugins/email-triage/agents/evaluador-criterios.md` es una extensión nativa
+de Claude con `tools: []`, fuera del frontmatter portable de la skill.
+
+Solo mismo proveedor Y conexión confirmados; nunca deducirlo del nombre del
+modelo. Jev/otros proveedores no están implementados. Comparar implica simulación
+y no alimenta aprendizaje con desacuerdos entre modelos. Los controles de scoring
+vienen del principal, nunca de la respuesta delegada. Las pruebas sintéticas
+validan mecanismos, no la calidad de los modelos ni compatibilidad real del host.
 
 - Comentarios y documentación **en español**.
 - Python: **solo stdlib** salvo PyYAML (y este es opcional, con *fallback* a
