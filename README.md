@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.15.0
+# Email Triage Plugin v3.16.0
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,47 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.16.0
+
+**Alternancia nativa opcional, desactivada por defecto.** El modelo principal
+puede delegar la evaluación de criterios a otro modelo del **mismo proveedor y
+conexión**, usando las herramientas del cliente. Sigue el enfoque de
+[alternancia-modelos](https://github.com/novanoticia/alternancia-modelos), sin
+necesitar ese plugin instalado ni claves API nuevas.
+
+### Añadido
+
+- Capa personal `config-modelos.yaml`: `actual`, `comparar` o `hibrido`.
+  Los usuarios con configuraciones anteriores conservan el flujo actual.
+- `comparar` ejecuta una simulación sin movimientos, con evaluación independiente
+  y scoring determinista para ambos modelos. No aprende de sus desacuerdos.
+- `hibrido` acepta veredictos validados y revisados; el principal reevalúa dudas,
+  propuestas de archivo/respuesta y puntuaciones junto a un umbral.
+- `scripts/modelos.py`: comprueba proveedor/capacidades/presupuesto, valida
+  cobertura y opciones de criterios y compara propuestas, sin red ni escrituras.
+- Agente opcional de Claude `evaluador-criterios`, sin herramientas y con modelo
+  heredado por defecto; el orquestador elige un modelo disponible por invocación.
+
+### Cambiado
+
+- El skill incorpora dos puntos de entrada condicionales. Pesos, reglas,
+  sanitización y pipeline de movimientos conservan su implementación existente.
+- Privacidad documentada para el proveedor del cliente (Claude o un host OpenAI)
+  y su contexto nativo de subagente. No cambia ajustes de privacidad ni añade
+  servicios externos; véase [PRIVACY.md](PRIVACY.md).
+
+### Limitaciones
+
+- La selección de modelo depende de capacidades verificadas de la sesión. Si
+  faltan selección, aislamiento, restricción de herramientas o confirmación de
+  la misma conexión, se utiliza el principal. No equivale a cambiar el selector
+  de modelo de la interfaz.
+- Sin prueba real en Claude Code, Cowork o ChatGPT/Codex: pruebas locales con
+  datos sintéticos. No se acredita ahorro ni calidad equivalente. Comparar
+  implica trabajo adicional y puede consumir más.
+- Jev y otros proveedores son solo posibilidades futuras, **no implementadas**.
+  No se fijan generaciones de Haiku ni identificadores Luna no verificados.
 
 ## Novedades en v3.15.0
 
@@ -876,6 +917,45 @@ a `~/.email-triage/config-veloz.yaml` para usarla— que superpone estos ajustes
 
 Ahorro típico estimado: **~45–60 % de tokens** por sesión (~50 correos).
 Compatible con `simulacion` y `rutina`.
+
+### Alternancia de modelos del mismo proveedor (opcional)
+
+El triaje habitual sigue funcionando sin cambios de configuración. Para probar
+la alternancia, pide **«compara modelos nativos en una simulación del triaje»**.
+El asistente comprobará las capacidades disponibles y mantendrá el principal si
+no puede delegar de forma compatible.
+
+Para conservar la preferencia, copia la plantilla
+[`config-modelos.yaml`](plugins/email-triage/skills/email-triage/config-modelos.yaml)
+a `~/.email-triage/config-modelos.yaml` (o a la base `EMAIL_TRIAGE_HOME`) y usa:
+
+```yaml
+modo: comparar       # actual | comparar | hibrido
+modelo: ""           # resolver desde el catálogo real del cliente
+max_llamadas: 2
+tamano_lote: 25
+```
+
+- **`actual`:** comportamiento previo. También es el predeterminado si falta la capa.
+- **`comparar`:** simulación sin mover correos. Compara los mismos criterios,
+  contexto y scoring determinista entre principal y alternativa. Revisa los
+  desacuerdos antes de adoptar el modo híbrido.
+- **`hibrido`:** delega criterios en lotes y conserva en el principal el contexto,
+  las reglas, la revisión y los movimientos autorizados. Los archivos propuestos,
+  los mensajes que requieren respuesta y los casos dudosos se reevalúan.
+
+Puedes fijar `modelo` con un ID que el host realmente admita. Se selecciona Haiku
+u otra opción económica del **proveedor actual** según disponibilidad observada;
+no hay un ID universal ni se presupone qué versión está habilitada. Si el
+principal ya es ese modelo, se continúa directamente sin delegación redundante.
+
+No hay APIs nuevas ni facturación API añadida por el plugin. Las llamadas nativas
+pueden consumir la cuota o facturación del cliente actual. No se cambian los
+controles de privacidad; sí puede existir contexto adicional de subagente dentro
+de la misma conexión. No se envían correos a Jev ni a otro proveedor.
+
+Contrato completo y límites:
+[`references/modelos-nativos.md`](plugins/email-triage/skills/email-triage/references/modelos-nativos.md).
 
 ### Tiers y umbrales
 - `tiers`: umbrales configurables para cada tier

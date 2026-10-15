@@ -28,16 +28,29 @@ class TestBloqueSkill(unittest.TestCase):
         # Markdown reflujado: las frases pueden partirse entre líneas
         cls.plano = " ".join(cls.bloque.split())
 
-    def test_hay_un_unico_bloque_balanceado(self):
-        self.assertEqual(self.texto.count(INI), 1)
-        self.assertEqual(self.texto.count(FIN), 1)
+    def test_bloques_balanceados_sin_anidar_y_un_solo_bloque_de_idioma(self):
+        # Las extensiones condicionales usan también los marcadores prescritos
+        # por CLAUDE.md. La línea base sigue protegiendo TODO el original.
+        self.assertGreaterEqual(self.texto.count(INI), 1)
+        abierto = False
+        for linea in self.texto.splitlines():
+            if linea == INI:
+                self.assertFalse(abierto, "bloque anidado")
+                abierto = True
+            elif linea == FIN:
+                self.assertTrue(abierto, "fin sin inicio")
+                abierto = False
+        self.assertFalse(abierto, "bloque sin cerrar")
+        self.assertEqual(self.texto.count("## IDIOMA DE SALIDA"), 1)
         self.assertIsNotNone(self.bloque)
 
     def test_blancos_antes_y_despues(self):
         lineas = self.texto.split("\n")
-        i, j = lineas.index(INI), lineas.index(FIN)
-        self.assertEqual(lineas[i - 1], "")
-        self.assertEqual(lineas[j + 1], "")
+        for n, linea in enumerate(lineas):
+            if linea == INI:
+                self.assertEqual(lineas[n - 1], "")
+            elif linea == FIN:
+                self.assertEqual(lineas[n + 1], "")
 
     def test_presupuesto_de_tamano(self):
         self.assertLessEqual(len(self.bloque.split("\n")) + 2, 90)
