@@ -23,14 +23,14 @@ import modelos
 import triage_helpers as th
 
 ENDPOINT = "https://api.typesafe.ai/v1/systemone"
-MODELOS = {"jev-1.13.0", "jev-1.14.0"}
-PRECIO_MTOK = 0.042  # USD, tarifa publicada de ambos modelos a 2026-10-16.
+ALIASES = {"jev-latest", "jev-preview"}
+PRECIOS_MTOK = {"jev-1.13.0": 0.042, "jev-1.14.0": 0.042}  # USD, tarifa publicada de ambos modelos a 2026-10-16.
 INCIERTO = "__incierto__"
 NO_APLICA = "__no_aplica__"
 MAX_JSON = 1_048_576
 MAX_PETICION = 65_536
 DEFAULT = {"activo": False, "acepta_envio_datos": False, "modo": "comparar",
-           "modelo": "jev-1.13.0", "max_llamadas": 5,
+           "modelo": "jev-latest", "max_llamadas": 5,
            "timeout_segundos": 15, "confianza_minima": 0.8}
 
 
@@ -196,8 +196,19 @@ def _estado(e, perfil):
     return None
 
 
+def _version_jev(modelo):
+    return isinstance(modelo, str) and re.fullmatch(r"jev-[0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6}", modelo) is not None
+
+
+def _modelo_efectivo(respuesta, solicitado):
+    efectivo = respuesta.get("model") if isinstance(respuesta, dict) else None
+    _exigir(_version_jev(efectivo) and (solicitado in ALIASES or efectivo == solicitado),
+            "modelo_inesperado")
+    return efectivo
+
+
 def validar_respuesta(r, preguntas, modelo):
-    _exigir(isinstance(r, dict) and r.get("model") == modelo, "modelo_inesperado")
+    _modelo_efectivo(r, modelo)
     answers = r.get("answers")
     _exigir(isinstance(answers, dict) and set(answers) == set(preguntas), "cobertura_jev")
     vs, na, confianzas, inciertos = {}, [], {}, []
@@ -267,7 +278,7 @@ def _config(capa):
     _exigir(type(c["activo"]) is bool and type(c["acepta_envio_datos"]) is bool,
             "activacion_invalida")
     _exigir(c["modo"] == "comparar", "solo_comparacion")
-    _exigir(isinstance(c["modelo"], str) and c["modelo"] in MODELOS, "modelo_no_verificado")
+    _exigir(isinstance(c["modelo"], str) and (c["modelo"] in ALIASES or _version_jev(c["modelo"])), "modelo_no_verificado")
     _exigir(type(c["max_llamadas"]) is int and 1 <= c["max_llamadas"] <= 20
             and _numero(c["timeout_segundos"], 1, 60)
             and _numero(c["confianza_minima"], 0, 1), "limites_invalidos")
@@ -279,9 +290,11 @@ def comparar(p, cfg, capa, transporte=None):
               "usar_principal": True, "proveedor": "typesafe", "llamadas": 0,
               "resultados": [], "consumo": {"input_tokens_observados": 0,
                   "output_tokens_observados": 0, "coste_estimado_usd": 0,
-                  "coste_total_desconocido": False, "tarifa_fecha": "2026-10-16"}}
+                  "coste_total_desconocido": False, "coste_parcial_con_tarifa_usd": 0,
+                  "tarifa_fecha": "2026-10-16"}}
     try:
         c = _config(capa)
+        salida["modelo_solicitado"] = c["modelo"]
         if not c["activo"]:
             return dict(salida, motivo="desactivado")
         _exigir(c["acepta_envio_datos"], "envio_no_autorizado")
@@ -305,7 +318,8 @@ def comparar(p, cfg, capa, transporte=None):
         detenido = None
         bases, propuestas = [], []
         for e, base, bloqueo, body in preparados:
-            r = {"id": e["id"], "principal": base, "usar_principal": True}
+            r = {"id": e["id"], "principal": base, "usar_principal": True,
+                 "modelo_solicitado": c["modelo"]}
             salida["resultados"].append(r)
             motivo = bloqueo or detenido
             if not motivo and not clave_valida:
@@ -321,15 +335,21 @@ def comparar(p, cfg, capa, transporte=None):
             try:
                 respuesta = transporte(body, key, c["timeout_segundos"])
                 _exigir(isinstance(respuesta, dict), "respuesta_json_no_objeto")
-                _exigir(respuesta.get("model") == c["modelo"], "modelo_inesperado")
+                efectivo = _modelo_efectivo(respuesta, c["modelo"])
+                r["modelo_efectivo"] = efectivo
                 usage = respuesta.get("usage")
-                if (respuesta.get("model") == c["modelo"] and isinstance(usage, dict)
+                if (isinstance(usage, dict)
                         and all(type(usage.get(k)) is int
                         and 0 <= usage[k] <= 1_000_000_000 for k in ("input_tokens", "output_tokens"))):
                     consumo_observado = True
                     salida["consumo"]["input_tokens_observados"] += usage["input_tokens"]
                     salida["consumo"]["output_tokens_observados"] += usage["output_tokens"]
                 _exigir(consumo_observado, "usage_invalido")
+                precio = PRECIOS_MTOK.get(efectivo)
+                if precio is None:
+                    salida["consumo"]["coste_total_desconocido"] = True
+                else:
+                    salida["consumo"]["coste_parcial_con_tarifa_usd"] += usage["input_tokens"] * precio / 1_000_000
                 v = validar_respuesta(respuesta, preguntas, c["modelo"])
                 r.update(modelo_efectivo=respuesta["model"], confianzas=v["confianzas"],
                          evaluacion_jev=v, criterios_confianza_baja=[k for k, valor
@@ -348,8 +368,10 @@ def comparar(p, cfg, capa, transporte=None):
                 r["duracion_segundos"] = round(time.monotonic() - inicio, 3)
                 if not consumo_observado:
                     salida["consumo"]["coste_total_desconocido"] = True
-        salida["consumo"]["coste_estimado_usd"] = round(
-            salida["consumo"]["input_tokens_observados"] * PRECIO_MTOK / 1_000_000, 10)
+        consumo = salida["consumo"]
+        consumo["coste_parcial_con_tarifa_usd"] = round(consumo["coste_parcial_con_tarifa_usd"], 10)
+        consumo["coste_estimado_usd"] = (None if consumo["coste_total_desconocido"]
+                                         else consumo["coste_parcial_con_tarifa_usd"])
         salida["comparacion"] = (modelos.comparar({"base": bases, "propuesta": propuestas})
                                   if bases else {"total": 0, "diferencias": []})
         salida["sin_propuesta"] = len(filas) - len(propuestas)

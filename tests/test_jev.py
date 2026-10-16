@@ -30,7 +30,7 @@ def lote(n=1):
 
 
 def respuesta(body, *_):
-    return {"model": body['model'], "usage": {"input_tokens": 100, "output_tokens": 0},
+    return {"model": "jev-1.13.0" if body["model"] in j.ALIASES else body["model"], "usage": {"input_tokens": 100, "output_tokens": 0},
         "answers": {k: {"type": "choice", "choice": sorted(q['criteria'])[ -1],
           "probabilities": {o: float(o == sorted(q['criteria'])[-1]) for o in q['criteria']},
           "confidence": 1.0} for k,q in body['questions'].items()}}
@@ -56,7 +56,7 @@ class TestJev(unittest.TestCase):
     def test_consentimiento_y_config_estrictos(self):
         for capa in ({'activo': True}, dict(ACTIVO, modo='hibrido'),
                      dict(ACTIVO, endpoint='https://example.invalid'),
-                     dict(ACTIVO, activo='true'), dict(ACTIVO, modelo='jev-latest'),
+                     dict(ACTIVO, activo='true'), dict(ACTIVO, modelo='jev-unknown'),
                      dict(ACTIVO, max_llamadas=True), dict(ACTIVO, timeout_segundos=float('nan'))):
             with self.subTest(capa=capa):
                 t = Mock()
@@ -308,3 +308,58 @@ class TestJev(unittest.TestCase):
         self.assertEqual(len(out['resultados']), 2)
         self.assertTrue(all('principal' in e for e in out['resultados']))
         self.assertTrue(all(e['motivo'] == 'credencial_ausente_o_invalida' for e in out['resultados']))
+
+    def test_latest_por_defecto_resuelve_version(self):
+        r = self.comparar()
+        self.assertEqual(r['modelo_solicitado'], 'jev-latest')
+        self.assertEqual(r['resultados'][0]['modelo_efectivo'], 'jev-1.13.0')
+        self.assertEqual(r['resultados'][0]['motivo'], 'solo_comparacion')
+
+    def test_alias_futuro_sin_extrapolar_precio(self):
+        def t(body, *_):
+            r = respuesta(body); r['model'] = 'jev-2.0.0'; return r
+        for alias in ('jev-latest', 'jev-preview'):
+            r = self.comparar(t, dict(ACTIVO, modelo=alias))
+            self.assertEqual(r['resultados'][0]['motivo'], 'solo_comparacion')
+            self.assertEqual(r['consumo']['input_tokens_observados'], 100)
+            self.assertTrue(r['consumo']['coste_total_desconocido'])
+            self.assertIsNone(r['consumo']['coste_estimado_usd'])
+            self.assertEqual(r['consumo']['coste_parcial_con_tarifa_usd'], 0)
+
+    def test_version_fijada_exige_coincidencia(self):
+        for modelo in ('jev-1.13.0', 'jev-1.14.0', 'jev-2.0.0'):
+            r = self.comparar(respuesta, dict(ACTIVO, modelo=modelo))
+            self.assertEqual(r['resultados'][0]['modelo_efectivo'], modelo)
+            def t(body, *_):
+                r = respuesta(body); r['model'] = 'jev-9.0.0'; return r
+            r = self.comparar(t, dict(ACTIVO, modelo=modelo))
+            self.assertEqual(r['resultados'][0]['motivo'], 'modelo_inesperado')
+            self.assertNotIn('propuesta', r['resultados'][0])
+
+    def test_alias_no_acepta_modelo_opaco_ni_alias_como_efectivo(self):
+        for modelo in ('jev-latest', 'jev-preview', 'otro-1.0.0', '', None, ['jev-1.13.0']):
+            def t(body, *_):
+                r = respuesta(body); r['model'] = modelo; return r
+            r = self.comparar(t)
+            self.assertEqual(r['resultados'][0]['motivo'], 'modelo_inesperado')
+            self.assertTrue(r['usar_principal'])
+
+    def test_cambio_de_version_dentro_del_lote(self):
+        self.p, self.cfg = lote(2)
+        versiones = iter(['jev-1.13.0', 'jev-2.0.0'])
+        def t(body, *_):
+            r = respuesta(body); r['model'] = next(versiones); return r
+        r = self.comparar(t)
+        self.assertEqual([e['modelo_efectivo'] for e in r['resultados']], ['jev-1.13.0', 'jev-2.0.0'])
+        self.assertEqual(r['consumo']['input_tokens_observados'], 200)
+        self.assertAlmostEqual(r['consumo']['coste_parcial_con_tarifa_usd'], .0000042)
+        self.assertIsNone(r['consumo']['coste_estimado_usd'])
+        self.assertFalse(r['permitir_movimientos'])
+
+    def test_version_nueva_sigue_validando_respuesta(self):
+        def t(body, *_):
+            r = respuesta(body); r['model'] = 'jev-2.0.0'; r['answers'] = {}; return r
+        r = self.comparar(t)
+        self.assertEqual(r['resultados'][0]['motivo'], 'cobertura_jev')
+        self.assertEqual(r['resultados'][0]['modelo_efectivo'], 'jev-2.0.0')
+        self.assertNotIn('propuesta', r['resultados'][0])
