@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.16.0
+# Email Triage Plugin v3.17.0
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,18 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.17.0
+
+- Jev como proveedor externo opcional, desactivado por defecto y limitado a
+  comparación sin movimientos. Conserva scoring, reglas y modelo principal.
+- Versión estable fijada por defecto; veredictos y probabilidades disponibles
+  para revisar incertidumbre y cobertura sin confundir acuerdo con precisión.
+- Validación estricta, abstención y retorno al principal; límites de llamadas,
+  timeout y consumo observado, sin reintentos ni redirecciones.
+- Requiere consentimiento de envío a TypeSafe y `TYPESAFE_API_KEY` propia.
+  [Guía de API, costes, privacidad y prueba ficticia](plugins/email-triage/skills/email-triage/references/jev.md).
+- Pruebas con transporte simulado; pendiente comprobación real con credenciales.
 
 ## Novedades en v3.16.0
 
@@ -949,10 +961,13 @@ u otra opción económica del **proveedor actual** según disponibilidad observa
 no hay un ID universal ni se presupone qué versión está habilitada. Si el
 principal ya es ese modelo, se continúa directamente sin delegación redundante.
 
-No hay APIs nuevas ni facturación API añadida por el plugin. Las llamadas nativas
+La alternancia nativa no añade APIs ni facturación API propia. Sus llamadas
 pueden consumir la cuota o facturación del cliente actual. No se cambian los
 controles de privacidad; sí puede existir contexto adicional de subagente dentro
-de la misma conexión. No se envían correos a Jev ni a otro proveedor.
+de la misma conexión. La capa externa de Jev es independiente y está desactivada
+por defecto: requiere consentimiento y clave propia, añade consumo en TypeSafe
+y solo admite comparación sin movimientos.
+[Guía de Jev](plugins/email-triage/skills/email-triage/references/jev.md).
 
 Contrato completo y límites:
 [`references/modelos-nativos.md`](plugins/email-triage/skills/email-triage/references/modelos-nativos.md).

@@ -218,9 +218,9 @@ los JSONL de aprendizaje ni modificar sus formatos. El resumen puede incluir
 modelo solicitado, efectivo si se conoce, llamadas y fallos, sin datos sensibles
 innecesarios ni métricas inventadas.
 
-No se implementan APIs, claves, endpoints ni envíos a otro proveedor. El cliente
+Esta capa nativa no usa APIs, claves ni envíos a otro proveedor. El cliente
 puede conservar contexto de subagente según las condiciones del proveedor y
 conexión actuales; el plugin no cambia retención, entrenamiento ni permisos.
-Si no se puede confirmar esa misma ruta, usar el principal. Jev y otros
-proveedores quedan como posibilidad futura, **no seleccionable** en esta versión.
+Si no se puede confirmar esa misma ruta, usar el principal. Jev tiene una capa externa independiente y opt-in en `references/jev.md`;
+nunca seleccionarlo como fallback de la alternancia nativa.
 <!-- i18n:fin -->
