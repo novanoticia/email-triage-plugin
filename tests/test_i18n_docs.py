@@ -87,8 +87,7 @@ class TestReglasParaAgentes(unittest.TestCase):
         t = plano("CLAUDE.md")
         for s in ("i18n:inicio", "No escribas literales visibles nuevos fuera del catálogo",
                   "python3 scripts/i18n_validar.py", "python3 scripts/i18n_extraer.py generar",
-                  "`triage_helpers.py` no se toca", "riesgo: alto",
-                  "`SKILL.md` dice «13 core»"):
+                  "`triage_helpers.py` no se toca", "riesgo: alto"):
             self.assertIn(s, t)
 
     def test_agents_md_enlaza_a_claude_md_y_resume(self):

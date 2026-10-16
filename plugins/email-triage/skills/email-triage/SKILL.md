@@ -16,7 +16,7 @@ compatibility: >
   Claude Code, Claude Cowork y ChatGPT.
 license: Apache-2.0
 metadata:
-  version: "3.18.0"
+  version: "3.18.1"
   author: novanoticia
 ---
 
@@ -411,7 +411,7 @@ Cada correo procesado DEBE llevar una de estas etiquetas internas:
 | Etiqueta | Significado | Evaluación |
 |----------|-------------|------------|
 | `[texto limpio]` | Cuerpo sanitizado con éxito | Evaluación completa (30 criterios) |
-| `[HTML detectado]` | Se extrajo texto de HTML | Evaluación completa, -1 en densidad_informativa |
+| `[HTML detectado]` | Se extrajo texto de HTML | Evaluación completa; densidad_informativa según el texto extraído (el HTML no la rebaja por sí mismo) |
 | `[cuerpo no legible]` | HTML sin texto plano extraíble | Solo hard rules + criterios 1-5 |
 | `[contenido codificado Base64]` | Cuerpo codificado | Solo metadatos |
 | `[cuerpo corrupto]` | Ratio de basura > 40% | Solo metadatos |
@@ -596,7 +596,7 @@ El modelo evalúa cada correo contra los criterios epistémicos definidos en
 
 #### Los 5 ejes de evaluación
 
-Cada criterio epistémico contribuye a uno o más de estos ejes:
+Cada criterio epistémico contribuye a un único eje, el que declara su campo `eje` en `config.yaml`:
 
 | Eje | Rango | Qué mide |
 |-----|-------|----------|
@@ -622,7 +622,7 @@ en `config.yaml`:
 - **`determinista` (bajo petición)** — el modelo SOLO emite el veredicto de
   cada criterio (la clave del valor: `si`/`no`/`alta`/`media`/`baja`…) y
   delega la aritmética en el script. Mismo input → mismo output, auditable y
-  testeable. Útil para auditar una sesión o comparar cambios de pesos.
+  testeable. Útil para auditar una sesión o comparar cambios de puntos.
 
 **Cómo se activa el modo determinista** (cualquiera de las dos vías):
 1. Permanente: `scoring.modo: determinista` en `config.yaml`.
@@ -674,14 +674,14 @@ stdout sigue compacto; un fallo de escritura se reporta en `desglose_error`,
 nunca en silencio (CM2/F12).
 
 > Nota: el campo `eje` de cada criterio y los rangos de `scoring.ejes` son la
-> fuente única del mapeo criterio→eje. Si editas pesos o reasignas un criterio
-> a otro eje, el modo determinista lo recoge sin tocar código.
+> fuente única del mapeo criterio→eje; `weight` solo orienta al modo mental.
+> Si editas puntos por respuesta o eje, el determinista lo recoge sin tocar código.
 
 #### Catálogo de 30 criterios epistémicos
 
 La fuente única del catálogo es `config.yaml` → `criterios_epistemicos`:
-cada criterio lleva su pregunta operativa (`question`), peso, valores
-`si`/`no` y el flag `core`. Evaluar todos los que tengan `activo: true`.
+cada criterio lleva su pregunta operativa (`question`), puntos por
+respuesta (`si`/`no`…) y el flag `core`. Evaluar todos los que tengan `activo: true`.
 
 **Regla de cobertura**: los 13 criterios con `core: true` se evalúan
 SIEMPRE en cada correo; los 17 restantes solo cuando el correo lo amerita
@@ -689,7 +689,7 @@ SIEMPRE en cada correo; los 17 restantes solo cuando el correo lo amerita
 cuestión abierta).
 
 Las tablas descriptivas por grupos están en `references/criterios-catalogo.md`
-como documentación de consulta: sus preguntas y pesos son redundantes con el
+como documentación de consulta: sus preguntas son redundantes con el
 config, pero la numeración número↔criterio solo existe en el catálogo — el
 config no numera; toda referencia "criterio N" de la doctrina se resuelve
 allí.
@@ -871,7 +871,7 @@ Los colores de tier en el formato de presentación:
   de qué habría movido, a dónde, y con qué score
 
 **Cuándo usar dry-run**:
-- Después de cambiar pesos o umbrales en `config.yaml`
+- Después de cambiar puntos o umbrales en `config.yaml`
 - Después de añadir/quitar remitentes de las listas
 - Al inicio de uso del plugin para entender su comportamiento sin riesgo
 - Para validar que los ajustes aprendidos (PASO 0.B) están funcionando bien
@@ -1114,7 +1114,7 @@ de la última sesión para revertir movimientos; nunca improvises los mids).
 - Si el log falla, avisa al usuario pero no abortes el triaje
 - Si la calibración da un perfil incoherente, informa y sugiere acotar
 - **SIEMPRE incluir explicación** — un score sin rationale es teatro, no triage
-- No evalúes los 30 criterios por igual: los 12 core siempre, el resto contextual
+- No evalúes los 30 criterios por igual: los 13 core siempre, el resto contextual
 - Si el usuario corrige un tier, registra el override inmediatamente en `correcciones.jsonl` (no esperes al PASO 5.B)
 - El PASO 0.B no es opcional si existe `correcciones.jsonl` — saltárselo significa ignorar lo que el usuario ya enseñó al plugin
 - No omitas el PASO 5.B si `telemetria` tiene algún flag en `true` — los flags sin escritura son teatro

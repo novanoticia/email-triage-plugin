@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.18.0
+# Email Triage Plugin v3.18.1
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,16 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.18.1
+
+- Solo documentación, sin cambio de score: catálogo, `config.yaml` y
+  `SKILL.md` se alinean con lo que ejecuta el motor tras la
+  [auditoría de criterios](docs/auditoria-criterios.md) (F.1–F.8).
+- Core unificado en 13; un único eje por criterio; sin el −1 inexistente
+  por `[HTML detectado]`; `weight` solo orienta al modo mental (los puntos
+  salen de las respuestas); preguntas 7, 9, 10, 19, 21 y 28 del catálogo
+  iguales a las del YAML. Sentido definitivo de 19 pendiente (ROADMAP, P3).
 
 ## Novedades en v3.18.0
 

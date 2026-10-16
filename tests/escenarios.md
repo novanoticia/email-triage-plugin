@@ -229,7 +229,7 @@ corchetes de los huecos que unos simuladores conservan y otros quitan; plurales 
 («1 e-mails», «1 urgents»); duplicado del anuncio inicial y de la línea de resumen en el modo
 rutina (ya en el original); no hay frase de catálogo para «se queda donde está» en
 REPLY_NEEDED (desajuste ya presente entre la plantilla y 4.C); «12 core» frente a «13 core»
-(preexistente); nombre de carpeta traducido o no al rellenar `[Carpeta pendiente]`.
+(preexistente; corregido después a 13 en F.1 de `docs/auditoria-criterios.md`); nombre de carpeta traducido o no al rellenar `[Carpeta pendiente]`.
 
 **Límite que estas simulaciones NO pueden resolver:** que un modelo copie los literales del
 catálogo tal cual (E11 lo parafraseó una vez). Solo una ejecución en la plataforma real, con

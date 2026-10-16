@@ -328,7 +328,7 @@ resiliencia:
 # - valores posibles con sus puntuaciones
 # - activo: true/false para activar/desactivar
 #
-# Los 12 criterios marcados como "core: true" se evalúan SIEMPRE.
+# Los 13 criterios marcados como "core: true" se evalúan SIEMPRE.
 # Los demás se evalúan solo cuando el contexto lo amerita.
 #
 # ═══════════════════════════════════════════════════════════════
