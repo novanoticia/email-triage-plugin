@@ -11,10 +11,11 @@ sugiere. Ordenadas por cuánto mueven el resultado.
 
 Cadena de tres efectos que se combinan:
 
-**(a) `coste_cognitivo` no tiene ningún criterio core.** De los 12 criterios
-core, ninguno mapea a ese eje → en veloz `coste_cognitivo` es **siempre 0**. Un
-eje muerto. Los 30 criterios completos sí lo alimentan (p. ej. `retorno_atencional`
-no es core), pero veloz solo corre los 12 core.
+**(a) Corrección tras la auditoría F.1:** la plantilla actual tiene 13 criterios
+core, incluido `distancia_inferencial`, que aporta a `coste_cognitivo`
+(`baja: 0`, `media: -1`, `alta: -2`). En veloz se evalúan esos 13 core;
+por tanto, ese eje no es necesariamente 0. La afirmación original de este
+memo sobre un eje sin criterios core no describe la configuración actual.
 
 **(b) `calidad_epistemica` satura a +10 con facilidad.** `forward`(+3) +
 `argumento_fuerte`(+3) + `entangled alto`(+3) + `sorpresa media`(+1) = +10, que
@@ -33,15 +34,15 @@ acertó (los remitentes que conservas coinciden con lo que te importa), pero es 
 acierto por correlación, no porque la epistémica esté decidiendo.
 
 **Opciones (elige, no hace falta todo):**
-- Marcar **un criterio de `coste_cognitivo` como core** (p. ej. `retorno_atencional`
-  o `ruido_social`) para que el eje deje de estar muerto en veloz.
+- La propuesta original de añadir un core a `coste_cognitivo` ya no procede:
+  `distancia_inferencial` ya es core en la plantilla actual.
 - Bajar el techo efectivo de `calidad_epistemica` o rebajar pesos: que
   `argumento_fuerte`+`entangled alto`+`forward` no sume ya el máximo. Así el eje
   vuelve a tener rango útil.
 - **Asumir el diseño explícitamente**: documentar que veloz ≈ filtro por
   remitente + señales duras, y que la epistémica fina vive en el config normal
   de 30 criterios. Es una decisión legítima, pero que sea decisión y no efecto
-  colateral de "core == 12".
+  colateral de "core == 13".
 
 ## 2. `sender_bulk` es binario y demasiado potente
 

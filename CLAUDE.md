@@ -250,8 +250,10 @@ eso `es`. La regla vive en `scripts/idioma.py` y en un bloque de `SKILL.md`.
   **no cambia con `idioma=`**: es una propiedad del idioma del correo recibido, no de la
   interfaz. Los patrones franceses se aplican siempre, también con interfaz en
   español; no se amplían exenciones de seguridad para los catálogos.
-- **Pendientes ajenos conocidos:** `SKILL.md` dice «13 core» (l.160, 614) y «12 core»
-  (l.1014); patrones S0 en otros idiomas; README completos en `en` y `fr`.
+- **Cobertura core verificada:** `SKILL.md` dice «13 core» (líneas 686, 750 y 1117),
+  en consonancia con los 13 flags `core: true` de `config.yaml`.
+- **Pendientes ajenos conocidos:** patrones S0 en otros idiomas; README completos
+  en `en` y `fr`.
 
 ## Cómo avanzar sin romper lo que funciona (ciclo actual)
 
