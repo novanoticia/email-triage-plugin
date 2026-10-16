@@ -25,10 +25,19 @@ El host necesita ejecutar Python con PyYAML y permitir HTTPS a `api.typesafe.ai`
 Si no puede, informa de la limitación y conserva el principal en simulación; no
 simular una llamada real mediante otro modelo.
 
-La configuración solo admite comparación, modelos fijados `jev-1.13.0` (estable, por defecto)
-o `jev-1.14.0` (preview en la fecha de revisión), máximo de llamadas por ejecución 1–20 (defecto 5), timeout 1–60 s
+La configuración solo admite comparación, el alias `jev-latest` (estable, por defecto),
+`jev-preview` (opcional) o una versión fijada `jev-X.Y.Z`, máximo de llamadas por ejecución 1–20 (defecto 5), timeout 1–60 s
 (defecto 15) y confianza mínima 0–1 (defecto 0,8). No admite endpoints alternativos.
 Desactivar o retirar el archivo revierte la integración sin cambiar el scoring.
+
+El servicio resuelve el alias en cada petición. El informe identifica
+`modelo_solicitado` y `modelo_efectivo` por correo, también si cambia dentro del lote.
+No se acepta un alias como versión efectiva; las versiones fijadas deben coincidir
+exactamente. El formato de un ID no garantiza su disponibilidad: si TypeSafe lo
+rechaza se conserva el principal. Las respuestas se validan también con versiones
+nuevas. Un alias puede cambiar resultados sin actualizar el plugin; para reproducir
+una comparación, fija la versión efectiva. No se modifica la configuración personal
+existente: para adoptar el alias cambia su campo a `modelo: jev-latest` o elimínalo.
 
 ## Protocolo del orquestador
 
@@ -105,11 +114,15 @@ son por invocación, no un presupuesto mensual ni global entre procesos.
 
 ## Costes y privacidad
 
-Tarifa publicada para ambos modelos fijados: **0,042 USD por millón de tokens de
+Tarifa publicada para `jev-1.13.0` y `jev-1.14.0`: **0,042 USD por millón de tokens de
 entrada; salida gratuita** (fecha anterior; comprobar cambios en /models).
 100 000 tokens de entrada serían 0,0042 USD, aparte del coste del principal.
 El consumo procede de `usage`; un timeout/error puede haber consumido tokens.
-`coste_total_desconocido` lo señala: la estimación observada no sustituye la factura.
+`coste_total_desconocido` lo señala y `coste_estimado_usd` será `null`.
+Para versiones nuevas sin tarifa verificada se cuentan tokens sin extrapolar precios.
+`coste_parcial_con_tarifa_usd` recoge solo las llamadas con tarifa conocida;
+no representa el total si hay llamadas desconocidas. Las tarifas llevan fecha de
+consulta y no sustituyen la factura.
 
 Activar esta capa envía a **TypeSafe AI, otro proveedor**, asunto, remitente y
 extracto sanitizados, perfil mínimo y preguntas de evaluación. Sanitizar reduce

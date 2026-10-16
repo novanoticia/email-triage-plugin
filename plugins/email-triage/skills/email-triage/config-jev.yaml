@@ -3,8 +3,8 @@
 activo: false
 acepta_envio_datos: false
 modo: comparar                 # único modo implementado; nunca mueve correos
-# Versión estable fijada; 1.14.0 corresponde actualmente a preview.
-modelo: jev-1.13.0              # versión fijada; API oficial verificada 2026-10-16
+# Sigue la versión estable actual. Puede fijarse un ID jev-X.Y.Z para reproducibilidad.
+modelo: jev-latest              # versión fijada; API oficial verificada 2026-10-16
 max_llamadas: 5                 # por invocación, una por correo/hilo, sin reintentos
 timeout_segundos: 15
 confianza_minima: 0.8           # experimental; no equivale a probabilidad de acierto
