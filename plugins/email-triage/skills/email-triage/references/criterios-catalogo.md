@@ -27,10 +27,10 @@ Evalúa cada criterio aplicable. Los criterios están organizados en 4 grupos:
 | # | Criterio | Pregunta operativa | Sube/Baja |
 |---|----------|--------------------|-----------|
 | 6 | **Retorno atencional** | ¿Es buena inversión de mis próximos 2 minutos? | SUBE/BAJA |
-| 7 | **Confusión productiva** | ¿Revela discrepancia entre lo esperado y lo real? | SUBE |
+| 7 | **Confusión productiva** | ¿Revela una discrepancia importante entre lo esperado y lo real? | SUBE |
 | 8 | **Impacto causal real** | Si actúo, ¿cuánto cambia realmente el resultado? | SUBE |
-| 9 | **Ruido social** | ¿Modifica algo real o solo cumple función social/ritual? | BAJA |
-| 10 | **Apertura de opciones** | ¿Abre una opción valiosa que antes no tenía? | SUBE |
+| 9 | **Ruido social** | ¿Es señal real o ritual social/burocrático? | BAJA |
+| 10 | **Apertura de opciones** | ¿Abre una opción valiosa futura que antes no tenía? | SUBE |
 | 11 | **Distancia inferencial** | ¿Cuánto trabajo mental cuesta entenderlo de verdad? | BAJA |
 | 12 | **Agente estratégico** | ¿El remitente optimiza para verdad o para influirme? | BAJA |
 | 13 | **Densidad informativa** | ¿Cuánta información nueva por línea aporta? | SUBE/BAJA |
@@ -46,14 +46,14 @@ Evalúa cada criterio aplicable. Los criterios están organizados en 4 grupos:
 | 18 | **True rejection** | ¿La objeción es sustantiva o solo una excusa elegante? | SUBE/BAJA |
 | 19 | **Third alternative** | ¿Detecta una tercera alternativa útil más allá de A o B? | SUBE |
 | 20 | **Privileging the hypothesis** | ¿Eleva una hipótesis sin evidencia suficiente? | BAJA |
-| 21 | **Proper humility** | ¿La duda viene con mitigación concreta o paraliza? | SUBE/BAJA |
+| 21 | **Proper humility** | ¿La duda viene con mitigación/verificación concreta? | SUBE/BAJA |
 | 22 | **Positive bias** | ¿Solo trae casos a favor o también enfrenta objeciones? | BAJA |
 | 23 | **Argument screens off authority** | ¿Trae evidencia/argumento o solo rango/cargo? | SUBE/BAJA |
 | 24 | **Hug the query** | ¿Está pegado a la decisión real o es contexto tangencial? | SUBE/BAJA |
 | 25 | **Semantic stopsigns** | ¿Usa jerga/etiquetas para cerrar la investigación? | BAJA |
 | 26 | **Fake justification** | ¿La conclusión parece anterior al razonamiento? | BAJA |
 | 27 | **Fake optimization criteria** | ¿El criterio de decisión parece oportunista? | BAJA |
-| 28 | **Entangled truths** | ¿Está anclado a hechos verificables (tickets, fechas, métricas)? | SUBE/BAJA |
+| 28 | **Entangled truths** | ¿Está anclado a hechos verificables (tickets, fechas, métricas, personas)? | SUBE/BAJA |
 | 29 | **Cached thought** | ¿Es pensamiento original o plantilla repetida? | SUBE/BAJA |
 | 30 | **Absence of expected evidence** | ¿Falta una pieza que debería estar si fuese tan importante? | BAJA |
 

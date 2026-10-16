@@ -170,6 +170,7 @@ la que más informa a P2 y al resto de P3.
 | Fecha | Hito | Versión |
 |---|---|---|
 | — | Redacción inicial de este ROADMAP | 3.17.x |
+| 2026-10-16 | Coherencia documental F.1, F.2, F.4, F.5, F.7 y F.8: preparada para revisión en PR; configs y motor intactos. Sentido definitivo de 19 pendiente de P3 paso 3. | Sin cambio |
 
 ---
 
