@@ -25,8 +25,8 @@ El host necesita ejecutar Python con PyYAML y permitir HTTPS a `api.typesafe.ai`
 Si no puede, informa de la limitación y conserva el principal en simulación; no
 simular una llamada real mediante otro modelo.
 
-La configuración solo admite comparación, modelos fijados `jev-1.14.0` (defecto)
-o `jev-1.13.0`, máximo de llamadas por ejecución 1–20 (defecto 5), timeout 1–60 s
+La configuración solo admite comparación, modelos fijados `jev-1.13.0` (estable, por defecto)
+o `jev-1.14.0` (preview en la fecha de revisión), máximo de llamadas por ejecución 1–20 (defecto 5), timeout 1–60 s
 (defecto 15) y confianza mínima 0–1 (defecto 0,8). No admite endpoints alternativos.
 Desactivar o retirar el archivo revierte la integración sin cambiar el scoring.
 
@@ -65,6 +65,10 @@ Desactivar o retirar el archivo revierte la integración sin cambiar el scoring.
 6. Presenta al usuario, en su idioma, discrepancias de puntuación/tier, exclusiones,
    llamadas, duración HTTP y consumo observado. El principal es referencia, no
    verdad etiquetada. Jev no devuelve evidencias narrativas: no inventarlas.
+   `evaluacion_jev` conserva veredictos, abstenciones y probabilidades validadas,
+   incluso con baja confianza; no convierte esos casos en propuestas utilizables.
+   `cobertura` muestra el total del lote y cuántas propuestas se compararon. No
+   interpretar el acuerdo del subconjunto aceptado como precisión del lote completo.
    No afirmar ahorro, precisión o latencia global medidos sin datos equivalentes:
    aquí se ejecutan ambos evaluadores y la comparación añade coste.
 
@@ -87,8 +91,11 @@ Choice con sus opciones originales, `__incierto__` y, solo en los condicionales,
 interpreta como pregunta. No se envían pesos, carpetas, controles ni historial.
 Las respuestas deben cubrir exactamente las preguntas y opciones, identificar el
 modelo solicitado, contener probabilidades finitas que sumen uno y elegir una
-opción máxima. Se valida la confianza publicada `(max(p)-1/n)/(1-1/n)`; esta medida
-no equivale a probabilidad de acertar. El umbral inicial es experimental.
+opción máxima. Se exige confianza finita en [0,1] y se calcula además la fórmula publicada
+`(max(p)-1/n)/(1-1/n)`. Como algunos ejemplos oficiales difieren numéricamente,
+se conserva la confianza declarada y se usa el menor de ambos valores para el
+umbral, señalando discrepancias; nunca se aumenta confianza. Esta medida no es
+probabilidad de acertar. El umbral inicial es experimental.
 
 Los veredictos válidos pasan por el mismo `cmd_scoring_dispatch`, con los mismos
 pesos, reglas y controles del principal; no se acepta un score proporcionado por
@@ -124,6 +131,18 @@ direcciones `example.invalid` y transporte simulado: no requiere claves ni gasta
 crédito. Verifica el mecanismo, no la precisión ni compatibilidad real de la API.
 La primera comprobación real necesita una clave propia y consentimiento explícito;
 pedir «compara Jev con el principal usando correos ficticios, sin movimientos».
+La revisión con la skill oficial contrastó Choice, state, confianza y el cookbook
+[Classification using confidence](https://docs.typesafe.ai/cookbooks/classification_using_confidence).
+Se usa Choice incluso para opciones binarias/ordinales para conservar los
+veredictos discretos del scoring existente y permitir abstención explícita;
+convertirlos a Noul o Score exigiría calibrar una traducción nueva a esos veredictos.
+Todas las preguntas de un correo se envían juntas y son independientes.
+
+Antes de ampliar el modo, revisar una muestra etiquetada por una persona que
+incluya consultas, spam, contexto insuficiente y correos que necesitan respuesta,
+en los idiomas reales del usuario. Medir cobertura, errores por tier, coste y
+latencia de extremo a extremo; comparar también los casos abstinentes. El tiempo
+HTTP informado no mide el flujo completo ni el ahorro frente al principal.
 No activar sustitución operativa a partir de estos tests. Una revisión humana de
 las discrepancias precede a cualquier futura ampliación de modos.
 <!-- i18n:fin -->

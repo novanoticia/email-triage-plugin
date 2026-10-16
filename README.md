@@ -93,6 +93,8 @@ relue par un humain. / Traducción generada por una IA, sin revisión humana.
 
 - Jev como proveedor externo opcional, desactivado por defecto y limitado a
   comparación sin movimientos. Conserva scoring, reglas y modelo principal.
+- Versión estable fijada por defecto; veredictos y probabilidades disponibles
+  para revisar incertidumbre y cobertura sin confundir acuerdo con precisión.
 - Validación estricta, abstención y retorno al principal; límites de llamadas,
   timeout y consumo observado, sin reintentos ni redirecciones.
 - Requiere consentimiento de envío a TypeSafe y `TYPESAFE_API_KEY` propia.

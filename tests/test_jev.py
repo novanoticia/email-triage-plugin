@@ -66,7 +66,10 @@ class TestJev(unittest.TestCase):
 
     def test_clave_ausente(self):
         with patch.dict(os.environ, {'TYPESAFE_API_KEY': ''}):
-            self.assertEqual(self.comparar()['motivo'], 'credencial_ausente_o_invalida')
+            r = self.comparar()
+            self.assertEqual(r['resultados'][0]['motivo'], 'credencial_ausente_o_invalida')
+            self.assertIn('principal', r['resultados'][0])
+            self.assertEqual(r['llamadas'], 0)
 
     def test_comparacion_preserva_controles_y_scoring(self):
         self.p['emails'][0]['control'].update(forzar_reply_needed=True, extra_points=3)
@@ -129,7 +132,7 @@ class TestJev(unittest.TestCase):
             self.assertEqual(r['resultados'][1]['motivo'], 'proveedor_detenido')
 
     def test_respuestas_invalidas_fallback(self):
-        body = {'model': 'jev-1.14.0', 'questions': j._preguntas(self.cfg, j._opciones(self.cfg))}
+        body = {'model': j.DEFAULT['modelo'], 'questions': j._preguntas(self.cfg, j._opciones(self.cfg))}
         original = respuesta(body)
         k = next(iter(original['answers']))
         mutaciones = [lambda r: r.update(model='otro'), lambda r: r.pop('usage'),
@@ -198,7 +201,7 @@ class TestJev(unittest.TestCase):
         import triage_helpers as th
         r = self.comparar()
         e = self.p['emails'][0]
-        body = {'model': 'jev-1.14.0', 'questions': j._preguntas(self.cfg, j._opciones(self.cfg))}
+        body = {'model': j.DEFAULT['modelo'], 'questions': j._preguntas(self.cfg, j._opciones(self.cfg))}
         vs = {k: v['choice'] for k,v in respuesta(body)['answers'].items()}
         esperado = th.cmd_scoring_dispatch(dict(e['control'], id=e['id'], verdicts=vs), self.cfg)
         self.assertEqual(r['resultados'][0]['propuesta'], esperado)
@@ -220,8 +223,88 @@ class TestJev(unittest.TestCase):
                 resp.read.assert_called_once_with(j.MAX_JSON+1)
 
     def test_probabilidades_incoherentes(self):
-        body = {'model': 'jev-1.14.0', 'questions': j._preguntas(self.cfg, j._opciones(self.cfg))}
+        body = {'model': j.DEFAULT['modelo'], 'questions': j._preguntas(self.cfg, j._opciones(self.cfg))}
         for valor in (float('inf'), -.1, .5, True):
             r = respuesta(body); a = next(iter(r['answers'].values()))
             a['probabilities'][a['choice']] = valor
             with self.assertRaises(j.ErrorJev): j.validar_respuesta(r, body['questions'], body['model'])
+
+    def test_ejemplo_oficial_confianza_no_bloquea_por_redondeo(self):
+        # https://docs.typesafe.ai/api: .88/.12/0, confidence .81 (fórmula .82).
+        qs = {'department': {'criteria': {'billing': None, 'technical': None, 'sales': None}}}
+        r = {'model': 'jev-1.13.0', 'answers': {'department': {'type': 'choice',
+            'choice': 'billing', 'probabilities': {'billing': .88, 'technical': .12, 'sales': 0},
+            'confidence': .81}}}
+        v = j.validar_respuesta(r, qs, r['model'])
+        self.assertEqual(v['confianzas']['department'], .81)
+        self.assertEqual(v['discrepancias_confianza'], ['department'])
+        self.assertEqual(v['verdicts']['department'], 'billing')
+
+    def test_confianza_declarada_no_puede_inflar_distribucion(self):
+        def t(body, *_):
+            r = respuesta(body)
+            a = next(iter(r['answers'].values()))
+            a['probabilities'] = {o: 1/len(a['probabilities']) for o in a['probabilities']}
+            return r
+        r = self.comparar(t)
+        row = r['resultados'][0]
+        self.assertEqual(row['motivo'], 'confianza_baja')
+        self.assertTrue(row['criterios_confianza_baja'])
+        self.assertTrue(row['evaluacion_jev']['probabilidades'])
+        self.assertTrue(row['evaluacion_jev']['discrepancias_confianza'])
+        self.assertNotIn('propuesta', row)
+        self.assertEqual(r['cobertura'], {'correos_total': 1, 'propuestas_comparadas': 0})
+
+    def test_respuesta_json_escalar_preserva_lote(self):
+        self.p, self.cfg = lote(2)
+        for valor in (None, [], 3, 'invalido'):
+            t = Mock(return_value=valor)
+            r = self.comparar(t)
+            self.assertTrue(r['ok'], r)
+            self.assertEqual(len(r['resultados']), 2)
+            self.assertTrue(all('principal' in e for e in r['resultados']))
+            self.assertEqual(t.call_count, 1)
+            self.assertTrue(r['consumo']['coste_total_desconocido'])
+
+    def test_s0_sin_clave_sigue_informando_bloqueo(self):
+        self.p['emails'][0]['control']['tier_maximo'] = 'REVIEW'
+        with patch.dict(os.environ, {'TYPESAFE_API_KEY': ''}):
+            r = self.comparar()
+        self.assertEqual(r['resultados'][0]['motivo'], 's0_o_cap')
+        self.assertIn('principal', r['resultados'][0])
+
+    def test_corte_http_preserva_fallback(self):
+        import http.client
+        with patch.object(j.urllib.request, 'build_opener') as op:
+            resp = op.return_value.open.return_value.__enter__.return_value
+            resp.status = 200; resp.geturl.return_value = j.ENDPOINT
+            resp.read.side_effect = http.client.IncompleteRead(b'privado', 100)
+            with self.assertRaises(j.ErrorJev) as ctx:
+                j.solicitar({}, 'clave-ficticia', 1)
+            self.assertEqual(str(ctx.exception), 'fallo_red_o_timeout')
+
+    def test_cli_preparar_y_comparar_ficticio_sin_clave(self):
+        import tempfile
+        raw = {'perfil_minimo': 'Coordino una asociación cultural ficticia.', 'emails': [
+            {'id': '1', 'asunto': 'Consulta de plazas', 'remitente': 'a@example.invalid',
+             'cuerpo': '¿Quedan plazas para el taller del sábado? Nos gustaría inscribir a dos personas.'},
+            {'id': '2', 'asunto': 'Oferta comercial', 'remitente': 'b@example.invalid',
+             'cuerpo': 'Presentamos nuestro nuevo catálogo de muebles de oficina para asociaciones.'}]}
+        r = subprocess.run([sys.executable, str(SKILL/'scripts/jev.py'), 'preparar'],
+                           input=json.dumps(raw), text=True, capture_output=True, check=True)
+        p = json.loads(r.stdout)
+        for e in p['emails']:
+            e.update(copy.deepcopy({k: self.p['emails'][0][k] for k in ('control', 'principal')}))
+        with tempfile.TemporaryDirectory() as d:
+            capa = Path(d)/'config-jev.yaml'
+            capa.write_text('activo: true\nacepta_envio_datos: true\n')
+            r = subprocess.run([sys.executable, str(SKILL/'scripts/jev.py'), 'comparar',
+                '--config', str(SKILL/'config.yaml'), '--config-jev', str(capa)],
+                input=json.dumps(p), text=True, capture_output=True, check=True,
+                env=dict(os.environ, TYPESAFE_API_KEY=''))
+        out = json.loads(r.stdout)
+        self.assertEqual(out['llamadas'], 0)
+        self.assertFalse(out['permitir_movimientos'])
+        self.assertEqual(len(out['resultados']), 2)
+        self.assertTrue(all('principal' in e for e in out['resultados']))
+        self.assertTrue(all(e['motivo'] == 'credencial_ausente_o_invalida' for e in out['resultados']))
