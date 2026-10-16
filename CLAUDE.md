@@ -3,6 +3,13 @@
 Guía para que un agente (o un humano nuevo) entienda este repo y lo modifique
 **sin romper su intención ni sus invariantes**. Léela entera antes de tocar código.
 
+> **Qué se quiere conseguir ahora:** [`ROADMAP.md`](ROADMAP.md) recoge los
+> objetivos del ciclo actual, su orden de prioridad, lo que queda fuera de
+> alcance y las reglas de trabajo con agentes. Este archivo dice *cómo* no
+> romper el plugin; `ROADMAP.md` dice *hacia dónde* llevarlo. Ante conflicto
+> sobre reglas técnicas manda este archivo; ante conflicto sobre prioridades,
+> `ROADMAP.md`.
+
 ## Qué es esto
 
 `email-triage-plugin`: un plugin para **Claude Cowork y Claude Code** que hace
@@ -245,6 +252,31 @@ eso `es`. La regla vive en `scripts/idioma.py` y en un bloque de `SKILL.md`.
   español; no se amplían exenciones de seguridad para los catálogos.
 - **Pendientes ajenos conocidos:** `SKILL.md` dice «13 core» (l.160, 614) y «12 core»
   (l.1014); patrones S0 en otros idiomas; README completos en `en` y `fr`.
+
+## Cómo avanzar sin romper lo que funciona (ciclo actual)
+
+Resumen operativo de `ROADMAP.md`; el detalle y la justificación están allí.
+
+- **Una tarea cada vez.** Termina, muestra archivos tocados, diff resumido y
+  resultado de los tests, y espera confirmación del mantenedor antes de la
+  siguiente. PRs pequeños.
+- **Aditivo por defecto.** Un usuario que no toque su config debe obtener el
+  mismo comportamiento que antes del PR. Lo nuevo nace desactivado o es solo
+  informativo hasta validarse con correos reales (como la Fase A de
+  `ARCHITECTURE.md`: motor intacto, tests previos verdes).
+- **Salida estable.** Tiers, claves JSON, JSONL y formato de razones no cambian
+  de significado; se añaden campos, no se renombran ni se eliminan.
+- **Criterios.** El gate #2 exige 30 exactos. Antes de tocar ese número hay
+  que auditar los 30 actuales (`references/criterios-catalogo.md`), y el
+  cambio de número va con gate, `validar-config`, tests y catálogo en el
+  mismo PR. Todo criterio nuevo nace con `eje`, dirección y test.
+- **ICD 203.** Se traduce a propiedades observables de la salida (confianza,
+  «no evaluable», separación hecho/supuesto/juicio, lectura alternativa); no
+  se copia el marco. Ninguna salida nueva expone texto sin sanitizar.
+- **Servidor futuro.** No se construye aquí; se respeta la frontera núcleo ↔
+  adaptador para que el núcleo pueda extraerse algún día sin reescribirlo.
+- **Verificado ≠ propuesto.** Di siempre cuál de las dos cosas es cada
+  afirmación.
 
 ## Convenciones
 

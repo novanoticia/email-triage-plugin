@@ -5,6 +5,12 @@
 > leen `CLAUDE.md` (Codex, Cursor, Gemini CLI, Copilot, Amp…) reciban las mismas
 > instrucciones. Lo que sigue es un resumen mínimo; **si algo aquí contradice
 > `CLAUDE.md`, manda `CLAUDE.md`** — no dupliques contenido entre ambos.
+>
+> **Objetivos y prioridades del ciclo actual: [`ROADMAP.md`](ROADMAP.md).**
+> Léelo también antes de proponer cambios: fija el orden de prioridades
+> (fiabilidad → ICD 203 → auditoría y ampliación de criterios), lo que queda
+> fuera de alcance y la regla de trabajo «una tarea cada vez, cambios
+> aditivos, nada roto por defecto».
 
 ## Qué es este repo
 
@@ -68,6 +74,17 @@ Para i18n (desde la raíz del repositorio), además de la suite:
 python3 scripts/i18n_validar.py
 python3 scripts/i18n_extraer.py generar    # regenera i18n/es.yaml desde el original
 ```
+
+## Forma de trabajar (resumen de `ROADMAP.md`)
+
+- Una tarea cada vez; al terminar, muestra diff resumido y tests y **espera
+  confirmación** antes de seguir.
+- Todo cambio es **aditivo y gradual**: quien no active lo nuevo debe obtener
+  exactamente el comportamiento anterior. Funcionalidad nueva, desactivada por
+  defecto hasta que el mantenedor la valide con correos reales.
+- No se desarrolla aquí ningún servidor/API, pero se respeta la frontera
+  núcleo ↔ adaptador de `ARCHITECTURE.md` para no cerrar esa puerta.
+- Explica Git y los parches de forma sencilla y paso a paso.
 
 ## Antes de abrir un PR
 
