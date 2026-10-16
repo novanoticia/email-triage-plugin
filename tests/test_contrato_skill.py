@@ -360,7 +360,7 @@ class ContratoCore12FuenteUnica(unittest.TestCase):
 
     def test_core_son_trece(self):
         # La doctrina (SKILL.md 4.B y criterios-catalogo.md) promete en prosa
-        # "12 criterios core". Si la cardinalidad cambia legitimamente, hay
+        # "13 criterios core". Si la cardinalidad cambia legitimamente, hay
         # que actualizar esa prosa Y este numero a la vez.
         self.assertEqual(
             len(set(_core_config())), 13,

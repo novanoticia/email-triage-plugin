@@ -16,6 +16,11 @@ core, ninguno mapea a ese eje → en veloz `coste_cognitivo` es **siempre 0**. U
 eje muerto. Los 30 criterios completos sí lo alimentan (p. ej. `retorno_atencional`
 no es core), pero veloz solo corre los 12 core.
 
+> **Nota posterior (2026-10, F.1 de `docs/auditoria-criterios.md`):** este
+> apartado describe el estado de julio de 2026. Se resolvió en #27:
+> `distancia_inferencial` (eje `coste_cognitivo`) pasó a core y **el core
+> vigente es de 13 criterios**. El texto se conserva como registro histórico.
+
 **(b) `calidad_epistemica` satura a +10 con facilidad.** `forward`(+3) +
 `argumento_fuerte`(+3) + `entangled alto`(+3) + `sorpresa media`(+1) = +10, que
 es el techo del eje. Casi cualquier ensayo bien escrito llega al máximo, así que

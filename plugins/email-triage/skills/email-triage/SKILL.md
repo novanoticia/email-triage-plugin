@@ -1114,7 +1114,7 @@ de la última sesión para revertir movimientos; nunca improvises los mids).
 - Si el log falla, avisa al usuario pero no abortes el triaje
 - Si la calibración da un perfil incoherente, informa y sugiere acotar
 - **SIEMPRE incluir explicación** — un score sin rationale es teatro, no triage
-- No evalúes los 30 criterios por igual: los 12 core siempre, el resto contextual
+- No evalúes los 30 criterios por igual: los 13 core siempre, el resto contextual
 - Si el usuario corrige un tier, registra el override inmediatamente en `correcciones.jsonl` (no esperes al PASO 5.B)
 - El PASO 0.B no es opcional si existe `correcciones.jsonl` — saltárselo significa ignorar lo que el usuario ya enseñó al plugin
 - No omitas el PASO 5.B si `telemetria` tiene algún flag en `true` — los flags sin escritura son teatro
