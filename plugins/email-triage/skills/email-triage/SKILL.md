@@ -622,7 +622,7 @@ en `config.yaml`:
 - **`determinista` (bajo petición)** — el modelo SOLO emite el veredicto de
   cada criterio (la clave del valor: `si`/`no`/`alta`/`media`/`baja`…) y
   delega la aritmética en el script. Mismo input → mismo output, auditable y
-  testeable. Útil para auditar una sesión o comparar cambios de pesos.
+  testeable. Útil para auditar una sesión o comparar cambios de puntos.
 
 **Cómo se activa el modo determinista** (cualquiera de las dos vías):
 1. Permanente: `scoring.modo: determinista` en `config.yaml`.
@@ -674,14 +674,14 @@ stdout sigue compacto; un fallo de escritura se reporta en `desglose_error`,
 nunca en silencio (CM2/F12).
 
 > Nota: el campo `eje` de cada criterio y los rangos de `scoring.ejes` son la
-> fuente única del mapeo criterio→eje. Si editas pesos o reasignas un criterio
-> a otro eje, el modo determinista lo recoge sin tocar código.
+> fuente única del mapeo criterio→eje; `weight` solo orienta al modo mental.
+> Si editas puntos por respuesta o eje, el determinista lo recoge sin tocar código.
 
 #### Catálogo de 30 criterios epistémicos
 
 La fuente única del catálogo es `config.yaml` → `criterios_epistemicos`:
-cada criterio lleva su pregunta operativa (`question`), peso, valores
-`si`/`no` y el flag `core`. Evaluar todos los que tengan `activo: true`.
+cada criterio lleva su pregunta operativa (`question`), puntos por
+respuesta (`si`/`no`…) y el flag `core`. Evaluar todos los que tengan `activo: true`.
 
 **Regla de cobertura**: los 13 criterios con `core: true` se evalúan
 SIEMPRE en cada correo; los 17 restantes solo cuando el correo lo amerita
@@ -689,7 +689,7 @@ SIEMPRE en cada correo; los 17 restantes solo cuando el correo lo amerita
 cuestión abierta).
 
 Las tablas descriptivas por grupos están en `references/criterios-catalogo.md`
-como documentación de consulta: sus preguntas y pesos son redundantes con el
+como documentación de consulta: sus preguntas son redundantes con el
 config, pero la numeración número↔criterio solo existe en el catálogo — el
 config no numera; toda referencia "criterio N" de la doctrina se resuelve
 allí.
@@ -871,7 +871,7 @@ Los colores de tier en el formato de presentación:
   de qué habría movido, a dónde, y con qué score
 
 **Cuándo usar dry-run**:
-- Después de cambiar pesos o umbrales en `config.yaml`
+- Después de cambiar puntos o umbrales en `config.yaml`
 - Después de añadir/quitar remitentes de las listas
 - Al inicio de uso del plugin para entender su comportamiento sin riesgo
 - Para validar que los ajustes aprendidos (PASO 0.B) están funcionando bien
