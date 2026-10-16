@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.17.1
+# Email Triage Plugin v3.18.0
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,17 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.18.0
+
+- Jev añade modo `hibrido` opt-in para aportar veredictos al triaje real, sin
+  duplicar la evaluación completa del principal en casos aceptados.
+- Validación y revisión principal obligatorias; errores, incertidumbre,
+  contexto insuficiente, archivo, respuesta y fronteras vuelven al principal.
+- Movimientos bajo las autorizaciones, registros, verificación y deshacer
+  existentes. Jev no accede al buzón ni concede permisos de movimiento.
+- Sigue desactivado por defecto, con comparación como modo inicial.
+  [Activación del híbrido](plugins/email-triage/skills/email-triage/references/jev.md).
 
 ## Novedades en v3.17.1
 
@@ -975,7 +986,8 @@ pueden consumir la cuota o facturación del cliente actual. No se cambian los
 controles de privacidad; sí puede existir contexto adicional de subagente dentro
 de la misma conexión. La capa externa de Jev es independiente y está desactivada
 por defecto: requiere consentimiento y clave propia, añade consumo en TypeSafe
-y solo admite comparación sin movimientos.
+y admite comparación sin movimientos o híbrido explícito con revisión del principal
+y las autorizaciones existentes.
 [Guía de Jev](plugins/email-triage/skills/email-triage/references/jev.md).
 
 Contrato completo y límites:

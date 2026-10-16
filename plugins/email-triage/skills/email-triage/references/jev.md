@@ -1,13 +1,15 @@
 <!-- i18n:inicio -->
-# Jev opcional: comparación externa, sin movimientos
+# Jev opcional: comparación y triaje híbrido
 
 Esta capa es independiente de `config-modelos.yaml`. No sustituye automáticamente
 una delegación nativa ni se activa por mencionar un modelo económico. Su ausencia
-o `activo: false` conserva el flujo habitual. Si se solicita comparar con Jev o
-se encuentra la capa activa, **fuerza simulación antes de cualquier fase**, incluso
-si después faltan permisos, clave, red o configuración. Nunca continuar esa sesión
-con movimientos, aprendizaje, registro de propuestas o tareas programadas reales.
-No combinar en la misma comparación Jev y el evaluador nativo.
+o `activo: false` conserva el flujo habitual. `comparar` (por defecto) fuerza
+simulación durante toda la sesión, incluso con errores. `hibrido`, elegido
+explícitamente por el usuario, permite integrar veredictos validados en el flujo
+real descrito abajo. Una petición de simulación siempre prevalece sobre híbrido.
+Si el modo no se puede determinar por un archivo ilegible/inválido, detener la
+delegación y mantener simulación; nunca deducir autorización de movimiento.
+No combinar Jev y el evaluador nativo en la misma sesión.
 
 ## Activación y credenciales
 
@@ -15,17 +17,17 @@ Usa la base de estado resuelta por el PASO 0 (normalmente `~/.email-triage`). Co
 allí la plantilla `config-jev.yaml`, fuera del repositorio, solo cuando el usuario
 quiera activarlo. Requiere ambos `activo: true` y `acepta_envio_datos: true`.
 Antes de activarlos, explica qué se enviará y que hay facturación independiente.
-Un archivo inválido desactiva la comparación; no corregirlo activando permisos.
+Un archivo inválido desactiva la delegación; no corregirlo activando permisos.
 
 La clave se obtiene en <https://console.typesafe.ai> y se inyecta en el entorno del
 proceso como `TYPESAFE_API_KEY` mediante el gestor de secretos del cliente. No
 pedir pegarla en el chat, guardarla en YAML/git, pasarla por argumentos, imprimirla
 ni registrar el entorno. No usar credenciales de Claude/OpenAI para esta API.
 El host necesita ejecutar Python con PyYAML y permitir HTTPS a `api.typesafe.ai`.
-Si no puede, informa de la limitación y conserva el principal en simulación; no
+Si no puede, informa de la limitación y conserva el principal en el modo de sesión; no
 simular una llamada real mediante otro modelo.
 
-La configuración solo admite comparación, el alias `jev-latest` (estable, por defecto),
+La configuración admite `modo: comparar` (defecto) o `modo: hibrido`, el alias `jev-latest` (estable, por defecto),
 `jev-preview` (opcional) o una versión fijada `jev-X.Y.Z`, máximo de llamadas por ejecución 1–20 (defecto 5), timeout 1–60 s
 (defecto 15) y confianza mínima 0–1 (defecto 0,8). No admite endpoints alternativos.
 Desactivar o retirar el archivo revierte la integración sin cambiar el scoring.
@@ -39,7 +41,7 @@ nuevas. Un alias puede cambiar resultados sin actualizar el plugin; para reprodu
 una comparación, fija la versión efectiva. No se modifica la configuración personal
 existente: para adoptar el alias cambia su campo a `modelo: jev-latest` o elimínalo.
 
-## Protocolo del orquestador
+## Comparación: protocolo del orquestador
 
 1. Mantén las reglas habituales de lectura, sanitización S0–S5 y controles del
    principal. Selecciona un lote pequeño, preferentemente ficticio primero.
@@ -81,10 +83,74 @@ existente: para adoptar el alias cambia su campo a `modelo: jev-latest` o elimí
    No afirmar ahorro, precisión o latencia global medidos sin datos equivalentes:
    aquí se ejecutan ambos evaluadores y la comparación añade coste.
 
+## Triaje real: modo híbrido explícito
+
+Para utilizar Jev en el triaje real, copia la plantilla a la base personal y fija:
+
+```yaml
+activo: true
+acepta_envio_datos: true
+modo: hibrido
+modelo: jev-latest
+```
+
+También puedes pedir «usa Jev en modo híbrido para este triaje»; aplica esos ajustes
+solo en memoria y confirma el consentimiento de envío si no está ya autorizado.
+No modifica automáticamente la configuración personal ni activa rutina.
+El modo inicial sigue siendo comparación. Recomienda probar primero correos
+ficticios; no presentes las pruebas simuladas como validación del modelo real.
+
+1. El principal conserva PASO 0, 0.B, lectura, contexto de hilos/Enviados, S0–S5,
+   calibración, hard rules, ajustes y señal de respuesta (4.A/4.C). Guarda localmente
+   el mapa de ordinal a message-id. No reduzcas estas comprobaciones para ahorrar.
+2. Usa `preparar` como en comparación. Su salida es solo preparación local, no
+   selección de modo ni autorización. Añade a cada correo `control` y
+   `contexto_suficiente` (booleano), **sin `principal`**. No hay que evaluar todos
+   los criterios por duplicado ni fabricar una referencia. El principal solo marca
+   contexto suficiente si ese extracto y perfil permiten juzgar los criterios;
+   hilos ambiguos, antecedentes necesarios ausentes o recortes que pierden una
+   instrucción relevante deben volver al principal. Si preparar no representa
+   fielmente lo leído, no delegues. S0 y caps tampoco salen a la red.
+3. Ejecuta `python3 scripts/jev.py evaluar --config RUTA_CONFIG_PERSONAL
+   --config-jev RUTA_CAPA`, con el documento por stdin. `--config-veloz` aplica
+   únicamente si el usuario pidió también veloz. `evaluar` requiere configuración
+   híbrida explícita; `comparar` nunca se convierte en ejecución real.
+4. Por correo, `usar_principal: true` obliga a completar la evaluación en el
+   principal antes de continuar; no significa que exista ya una evaluación de
+   respaldo. Cualquier fallo global exige reevaluar todo el lote. Los límites de
+   llamadas, errores, abstención y baja confianza conservan esta ruta. También
+   reevalúa `ARCHIVE`, `REPLY_NEEDED`, distancia ≤1 a un umbral y discrepancias
+   entre confianza declarada y calculada.
+5. Con `usar_principal: false`, el principal **revisa siempre** los veredictos
+   y `no_aplica` contra el extracto/perfil y los controles, conforme a
+   `revision_obligatoria: true`. Jev no suministra evidencias narrativas:
+   la explicación se redacta a partir del correo, sin atribuírsela a Jev ni
+   inventarla. Si encuentra contradicciones, falta de contexto o una omisión
+   injustificada, reevalúa en el principal. No basta con confiar en la probabilidad.
+6. Tras esa revisión, usa `payload_scoring` y `propuesta` en 4.D con el scoring
+   determinista existente. No cambia `scoring.modo` persistente. Las filas que
+   vuelven al principal siguen su evaluación normal. No sumar dos veces ajustes.
+   El flag global `usar_principal` indica si queda alguna fila pendiente; decide
+   cada correo por su propio flag. `cobertura` separa propuestas y pendientes.
+7. Continúa con 4.E, 4.G, 4.I, 4.K y el PASO 5 habitual: solo el principal decide
+   y ejecuta movimientos ya autorizados por el usuario o la rutina configurada.
+   Una simulación solicitada sigue sin mover nada. `permitir_movimientos: false`
+   significa que **el adaptador no concede permisos ni mueve**; en híbrido
+   `requiere_simulacion: false` permite continuar el flujo habitual, no saltarse
+   sus confirmaciones, registro, `montar-mover`, `verificar-sesion` ni deshacer.
+   Ante errores de validación o permisos de ese flujo, detener movimientos.
+
+El ahorro del híbrido es una posibilidad, no una medición: evita la evaluación
+completa duplicada en casos aceptados, pero sigue necesitando revisión principal.
+El principal aporta el contexto local; TypeSafe recibe los mismos campos mínimos
+que en comparación. Los presupuestos de llamadas siguen siendo por invocación.
+
 Los temporales sanitizados usan directorio 700 y archivo 600 y se eliminan al
-terminar, incluso si hay errores. No guardar propuestas en telemetría o aprendizaje.
+terminar, incluso si hay errores. No guardar propuestas sin aceptar en telemetría o aprendizaje. En híbrido,
+las decisiones finales y los movimientos reales usan el registro habitual; solo
+las correcciones humanas alimentan aprendizaje.
 El script no escribe archivos ni tiene herramientas del buzón. Una ausencia de
-PyYAML impide esta comparación: el modo mental no puede sustituir la validación.
+PyYAML impide esta delegación: el modo mental no puede sustituir la validación.
 
 ## Contrato y validación
 
@@ -151,11 +217,11 @@ veredictos discretos del scoring existente y permitir abstención explícita;
 convertirlos a Noul o Score exigiría calibrar una traducción nueva a esos veredictos.
 Todas las preguntas de un correo se envían juntas y son independientes.
 
-Antes de ampliar el modo, revisar una muestra etiquetada por una persona que
+Para validar la calidad del modo híbrido, revisar una muestra etiquetada por una persona que
 incluya consultas, spam, contexto insuficiente y correos que necesitan respuesta,
 en los idiomas reales del usuario. Medir cobertura, errores por tier, coste y
 latencia de extremo a extremo; comparar también los casos abstinentes. El tiempo
 HTTP informado no mide el flujo completo ni el ahorro frente al principal.
-No activar sustitución operativa a partir de estos tests. Una revisión humana de
-las discrepancias precede a cualquier futura ampliación de modos.
+Estos tests no validan precisión operativa: la activación híbrida es explícita
+y conserva la revisión del principal y las autorizaciones existentes.
 <!-- i18n:fin -->

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Comparación opt-in con la API oficial de TypeSafe; nunca mueve ni escribe.
+"""Evaluación opt-in con la API oficial de TypeSafe; nunca mueve ni escribe.
 
-`preparar` sanitiza sin red. `comparar` requiere config opt-in y TYPESAFE_API_KEY.
+`preparar` sanitiza sin red. `comparar`/`evaluar` requieren opt-in y TYPESAFE_API_KEY.
 Contrato contrastado el 2026-10-16: https://docs.typesafe.ai/api y /models.
 Solo Choice: los valores se agregan con el scoring existente, sin inventar
 explicaciones textuales que Jev no devuelve. Datos por stdin, no por la shell.
@@ -139,8 +139,7 @@ def _preguntas(cfg, activos):
     return preguntas
 
 
-def _principal(e, cfg, activos):
-    control, principal = e.get("control"), e.get("principal")
+def _validar_control(control):
     requeridos = {"hard_rules", "extra_points", "forzar_reply_needed",
                   "tier_maximo", "remitente_en_historial"}
     _exigir(isinstance(control, dict) and requeridos <= set(control)
@@ -156,6 +155,11 @@ def _principal(e, cfg, activos):
     if "remitente_conteo_historial" in control:
         _exigir(type(control["remitente_conteo_historial"]) is int
                 and control["remitente_conteo_historial"] >= 0, "historial_invalido")
+
+
+def _principal(e, cfg, activos):
+    control, principal = e.get("control"), e.get("principal")
+    _validar_control(control)
     _exigir(_objeto(principal, ("verdicts", "no_aplica")), "principal_invalido")
     vs, na = principal["verdicts"], principal["no_aplica"]
     _exigir(isinstance(vs, dict) and isinstance(na, dict)
@@ -277,7 +281,7 @@ def _config(capa):
     c = dict(DEFAULT, **capa)
     _exigir(type(c["activo"]) is bool and type(c["acepta_envio_datos"]) is bool,
             "activacion_invalida")
-    _exigir(c["modo"] == "comparar", "solo_comparacion")
+    _exigir(c["modo"] in ("comparar", "hibrido"), "modo_invalido")
     _exigir(isinstance(c["modelo"], str) and (c["modelo"] in ALIASES or _version_jev(c["modelo"])), "modelo_no_verificado")
     _exigir(type(c["max_llamadas"]) is int and 1 <= c["max_llamadas"] <= 20
             and _numero(c["timeout_segundos"], 1, 60)
@@ -286,7 +290,17 @@ def _config(capa):
 
 
 def comparar(p, cfg, capa, transporte=None):
-    salida = {"ok": True, "modo": "comparar", "permitir_movimientos": False,
+    return _procesar(p, cfg, capa, transporte, "comparar")
+
+
+def evaluar(p, cfg, capa, transporte=None):
+    """Veredictos para el flujo real; revisión y autorización siguen en el principal."""
+    return _procesar(p, cfg, capa, transporte, "hibrido")
+
+
+def _procesar(p, cfg, capa, transporte, modo):
+    salida = {"ok": True, "modo": modo, "permitir_movimientos": False,
+              "requiere_simulacion": True,
               "usar_principal": True, "proveedor": "typesafe", "llamadas": 0,
               "resultados": [], "consumo": {"input_tokens_observados": 0,
                   "output_tokens_observados": 0, "coste_estimado_usd": 0,
@@ -297,16 +311,24 @@ def comparar(p, cfg, capa, transporte=None):
         salida["modelo_solicitado"] = c["modelo"]
         if not c["activo"]:
             return dict(salida, motivo="desactivado")
+        _exigir(c["modo"] == modo, "modo_no_coincide_con_comando")
+        salida["requiere_simulacion"] = modo == "comparar"
         _exigir(c["acepta_envio_datos"], "envio_no_autorizado")
         filas, activos = _filas(p), _opciones(cfg)
         preguntas = _preguntas(cfg, activos)
         preparados = []
         # Validar todo el lote antes de acceder a credenciales o enviar un solo byte.
         for e in filas:
-            _exigir(_objeto(e, ("id", "estado", "huella", "s0", "control", "principal")),
-                    "correo_preparado_invalido")
-            base = _principal(e, cfg, activos)
+            claves = {"id", "estado", "huella", "s0", "control"}
+            claves.add("principal" if modo == "comparar" else "contexto_suficiente")
+            _exigir(_objeto(e, claves), "correo_preparado_invalido")
+            _validar_control(e.get("control"))
+            base = _principal(e, cfg, activos) if modo == "comparar" else None
             bloqueo = _estado(e, p["perfil_minimo"])
+            if modo == "hibrido":
+                _exigir(type(e["contexto_suficiente"]) is bool, "contexto_invalido")
+                if not e["contexto_suficiente"]:
+                    bloqueo = bloqueo or "contexto_insuficiente"
             body = {"model": c["modelo"], "state": {
                 "perfil_minimo": p["perfil_minimo"], "correo": e["estado"]}, "questions": preguntas}
             _exigir(len(_json(body)) <= MAX_PETICION, "peticion_excesiva")
@@ -318,8 +340,10 @@ def comparar(p, cfg, capa, transporte=None):
         detenido = None
         bases, propuestas = [], []
         for e, base, bloqueo, body in preparados:
-            r = {"id": e["id"], "principal": base, "usar_principal": True,
+            r = {"id": e["id"], "usar_principal": True,
                  "modelo_solicitado": c["modelo"]}
+            if modo == "comparar":
+                r["principal"] = base
             salida["resultados"].append(r)
             motivo = bloqueo or detenido
             if not motivo and not clave_valida:
@@ -358,7 +382,21 @@ def comparar(p, cfg, capa, transporte=None):
                 _exigir(min(v["confianzas"].values()) >= c["confianza_minima"], "confianza_baja")
                 propuesta = _scoring(e["id"], e["control"], v["verdicts"], cfg)
                 r.update(propuesta=propuesta, no_aplica=v["no_aplica"], motivo="solo_comparacion")
-                bases.append(base)
+                if modo == "hibrido":
+                    # Mismas precauciones que la delegación nativa. Sin evidencia
+                    # narrativa de Jev: la revisión contra el extracto es obligatoria.
+                    umbrales = cfg.get("tiers", {})
+                    fronteras = [umbrales.get(k, valor) for k, valor in
+                                 (("reply_needed", 10), ("review", 4), ("reading_later", 0))]
+                    _exigir(all(_numero(x, -1e9, 1e9) for x in fronteras), "umbrales_invalidos")
+                    reevaluar = (propuesta["tier"] in ("ARCHIVE", "REPLY_NEEDED")
+                                 or any(abs(propuesta["score"] - x) <= 1 for x in fronteras)
+                                 or bool(v["discrepancias_confianza"]))
+                    r.update(usar_principal=reevaluar, revision_obligatoria=True,
+                             motivo="reevaluar_tier_umbral_o_confianza" if reevaluar else "propuesta_validada",
+                             payload_scoring=dict(e["control"], id=e["id"], verdicts=v["verdicts"]))
+                else:
+                    bases.append(base)
                 propuestas.append(propuesta)
             except ErrorJev as exc:
                 r["motivo"] = str(exc)
@@ -372,11 +410,18 @@ def comparar(p, cfg, capa, transporte=None):
         consumo["coste_parcial_con_tarifa_usd"] = round(consumo["coste_parcial_con_tarifa_usd"], 10)
         consumo["coste_estimado_usd"] = (None if consumo["coste_total_desconocido"]
                                          else consumo["coste_parcial_con_tarifa_usd"])
-        salida["comparacion"] = (modelos.comparar({"base": bases, "propuesta": propuestas})
-                                  if bases else {"total": 0, "diferencias": []})
+        if modo == "comparar":
+            salida["comparacion"] = (modelos.comparar({"base": bases, "propuesta": propuestas})
+                                      if bases else {"total": 0, "diferencias": []})
+        else:
+            salida["usar_principal"] = any(r["usar_principal"] for r in salida["resultados"])
         salida["sin_propuesta"] = len(filas) - len(propuestas)
-        salida["cobertura"] = {"correos_total": len(filas),
-                              "propuestas_comparadas": len(propuestas)}
+        salida["cobertura"] = {"correos_total": len(filas)}
+        if modo == "comparar":
+            salida["cobertura"]["propuestas_comparadas"] = len(propuestas)
+        else:
+            salida["cobertura"].update(propuestas_validadas=len(propuestas),
+                pendientes_principal=sum(r["usar_principal"] for r in salida["resultados"]))
         return salida
     except (ErrorJev, ValueError, TypeError, KeyError, AttributeError, OverflowError) as exc:
         # Nunca devolver str de excepciones ajenas: puede contener datos privados.
@@ -399,10 +444,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="cmd", required=True)
     sub.add_parser("preparar")
-    comp = sub.add_parser("comparar")
-    comp.add_argument("--config", required=True)
-    comp.add_argument("--config-veloz")
-    comp.add_argument("--config-jev", default=str(Path(th.base_estado()) / "config-jev.yaml"))
+    for nombre in ("comparar", "evaluar"):
+        comp = sub.add_parser(nombre)
+        comp.add_argument("--config", required=True)
+        comp.add_argument("--config-veloz")
+        comp.add_argument("--config-jev", default=str(Path(th.base_estado()) / "config-jev.yaml"))
     args = parser.parse_args()
     try:
         raw = sys.stdin.buffer.read(MAX_JSON + 1)
@@ -416,11 +462,12 @@ def main():
             cfg = _yaml(args.config) if c["activo"] else {}
             if c["activo"] and args.config_veloz:
                 cfg = th._merge_config(cfg, _yaml(args.config_veloz))
-            out = comparar(p, cfg, capa)
+            out = (evaluar if args.cmd == "evaluar" else comparar)(p, cfg, capa)
     except Exception:
         # Fallos de fichero/YAML/JSON: no imprimir paths, entrada o credencial.
         out = {"ok": False, "motivo": "entrada_o_config_invalida",
-               "usar_principal": True, "permitir_movimientos": False}
+               "usar_principal": True, "permitir_movimientos": False,
+               "requiere_simulacion": True}
     print(json.dumps(out, ensure_ascii=False, allow_nan=False))
     return 0 if out.get("ok") else 1
 

@@ -2,7 +2,7 @@
 # Activar autoriza enviar extractos y perfil mínimo a TypeSafe AI (otro proveedor).
 activo: false
 acepta_envio_datos: false
-modo: comparar                 # único modo implementado; nunca mueve correos
+modo: comparar                 # defecto sin movimientos; hibrido integra veredictos revisados
 # Sigue la versión estable actual. Puede fijarse un ID jev-X.Y.Z para reproducibilidad.
 modelo: jev-latest              # alias estable; API oficial verificada 2026-10-16
 max_llamadas: 5                 # por invocación, una por correo/hilo, sin reintentos
