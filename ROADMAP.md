@@ -51,8 +51,8 @@ correo, se documenta por qué y se deja fuera.
 | Estándar ICD 203 (resumen) | Traducción propuesta al triaje | Estado |
 |---|---|---|
 | Describir calidad y credibilidad de las fuentes | La explicación distingue qué afirma el remitente, qué respalda con evidencia y si esa evidencia es de primera mano o reproducida | pendiente |
-| Expresar y explicar la incertidumbre | Cada evaluación lleva un **nivel de confianza** y la causa principal de la duda (cuerpo recortado, remitente desconocido, afirmación no verificable) | pendiente |
-| Distinguir información de supuestos y juicios | En las razones, separar «el correo dice», «asumo» y «concluyo» | pendiente |
+| Expresar y explicar la incertidumbre | Cada evaluación lleva un **nivel de confianza** y la causa principal de la duda (cuerpo recortado, remitente desconocido, afirmación no verificable) | priorizado; pendiente de implementación |
+| Distinguir información de supuestos y juicios | En las razones, separar «el correo dice», «asumo» y «concluyo» | priorizado; pendiente de implementación |
 | Análisis de alternativas | Para tiers altos, una línea de «lectura alternativa» cuando exista otra interpretación plausible | pendiente |
 | Relevancia para el destinatario e implicaciones | Ya cubierto en gran parte por el eje `valor_decisional`; revisar que la explicación lo haga explícito | revisar |
 | Argumentación clara y lógica | Las razones positivas/negativas no deben contradecirse entre sí ni con el tier | pendiente |
@@ -93,6 +93,41 @@ Orden obligatorio: **auditar, podar o fusionar, y solo después añadir**.
    - Un criterio nuevo sin `eje` pierde sus puntos en silencio. Cada criterio
      nuevo nace con `eje`, peso, pregunta operativa, dirección (sube/baja) y
      un test que fije su efecto en el scoring.
+
+### Decisión del mantenedor (P3, paso 2)
+
+Fecha: 2026-10-16. Cierro este paso tras la
+[auditoría](docs/auditoria-criterios.md). Fijo este orden de ejecución:
+
+1. **Documentación.** Primero, un PR solo de documentación para F.1, F.2,
+   F.4, F.5 y F.7:
+   unificar en 13 core; alinear la pregunta 19 del catálogo con el YAML;
+   indicar un solo eje por criterio; aclarar que el −1 por HTML carece de
+   veredicto en el baremo vigente; aclarar que `weight` no se usa y el motor
+   suma los puntos por respuesta. Sin cambiar scoring ni los 30
+   criterios. La alineación de 19 documenta lo ejecutable; su sentido
+   definitivo se decide en el punto 3.
+2. **Contrato de salida de P2.** Antes de cualquier criterio nuevo:
+   confianza de la evaluación separada del score y causa de incertidumbre;
+   estados «no aplicable» / «no observable» por criterio, sin puntuar;
+   separación «el correo dice» / «asumo» / «concluyo» en las razones.
+   Todo aditivo y desactivado por defecto.
+3. **Un ensayo.** Tras P2, fusionar 5 y 26 (`forward_backward_flow` +
+   `fake_justification`) y después cubrir el hueco con
+   `responsabilidad_personal`: «¿me toca actuar o solo estoy copiado?».
+   El ensayo conserva exactamente 30 criterios y el gate vigente. Se valida
+   con los correos ficticios de G.7 de la auditoría: comparar cambios de
+   tier, evidencia citada, cobertura y acuerdo de veredictos, además del
+   score. Aquí decidiré también el sentido definitivo de 19. El ensayo
+   queda desactivado por defecto; su activación sigue la sección 3.
+4. **Aparcado hasta ver los resultados del ensayo:** el resto de fusiones
+   de B y los criterios de proximidad a los hechos, trazabilidad e
+   independencia de fuentes.
+
+Paso a **P1, para investigar**, dos hechos de la auditoría: el motor suma
+veredictos sin comprobar si usan la misma evidencia (B); `valor_decisional`
+satura a 10 con tres core: 1, 2 y 24 suman 13 (D). No decido todavía cómo
+corregirlos. Esta decisión fija trabajo pendiente; no implementa cambios.
 
 ## 3. Restricciones de diseño (lo que no se puede romper al avanzar)
 
@@ -170,6 +205,7 @@ la que más informa a P2 y al resto de P3.
 | Fecha | Hito | Versión |
 |---|---|---|
 | — | Redacción inicial de este ROADMAP | 3.17.x |
+| 2026-10-16 | P3, paso 2 cerrado: decisión del mantenedor tras la auditoría; implementación pendiente | 3.18.0 |
 
 ---
 
