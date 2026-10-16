@@ -44,7 +44,7 @@ Evalúa cada criterio aplicable. Los criterios están organizados en 4 grupos:
 | 16 | **Motivated stopping** | ¿Me empuja a cerrar demasiado pronto una cuestión? | BAJA |
 | 17 | **Motivated continuation** | ¿Prolonga artificialmente una decisión que ya podría cerrarse? | BAJA |
 | 18 | **True rejection** | ¿La objeción es sustantiva o solo una excusa elegante? | SUBE/BAJA |
-| 19 | **Third alternative** | ¿Me empuja a elegir A o B cuando existe C? | SUBE |
+| 19 | **Third alternative** | ¿Detecta una tercera alternativa útil más allá de A o B? | SUBE |
 | 20 | **Privileging the hypothesis** | ¿Eleva una hipótesis sin evidencia suficiente? | BAJA |
 | 21 | **Proper humility** | ¿La duda viene con mitigación concreta o paraliza? | SUBE/BAJA |
 | 22 | **Positive bias** | ¿Solo trae casos a favor o también enfrenta objeciones? | BAJA |
@@ -56,6 +56,12 @@ Evalúa cada criterio aplicable. Los criterios están organizados en 4 grupos:
 | 28 | **Entangled truths** | ¿Está anclado a hechos verificables (tickets, fechas, métricas)? | SUBE/BAJA |
 | 29 | **Cached thought** | ¿Es pensamiento original o plantilla repetida? | SUBE/BAJA |
 | 30 | **Absence of expected evidence** | ¿Falta una pieza que debería estar si fuese tan importante? | BAJA |
+
+<!-- i18n:inicio -->
+
+Criterio 19 — Sentido definitivo pendiente de decisión (ROADMAP, P3 paso 3).
+
+<!-- i18n:fin -->
 
 #### Criterios prioritarios para v3.0
 
