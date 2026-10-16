@@ -596,7 +596,7 @@ El modelo evalúa cada correo contra los criterios epistémicos definidos en
 
 #### Los 5 ejes de evaluación
 
-Cada criterio epistémico contribuye a uno o más de estos ejes:
+Cada criterio epistémico contribuye a un único eje de los siguientes, definido en `config.yaml`:
 
 | Eje | Rango | Qué mide |
 |-----|-------|----------|
