@@ -206,6 +206,7 @@ la que más informa a P2 y al resto de P3.
 |---|---|---|
 | — | Redacción inicial de este ROADMAP | 3.17.x |
 | 2026-10-16 | P3, paso 2 cerrado: decisión del mantenedor tras la auditoría; implementación pendiente | 3.18.0 |
+| 2026-10-16 | Coherencia documental F.1–F.8 (#60) | 3.18.1 |
 
 ---
 
