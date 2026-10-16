@@ -16,11 +16,11 @@ compatibility: >
   Claude Code, Claude Cowork y ChatGPT.
 license: Apache-2.0
 metadata:
-  version: "3.17.1"
+  version: "3.18.0"
   author: novanoticia
 ---
 
-# Email Triage v3.17 — Filtrado epistémico por valor diferencial
+# Email Triage v3.18 — Filtrado epistémico por valor diferencial
 
 ## Qué hace este skill
 
@@ -125,9 +125,10 @@ La capa solo controla modelos, nunca sobrescribe el config de scoring/correo.
 Un archivo ilegible o modo inválido se informa y deja activo el flujo actual.
 Resuelve la base de estado según las reglas de este PASO, también para esta capa.
 **Jev opcional.** Si se pide Jev o está activo `config-jev.yaml` en esa base,
-lee `references/jev.md` antes de cualquier fase: fuerza simulación sin movimientos,
-incluso ante errores. Desactivado por defecto; requiere consentimiento de envío
-a TypeSafe y clave propia. No es la delegación nativa anterior.
+lee `references/jev.md` antes de cualquier fase. `comparar` fuerza simulación;
+`hibrido` explícito permite veredictos revisados en el flujo real, sin nuevos
+permisos de movimiento. Desactivado por defecto; requiere consentimiento de envío
+a TypeSafe y clave propia. Simulación solicitada siempre prevalece.
 <!-- i18n:fin -->
 
 Lee la configuración antes de cualquier fase. Contiene perfil, carpetas y pesos.
@@ -585,7 +586,8 @@ explícitamente:
 Con alternancia nativa activa, aplica `references/modelos-nativos.md`: delega
 solo los veredictos sobre texto sanitizado, valida con `scripts/modelos.py` y
 revisa la evidencia antes de reintegrar. Hard rules, señales de respuesta y caps
-permanecen bajo control del principal. Sin alternancia, aplica este paso tal cual.
+permanecen bajo control del principal. Con Jev activo, aplica `references/jev.md`:
+`evaluar` en híbrido, `comparar` en simulación. Sin delegación, sigue este paso.
 <!-- i18n:fin -->
 
 El modelo evalúa cada correo contra los criterios epistémicos definidos en

@@ -363,3 +363,129 @@ class TestJev(unittest.TestCase):
         self.assertEqual(r['resultados'][0]['motivo'], 'cobertura_jev')
         self.assertEqual(r['resultados'][0]['modelo_efectivo'], 'jev-2.0.0')
         self.assertNotIn('propuesta', r['resultados'][0])
+
+class TestJevHibrido(unittest.TestCase):
+    def setUp(self):
+        self.env = patch.dict(os.environ, {'TYPESAFE_API_KEY': 'clave-ficticia'})
+        self.env.start(); self.addCleanup(self.env.stop)
+        self.p, self.cfg = lote()
+        for e in self.p['emails']:
+            del e['principal']; e['contexto_suficiente'] = True
+        self.capa = dict(ACTIVO, modo='hibrido')
+
+    def evaluar(self, transporte=respuesta):
+        return j.evaluar(self.p, self.cfg, self.capa, transporte)
+
+    def ajustar_score(self, valor):
+        body = {'model': j.DEFAULT['modelo'], 'questions': j._preguntas(self.cfg, j._opciones(self.cfg))}
+        vs = {k: a['choice'] for k,a in respuesta(body)['answers'].items()}
+        e = self.p['emails'][0]
+        score = j._scoring(e['id'], e['control'], vs, self.cfg)['score']
+        e['control']['extra_points'] += valor - score
+
+    def test_propuesta_real_sin_doble_evaluacion(self):
+        self.ajustar_score(6)
+        r = self.evaluar(); row = r['resultados'][0]
+        self.assertTrue(r['ok'], r)
+        self.assertEqual(row['propuesta']['score'], 6)
+        self.assertFalse(row['usar_principal'], row)
+        self.assertTrue(row['revision_obligatoria'])
+        self.assertFalse(r['requiere_simulacion'])
+        self.assertFalse(r['permitir_movimientos'])  # este adaptador nunca autoriza mover
+        self.assertNotIn('principal', row)
+        self.assertNotIn('comparacion', r)
+        self.assertEqual(j.th.cmd_scoring_dispatch(row['payload_scoring'], self.cfg), row['propuesta'])
+
+    def test_archivo_respuesta_y_fronteras_reevaluados(self):
+        for score, accion in ((-5, False), (0, False), (4, False), (9, False), (12, True)):
+            with self.subTest(score=score):
+                self.p['emails'][0]['control']['extra_points'] = 0
+                self.p['emails'][0]['control']['forzar_reply_needed'] = accion
+                self.ajustar_score(score)
+                row = self.evaluar()['resultados'][0]
+                self.assertTrue(row['usar_principal'], row)
+                self.assertEqual(row['motivo'], 'reevaluar_tier_umbral_o_confianza')
+
+    def test_contexto_cap_y_s0_no_salen_a_red(self):
+        for campo in ('contexto', 'cap', 's0'):
+            p = copy.deepcopy(self.p)
+            if campo == 'contexto': p['emails'][0]['contexto_suficiente'] = False
+            elif campo == 'cap': p['emails'][0]['control']['tier_maximo'] = 'REVIEW'
+            else: p['emails'][0]['s0']['injection'] = True
+            t = Mock()
+            r = j.evaluar(p, self.cfg, self.capa, t)
+            self.assertTrue(r['resultados'][0]['usar_principal']); t.assert_not_called()
+
+    def test_fallback_clave_error_y_abstencion(self):
+        with patch.dict(os.environ, {'TYPESAFE_API_KEY': ''}):
+            r = self.evaluar()
+        self.assertEqual(r['resultados'][0]['motivo'], 'credencial_ausente_o_invalida')
+        r = self.evaluar(Mock(side_effect=j.ErrorJev('http_429')))
+        self.assertTrue(r['resultados'][0]['usar_principal'])
+        def abstener(body, *_):
+            r = respuesta(body)
+            a = next(iter(r['answers'].values())); a['choice'] = j.INCIERTO
+            a['probabilities'] = {o: float(o == j.INCIERTO) for o in a['probabilities']}
+            return r
+        r = self.evaluar(abstener)
+        self.assertEqual(r['resultados'][0]['motivo'], 'jev_incierto')
+        self.assertNotIn('payload_scoring', r['resultados'][0])
+
+    def test_comandos_no_activan_otro_modo(self):
+        t = Mock()
+        r = j.evaluar(self.p, self.cfg, ACTIVO, t)
+        self.assertFalse(r['ok']); t.assert_not_called()
+        p, cfg = lote()
+        r = j.comparar(p, cfg, self.capa, t)
+        self.assertFalse(r['ok']); self.assertTrue(r['requiere_simulacion']); t.assert_not_called()
+        r = j.evaluar({}, {}, {}, t)
+        self.assertEqual(r['motivo'], 'desactivado'); t.assert_not_called()
+
+    def test_control_y_contexto_obligatorios(self):
+        for campo in ('control', 'contexto_suficiente'):
+            p = copy.deepcopy(self.p); del p['emails'][0][campo]
+            t = Mock(); r = j.evaluar(p, self.cfg, self.capa, t)
+            self.assertFalse(r['ok']); t.assert_not_called()
+
+    def test_presupuesto_conserva_fallback_individual(self):
+        self.ajustar_score(6)
+        e = copy.deepcopy(self.p['emails'][0]); e['id'] = '2'; self.p['emails'].append(e)
+        self.capa['max_llamadas'] = 1
+        r = self.evaluar()
+        self.assertFalse(r['resultados'][0]['usar_principal'])
+        self.assertTrue(r['resultados'][1]['usar_principal'])
+        self.assertEqual(r['resultados'][1]['motivo'], 'limite_llamadas')
+        self.assertEqual(r['cobertura']['pendientes_principal'], 1)
+
+    def test_baja_confianza_no_genera_payload_operativo(self):
+        def t(body, *_):
+            r = respuesta(body)
+            a = next(iter(r['answers'].values())); a['confidence'] = 0
+            a['probabilities'] = {o: 1/len(a['probabilities']) for o in a['probabilities']}
+            return r
+        r = self.evaluar(t)
+        self.assertTrue(r['resultados'][0]['usar_principal'])
+        self.assertNotIn('payload_scoring', r['resultados'][0])
+
+    def test_config_invalida_no_concede_salida_de_simulacion(self):
+        r = j.evaluar(self.p, self.cfg, dict(self.capa, modo='desconocido'))
+        self.assertFalse(r['ok'])
+        self.assertTrue(r['requiere_simulacion'])
+
+    def test_cli_hibrido_sin_clave_y_config_rota(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            capa = Path(d)/'config-jev.yaml'
+            for contenido, valido in (('activo: true\nacepta_envio_datos: true\nmodo: hibrido\n', True), ('modo: [', False)):
+                capa.write_text(contenido)
+                r = subprocess.run([sys.executable, str(SKILL/'scripts/jev.py'), 'evaluar',
+                    '--config', str(SKILL/'config.yaml'), '--config-jev', str(capa)],
+                    input=json.dumps(self.p), text=True, capture_output=True,
+                    env=dict(os.environ, TYPESAFE_API_KEY=''))
+                out = json.loads(r.stdout)
+                self.assertEqual(out['ok'], valido)
+                self.assertTrue(out['usar_principal'])
+                self.assertFalse(out['permitir_movimientos'])
+                self.assertEqual(out['requiere_simulacion'], not valido)
+                if valido:
+                    self.assertEqual(out['resultados'][0]['motivo'], 'credencial_ausente_o_invalida')

@@ -128,8 +128,10 @@ No propongas trabajo en estas líneas salvo petición expresa del mantenedor:
 - Servidor, API HTTP, daemon o despliegue remoto.
 - Nuevas integraciones de buzón (más allá de Mail.app y Gmail MCP).
 - Nuevos idiomas de interfaz o revisión de las traducciones `en`/`fr`.
-- Ampliar Jev o la delegación nativa más allá de la comparación sin
-  movimientos.
+- Ampliar la delegación nativa más allá de la comparación sin movimientos.
+- Excepción autorizada el 2026-10-16: Jev puede ofrecer modo híbrido opt-in
+  para triaje real, con revisión principal y las autorizaciones de movimiento
+  existentes. No autoriza movimientos directos desde el proveedor.
 - Cambios de licencia, distribución o marketplace.
 - Rediseños de la interfaz de revisión que no respondan a P1 o P2.
 

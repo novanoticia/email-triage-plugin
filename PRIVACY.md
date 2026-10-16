@@ -81,7 +81,9 @@ historial de aprendizaje. El modo comparar no mueve mensajes.
 
 ## Jev opcional (TypeSafe AI)
 
-Desactivado por defecto y limitado a comparación sin movimientos. Requiere
+Desactivado por defecto; comparación sin movimientos como modo inicial. El modo
+híbrido explícito permite usar veredictos revisados en el flujo real, con las
+autorizaciones y registros habituales de movimiento. Requiere
 `activo: true`, `acepta_envio_datos: true` y una clave `TYPESAFE_API_KEY` propia.
 Envía a TypeSafe asunto, remitente y extracto sanitizados, perfil mínimo y preguntas.
 Sanitización no significa anonimización. No envía buzón, historial, carpetas ni

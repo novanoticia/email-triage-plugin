@@ -72,7 +72,9 @@ permiten. Sin capacidades suficientes se conserva el principal. Esta capa nativa
 
 ### Jev opcional
 
-Comparación externa desactivada por defecto y siempre sin movimientos. Requiere
+Proveedor externo desactivado por defecto. `comparar` no mueve correos;
+`hibrido` explícito integra veredictos revisados en el triaje real, manteniendo
+las autorizaciones de movimiento existentes. Requiere
 consentimiento para enviar extractos sanitizados y perfil mínimo a TypeSafe y
 `TYPESAFE_API_KEY` propia; genera consumo adicional. Conserva el principal y el
 scoring existente ante errores o incertidumbre.
