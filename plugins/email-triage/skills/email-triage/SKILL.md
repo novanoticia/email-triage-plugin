@@ -411,7 +411,7 @@ Cada correo procesado DEBE llevar una de estas etiquetas internas:
 | Etiqueta | Significado | Evaluación |
 |----------|-------------|------------|
 | `[texto limpio]` | Cuerpo sanitizado con éxito | Evaluación completa (30 criterios) |
-| `[HTML detectado]` | Se extrajo texto de HTML | Evaluación completa, -1 en densidad_informativa |
+| `[HTML detectado]` | Se extrajo texto de HTML | Evaluación completa; poca información nueva por línea puede justificar `media` o `baja` en `densidad_informativa` |
 | `[cuerpo no legible]` | HTML sin texto plano extraíble | Solo hard rules + criterios 1-5 |
 | `[contenido codificado Base64]` | Cuerpo codificado | Solo metadatos |
 | `[cuerpo corrupto]` | Ratio de basura > 40% | Solo metadatos |
