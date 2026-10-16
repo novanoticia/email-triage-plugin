@@ -68,8 +68,15 @@ También puedes pedir la comparación para una sola sesión.
 Solo se usan capacidades nativas verificadas del mismo proveedor y conexión.
 Claude Code incluye un agente `evaluador-criterios` sin herramientas; la selección
 de modelo depende del host. Otros clientes aplican el mismo contrato cuando lo
-permiten. Sin capacidades suficientes se conserva el principal. No hay APIs ni
-claves nuevas, y Jev queda como posibilidad futura sin implementación.
+permiten. Sin capacidades suficientes se conserva el principal. Esta capa nativa no requiere APIs ni claves nuevas.
+
+### Jev opcional
+
+Comparación externa desactivada por defecto y siempre sin movimientos. Requiere
+consentimiento para enviar extractos sanitizados y perfil mínimo a TypeSafe y
+`TYPESAFE_API_KEY` propia; genera consumo adicional. Conserva el principal y el
+scoring existente ante errores o incertidumbre.
+[Activación, privacidad, costes y pruebas](skills/email-triage/references/jev.md).
 
 El cliente puede crear contexto adicional de subagente bajo sus condiciones
 actuales de privacidad; el plugin no modifica esos controles. No se ha medido

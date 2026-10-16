@@ -16,11 +16,11 @@ compatibility: >
   Claude Code, Claude Cowork y ChatGPT.
 license: Apache-2.0
 metadata:
-  version: "3.16.0"
+  version: "3.17.0"
   author: novanoticia
 ---
 
-# Email Triage v3.16 — Filtrado epistémico por valor diferencial
+# Email Triage v3.17 — Filtrado epistémico por valor diferencial
 
 ## Qué hace este skill
 
@@ -124,6 +124,10 @@ sin esa capacidad, usa el principal. `comparar` fuerza simulación sin movimient
 La capa solo controla modelos, nunca sobrescribe el config de scoring/correo.
 Un archivo ilegible o modo inválido se informa y deja activo el flujo actual.
 Resuelve la base de estado según las reglas de este PASO, también para esta capa.
+**Jev opcional.** Si se pide Jev o está activo `config-jev.yaml` en esa base,
+lee `references/jev.md` antes de cualquier fase: fuerza simulación sin movimientos,
+incluso ante errores. Desactivado por defecto; requiere consentimiento de envío
+a TypeSafe y clave propia. No es la delegación nativa anterior.
 <!-- i18n:fin -->
 
 Lee la configuración antes de cualquier fase. Contiene perfil, carpetas y pesos.

@@ -1,6 +1,6 @@
 # Privacy Policy — Email Triage plugin
 
-_Last updated: 2026-10-15_
+_Last updated: 2026-10-16_
 
 Email Triage is an open-source plugin for Claude (Claude Code and Cowork),
 published by Pablo Rodríguez López under the Apache-2.0 license. This policy
@@ -36,8 +36,8 @@ To triage your mail, the plugin may read, for the messages it processes:
   En Claude Code/Cowork es la conexión de Claude que ya utiliza el usuario; en
   un cliente compatible de OpenAI, la conexión de ese cliente. Rigen los términos
   y controles de datos de la cuenta, plan y conexión usados.
-- **Local scripts.** The plugin's Python scripts run on your computer and make
-  no network requests.
+- **Local scripts.** Scoring and sanitization run locally. The optional Jev
+  adapter sends the data described below to TypeSafe only after explicit opt-in.
 
 ## What is stored, and where
 
@@ -79,9 +79,22 @@ de estado con permisos restringidos y se eliminan al terminar. No se añade un
 registro persistente de propuestas ni se incorporan desacuerdos entre modelos al
 historial de aprendizaje. El modo comparar no mueve mensajes.
 
-No se implementan llamadas API propias, claves adicionales ni envíos a Jev u
-otros proveedores. Esa posibilidad queda únicamente documentada para el futuro.
-Una ampliación así requeriría su propia configuración y revisión de privacidad.
+## Jev opcional (TypeSafe AI)
+
+Desactivado por defecto y limitado a comparación sin movimientos. Requiere
+`activo: true`, `acepta_envio_datos: true` y una clave `TYPESAFE_API_KEY` propia.
+Envía a TypeSafe asunto, remitente y extracto sanitizados, perfil mínimo y preguntas.
+Sanitización no significa anonimización. No envía buzón, historial, carpetas ni
+conversación completa. La credencial se usa solo en la cabecera de autenticación.
+
+La [política de TypeSafe](https://typesafe.ai/legal/privacy-policy) declara no usar
+inputs para entrenar/ajustar modelos; contempla procesamiento en EE. UU., proveedores
+de servicio y retención según necesidades. No se presupone retención cero (opción
+[empresarial](https://typesafe.ai/enterprise)). Activarlo añade otro destinatario;
+no modifica la privacidad configurada en el proveedor principal. Facturación
+independiente. Sin registros persistentes nuevos ni propuestas en aprendizaje.
+
+[Configuración, límites, costes y contrato verificado el 2026-10-16](plugins/email-triage/skills/email-triage/references/jev.md).
 
 ## Changes and contact
 
