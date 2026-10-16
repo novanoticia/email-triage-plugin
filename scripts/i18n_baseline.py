@@ -22,7 +22,7 @@ SKILL = "plugins/email-triage/skills/email-triage"
 RUTA_BASE = os.path.join(RAIZ, "tests", "i18n", "linea_base.json")
 INI = "<!-- i18n:inicio -->"
 FIN = "<!-- i18n:fin -->"
-COMMIT_BASE = "b92b0099ff06fd5dc1d27d0e555b88cf2eb9a655"   # F.1: corrección documental de 12 a 13 core autorizada
+COMMIT_BASE = "cba5d206f6d126b66427aa69540928c0bc2c16cd"   # F.2: pregunta del catálogo alineada con el YAML; cambio autorizado
 # Lookarounds en vez de \b: «v3.13» no tiene límite de palabra entre «v» y «3».
 # Cualquier parche (3.14.N) se normaliza: enumerar parches ([05], [015]…) rompía la
 # línea base en cada bump. El menor se acota a 3.1x (13, 14, 15…) a propósito.
