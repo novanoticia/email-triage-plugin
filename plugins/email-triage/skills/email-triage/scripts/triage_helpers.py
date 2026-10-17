@@ -704,6 +704,30 @@ EJES_DEFAULT = {
 }
 _META_CRIT = {"activo", "core", "weight", "question", "eje"}
 
+# ── Contrato de salida P2 (v3.19, opt-in con scoring.contrato_p2: true) ──
+# Con el flag apagado (por defecto) nada de esto se usa y la salida de
+# cmd_scoring es idéntica a la anterior (lo fija un test de regresión).
+# Veredictos reservados: el criterio no se puntúa y queda constancia de por
+# qué, en vez de omitirse en silencio o caer en `ignorados` como inválido.
+P2_ESTADOS_NO_EVALUADO = ("no_aplica", "no_observable")
+P2_CONFIANZAS = ("alta", "media", "baja")
+P2_CAUSAS = ("cuerpo_recortado", "cuerpo_no_legible", "solo_metadatos",
+             "remitente_desconocido", "afirmacion_no_verificable",
+             "contexto_insuficiente", "inyeccion_detectada")
+# Causas que impiden una confianza `alta` (tope mecánico a `media`).
+P2_CAUSAS_TOPE = ("cuerpo_no_legible", "solo_metadatos", "inyeccion_detectada")
+# Etiqueta de sanitizar -> causa derivada por Python, sin depender de que el
+# modelo la declare. Se compara por prefijo (la etiqueta puede llevar sufijo).
+P2_ETIQUETA_A_CAUSA = (
+    ("[⚠️ posible inyección detectada", "inyeccion_detectada"),
+    ("[cuerpo no legible", "cuerpo_no_legible"),
+    ("[contenido codificado Base64", "cuerpo_no_legible"),
+    ("[cuerpo corrupto", "cuerpo_no_legible"),
+    ("[solo metadatos", "solo_metadatos"),
+    ("[sin acceso al cuerpo", "solo_metadatos"),
+)
+P2_MAX_MOTIVO = 120
+
 
 def _tier_por_score(score, tiers):
     if score >= tiers.get("reply_needed", 10):
@@ -807,6 +831,10 @@ def cmd_scoring(payload: dict, cfg: dict) -> dict:
     # Parámetros configurables del parche (con defaults seguros):
     cap_no_accion = scfg.get("cap_reply_needed_sin_accion", True)
     bulk_atenuado_a = scfg.get("sender_bulk_atenuado_a", -1)
+    # Contrato P2: solo con un True literal (un "si" o un 1 no lo activan).
+    contrato_p2 = scfg.get("contrato_p2") is True
+    no_evaluados = []
+    motivos_p2 = payload.get("motivos_no_evaluado") if contrato_p2 else None
 
     ejes = {nombre: 0 for nombre in rangos}
     desglose, ignorados = [], []
@@ -838,6 +866,11 @@ def cmd_scoring(payload: dict, cfg: dict) -> dict:
             ignorados.append({"criterio": crit,
                               "motivo": "veredicto de tipo no valido (%s)"
                               % type(verdict).__name__})
+            continue
+        if (contrato_p2 and verdict in P2_ESTADOS_NO_EVALUADO
+                and verdict not in valores):
+            no_evaluados.append({"criterio": crit, "estado": verdict,
+                                 "motivo": _p2_motivo(motivos_p2, crit)})
             continue
         if verdict not in valores:
             ignorados.append({"criterio": crit,
@@ -929,9 +962,88 @@ def cmd_scoring(payload: dict, cfg: dict) -> dict:
     }
     if cap_aplicado:
         out["cap_aplicado"] = cap_aplicado
+    if contrato_p2:
+        # Campos añadidos, nunca renombrados: no alteran score ni tier.
+        cobertura = _p2_cobertura(criterios, desglose, no_evaluados)
+        out["no_evaluados"] = no_evaluados
+        out["cobertura"] = cobertura
+        out["confianza"] = _p2_confianza(payload, cobertura, ignorados)
     if "id" in payload:
         out["id"] = payload["id"]
     return out
+
+
+def _p2_motivo(motivos, crit):
+    """Motivo breve que el modelo da para un criterio no evaluado. Es texto
+    del modelo (nunca del correo), pero se acota: cadena y longitud máxima."""
+    if not isinstance(motivos, dict):
+        return None
+    m = motivos.get(crit)
+    if not isinstance(m, str) or not m.strip():
+        return None
+    m = " ".join(m.split())
+    return m[:P2_MAX_MOTIVO]
+
+
+def _p2_cobertura(criterios, desglose, no_evaluados):
+    """Cuántos core activos se puntuaron, cuáles se declararon no evaluables
+    y cuáles faltan SIN explicación (el hueco silencioso de F.3)."""
+    if not isinstance(criterios, dict):
+        criterios = {}
+    core = sorted(k for k, c in criterios.items()
+                  if isinstance(c, dict) and c.get("core") is True
+                  and c.get("activo", True))
+    puntuados = {d["criterio"] for d in desglose}
+    declarados = {n["criterio"] for n in no_evaluados}
+    return {
+        "core_total": len(core),
+        "core_evaluados": sum(1 for k in core if k in puntuados),
+        "core_no_evaluados": [k for k in core if k in declarados],
+        "core_sin_explicar": [k for k in core
+                              if k not in puntuados and k not in declarados],
+    }
+
+
+def _p2_confianza(payload, cobertura, ignorados):
+    """Confianza separada del score. El modelo la declara; Python valida la
+    lista cerrada, deriva causas de la etiqueta del sanitizador y aplica
+    topes mecánicos. Nunca toca score ni tier."""
+    declarada = payload.get("confianza")
+    if declarada is not None and declarada not in P2_CONFIANZAS:
+        ignorados.append({"campo": "confianza",
+                          "motivo": "valor no valido (%r); opciones: %s"
+                          % (declarada, list(P2_CONFIANZAS))})
+        declarada = None
+    causas = []
+    crudas = payload.get("causas_incertidumbre")
+    if crudas is not None and not isinstance(crudas, list):
+        ignorados.append({"campo": "causas_incertidumbre",
+                          "motivo": "no es una lista (%s); se ignora"
+                          % type(crudas).__name__})
+        crudas = []
+    for c in crudas or []:
+        if isinstance(c, str) and c in P2_CAUSAS:
+            if c not in causas:
+                causas.append(c)
+        else:
+            ignorados.append({"campo": "causas_incertidumbre",
+                              "motivo": "causa no valida (%r); opciones: %s"
+                              % (c, list(P2_CAUSAS))})
+    etiqueta = payload.get("etiqueta_cuerpo")
+    if isinstance(etiqueta, str):
+        for prefijo, causa in P2_ETIQUETA_A_CAUSA:
+            if etiqueta.startswith(prefijo) and causa not in causas:
+                causas.append(causa)
+    topes = []
+    if any(c in P2_CAUSAS_TOPE for c in causas):
+        topes.append("cuerpo degradado o inyeccion: maximo media")
+    if cobertura["core_sin_explicar"]:
+        topes.append("criterios core sin evaluar ni explicar: maximo media")
+    efectiva = declarada
+    if declarada == "alta" and topes:
+        efectiva = "media"
+    return {"declarada": declarada, "efectiva": efectiva,
+            "causas": causas, "topes_aplicados": topes}
 
 
 def _brief(r):
@@ -939,6 +1051,10 @@ def _brief(r):
     out = {"score": r["score"], "tier": r["tier"], "ejes": r["ejes"]}
     if r.get("cap_aplicado"):
         out["cap_aplicado"] = r["cap_aplicado"]
+    if "confianza" in r:
+        # Solo con contrato_p2 activo: lo accionable de P2.
+        out["confianza"] = r["confianza"]
+        out["core_sin_explicar"] = r["cobertura"]["core_sin_explicar"]
     if r.get("ignorados"):
         out["ignorados"] = r["ignorados"]
     if "id" in r:
@@ -1080,6 +1196,10 @@ def cmd_validar_config(ruta: str) -> dict:
                          and (isinstance(_aten_raw, bool)
                               or not isinstance(_aten_raw, (int, float))
                               or _aten_raw > 0))
+    # v3.19 (contrato P2): solo un booleano literal lo activa; un "si"/1 lo
+    # dejaria apagado en silencio pese a que el usuario cree haberlo activado.
+    _p2_raw = _scfg_raw.get("contrato_p2")
+    p2_invalido = _p2_raw is not None and not isinstance(_p2_raw, bool)
     # QW3 (auditoria 2026-07-19, F5/F22): validar-config no miraba `tiers`,
     # el ultimo bloque de tuning que rompia el scoring en runtime pese al 'ok':
     #  (a) un umbral no numerico ('cuatro', true) -> TypeError opaco en
@@ -1192,6 +1312,10 @@ def cmd_validar_config(ruta: str) -> dict:
             "scoring.sender_bulk_atenuado_a=%r debe ser <= 0 (numerico): un valor "
             "positivo convertiria la penalizacion de remitente masivo en BONUS"
             % (_aten_raw,))
+    if p2_invalido:
+        avisos.append(
+            "scoring.contrato_p2=%r debe ser true o false: con otro valor el "
+            "contrato P2 queda APAGADO" % (_p2_raw,))
     if tiers_no_mapa:
         avisos.append(
             "tiers no es un mapeo tier->umbral (es %s): el scoring usaria los "
