@@ -678,6 +678,10 @@ nunca en silencio (CM2/F12).
 `no_aplica`/`no_observable`, confianza con causas y la presentación que amplía
 4.F. Sin el flag, o en modo `mental`, nada de esto aplica.
 
+**Ensayo P3 (opt-in):** solo si `scoring.ensayo_p3: true` y el modo es
+`determinista`, **lee `references/ensayo-p3.md` AHORA** y añade `--config-ensayo`
+a `scoring`: los criterios 5, 19 y 26 se sustituyen por tres nuevos.
+
 > Nota: el campo `eje` de cada criterio y los rangos de `scoring.ejes` son la
 > fuente única del mapeo criterio→eje; `weight` solo orienta al modo mental.
 > Si editas puntos por respuesta o eje, el determinista lo recoge sin tocar código.

@@ -274,6 +274,13 @@ scoring:
   # (`alta`/`media`/`baja`, con topes mecánicos). No cambia score ni tier.
   # Solo un true literal lo activa. Con false, la salida es la de siempre.
 
+  ensayo_p3: false
+  # Ensayo P3 (v3.20, opt-in). Con true, el skill fusiona la capa
+  # config-ensayo-p3.yaml (scoring --config-ensayo): desactiva los criterios
+  # 5, 19 y 26 y añade razonamiento_dirigido, alternativas_reales y
+  # responsabilidad_personal. Siguen 30 activos y 13 core. Solo un true
+  # literal lo activa. Ver references/ensayo-p3.md.
+
   # Rangos acotados de cada eje (el script clampa la suma a estos límites).
   ejes:
     valor_decisional: [0, 10]
