@@ -208,6 +208,43 @@ class TestValidarConfig(unittest.TestCase):
         self.assertTrue(any("contrato_p2" in a for a in r.get("avisos", [])), r)
 
 
+class TestDocumentacionP2(unittest.TestCase):
+    """PR-B: la referencia que lee el modelo y el código no pueden divergir."""
+
+    @classmethod
+    def setUpClass(cls):
+        skill = os.path.dirname(DIR_SCRIPTS)
+        with open(os.path.join(skill, "references", "contrato-p2.md"),
+                  encoding="utf-8") as f:
+            cls.ref = f.read()
+        with open(os.path.join(skill, "SKILL.md"), encoding="utf-8") as f:
+            cls.skill = f.read()
+
+    def test_listas_cerradas_iguales_que_en_el_codigo(self):
+        import re
+        texto = self.ref.split("### 2.", 1)[1].split("### 3.", 1)[0]
+        causas = re.findall(r"`([a-z_]+)`", texto.split("lista cerrada:", 1)[1]
+                            .split("- `etiqueta_cuerpo`", 1)[0])
+        self.assertEqual(causas, list(th.P2_CAUSAS))
+        for c in th.P2_CONFIANZAS:
+            self.assertIn("`%s`" % c, texto)
+        for e in th.P2_ESTADOS_NO_EVALUADO:
+            self.assertIn("`%s`" % e, self.ref)
+        self.assertIn(str(th.P2_MAX_MOTIVO), self.ref)
+
+    def test_stub_del_skill_con_condicion_de_entrada(self):
+        i = self.skill.index("**Contrato P2 (opt-in):**")
+        stub = self.skill[i:i + 400]
+        self.assertIn("references/contrato-p2.md", stub)
+        self.assertIn("scoring.contrato_p2: true", stub)
+        self.assertIn("`determinista`", stub)
+
+    def test_la_referencia_no_aplica_sin_flag(self):
+        self.assertIn("ignora esta referencia entera", self.ref)
+        self.assertIn("**manda el script**", self.ref)
+        self.assertIn("Nunca copies texto del correo en el motivo", self.ref)
+
+
 class TestFuzzP2(unittest.TestCase):
     """Gate #6 con el flag ENCENDIDO: el fuzz general casi nunca genera un
     config con contrato_p2: true, así que este caso lo fuerza."""

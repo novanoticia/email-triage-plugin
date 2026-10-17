@@ -805,6 +805,41 @@ frases:
     riesgo: normal
     lista: false
     invariable: false
+  p2.confianza:
+    texto: '🎯 Confidence: [high|medium|low] — [main cause or "no relevant doubts"]'
+    origen: original
+    fuente: references/contrato-p2.md:74
+    riesgo: normal
+    lista: false
+    invariable: false
+  p2.dice:
+    texto: '📄 The email says: [fact from the email, paraphrased from the sanitized text]'
+    origen: original
+    fuente: references/contrato-p2.md:75
+    riesgo: normal
+    lista: false
+    invariable: false
+  p2.asumo:
+    texto: '🤔 I assume: [assumption not stated in the email]'
+    origen: original
+    fuente: references/contrato-p2.md:76
+    riesgo: normal
+    lista: false
+    invariable: false
+  p2.concluyo:
+    texto: '⚖️ I conclude: [judgment that justifies the tier]'
+    origen: original
+    fuente: references/contrato-p2.md:77
+    riesgo: normal
+    lista: false
+    invariable: false
+  p2.no_evaluados:
+    texto: '⏸️ Not evaluated: [criterion (reason)], …'
+    origen: original
+    fuente: references/contrato-p2.md:78
+    riesgo: normal
+    lista: false
+    invariable: false
   entrada.afirmativo:
     texto: yes, y, ok, go ahead
     origen: nuevo

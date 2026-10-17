@@ -24,7 +24,8 @@ FICHEROS_VISIBLES = {"SKILL.md", "references/salidas-por-modo.md",
                      "references/paso-5b-telemetria.md",
                      "references/paso-1-proveedores.md",
                      "references/paso-1-doctrina-ejecucion.md",
-                     "references/interfaz-revision.md"}
+                     "references/interfaz-revision.md",
+                     "references/contrato-p2.md"}
 
 
 class ErrorExtraccion(Exception):

@@ -806,6 +806,41 @@ frases:
     riesgo: normal
     lista: false
     invariable: false
+  p2.confianza:
+    texto: '🎯 Confiance : [haute|moyenne|faible] — [cause principale ou « aucun doute notable »]'
+    origen: original
+    fuente: references/contrato-p2.md:74
+    riesgo: normal
+    lista: false
+    invariable: false
+  p2.dice:
+    texto: '📄 L''e-mail dit : [fait tiré de l''e-mail, paraphrasé à partir du texte assaini]'
+    origen: original
+    fuente: references/contrato-p2.md:75
+    riesgo: normal
+    lista: false
+    invariable: false
+  p2.asumo:
+    texto: '🤔 Je suppose : [hypothèse absente de l''e-mail]'
+    origen: original
+    fuente: references/contrato-p2.md:76
+    riesgo: normal
+    lista: false
+    invariable: false
+  p2.concluyo:
+    texto: '⚖️ Je conclus : [jugement qui justifie le tier]'
+    origen: original
+    fuente: references/contrato-p2.md:77
+    riesgo: normal
+    lista: false
+    invariable: false
+  p2.no_evaluados:
+    texto: '⏸️ Non évalués : [critère (motif)], …'
+    origen: original
+    fuente: references/contrato-p2.md:78
+    riesgo: normal
+    lista: false
+    invariable: false
   entrada.afirmativo:
     texto: oui, o, ok, vas-y
     origen: nuevo
