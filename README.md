@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.19.0
+# Email Triage Plugin v3.19.1
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,17 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.19.1
+
+- **Contrato P2 en el skill, opt-in.** Con `scoring.contrato_p2: true` y modo
+  `determinista`, el modelo lee `references/contrato-p2.md`: marca los
+  criterios que no puede evaluar (`no_aplica` / `no_observable`, con motivo),
+  declara su confianza y sus causas, y sustituye la línea 💬 de cada correo por
+  «🎯 Confianza», «📄 El correo dice», «🤔 Asumo», «⚖️ Concluyo» y
+  «⏸️ No evaluados». Las razones ▲/▼ no cambian.
+- Cinco frases nuevas en el catálogo i18n; `en` y `fr` son borrador de IA.
+- Sin el flag, nada cambia.
 
 ## Novedades en v3.19.0
 

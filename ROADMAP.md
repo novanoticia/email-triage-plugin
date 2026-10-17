@@ -51,8 +51,8 @@ correo, se documenta por qué y se deja fuera.
 | Estándar ICD 203 (resumen) | Traducción propuesta al triaje | Estado |
 |---|---|---|
 | Describir calidad y credibilidad de las fuentes | La explicación distingue qué afirma el remitente, qué respalda con evidencia y si esa evidencia es de primera mano o reproducida | pendiente |
-| Expresar y explicar la incertidumbre | Cada evaluación lleva un **nivel de confianza** y la causa principal de la duda (cuerpo recortado, remitente desconocido, afirmación no verificable) | motor implementado, opt-in (v3.19.0); falta la presentación en el SKILL |
-| Distinguir información de supuestos y juicios | En las razones, separar «el correo dice», «asumo» y «concluyo» | priorizado; pendiente de implementación |
+| Expresar y explicar la incertidumbre | Cada evaluación lleva un **nivel de confianza** y la causa principal de la duda (cuerpo recortado, remitente desconocido, afirmación no verificable) | implementado, opt-in (v3.19.0 motor, v3.19.1 skill); pendiente de validar con correos reales |
+| Distinguir información de supuestos y juicios | En las razones, separar «el correo dice», «asumo» y «concluyo» | implementado, opt-in (v3.19.1); pendiente de validar con correos reales |
 | Análisis de alternativas | Para tiers altos, una línea de «lectura alternativa» cuando exista otra interpretación plausible | pendiente |
 | Relevancia para el destinatario e implicaciones | Ya cubierto en gran parte por el eje `valor_decisional`; revisar que la explicación lo haga explícito | revisar |
 | Argumentación clara y lógica | Las razones positivas/negativas no deben contradecirse entre sí ni con el tier | pendiente |
@@ -208,7 +208,8 @@ la que más informa a P2 y al resto de P3.
 | 2026-10-16 | P3, paso 2 cerrado: decisión del mantenedor tras la auditoría; implementación pendiente | 3.18.0 |
 | 2026-10-16 | Coherencia documental F.1–F.8 (#60) | 3.18.1 |
 | 2026-10-16 | Modos rutina/simulación extraídos a `references/` (#62) | 3.18.2 |
-| 2026-10-17 | Contrato de salida P2 en el motor, opt-in (PR-A) | 3.19.0 |
+| 2026-10-17 | Contrato de salida P2 en el motor, opt-in (#63) | 3.19.0 |
+| 2026-10-17 | Contrato de salida P2 en el skill e i18n, opt-in (PR-B) | 3.19.1 |
 
 ---
 
