@@ -673,6 +673,11 @@ escribe el desglose por correo a fichero (JSON, escritura atómica) mientras
 stdout sigue compacto; un fallo de escritura se reporta en `desglose_error`,
 nunca en silencio (CM2/F12).
 
+**Contrato P2 (opt-in):** solo si `scoring.contrato_p2: true` y el modo es
+`determinista`, **lee `references/contrato-p2.md` AHORA**: veredictos
+`no_aplica`/`no_observable`, confianza con causas y la presentación que amplía
+4.F. Sin el flag, o en modo `mental`, nada de esto aplica.
+
 > Nota: el campo `eje` de cada criterio y los rangos de `scoring.ejes` son la
 > fuente única del mapeo criterio→eje; `weight` solo orienta al modo mental.
 > Si editas puntos por respuesta o eje, el determinista lo recoge sin tocar código.

@@ -198,6 +198,13 @@ frases:
   - {clave: error.analizando, fichero: references/manejo-errores.md,
      patron: '"(Analizando N correos, esto puede tardar un momento)"'}
 
+  # ── references/contrato-p2.md · contrato de salida P2 (v3.19.1, opt-in) ──
+  - {clave: p2.confianza, fichero: references/contrato-p2.md, patron: '^(🎯 Confianza: \[alta\|media\|baja\] — \[causa principal o «sin dudas relevantes»\])$'}
+  - {clave: p2.dice, fichero: references/contrato-p2.md, patron: '^\s+(📄 El correo dice: \[hecho del correo, parafraseado del texto sanitizado\])$'}
+  - {clave: p2.asumo, fichero: references/contrato-p2.md, patron: '^\s+(🤔 Asumo: \[supuesto que no está en el correo\])$'}
+  - {clave: p2.concluyo, fichero: references/contrato-p2.md, patron: '^\s+(⚖️ Concluyo: \[juicio que justifica el tier\])$'}
+  - {clave: p2.no_evaluados, fichero: references/contrato-p2.md, patron: '^\s+(⏸️ No evaluados: \[criterio \(motivo\)\], …)$'}
+
 excluidos:
   - {fichero: SKILL.md, patron: '^\{"(session_id|event)":', motivo: 'formato de máquina (JSONL)'}
   - {fichero: SKILL.md, patron: '^\s*─{10,}$', motivo: 'separador decorativo: se copia tal cual'}
