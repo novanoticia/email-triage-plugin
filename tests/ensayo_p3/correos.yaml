@@ -1,0 +1,265 @@
+# Correos FICTICIOS para validar el ensayo P3 (G.7 de docs/auditoria-criterios.md).
+# Ningún dato real: remitentes en dominios .example y textos inventados, escritos
+# como si ya hubieran pasado por la sanitización S0–S5.
+#
+# Cada correo lleva tres grupos de veredictos, etiquetados A MANO:
+#   comunes — criterios que no cambian con el ensayo; iguales en las dos configs
+#   base    — los criterios 5, 19 y 26 actuales (solo los que se evaluarían)
+#   ensayo  — sus sustitutos en la capa config-ensayo-p3.yaml
+# Un criterio ausente en `base` o `ensayo` significa «no se evaluaría».
+# Esto aísla el efecto del ensayo: la comparación no mezcla otros cambios.
+#
+# `juicio` es lo que el mantenedor espera ver; el script NO lo comprueba como
+# verdad: es la hipótesis que la comparación confirma o refuta.
+
+correos:
+  - id: g7_1_cita
+    caso: "Cita sin argumento"
+    remitente: "Clínica Dental Norte <citas@clinica-norte.example>"
+    asunto: "Recordatorio: revisión el martes 21 a las 10:00"
+    cuerpo: >-
+      Le recordamos su revisión el martes 21 a las 10:00 en la consulta 3.
+      Responda CONFIRMAR o CAMBIAR antes del lunes.
+    hard_rules: [pregunta_directa_boost, deadline_explicito_boost]
+    forzar_reply_needed: true
+    comunes:
+      cambia_algo_concreto: si
+      cambio_predicciones: "no"
+      sorpresa_bayesiana: baja
+      evidencia_filtrada: neutral
+      impacto_causal_real: medio
+      distancia_inferencial: baja
+      urgencia_real_vs_fabricada: real
+      argument_screens_off_authority: mixto
+      hug_the_query: directo
+      semantic_stopsigns: "no"
+      entangled_truths: alto
+      absence_of_expected_evidence: "no"
+    base:
+      forward_backward_flow: mixto
+    ensayo:
+      razonamiento_dirigido: justificacion_legitima
+      responsabilidad_personal: asignada
+    juicio: "Sin argumento que juzgar: el ensayo solo debería notar que la cita es mía."
+
+  - id: g7_2_plantilla
+    caso: "Plantilla con obligación"
+    remitente: "Agencia Tributaria Ficticia <avisos@hacienda.example>"
+    asunto: "Aviso automático: declaración trimestral"
+    cuerpo: >-
+      Este es un aviso automático. Su declaración trimestral vence el 20 de
+      octubre. Puede presentarla en la sede electrónica. No responda a este correo.
+    hard_rules: [deadline_explicito_boost]
+    forzar_reply_needed: false
+    comunes:
+      cambia_algo_concreto: si
+      cambio_predicciones: "no"
+      sorpresa_bayesiana: baja
+      evidencia_filtrada: newsletter_marketing_burocratico
+      impacto_causal_real: alto
+      distancia_inferencial: baja
+      urgencia_real_vs_fabricada: real
+      argument_screens_off_authority: mixto
+      hug_the_query: directo
+      semantic_stopsigns: "no"
+      entangled_truths: alto
+      absence_of_expected_evidence: "no"
+      cached_thought: enlatado
+      ruido_social: mixto
+    base:
+      forward_backward_flow: mixto
+    ensayo:
+      razonamiento_dirigido: justificacion_legitima
+      responsabilidad_personal: asignada
+    juicio: "La forma de plantilla no debe ocultar una obligación personal: debería subir."
+
+  - id: g7_3_informe_conocido
+    caso: "Informe sólido ya conocido"
+    remitente: "Observatorio de Datos <boletin@observatorio.example>"
+    asunto: "Informe anual: metodología y resultados"
+    cuerpo: >-
+      Presentamos el informe anual con su metodología, tres fuentes
+      independientes y los límites del estudio. Los resultados confirman las
+      tendencias publicadas en el avance de junio.
+    hard_rules: [sender_bulk_penalizacion]
+    forzar_reply_needed: false
+    comunes:
+      cambia_algo_concreto: "no"
+      cambio_predicciones: "no"
+      sorpresa_bayesiana: baja
+      evidencia_filtrada: neutral
+      impacto_causal_real: bajo
+      distancia_inferencial: media
+      urgencia_real_vs_fabricada: neutral
+      argument_screens_off_authority: argumento_fuerte
+      hug_the_query: adyacente
+      semantic_stopsigns: "no"
+      entangled_truths: alto
+      absence_of_expected_evidence: "no"
+      relevancia_longitudinal: quiza
+    base:
+      forward_backward_flow: forward
+      fake_justification: "no"
+    ensayo:
+      razonamiento_dirigido: exploratorio
+      responsabilidad_personal: solo_informativa
+    juicio: "Bien razonado pero ya conocido: el ensayo no debería moverlo."
+
+  - id: g7_4_grave_sin_pruebas
+    caso: "Afirmación grave sin pruebas accesibles"
+    remitente: "Departamento de Cumplimiento <cumplimiento@proveedor.example>"
+    asunto: "Irregularidad grave en su cuenta"
+    cuerpo: >-
+      Un auditor ha confirmado una irregularidad grave en su cuenta. Por
+      política interna no podemos adjuntar el informe. Debe regularizar la
+      situación en 48 horas.
+    hard_rules: [deadline_explicito_boost]
+    forzar_reply_needed: false
+    comunes:
+      cambia_algo_concreto: si
+      cambio_predicciones: si
+      sorpresa_bayesiana: alta
+      evidencia_filtrada: selectivamente_persuasivo
+      impacto_causal_real: alto
+      distancia_inferencial: baja
+      urgencia_real_vs_fabricada: fabricada
+      argument_screens_off_authority: solo_autoridad
+      hug_the_query: directo
+      semantic_stopsigns: si
+      entangled_truths: flotante
+      absence_of_expected_evidence: si
+      agente_estrategico: quiza
+    base:
+      forward_backward_flow: backward
+      fake_justification: si
+    ensayo:
+      responsabilidad_personal: asignada
+    juicio: >-
+      La base resta dos veces la misma impresión (5 y 26). El ensayo no la
+      penaliza sin evidencia observable de racionalización: la falta de
+      pruebas ya la recogen 23, 28 y 30. Debería subir algo, no hundirse.
+
+  - id: g7_5_copia
+    caso: "Copia sin responsabilidad"
+    remitente: "Laura Gómez <laura@equipo.example>"
+    asunto: "Reparto del informe trimestral"
+    cuerpo: >-
+      Equipo: Marta prepara el informe trimestral y lo entrega el viernes.
+      Te pongo en copia para que estés al tanto.
+    hard_rules: []
+    forzar_reply_needed: false
+    comunes:
+      cambia_algo_concreto: "no"
+      cambio_predicciones: "no"
+      sorpresa_bayesiana: baja
+      evidencia_filtrada: neutral
+      impacto_causal_real: bajo
+      distancia_inferencial: baja
+      urgencia_real_vs_fabricada: neutral
+      argument_screens_off_authority: mixto
+      hug_the_query: adyacente
+      semantic_stopsigns: "no"
+      entangled_truths: medio
+      absence_of_expected_evidence: "no"
+    base:
+      forward_backward_flow: mixto
+    ensayo:
+      razonamiento_dirigido: justificacion_legitima
+      responsabilidad_personal: solo_informativa
+    juicio: "Ir en copia no me asigna nada: no debería subir."
+
+  - id: g7_6_cancelacion
+    caso: "Aviso que cancela uno anterior"
+    remitente: "Pedro Ruiz <pedro@equipo.example>"
+    asunto: "Se cancela la reunión del jueves"
+    cuerpo: >-
+      Se cancela la reunión del jueves a las 12:00. La revisión pasa a la
+      semana que viene; enviaré nueva convocatoria.
+    hard_rules: []
+    forzar_reply_needed: false
+    comunes:
+      cambia_algo_concreto: si
+      cambio_predicciones: si
+      sorpresa_bayesiana: media
+      evidencia_filtrada: neutral
+      impacto_causal_real: medio
+      distancia_inferencial: baja
+      urgencia_real_vs_fabricada: real
+      argument_screens_off_authority: mixto
+      hug_the_query: directo
+      semantic_stopsigns: "no"
+      entangled_truths: alto
+      absence_of_expected_evidence: "no"
+    base:
+      forward_backward_flow: mixto
+    ensayo:
+      razonamiento_dirigido: justificacion_legitima
+      responsabilidad_personal: compartida
+    juicio: "Breve pero cambia mi agenda: debería quedarse alto o subir un poco."
+
+  - id: extra_7_exploratorio
+    caso: "Exploración abierta con datos"
+    remitente: "Ana Torres <ana@equipo.example>"
+    asunto: "Tres opciones para el proveedor de hosting: ¿qué prefieres?"
+    cuerpo: >-
+      He comparado tres opciones con coste, latencia y riesgo de migración. La
+      tercera combina las dos primeras. Te adjunto la tabla. ¿Cuál prefieres
+      antes del miércoles? Tú decides el presupuesto.
+    hard_rules: [pregunta_directa_boost, deadline_explicito_boost]
+    forzar_reply_needed: true
+    comunes:
+      cambia_algo_concreto: si
+      cambio_predicciones: si
+      sorpresa_bayesiana: media
+      evidencia_filtrada: neutral
+      impacto_causal_real: alto
+      distancia_inferencial: media
+      urgencia_real_vs_fabricada: real
+      argument_screens_off_authority: argumento_fuerte
+      hug_the_query: directo
+      semantic_stopsigns: "no"
+      entangled_truths: alto
+      absence_of_expected_evidence: "no"
+      abre_opciones: si
+    base:
+      forward_backward_flow: forward
+      fake_justification: "no"
+      third_alternative: si
+    ensayo:
+      razonamiento_dirigido: exploratorio
+      alternativas_reales: aporta_alternativa
+      responsabilidad_personal: asignada
+    juicio: "Ya era REPLY_NEEDED; el ensayo no debería empeorarlo."
+
+  - id: extra_8_falso_dilema
+    caso: "Falso dilema comercial"
+    remitente: "Ventas Plus <ofertas@ventasplus.example>"
+    asunto: "Última oportunidad: firma hoy o pierdes el descuento"
+    cuerpo: >-
+      O firmas hoy el plan anual o pierdes el descuento para siempre. Nuestros
+      clientes más inteligentes ya lo han hecho. No hay otra opción.
+    hard_rules: [sender_bulk_penalizacion]
+    forzar_reply_needed: false
+    comunes:
+      cambia_algo_concreto: "no"
+      cambio_predicciones: "no"
+      sorpresa_bayesiana: baja
+      evidencia_filtrada: newsletter_marketing_burocratico
+      impacto_causal_real: bajo
+      distancia_inferencial: baja
+      urgencia_real_vs_fabricada: fabricada
+      argument_screens_off_authority: solo_autoridad
+      hug_the_query: tangencial
+      semantic_stopsigns: si
+      entangled_truths: flotante
+      absence_of_expected_evidence: si
+      agente_estrategico: si
+    base:
+      forward_backward_flow: backward
+      fake_justification: si
+      third_alternative: "no"
+    ensayo:
+      razonamiento_dirigido: racionalizacion
+      alternativas_reales: falso_dilema
+      responsabilidad_personal: solo_informativa
+    juicio: "Debería seguir en ARCHIVE con cualquiera de las dos configs."
