@@ -1,5 +1,5 @@
 # ═══════════════════════════════════════════════════════════════
-# EMAIL TRIAGE v3.18 — Configuración del usuario
+# EMAIL TRIAGE v3.19 — Configuración del usuario
 # ═══════════════════════════════════════════════════════════════
 #
 # Este archivo define quién eres, qué te importa, cómo se
@@ -266,6 +266,13 @@ scoring:
   # penalización sender_bulk_penalizacion (-4) se atenúa hasta este valor.
   # Un remitente que conservas a mano no merece el castigo completo de
   # "remitente masivo".
+
+  contrato_p2: false
+  # Contrato de salida P2 (v3.19, opt-in). Con true, el scoring determinista
+  # acepta los veredictos `no_aplica` / `no_observable` (no puntúan), informa
+  # de la cobertura de los criterios core y separa la confianza del score
+  # (`alta`/`media`/`baja`, con topes mecánicos). No cambia score ni tier.
+  # Solo un true literal lo activa. Con false, la salida es la de siempre.
 
   # Rangos acotados de cada eje (el script clampa la suma a estos límites).
   ejes:
