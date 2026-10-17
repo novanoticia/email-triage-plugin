@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.18.2
+# Email Triage Plugin v3.19.0
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,18 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.19.0
+
+- **Contrato de salida P2 en el motor, desactivado por defecto**
+  (`scoring.contrato_p2: false`). Con `true`, el scoring determinista acepta
+  `no_aplica` / `no_observable` (no puntúan y quedan en `no_evaluados`),
+  informa de la `cobertura` de los 13 criterios core (incluidos los que faltan
+  sin explicación) y separa la `confianza` del score (`alta`/`media`/`baja`,
+  con causas de una lista cerrada y topes mecánicos). No cambia score ni tier.
+- Con el flag apagado la salida es idéntica a la de v3.18.2 (test de regresión
+  y prueba diferencial). La presentación en el `SKILL.md` llega en el PR
+  siguiente.
 
 ## Novedades en v3.18.2
 
