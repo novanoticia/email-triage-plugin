@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.19.1
+# Email Triage Plugin v3.20.0
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,20 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.20.0
+
+- **Ensayo P3 de criterios, desactivado por defecto** (`scoring.ensayo_p3:
+  false`). Con `true` y modo `determinista`, el skill fusiona la capa
+  `config-ensayo-p3.yaml` (`scoring --config-ensayo`): desactiva los criterios
+  5, 19 y 26 y añade `razonamiento_dirigido` (fusión de 5 y 26, que ahora
+  cuenta una sola vez), `alternativas_reales` (sentido definitivo de 19:
+  aportar alternativa +3 / binario honesto 0 / falso dilema −2) y
+  `responsabilidad_personal` (¿me toca actuar o solo estoy en copia?).
+  Siguen 30 criterios activos y 13 core; el `config.yaml` principal no cambia.
+- Es un ensayo: falta validarlo con los correos ficticios de la auditoría
+  (PR siguiente) y con correos reales antes de proponerlo por defecto.
+- La línea base i18n ya acepta versiones 3.2x (#65).
 
 ## Novedades en v3.19.1
 

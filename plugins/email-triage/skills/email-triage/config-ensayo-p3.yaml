@@ -1,0 +1,69 @@
+# ═══════════════════════════════════════════════════════════════
+# EMAIL TRIAGE — Capa del ENSAYO P3 (ROADMAP, P3 paso 3; opt-in)
+# ═══════════════════════════════════════════════════════════════
+#
+# Qué es: NO es un config completo. Es una CAPA que se superpone a tu
+# config.yaml solo si activas `scoring.ensayo_p3: true`. El script la
+# fusiona con `scoring --config-ensayo <ruta>`; tu config no se modifica.
+#
+# Qué cambia (siguen 30 criterios activos y 13 core):
+#   - DESACTIVA forward_backward_flow (5), fake_justification (26) y
+#     third_alternative (19). No se borran: la fusión de capas solo
+#     añade o pisa claves, y desactivar deja los originales intactos.
+#   - AÑADE razonamiento_dirigido (fusión de 5 + 26, core), que cuenta
+#     una sola vez la impresión de razonamiento dirigido (antes podía
+#     restar dos veces: rango -5..+3; ahora -3..+3).
+#   - AÑADE alternativas_reales: el sentido definitivo de 19, con las
+#     dos lecturas que chocaban en F.2 (aportar alternativa / falso
+#     dilema) en una sola pregunta.
+#   - AÑADE responsabilidad_personal: ¿me toca actuar o solo estoy en
+#     copia? (hueco C de la auditoría). No da acceso a REPLY_NEEDED.
+#
+# Validación: con correos ficticios (G.7 de docs/auditoria-criterios.md)
+# antes de proponer que sustituya a los criterios actuales.
+#
+# Esto es una PLANTILLA del repo. Para usarla, cópiala a
+# ~/.email-triage/config-ensayo-p3.yaml (fuera del repo).
+# ═══════════════════════════════════════════════════════════════
+
+criterios_epistemicos:
+  forward_backward_flow:
+    activo: false
+  fake_justification:
+    activo: false
+  third_alternative:
+    activo: false
+
+  razonamiento_dirigido:
+    eje: calidad_epistemica
+    activo: true
+    core: true
+    weight: 3
+    question: "¿Explora la decisión con evidencia, o defiende una conclusión ya tomada sin mostrar por qué?"
+    exploratorio: 3
+    justificacion_legitima: 0
+    # `racionalizacion` exige evidencia observable (razones contradictorias,
+    # hechos a medida). Sin ella, el veredicto es `no_observable` (P2).
+    racionalizacion: -3
+
+  alternativas_reales:
+    eje: valor_decisional
+    activo: true
+    core: false
+    weight: 3
+    question: "¿Aporta una alternativa útil más allá de A o B, plantea un binario honesto o fuerza un falso dilema?"
+    aporta_alternativa: 3
+    binario_honesto: 0
+    falso_dilema: -2
+
+  responsabilidad_personal:
+    eje: presion_accion
+    activo: true
+    core: false
+    weight: 3
+    question: "¿Me toca actuar a mí, o solo estoy informado o en copia?"
+    # `asignada` exige asignación explícita, rol o dependencia comprobable:
+    # una mención o ir en CC no basta.
+    asignada: 3
+    compartida: 1
+    solo_informativa: 0

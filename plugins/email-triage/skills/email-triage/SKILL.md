@@ -16,11 +16,11 @@ compatibility: >
   Claude Code, Claude Cowork y ChatGPT.
 license: Apache-2.0
 metadata:
-  version: "3.19.1"
+  version: "3.20.0"
   author: novanoticia
 ---
 
-# Email Triage v3.19 — Filtrado epistémico por valor diferencial
+# Email Triage v3.20 — Filtrado epistémico por valor diferencial
 
 ## Qué hace este skill
 
@@ -677,6 +677,10 @@ nunca en silencio (CM2/F12).
 `determinista`, **lee `references/contrato-p2.md` AHORA**: veredictos
 `no_aplica`/`no_observable`, confianza con causas y la presentación que amplía
 4.F. Sin el flag, o en modo `mental`, nada de esto aplica.
+
+**Ensayo P3 (opt-in):** solo si `scoring.ensayo_p3: true` y el modo es
+`determinista`, **lee `references/ensayo-p3.md` AHORA** y añade `--config-ensayo`
+a `scoring`: los criterios 5, 19 y 26 se sustituyen por tres nuevos.
 
 > Nota: el campo `eje` de cada criterio y los rangos de `scoring.ejes` son la
 > fuente única del mapeo criterio→eje; `weight` solo orienta al modo mental.

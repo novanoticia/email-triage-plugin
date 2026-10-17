@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.19.1).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.20.0).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -80,7 +80,7 @@ Uso:
                             (sin --archivo lee de stdin; --metadatos: JSON
                             {"asunto","remitente"} — la vía segura, v3.15: el
                             texto del remitente nunca pasa por la shell)
-  python3 triage_helpers.py scoring [--config RUTA] [--config-veloz RUTA]
+  python3 triage_helpers.py scoring [--config RUTA] [--config-veloz RUTA] [--config-ensayo RUTA]
                             [--brief] [--desglose RUTA]
                             (lee payload JSON de stdin; single o {"emails":[...]};
                             --desglose escribe el desglose completo a RUTA y
@@ -1200,6 +1200,8 @@ def cmd_validar_config(ruta: str) -> dict:
     # dejaria apagado en silencio pese a que el usuario cree haberlo activado.
     _p2_raw = _scfg_raw.get("contrato_p2")
     p2_invalido = _p2_raw is not None and not isinstance(_p2_raw, bool)
+    _ens_raw = _scfg_raw.get("ensayo_p3")
+    ensayo_invalido = _ens_raw is not None and not isinstance(_ens_raw, bool)
     # QW3 (auditoria 2026-07-19, F5/F22): validar-config no miraba `tiers`,
     # el ultimo bloque de tuning que rompia el scoring en runtime pese al 'ok':
     #  (a) un umbral no numerico ('cuatro', true) -> TypeError opaco en
@@ -1316,6 +1318,10 @@ def cmd_validar_config(ruta: str) -> dict:
         avisos.append(
             "scoring.contrato_p2=%r debe ser true o false: con otro valor el "
             "contrato P2 queda APAGADO" % (_p2_raw,))
+    if ensayo_invalido:
+        avisos.append(
+            "scoring.ensayo_p3=%r debe ser true o false: con otro valor el "
+            "ensayo P3 queda APAGADO" % (_ens_raw,))
     if tiers_no_mapa:
         avisos.append(
             "tiers no es un mapeo tier->umbral (es %s): el scoring usaria los "
@@ -2839,34 +2845,45 @@ def _merge_config(base, overlay):
     return out
 
 
-def _fusiona_config_veloz(cfg, ruta_veloz):
-    """Superpone la capa config-veloz.yaml sobre `cfg` (CM2, F7). La capa es
-    OPCIONAL: si `ruta_veloz` es None o no existe, no-op. Un YAML roto o una capa
-    que no es mapeo propagan ConfigError (mismo contrato de error legible que el
-    config base), en vez de fusionar algo corrupto en silencio."""
-    if not ruta_veloz or not os.path.exists(ruta_veloz):
+def _fusiona_capa(cfg, ruta, nombre):
+    """Superpone una capa YAML opcional sobre `cfg` (CM2, F7; generalizada en
+    v3.20 para el ensayo P3). Si `ruta` es None o no existe, no-op. Un YAML roto
+    o una capa que no es mapeo propagan ConfigError (mismo contrato de error
+    legible que el config base), en vez de fusionar algo corrupto en silencio."""
+    if not ruta or not os.path.exists(ruta):
         return cfg
     import yaml
     try:
-        with open(ruta_veloz, encoding="utf-8") as fh:
-            veloz = yaml.safe_load(fh)
+        with open(ruta, encoding="utf-8") as fh:
+            capa = yaml.safe_load(fh)
     except OSError as e:
         raise ConfigError({"ok": False,
-                           "error": "capa veloz ilegible %s: %s" % (ruta_veloz, e)})
+                           "error": "capa %s ilegible %s: %s" % (nombre, ruta, e)})
     except UnicodeDecodeError as e:
         raise ConfigError({"ok": False,
-                           "error": "la capa veloz no es UTF-8 válido (%s)" % e,
+                           "error": "la capa %s no es UTF-8 válido (%s)" % (nombre, e),
                            "remedio": "guárdala como UTF-8 y reintenta"})
     except yaml.YAMLError as e:
         raise ConfigError({"ok": False,
-                           "error": "capa veloz con YAML roto",
+                           "error": "capa %s con YAML roto" % nombre,
                            **_payload_error_yaml(e)})
-    if veloz is None:
+    if capa is None:
         return cfg
-    if not isinstance(veloz, dict):
+    if not isinstance(capa, dict):
         raise ConfigError({"ok": False,
-                           "error": "la capa veloz no es un mapeo de claves"})
-    return _merge_config(cfg, veloz)
+                           "error": "la capa %s no es un mapeo de claves" % nombre})
+    return _merge_config(cfg, capa)
+
+
+def _fusiona_config_veloz(cfg, ruta_veloz):
+    """Capa config-veloz.yaml (CM2, F7). Ver _fusiona_capa."""
+    return _fusiona_capa(cfg, ruta_veloz, "veloz")
+
+
+def _fusiona_config_ensayo(cfg, ruta_ensayo):
+    """Capa del ensayo P3 (v3.20, opt-in): desactiva 5, 19 y 26 y añade sus
+    sustitutos; siguen 30 activos y 13 core. Ver _fusiona_capa."""
+    return _fusiona_capa(cfg, ruta_ensayo, "ensayo")
 
 
 # ─── informe (v3.15): informe de sesión en Markdown ─────────────────────
@@ -3012,6 +3029,9 @@ def _construir_parser():
     psc.add_argument("--config-veloz", default=None,
                      help="capa de overrides veloz a fusionar sobre --config "
                           "(opcional; si no existe, no-op) — CM2/F7")
+    psc.add_argument("--config-ensayo", default=None,
+                     help="capa del ensayo P3 a fusionar tras la veloz "
+                          "(opcional; si no existe, no-op) — v3.20")
     psc.add_argument("--desglose", default=None, metavar="RUTA",
                      help="escribe el desglose COMPLETO por correo a RUTA "
                           "(JSON, escritura atómica) sin tocar stdout; "
@@ -3099,6 +3119,8 @@ def main():
             cfg = _cargar_config(args.config)
             # CM2 (F7): fusiona la capa veloz por mecanismo si se pidio.
             cfg = _fusiona_config_veloz(cfg, args.config_veloz)
+            # v3.20: capa opt-in del ensayo P3 (solo si el SKILL la pasa).
+            cfg = _fusiona_config_ensayo(cfg, args.config_ensayo)
         except ConfigError as e:
             # YAML roto / config ilegible (base o capa veloz): mismo contrato de
             # error legible que validar-config, por stdout, sin traceback.

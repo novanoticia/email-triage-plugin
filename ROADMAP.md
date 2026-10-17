@@ -120,6 +120,10 @@ Fecha: 2026-10-16. Cierro este paso tras la
    tier, evidencia citada, cobertura y acuerdo de veredictos, además del
    score. Aquí decidiré también el sentido definitivo de 19. El ensayo
    queda desactivado por defecto; su activación sigue la sección 3.
+   *Estado (2026-10-17):* mecanismo implementado como capa opt-in
+   (`config-ensayo-p3.yaml`, v3.20.0). Sentido de 19 decidido: una sola
+   pregunta con `aporta_alternativa` / `binario_honesto` / `falso_dilema`.
+   Pendiente: la validación con los correos ficticios de G.7.
 4. **Aparcado hasta ver los resultados del ensayo:** el resto de fusiones
    de B y los criterios de proximidad a los hechos, trazabilidad e
    independencia de fuentes.
@@ -209,7 +213,8 @@ la que más informa a P2 y al resto de P3.
 | 2026-10-16 | Coherencia documental F.1–F.8 (#60) | 3.18.1 |
 | 2026-10-16 | Modos rutina/simulación extraídos a `references/` (#62) | 3.18.2 |
 | 2026-10-17 | Contrato de salida P2 en el motor, opt-in (#63) | 3.19.0 |
-| 2026-10-17 | Contrato de salida P2 en el skill e i18n, opt-in (PR-B) | 3.19.1 |
+| 2026-10-17 | Contrato de salida P2 en el skill e i18n, opt-in (#64) | 3.19.1 |
+| 2026-10-17 | Ensayo P3 como capa opt-in: fusión 5+26, sentido de 19, responsabilidad personal (PR-C1) | 3.20.0 |
 
 ---
 
