@@ -25,8 +25,10 @@ FIN = "<!-- i18n:fin -->"
 COMMIT_BASE = "c4b7e4f"   # contrato P2 en el SKILL; antes cc45fdd, 3070f5f, 7127596, 9cc7bc3
 # Lookarounds en vez de \b: «v3.13» no tiene límite de palabra entre «v» y «3».
 # Cualquier parche (3.14.N) se normaliza: enumerar parches ([05], [015]…) rompía la
-# línea base en cada bump. El menor se acota a 3.1x (13, 14, 15…) a propósito.
-_RE_VERSION = re.compile(r"(?<![\d.])3\.1\d(?:\.\d+)?(?!\d)")
+# línea base en cada bump. El menor se acota a dos cifras, 3.10–3.99, a propósito:
+# así un «3.5» del texto no se toma por versión. Hasta v3.19.1 se acotaba a 3.1x,
+# y el primer bump a 3.20 habría roto la línea base en todos los ficheros.
+_RE_VERSION = re.compile(r"(?<![\d.])3\.[1-9]\d(?:\.\d+)?(?!\d)")
 PATRONES = [f"{SKILL}/SKILL.md", f"{SKILL}/config.yaml", f"{SKILL}/config-veloz.yaml",
             "plugins/email-triage/commands/triage.md",
             f"{SKILL}/references/*", f"{SKILL}/scripts/*.py"]
