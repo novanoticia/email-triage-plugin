@@ -10,6 +10,24 @@ import i18n_baseline as lb  # noqa: E402
 
 
 
+class TestNormalizaVersion(unittest.TestCase):
+    """El bump de versión es la única excepción de la línea base: el token de
+    versión se normaliza. Debe seguir valiendo al pasar de 3.1x a 3.2x."""
+
+    def test_normaliza_las_versiones_de_dos_cifras(self):
+        for s in ("v3.13", "v3.19.1", "v3.20", "3.20.0", "v3.99.12"):
+            self.assertEqual(lb._RE_VERSION.sub("<V>", "x " + s + " y"),
+                             "x " + ("v" if s.startswith("v") else "") + "<V> y", s)
+
+    def test_no_toca_lo_que_no_es_version(self):
+        for s in ("3.5 segundos", "13.20", "3.1415", "v3.9"):
+            self.assertEqual(lb._RE_VERSION.sub("<V>", s), s, s)
+
+    def test_un_bump_a_3_20_no_cambia_el_hash(self):
+        self.assertEqual(lb.hash_linea("# Email Triage v3.19 — x"),
+                         lb.hash_linea("# Email Triage v3.20 — x"))
+
+
 class TestQuitarBloques(unittest.TestCase):
     def test_quita_bloque_y_una_linea_en_blanco(self):
         ent = ["a", "", lb.INI, "x", lb.FIN, "", "b"]
