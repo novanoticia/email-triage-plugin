@@ -22,7 +22,7 @@ SKILL = "plugins/email-triage/skills/email-triage"
 RUTA_BASE = os.path.join(RAIZ, "tests", "i18n", "linea_base.json")
 INI = "<!-- i18n:inicio -->"
 FIN = "<!-- i18n:fin -->"
-COMMIT_BASE = "3070f5f"   # extracción rutina/simulación; antes 7127596 (F.1–F.8), 9cc7bc3 (v3.15.0)
+COMMIT_BASE = "cc45fdd"   # contrato P2 en el motor; antes 3070f5f, 7127596 (F.1–F.8), 9cc7bc3
 # Lookarounds en vez de \b: «v3.13» no tiene límite de palabra entre «v» y «3».
 # Cualquier parche (3.14.N) se normaliza: enumerar parches ([05], [015]…) rompía la
 # línea base en cada bump. El menor se acota a 3.1x (13, 14, 15…) a propósito.
