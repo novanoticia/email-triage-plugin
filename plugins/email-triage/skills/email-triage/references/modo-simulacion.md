@@ -10,6 +10,8 @@ y las garantías de seguridad, y apunta aquí. -->
 - **NO escribe en `session_log.jsonl`** — no hay movimientos que registrar
 - **NO escribe en los archivos de telemetría** (`scores.jsonl`, etc.) —
   los datos simulados contaminarían el historial real
+  (excepción: el desglose de `telemetria.guardar_desglose`, que solo lee
+  `diagnostico-ejes` y no alimenta el aprendizaje, sí se escribe)
 - **SÍ registra los overrides del usuario** en `correcciones.jsonl` si el
   usuario corrige un tier durante la revisión del dry-run — esas correcciones
   son datos de aprendizaje válidos aunque no haya movimiento real. Cada
