@@ -117,5 +117,64 @@ class TestMovimientoSinScoring(unittest.TestCase):
         self.assertIn("es «estimado»", errores)
 
 
+class TestIdsInternosDeMail(unittest.TestCase):
+    """Prueba 4: el lote llegó a montar-mover con los `id` internos de Mail
+    (enteros) en vez del Message-ID RFC. Ahora se rechaza sin generar script."""
+
+    BASE = {"cuenta": "iCloud", "origen": "INBOX", "destino_review": "Revisar"}
+
+    @classmethod
+    def setUpClass(cls):
+        sys.path.insert(0, DIR_SCRIPTS)
+        import triage_helpers as th
+        cls.th = th
+
+    def _mover(self, **extra):
+        d = dict(self.BASE)
+        d.update(extra)
+        return self.th.cmd_montar_mover(d)
+
+    def test_lote_de_ids_numericos_se_rechaza(self):
+        lote = [284731, "284732", " 284733 ", 284734.0]
+        out = self._mover(mids_review=lote[:2], mids_archive=lote[2:])
+        self.assertFalse(out["ok"])
+        self.assertNotIn("script", out)
+        self.assertIn("id interno de Mail", out["error"])
+        self.assertEqual(len(out["ids_internos"]), 4)
+        self.assertEqual(out["ids_internos"][2]["lista"], "mids_archive")
+
+    def test_un_solo_id_interno_basta_para_rechazar(self):
+        out = self._mover(mids_review=["a@x.example", "99"])
+        self.assertFalse(out["ok"])
+        self.assertEqual(out["ids_internos"], [
+            {"lista": "mids_review", "indice": 1, "valor": "99"}])
+
+    def test_leer_cuerpos_tambien_rechaza(self):
+        out = self.th.cmd_montar_leer_cuerpos(
+            {"cuenta": "iCloud", "origen": "INBOX", "mids": [1, 2]})
+        self.assertFalse(out["ok"])
+        self.assertNotIn("script", out)
+        self.assertIn("id interno de Mail", out["error"])
+
+    def test_sin_arroba_solo_senala(self):
+        out = self._mover(mids_review=["abc.def", "ok@x.example"])
+        self.assertTrue(out["ok"])
+        self.assertEqual([(s["indice"], s["motivo"]) for s in out["sospechosos"]],
+                         [(0, "sin @ (¿no es un Message-ID?)")])
+
+    def test_reply_que_no_se_mueve_no_se_valida(self):
+        # Coherente con el resto: la lista que no llega al script no bloquea.
+        self.assertTrue(self._mover(mids_review=["a@x.example"],
+                                    mids_reply_needed=[123])["ok"])
+
+    def test_el_skill_lo_documenta(self):
+        self.assertIn("nunca el `id` numérico de Mail", _leer("SKILL.md"))
+
+    def test_mids_legitimos_no_cambian(self):
+        out = self._mover(mids_review=["CAF=1234@mail.gmail.com"])
+        self.assertTrue(out["ok"])
+        self.assertEqual(out["sospechosos"], [])
+
+
 if __name__ == "__main__":
     unittest.main()
