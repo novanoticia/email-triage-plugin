@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.21.3
+# Email Triage Plugin v3.21.4
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,19 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.21.4
+
+- **Cada lote movido se cierra.** Hasta ahora el registro de una sesión solo
+  decía «movimiento lanzado», y nunca se sabía si había terminado bien, si se
+  cortó a mitad o si ni siquiera llegó a ejecutarse. Ahora, al acabar de mover,
+  `cerrar-lote` lee la salida del script de mover y anota cuántos correos se
+  movieron y cuáles fallaron.
+- `verificar-sesion` comprueba ese cierre: sin él (`sin_cerrar`) o si sus
+  cuentas no cuadran (`descuadre`), el triaje no se da por válido. Las
+  sesiones anteriores a este cambio aparecen como `legado` y no se invalidan.
+- Deshacer ya no intenta revertir los correos que el cierre marca como
+  fallidos.
 
 ## Novedades en v3.21.3
 
