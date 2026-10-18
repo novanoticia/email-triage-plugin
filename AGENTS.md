@@ -16,7 +16,7 @@
 
 `email-triage-plugin`: plugin para **Claude Cowork y Claude Code** que hace
 triaje epistémico de correo (30 criterios bayesianos, scoring multi-eje,
-4 tiers). Plataforma macOS; runtime Python 3.9+ (stdlib, PyYAML opcional) +
+4 tiers). Plataforma macOS; runtime Python 3.9+ (stdlib; PyYAML opcional para clasificar, necesario para mover) +
 AppleScript / MCP de Gmail.
 
 ## Reglas que no se negocian

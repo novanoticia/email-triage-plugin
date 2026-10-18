@@ -102,6 +102,10 @@ relue par un humain. / Traducción generada por una IA, sin revisión humana.
   rechaza un movimiento de triaje cuya puntuación no venga del script.
 - Los movimientos por regla manual («mueve todo lo de este remitente») no
   cambian.
+- La propuesta que confirmas ya es la del script, así que no puede cambiar
+  después de que digas que sí.
+- Consecuencia: **para mover hace falta PyYAML** (ver «Requisitos»). Sin él,
+  el skill clasifica y propone, pero no mueve.
 
 ## Novedades en v3.21.11
 
@@ -995,10 +999,10 @@ Parche de 5 correcciones sobre el scoring determinista de v3.6, surgido de una s
 ## Requisitos
 
 - **`git` y `python3`** en el `PATH` (Python 3.9+).
-- **PyYAML** — necesario **solo** para el subcomando `scoring` del modo
-  *determinista* (`scripts/triage_helpers.py scoring`). Sin él, el skill
-  detecta la ausencia y cae automáticamente al **modo mental** (sin romperse),
-  pero el scoring deja de ser reproducible por script. Instálalo con:
+- **PyYAML** — lo usa el subcomando `scoring` (`scripts/triage_helpers.py
+  scoring`). Desde v3.21.12 es **necesario para mover correos**: sin él, el
+  skill clasifica y propone en **modo mental** (sin romperse), pero no mueve
+  nada, porque mover exige la puntuación del script. Instálalo con:
 
   ```bash
   python3 -m pip install --user pyyaml

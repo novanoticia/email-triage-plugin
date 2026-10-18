@@ -18,7 +18,7 @@ cambiaría algo concreto para el usuario?". Evalúa cada correo con 30 criterios
 de racionalidad bayesiana (LessWrong Sequences), genera un score multi-eje y
 clasifica en 4 tiers (`REPLY_NEEDED`, `REVIEW`, `READING_LATER`, `ARCHIVE`).
 
-Plataforma: **macOS**. Runtime: **Python 3.9+** (stdlib; PyYAML opcional) +
+Plataforma: **macOS**. Runtime: **Python 3.9+** (stdlib; PyYAML opcional para clasificar, necesario para mover desde v3.21.12) +
 **AppleScript** (Mail.app para iCloud) / MCP de Gmail.
 
 ## La invariante de arquitectura (no la rompas)
