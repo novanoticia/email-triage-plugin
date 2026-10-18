@@ -309,9 +309,12 @@ entre en el contexto de evaluación:
 # meta_N.json: {"asunto": "...", "remitente": "..."}
 python3 "<ruta-del-skill>/scripts/triage_helpers.py" sanitizar \
   --archivo ~/.email-triage/tmp/tbody_N.txt \
-  --metadatos ~/.email-triage/tmp/meta_N.json \
+  --metadatos ~/.email-triage/tmp/meta_N.json --borrar-origen \
   --max-chars <valor de puntuacion.max_caracteres_cuerpo del config>
 ```
+
+`--borrar-origen` borra el cuerpo crudo y sus metadatos en cuanto quedan
+saneados (`origen_borrado`): no dependas de una limpieza al final.
 
 **Datos del correo, siempre por fichero (F8, v3.15).** Asunto, remitente, message-id
 y cualquier texto de un correo se escriben en JSON con tu herramienta de escritura de

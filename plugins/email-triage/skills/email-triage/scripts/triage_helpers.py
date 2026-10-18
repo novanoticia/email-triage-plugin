@@ -75,7 +75,7 @@ Novedades v3.8.9 (cierre de los dos issues abiertos tras la auditoría):
 
 Uso:
   python3 triage_helpers.py ajustes [--correcciones RUTA]
-  python3 triage_helpers.py sanitizar [--archivo RUTA] [--max-chars 1500]
+  python3 triage_helpers.py sanitizar [--archivo RUTA] [--max-chars 1500] [--borrar-origen]
                             [--asunto TXT] [--remitente TXT] [--metadatos RUTA]
                             (sin --archivo lee de stdin; --metadatos: JSON
                             {"asunto","remitente"} — la vía segura, v3.15: el
@@ -173,8 +173,12 @@ su clase (CM2, auditoría 2026-07-19):
   5. 'informe':            informe de sesión <base>/informes/<session_id>.md
                            (v3.15, mismo patrón atómico, 700/600); la ruta no
                            la elige quien llama: session_id validado.
-Sin sus flags, 'calibrar' y 'scoring' no escriben nada. Ningún subcomando
-mueve correos.
+  6. 'sanitizar --borrar-origen' (v3.21.11): BORRA el cuerpo crudo y sus
+                           metadatos tras sanearlos, solo dentro de <base>/tmp/
+                           (es la invariante «los cuerpos crudos se borran tras
+                           leerlos», ya no a cargo de la memoria del modelo).
+Sin sus flags, 'calibrar', 'scoring' y 'sanitizar' no escriben nada. Ningún
+subcomando mueve correos.
 """
 import argparse
 import html as html_mod
@@ -227,6 +231,24 @@ def base_estado() -> str:
     if hogar is not None:
         return os.path.join(hogar, _DIR_ESTADO)
     return os.path.join(tempfile.gettempdir(), _DIR_ESTADO)
+
+
+def _borrar_crudo(ruta) -> dict:
+    """Borra un fichero crudo SOLO si está dentro de <base>/tmp/ (ruta real,
+    sin seguir symlinks fuera). Pruebas reales 6 y 12 (2026-10-18): el
+    modelo dejó cuerpos crudos en tmp/ al olvidar la limpieza final."""
+    raiz = os.path.realpath(os.path.join(base_estado(), "tmp"))
+    real = os.path.realpath(_expandir(ruta))
+    if not real.startswith(raiz + os.sep):
+        return {"ruta": ruta, "borrado": False,
+                "motivo": "fuera de %s: no se borra" % raiz}
+    try:
+        os.unlink(real)
+    except FileNotFoundError:
+        return {"ruta": ruta, "borrado": False, "motivo": "no existe"}
+    except OSError as e:
+        return {"ruta": ruta, "borrado": False, "motivo": str(e)}
+    return {"ruta": ruta, "borrado": True}
 
 
 def base_estado_es_efimera() -> bool:
@@ -3799,6 +3821,9 @@ def _construir_parser():
                          'sobre --asunto/--remitente (v3.15, auditoría F8)')
     ps.add_argument("--remitente", default=None,
                     help="remitente (display-name) del correo; también S0")
+    ps.add_argument("--borrar-origen", action="store_true",
+                    help="tras sanear, borra --archivo y --metadatos (solo "
+                         "dentro de <base>/tmp/) — v3.21.11")
     psc = sub.add_parser("scoring")
     psc.add_argument("--config",
                      default=_expandir("~/.email-triage/config.yaml"))
@@ -4122,10 +4147,15 @@ def main():
                 if meta.get("remitente") is not None:
                     remitente = str(meta["remitente"])
         if error_meta:
+            # Metadatos rotos: no se borra nada, para poder reintentar.
             out = {"ok": False, "error": error_meta}
         else:
             out = cmd_sanitizar(texto, args.max_chars, asunto=asunto,
                                 remitente=remitente)
+            if args.borrar_origen:
+                out = dict(out)
+                out["origen_borrado"] = [_borrar_crudo(r) for r in
+                                         (args.archivo, args.metadatos) if r]
     json.dump(out, sys.stdout, ensure_ascii=False, indent=2)
     print()
 
