@@ -2482,6 +2482,16 @@ def _resumen_sesion(sid, s, detalle):
     return resumen
 
 
+def _registro_json(linea):
+    """Una línea del log como dict, o None si es corrupta, vacía o no es
+    un objeto (no revienta)."""
+    try:
+        reg = json.loads(linea)
+    except (ValueError, TypeError):
+        return None
+    return reg if isinstance(reg, dict) else None
+
+
 def cmd_estado_log(ruta=None, session=None, ultimas=ULTIMAS_SESIONES):
     """Estado de las sesiones del session_log. Sin `session`: las `ultimas`
     sesiones con algo que deshacer (la más reciente primero), para el punto
@@ -2510,8 +2520,12 @@ def cmd_estado_log(ruta=None, session=None, ultimas=ULTIMAS_SESIONES):
         with open(ruta_exp, encoding="utf-8", errors="replace") as fh:
             for linea in fh:
                 total += 1
-                if sid is None or sid in linea:
+                if sid is None:
                     cola.append(linea)
+                elif sid in linea:   # atajo barato; decide el parseo
+                    reg = _registro_json(linea)
+                    if reg is not None and reg.get("session_id") == sid:
+                        cola.append(reg)
     except FileNotFoundError:
         if sid is not None:
             return {"ok": False, "ruta": ruta_exp, "session_id": sid,
@@ -2522,14 +2536,10 @@ def cmd_estado_log(ruta=None, session=None, ultimas=ULTIMAS_SESIONES):
     except OSError as e:
         return {"ok": False, "ruta": ruta_exp,
                 "error": "no se pudo leer %s: %s" % (ruta_exp, e)}
-    registros = []
-    for linea in cola:
-        try:
-            reg = json.loads(linea)
-        except (ValueError, TypeError):
-            continue              # línea corrupta o vacía: no revienta
-        if isinstance(reg, dict):
-            registros.append(reg)
+    # Con --session la cola ya trae solo dicts de esa sesión: un asunto que
+    # contenga el id no mete en memoria líneas ajenas.
+    registros = (list(cola) if sid is not None else
+                 [r for r in map(_registro_json, cola) if r is not None])
     sesiones = _estado_sesiones(registros)
     salida = {"ok": True, "ruta": ruta_exp}
     if sid is not None:

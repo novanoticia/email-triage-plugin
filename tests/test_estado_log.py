@@ -172,6 +172,14 @@ class TestEstadoLog(unittest.TestCase):
         self.assertFalse(r["ok"])
         self.assertNotIn("sesiones", r)
 
+    def test_asunto_con_el_id_no_mete_otras_sesiones(self):
+        s = "20261018-100000"
+        ajeno = _mov("20261018-110000", "x")
+        ajeno["subject"] = "re: " + s
+        self._log(_mov(s, "a"), ajeno)
+        r = th.cmd_estado_log(self.ruta, s)
+        self.assertEqual([c["message_id"] for c in r["correos"]], ["a"])
+
     def test_solo_lee(self):
         s = "20261018-100000"
         self._log(_mov(s, "a"))
