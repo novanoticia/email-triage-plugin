@@ -1255,6 +1255,48 @@ def _brief(r):
     return out
 
 
+# v3.21.7 (prueba real 9, 2026-10-18): 49 correos se movieron a ARCHIVE con
+# veredictos asignados POR REMITENTE, sin evaluar cada correo; el registro y el
+# cierre cuadraban porque solo miden cómo se movió, no qué se decidió. Un
+# bloque de >= UMBRAL_PLANTILLA correos con veredictos idénticos es la huella
+# de esa plantilla. No prueba fraude (diez promociones idénticas pueden
+# coincidir de verdad): marca, y el SKILL exige leerlos uno a uno o moverlos
+# como regla_manual. Detección determinista; la respuesta, de la persona.
+UMBRAL_PLANTILLA = 5
+MIN_CRITERIOS_PLANTILLA = 3
+
+
+def _alerta_plantilla(items, res):
+    """Marca `plantilla: true` en los resultados del lote cuyos veredictos son
+    idénticos a los de al menos UMBRAL_PLANTILLA-1 correos más, y devuelve el
+    resumen {"correos", "grupos": [{"n", "ids"}]} o None. Total: un item raro
+    no cuenta, nunca lanza."""
+    grupos = {}
+    for i, (item, r) in enumerate(zip(items, res)):
+        if not (isinstance(item, dict) and isinstance(r, dict)) or "error" in r:
+            continue
+        v = item.get("verdicts")
+        if not isinstance(v, dict) or len(v) < MIN_CRITERIOS_PLANTILLA:
+            continue
+        try:
+            clave = json.dumps(v, sort_keys=True, ensure_ascii=False)
+        except (TypeError, ValueError):
+            continue
+        grupos.setdefault(clave, []).append(i)
+    marcados = [idx for idx in grupos.values() if len(idx) >= UMBRAL_PLANTILLA]
+    if not marcados:
+        return None
+    resumen = []
+    for idx in marcados:
+        for i in idx:
+            res[i]["plantilla"] = True
+        resumen.append({"n": len(idx),
+                        "ids": [res[i].get("id", i) for i in idx]})
+    return {"correos": sum(g["n"] for g in resumen), "grupos": resumen,
+            "aviso": "veredictos idénticos en bloque: no consta que se "
+                     "evaluara cada correo; no se mueven como triaje"}
+
+
 def cmd_scoring_dispatch(payload: dict, cfg: dict, brief: bool = False) -> dict:
     """single o lote. Lote: {"emails":[{id, verdicts, ...}, ...]}.
 
@@ -1290,7 +1332,11 @@ def cmd_scoring_dispatch(payload: dict, cfg: dict, brief: bool = False) -> dict:
                             % (i, type(e).__name__, e)})
                 continue
             res.append(_brief(r) if brief else r)
-        return {"resultados": res}
+        salida = {"resultados": res}
+        alerta = _alerta_plantilla(payload["emails"], res)
+        if alerta:
+            salida["alerta_plantilla"] = alerta
+        return salida
     try:
         r = cmd_scoring(payload, cfg)
     except Exception as e:
@@ -1641,6 +1687,15 @@ def _valida_movimiento(registro):
             return {"ok": False, "error": "movimiento por regla manual sin "
                     "`regla` (p. ej. \"remitente=x@y\")"}
         return None
+    if registro.get("plantilla") is True:
+        return {"ok": False,
+                "error": "movimiento marcado `plantilla` por scoring "
+                         "(veredictos idénticos en bloque): no puede "
+                         "registrarse como triaje",
+                "remedio": "evalúa ese correo por separado y repuntúalo, o, si "
+                           "la persona decide moverlo igualmente, registra con "
+                           "\"origen\": \"regla_manual\" y \"regla\": "
+                           "\"plantilla=...\""}
     if isinstance(score, bool) or not isinstance(score, (int, float)):
         return {"ok": False,
                 "error": "movimiento sin `score` numérico: no pasó por el "
