@@ -1,6 +1,40 @@
 <!-- Extraído de SKILL.md (PASO 4.G) en v3.18.2: bloque condicional que no
 toda sesión necesita. El SKILL.md deja un stub con la condición de entrada
 y las garantías de seguridad, y apunta aquí. -->
+<!-- v3.21.9: la detección (antes en PASO 0 del SKILL.md) vive también aquí;
+el SKILL.md conserva la condición de entrada. -->
+
+### Detección de modo rutina (scheduled task) — NUEVO en v3.3
+
+Al leer la petición del usuario, determinar si la sesión es una ejecución
+desde una scheduled task. La señal canónica es la etiqueta `<scheduled-task>`
+en el contexto del prompt.
+
+- **Si existe `<scheduled-task>` en el contexto** Y `interaccion.rutina.activo`
+  es `true` en `config.yaml`: activar `modo_rutina: true` para toda la
+  sesión. El bloque `interaccion.rutina` sobrescribe `interaccion.modo`.
+- **Si existe `<scheduled-task>` pero `rutina.activo` es `false`**: usar
+  `interaccion.modo` como en cualquier otra ejecución.
+- **Si NO existe `<scheduled-task>`**: ignorar el bloque `rutina` completamente.
+  Las invocaciones manuales nunca activan modo rutina.
+- **Por defecto**: `modo_rutina: false`.
+
+Cuando `modo_rutina: true`:
+1. Anunciar al inicio el timestamp y el modo:
+   > ⏱️ **Inicio:** HH:MM:SS — modo rutina (silencioso con umbral)
+2. Saltar todas las preguntas de confirmación.
+3. **Forzar `scoring.modo: determinista`** durante toda la sesión, ignorando
+   el default `mental` del config. En rutina no hay humano que revise una
+   clasificación irreproducible antes de que se muevan correos: la aritmética
+   del score la hace `triage_helpers.py`, no el juicio del modelo. Es la misma
+   disciplina de "mecanismo, no confianza" que ya rige el modo veloz.
+4. Aplicar la lógica de PASO 4.G — Modo rutina.
+5. Al terminar, marcar timestamp de fin y lanzar notificación de macOS
+   (ver PASO 5 — sección rutina).
+
+`modo_simulacion` y `modo_rutina` son compatibles: si la rutina se ejecuta
+con `modo_simulacion: true` (porque el config lo marca o porque el prompt
+lo pide), se hace dry-run notificando los movimientos hipotéticos.
 
 **Modo `rutina`** (NUEVO en v3.3 — activo cuando `modo_rutina: true`):
 - El usuario NO está presente. Cero preguntas, cero confirmaciones.

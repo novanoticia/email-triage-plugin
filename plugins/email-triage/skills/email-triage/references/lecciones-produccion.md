@@ -36,3 +36,24 @@ Documentación de bugs encontrados en sesiones reales con Mail.app/iCloud:
    de 25-50 con scripts separados.
 
 ---
+
+## PASO 5.V — por qué existe la verificación (incidente 2026-08-07)
+
+> Extraído del SKILL.md en v3.21.9; el SKILL.md conserva el resumen y
+> las reglas duras.
+
+Un cliente capaz de ejecutar `osascript` puede lograr el resultado correcto
+saltándose este módulo entero: improvisando su propio AppleScript, leyendo los
+cuerpos sin pasarlos por `sanitizar` y sin llamar a `registrar`. Ocurrió el
+2026-08-07 con este skill cargado en un cliente de terceros: los dos correos se
+movieron de verdad y `session_log.jsonl` no recibió ni una línea.
+
+Un resultado correcto no prueba que el pipeline se haya ejecutado, y saltárselo
+tiene dos costes que no se ven en la bandeja:
+
+1. **Sin `sanitizar` no hubo S0**, así que no hubo defensa contra inyección de
+   prompts ni escapado del message-id. Con newsletters no pasa nada; con un
+   correo hostil, sí.
+2. **Sin `registrar` no hay nada que calibrar.** El PASO 0.B aprende de
+   `correcciones.jsonl` y el PASO 2 de `session_log.jsonl`. Una sesión sin
+   registro es invisible para las dos.

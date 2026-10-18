@@ -16,7 +16,7 @@ compatibility: >
   Claude Code, Claude Cowork y ChatGPT.
 license: Apache-2.0
 metadata:
-  version: "3.21.8"
+  version: "3.21.9"
   author: novanoticia
 ---
 
@@ -204,35 +204,12 @@ Cuando `modo_simulacion: true`, anunciarlo antes de cualquier otra acción:
 
 ### Detección de modo rutina (scheduled task) — NUEVO en v3.3
 
-Al leer la petición del usuario, determinar si la sesión es una ejecución
-desde una scheduled task. La señal canónica es la etiqueta `<scheduled-task>`
-en el contexto del prompt.
-
-- **Si existe `<scheduled-task>` en el contexto** Y `interaccion.rutina.activo`
-  es `true` en `config.yaml`: activar `modo_rutina: true` para toda la
-  sesión. El bloque `interaccion.rutina` sobrescribe `interaccion.modo`.
-- **Si existe `<scheduled-task>` pero `rutina.activo` es `false`**: usar
-  `interaccion.modo` como en cualquier otra ejecución.
-- **Si NO existe `<scheduled-task>`**: ignorar el bloque `rutina` completamente.
-  Las invocaciones manuales nunca activan modo rutina.
-- **Por defecto**: `modo_rutina: false`.
-
-Cuando `modo_rutina: true`:
-1. Anunciar al inicio el timestamp y el modo:
-   > ⏱️ **Inicio:** HH:MM:SS — modo rutina (silencioso con umbral)
-2. Saltar todas las preguntas de confirmación.
-3. **Forzar `scoring.modo: determinista`** durante toda la sesión, ignorando
-   el default `mental` del config. En rutina no hay humano que revise una
-   clasificación irreproducible antes de que se muevan correos: la aritmética
-   del score la hace `triage_helpers.py`, no el juicio del modelo. Es la misma
-   disciplina de "mecanismo, no confianza" que ya rige el modo veloz.
-4. Aplicar la lógica de PASO 4.G — Modo rutina.
-5. Al terminar, marcar timestamp de fin y lanzar notificación de macOS
-   (ver PASO 5 — sección rutina).
-
-`modo_simulacion` y `modo_rutina` son compatibles: si la rutina se ejecuta
-con `modo_simulacion: true` (porque el config lo marca o porque el prompt
-lo pide), se hace dry-run notificando los movimientos hipotéticos.
+Solo si el contexto trae la etiqueta `<scheduled-task>` **y**
+`interaccion.rutina.activo` es `true`: `modo_rutina: true` para toda la
+sesión; **lee `references/modo-rutina.md` AHORA** (anuncio, scoring
+determinista forzado y fail-closed). Sin la etiqueta, o con `activo: false`,
+se ignora `rutina`: una invocación manual nunca la activa. Por defecto
+`modo_rutina: false`.
 
 ### Detección de modo veloz (opt-in, NUEVO en v3.8)
 
@@ -978,21 +955,9 @@ El veredicto del script manda sobre tu propia impresión de haber terminado:
 
 ### Por qué existe este paso
 
-Un cliente capaz de ejecutar `osascript` puede lograr el resultado correcto
-saltándose este módulo entero: improvisando su propio AppleScript, leyendo los
-cuerpos sin pasarlos por `sanitizar` y sin llamar a `registrar`. Ocurrió el
-2026-08-07 con este skill cargado en un cliente de terceros: los dos correos se
-movieron de verdad y `session_log.jsonl` no recibió ni una línea.
-
-Un resultado correcto no prueba que el pipeline se haya ejecutado, y saltárselo
-tiene dos costes que no se ven en la bandeja:
-
-1. **Sin `sanitizar` no hubo S0**, así que no hubo defensa contra inyección de
-   prompts ni escapado del message-id. Con newsletters no pasa nada; con un
-   correo hostil, sí.
-2. **Sin `registrar` no hay nada que calibrar.** El PASO 0.B aprende de
-   `correcciones.jsonl` y el PASO 2 de `session_log.jsonl`. Una sesión sin
-   registro es invisible para las dos.
+Un resultado correcto no prueba que el pipeline se haya ejecutado: sin
+`sanitizar` no hubo S0, y sin `registrar` no hay nada que calibrar. Pasó de
+verdad (2026-08-07, ver `references/lecciones-produccion.md`).
 
 **Reglas duras que se derivan de esto, y no son negociables:**
 
