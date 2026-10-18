@@ -56,6 +56,21 @@ class TestRemitentes(unittest.TestCase):
         self.assertFalse(r["prioritario"])
         self.assertIn("Slavoj Žižek", out["entradas_no_validas"])
 
+    def test_direccion_dentro_del_nombre_entre_comillas_no_cuenta(self):
+        # Codex (PR 77): «"Trusted <boss@x>" <atacante@y>» no es de boss@x.
+        _, r = _uno('"Socio <sociologiainquieta@substack.com>" <atacante@malo.example>')
+        self.assertFalse(r["prioritario"])
+        _, r = _uno('"Atacante <atacante@malo.example>" <sociologiainquieta@substack.com>')
+        self.assertTrue(r["prioritario"])
+
+    def test_tildes_en_el_buzon_si_cuentan(self):
+        # Codex (PR 77): josé@ y jose@ son buzones distintos.
+        cfg = {"filtros": {"remitentes_ignorar": ["josé@example.com"]}}
+        uno = lambda rem: th.cmd_coincidencias(
+            {"correos": [{"remitente": rem}]}, cfg)["resultados"][0]["ignorar"]
+        self.assertTrue(uno("José <JOSÉ@example.com>"))
+        self.assertFalse(uno("jose@example.com"))
+
     def test_dominio_y_subdominio(self):
         self.assertTrue(_uno("x@cienciacognitiva.org")[1]["prioritario"])
         self.assertTrue(_uno("Boletín <a@news.cienciacognitiva.org>")[1]["prioritario"])

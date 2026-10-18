@@ -2263,7 +2263,8 @@ PUNTOS_PRIORITARIO = 3
 PUNTOS_KEYWORD = {"alto": 3, "medio": 2, "bajo": 1}
 PUNTOS_KEYWORD_CUERPO = 1
 PUNTOS_KEYWORD_PENALIZAR = -2
-_RE_ADDR = re.compile(r"<\s*([^<>\s]+@[^<>\s]+)\s*>|([^\s<>\"']+@[^\s<>\"']+)")
+_RE_ADDR_FINAL = re.compile(r"<\s*([^<>\s]+@[^<>\s]+)\s*>\s*$")
+_RE_ADDR_SOLA = re.compile(r"^\s*<?\s*([^\s<>\"']+@[^\s<>\"']+?)\s*>?\s*$")
 
 
 def _plano(texto):
@@ -2272,17 +2273,27 @@ def _plano(texto):
     return "".join(c for c in t if not unicodedata.combining(c)).casefold()
 
 
+def _buzon(texto):
+    """Identidad de buzón: NFC + minúsculas, SIN quitar tildes (josé@ y jose@
+    son buzones distintos). La insensibilidad a tildes es solo para palabras."""
+    return unicodedata.normalize("NFC", str(texto)).casefold().strip()
+
+
 def _direccion(remitente):
-    """(dirección normalizada sin +sufijo, dominio, nombre visible) de un
-    remitente tipo «Nombre <a+b@c.com>» o «a@c.com»."""
-    m = _RE_ADDR.search(remitente)
-    if not m:
-        return "", "", _plano(remitente).strip()
-    addr = _plano(m.group(1) or m.group(2)).strip(".,;")
+    """(dirección normalizada sin +sufijo, dominio) del remitente. La
+    dirección sale de la ESTRUCTURA del campo (email.utils.parseaddr), no de
+    la primera subcadena con @: en «"Jefe <jefe@x>" <atacante@y>» manda
+    atacante@y. Si el campo es ambiguo, no hay dirección y nada casa."""
+    from email.utils import parseaddr
+    addr = parseaddr(remitente)[1]
+    if "@" not in addr:
+        m = _RE_ADDR_FINAL.search(remitente) or _RE_ADDR_SOLA.match(remitente)
+        addr = m.group(1) if m else ""
+    addr = _buzon(addr).strip(".,;")
     local, _, dominio = addr.rpartition("@")
-    local = local.split("+", 1)[0]
-    nombre = _plano(remitente[:m.start()] + remitente[m.end():])
-    return "%s@%s" % (local, dominio), dominio, nombre.strip(" \"'")
+    if not local or not dominio:
+        return "", ""
+    return "%s@%s" % (local.split("+", 1)[0], dominio), dominio
 
 
 def _casa_palabra(palabra, texto_plano):
@@ -2297,7 +2308,7 @@ def _tipo_entrada(entrada):
     """'direccion', 'dominio' o None. A propósito NO hay coincidencia por
     nombre visible: lo controla el remitente, y «Žižek <x@cualquiera>» se
     llevaría el +3 de prioritario."""
-    e = _plano(entrada).strip()
+    e = _buzon(entrada)
     if "@" in e and not e.startswith("@") and "." in e.rpartition("@")[2]:
         return "direccion"
     if (e.startswith("@") or "." in e) and " " not in e and len(e.lstrip("@")) > 2:
@@ -2308,7 +2319,7 @@ def _tipo_entrada(entrada):
 def _casa_remitente(entrada, addr, dominio):
     """Dirección exacta ignorando +sufijo, o dominio («@dom.com» / «dom.com»,
     también subdominios)."""
-    e, tipo = _plano(entrada).strip(), _tipo_entrada(entrada)
+    e, tipo = _buzon(entrada), _tipo_entrada(entrada)
     if tipo == "direccion":
         local, _, dom = e.rpartition("@")
         return bool(addr) and addr == "%s@%s" % (local.split("+", 1)[0], dom)
@@ -2364,7 +2375,7 @@ def _coincidencias_nucleo(datos, cfg):
             continue
         texto = {k: c.get(k) if isinstance(c.get(k), str) else ""
                  for k in ("remitente", "asunto", "cuerpo")}
-        addr, dominio, _ = _direccion(texto["remitente"])
+        addr, dominio = _direccion(texto["remitente"])
         asunto, cuerpo = _plano(texto["asunto"]), _plano(texto["cuerpo"])
         r = {"id": c.get("id", i), "prioritario": False, "ignorar": False,
              "extra_points_filtros": 0, "detalle": []}
