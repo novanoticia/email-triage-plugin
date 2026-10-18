@@ -16,7 +16,7 @@ compatibility: >
   Claude Code, Claude Cowork y ChatGPT.
 license: Apache-2.0
 metadata:
-  version: "3.21.4"
+  version: "3.21.5"
   author: novanoticia
 ---
 
@@ -674,8 +674,9 @@ escribe el desglose por correo a fichero (JSON, escritura atómica) mientras
 stdout sigue compacto; un fallo de escritura se reporta en `desglose_error`,
 nunca en silencio (CM2/F12).
 Si `telemetria.guardar_desglose: true`, añade siempre `--desglose
-~/.email-triage/desgloses/<session_id>.json`, también en simulación; lo lee
-`diagnostico-ejes`.
+~/.email-triage/desgloses/<session_id>.jsonl --desglose-append`, también en
+simulación: cada invocación añade una línea y `diagnostico-ejes` ve qué
+veredictos retocaste al repuntuar.
 
 **Contrato P2 (opt-in):** solo si `scoring.contrato_p2: true` y el modo es
 `determinista`, **lee `references/contrato-p2.md` AHORA**: veredictos

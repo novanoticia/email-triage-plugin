@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.21.4).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.21.5).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -81,10 +81,11 @@ Uso:
                             {"asunto","remitente"} — la vía segura, v3.15: el
                             texto del remitente nunca pasa por la shell)
   python3 triage_helpers.py scoring [--config RUTA] [--config-veloz RUTA] [--config-ensayo RUTA]
-                            [--brief] [--desglose RUTA]
+                            [--brief] [--desglose RUTA [--desglose-append]]
                             (lee payload JSON de stdin; single o {"emails":[...]};
                             --desglose escribe el desglose completo a RUTA y
-                            deja stdout intacto)
+                            deja stdout intacto; con --desglose-append añade
+                            una línea JSONL por invocación en vez de sobrescribir)
   python3 triage_helpers.py validar-config [--config RUTA]
   python3 triage_helpers.py diagnostico-ejes --desglose RUTA [RUTA ...] [--config RUTA]
                             (P1: mide la saturación de ejes en desgloses
@@ -163,6 +164,9 @@ su clase (CM2, auditoría 2026-07-19):
                            temp + os.replace): borrarlo solo cuesta recalcular;
   4. 'scoring --desglose': volcado opt-in del desglose completo a RUTA (mismo
                            patrón atómico), telemetría fuera del contexto;
+                           con '--desglose-append' (v3.21.5) añade una línea
+                           A TRAVÉS de 'registrar' a un JSONL de TELEMETRÍA
+                           (no de datos: no alimenta el aprendizaje);
   5. 'informe':            informe de sesión <base>/informes/<session_id>.md
                            (v3.15, mismo patrón atómico, 700/600); la ruta no
                            la elige quien llama: session_id validado.
@@ -1085,9 +1089,14 @@ def _diagnostico_ejes_nucleo(docs, cfg):
     tiers = (cfg.get("tiers") if isinstance(cfg, dict) else None) or {}
     if not isinstance(tiers, dict):
         tiers = {}
-    resultados, ignorados = [], []
+    resultados, ignorados, repuntuados = [], [], []
     for i, d in enumerate(docs):
-        if isinstance(d, dict) and isinstance(d.get("resultados"), list):
+        if isinstance(d, dict) and isinstance(d.get("pasadas"), list):
+            resultados.extend(_ultima_pasada(d["pasadas"], i, repuntuados))
+            for n in d.get("lineas_ignoradas") or []:
+                ignorados.append({"documento": i, "linea": n,
+                                  "motivo": "línea que no es un desglose"})
+        elif isinstance(d, dict) and isinstance(d.get("resultados"), list):
             resultados.extend(d["resultados"])
         elif isinstance(d, dict):
             resultados.append(d)
@@ -1143,14 +1152,91 @@ def _diagnostico_ejes_nucleo(docs, cfg):
         "por_eje": por_eje,
         "cambiarian_tier_sin_recorte": len(cambios_umbral),
         "detalle_cambios": cambios_umbral[:50],
+        "repuntuados": len(repuntuados),
+        "detalle_repuntuados": repuntuados[:50],
         "tier_decidido_por_extras": deciden_extras,
         "peso_medio_extras_pct": round(100.0 * sum(peso_extras)
                                        / len(peso_extras), 1) if peso_extras else 0.0,
         "nota": "Tiers por umbral, sin caps de acción ni de inyección: mide el "
                 "efecto del recorte, no el tier final. 'Extras' = reglas duras "
-                "+ extra_points (keywords, remitentes, ajustes aprendidos).",
+                "+ extra_points (keywords, remitentes, ajustes aprendidos). "
+                "En un desglose acumulado (--desglose-append) cada id cuenta "
+                "una vez, con su última pasada.",
         "ignorados": ignorados,
     }
+
+
+def _veredictos(r):
+    crits = r.get("criterios") if isinstance(r, dict) else None
+    return {c.get("criterio"): c.get("veredicto") for c in crits or []
+            if isinstance(c, dict)}
+
+
+def _ultima_pasada(pasadas, documento, repuntuados):
+    """Desglose acumulado (`scoring --desglose-append`): una pasada por cada
+    invocación del scoring. Devuelve los resultados a medir —la ÚLTIMA pasada
+    de cada id, para no contar dos veces el mismo correo— y anota en
+    `repuntuados` los ids puntuados más de una vez: qué veredictos cambiaron
+    entre la primera y la última, y si cambió el tier. Es el rastro que la
+    sobrescritura borraba (el modelo ve el lote y retoca veredictos)."""
+    primero, ultimo, veces, sin_id = {}, {}, {}, []
+    for p in pasadas:
+        rs = (p["resultados"] if isinstance(p, dict)
+              and isinstance(p.get("resultados"), list) else [p])
+        for r in rs:
+            rid = r.get("id") if isinstance(r, dict) else None
+            if rid is None or isinstance(rid, (dict, list)):
+                sin_id.append(r)
+                continue
+            k = json.dumps(rid)
+            primero.setdefault(k, r)
+            ultimo[k] = r
+            veces[k] = veces.get(k, 0) + 1
+    for k, n in veces.items():
+        if n < 2:
+            continue
+        a, b = primero[k], ultimo[k]
+        va, vb = _veredictos(a), _veredictos(b)
+        cambiados = sorted(str(c) for c in set(va) | set(vb)
+                           if va.get(c) != vb.get(c))
+        repuntuados.append({"documento": documento, "id": b.get("id"),
+                            "pasadas": n, "veredictos_cambiados": cambiados,
+                            "score_antes": a.get("score"),
+                            "score_despues": b.get("score"),
+                            "tier_antes": a.get("tier"),
+                            "tier_despues": b.get("tier")})
+    return sin_id + list(ultimo.values())
+
+
+def _parsear_desglose(texto):
+    """Lee un fichero de `scoring --desglose`: JSON (sobrescritura, el formato
+    de siempre) o JSONL acumulado (`--desglose-append`, una línea
+    {"ts", "desglose"} por invocación) -> {"pasadas": [...]}. ValueError si
+    no es ninguno de los dos."""
+    try:
+        doc = json.loads(texto)
+    except ValueError:
+        pass
+    else:
+        # Un JSONL de UNA sola pasada también es JSON válido.
+        if isinstance(doc, dict) and set(doc) == {"ts", "desglose"}:
+            return {"pasadas": [doc["desglose"]], "lineas_ignoradas": []}
+        return doc
+    pasadas, malas = [], []
+    for n, linea in enumerate(texto.splitlines(), 1):
+        if not linea.strip():
+            continue
+        try:
+            reg = json.loads(linea)
+        except ValueError:
+            reg = None
+        if isinstance(reg, dict) and "desglose" in reg:
+            pasadas.append(reg["desglose"])
+        else:
+            malas.append(n)
+    if not pasadas:
+        raise ValueError("ni JSON ni JSONL de desgloses")
+    return {"pasadas": pasadas, "lineas_ignoradas": malas}
 
 
 def _brief(r):
@@ -3365,6 +3451,10 @@ def _construir_parser():
                      help="escribe el desglose COMPLETO por correo a RUTA "
                           "(JSON, escritura atómica) sin tocar stdout; "
                           "combinable con --brief — CM2/F12")
+    psc.add_argument("--desglose-append", action="store_true",
+                     help="con --desglose: añade una línea JSONL por "
+                          "invocación (append con flock) en vez de "
+                          "sobrescribir; lo lee diagnostico-ejes — v3.21.5")
     pv = sub.add_parser("validar-config")
     pv.add_argument("--config",
                     default=_expandir("~/.email-triage/config.yaml"))
@@ -3474,14 +3564,26 @@ def main():
             # stdout no cambia ni un byte (con --brief sigue compacto);
             # solo un fallo de escritura añade 'desglose_error' para no
             # fallar en silencio.
+            # Con --desglose-append (opt-in) no sobrescribe: añade una línea
+            # {"ts", "desglose"} vía cmd_registrar, para que diagnostico-ejes
+            # vea los veredictos retocados entre invocaciones de una sesión.
             if args.desglose:
                 completo = (cmd_scoring_dispatch(payload, cfg, brief=False)
                             if args.brief else out)
-                res = _escribir_snapshot_json(completo, args.desglose,
-                                              ".desglose-")
+                if args.desglose_append:
+                    res = cmd_registrar(args.desglose, {
+                        "ts": datetime.now(timezone.utc).isoformat(
+                            timespec="seconds"),
+                        "desglose": completo})
+                else:
+                    res = _escribir_snapshot_json(completo, args.desglose,
+                                                  ".desglose-")
                 if not res.get("ok"):
                     out = dict(out)
                     out["desglose_error"] = res.get("error")
+            elif args.desglose_append:
+                out = dict(out)
+                out["desglose_error"] = "--desglose-append requiere --desglose RUTA"
     elif args.cmd == "validar-config":
         out = cmd_validar_config(args.config)
     elif args.cmd == "registrar":
@@ -3511,7 +3613,7 @@ def main():
         for ruta in args.desglose:
             try:
                 with open(_expandir(ruta), encoding="utf-8") as fh:
-                    docs.append(json.loads(fh.read(MAX_INGESTA_BYTES)))
+                    docs.append(_parsear_desglose(fh.read(MAX_INGESTA_BYTES)))
             except (OSError, ValueError) as e:
                 fallos.append({"ruta": ruta, "motivo": "%s: %s"
                                % (type(e).__name__, e)})

@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.21.4
+# Email Triage Plugin v3.21.5
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,21 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.21.5
+
+- **El desglose de una sesión ya no pierde la primera pasada.** Con
+  `telemetria.guardar_desglose: true`, cada vez que se puntúa se añade una
+  línea al fichero de la sesión (`~/.email-triage/desgloses/<sesión>.jsonl`)
+  en vez de sobrescribirlo. Antes, si el modelo veía el resultado y retocaba
+  veredictos antes de repuntuar, la primera versión desaparecía sin dejar
+  rastro.
+- `diagnostico-ejes` lee el formato nuevo y el antiguo. Cuenta cada correo una
+  sola vez, con su última pasada, y añade `repuntuados`: qué correos se
+  puntuaron más de una vez, qué veredictos cambiaron y si cambió el tier.
+- Para quien no active la opción no cambia nada. En la línea de comandos es
+  `scoring --desglose RUTA --desglose-append`; sin el flag, `--desglose` sigue
+  sobrescribiendo como antes.
 
 ## Novedades en v3.21.4
 

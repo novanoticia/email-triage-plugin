@@ -181,7 +181,11 @@ rompes la conformidad (gate #7) y el skill deja de cargar fuera de Claude.
   `calibrar --guardar` (snapshot de la caché de calibración,
   `calibracion.json`) y `scoring --desglose RUTA` (desglose completo para
   telemetría) — escriben con el mismo patrón atómico temp + `os.replace`
-  sin tocar los JSONL de datos: borrarlos solo cuesta recalcular. Sin sus
+  sin tocar los JSONL de datos: borrarlos solo cuesta recalcular. Desde
+  v3.21.5, `scoring --desglose RUTA --desglose-append` (opt-in) no
+  sobrescribe: añade una línea vía `registrar` a un JSONL de telemetría
+  (no de datos; no alimenta el aprendizaje), para que `diagnostico-ejes`
+  vea los veredictos retocados al repuntuar. Sin sus
   flags, `calibrar` y `scoring` no escriben nada. Ningún subcomando mueve
   correos.
 - El cuerpo del correo se **sanitiza (S0–S5) antes** de exponerse al modelo. El
