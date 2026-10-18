@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.21.7).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.21.8).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -113,6 +113,9 @@ Uso:
                             (consulta de solo-lectura a Enviados — verificación
                             del PASO 1.C — con cuenta, clave_hilo y fecha_corte
                             ya escapados)
+  python3 triage_helpers.py coincidencias [--datos JSON] [--config RUTA]
+                            (v3.21.8: filtros del config —remitentes y palabras
+                            clave— contra remitente/asunto/cuerpo; solo lee)
   python3 triage_helpers.py calibrar [--datos JSON] [--guardar [RUTA]]
                             (PASO 2: perfil determinista de {"correos":[...]} —
                             top remitentes/dominios/keywords; --guardar escribe
@@ -2246,6 +2249,176 @@ def _remitente_norm(bruto):
     return s, None
 
 
+# ════════════════════════════════════════════════════════════════
+# coincidencias — filtros del config contra remitente y asunto (v3.21.8)
+# ════════════════════════════════════════════════════════════════
+
+# Pruebas reales 6-8 (2026-10-18): el modelo aplicaba a ojo los filtros del
+# config y fallaba de dos formas que un script no comete. Coincidencia
+# exacta de direcciones, de modo que `sociologiainquieta+sociologia-y-cine@`
+# no casaba con `sociologiainquieta@`; y subcadenas, de modo que «RECURSOS»
+# activaba la palabra «curso» y otro correo «agentes». Mismo baremo que el
+# PASO 4.A.2, ahora calculado aquí.
+PUNTOS_PRIORITARIO = 3
+PUNTOS_KEYWORD = {"alto": 3, "medio": 2, "bajo": 1}
+PUNTOS_KEYWORD_CUERPO = 1
+PUNTOS_KEYWORD_PENALIZAR = -2
+_RE_ADDR_FINAL = re.compile(r"<\s*([^<>\s]+@[^<>\s]+)\s*>\s*$")
+_RE_ADDR_SOLA = re.compile(r"^\s*<?\s*([^\s<>\"']+@[^\s<>\"']+?)\s*>?\s*$")
+
+
+def _plano(texto):
+    """Minúsculas y sin tildes: «Žižek» == «zizek», «Psicología» == «psicologia»."""
+    t = unicodedata.normalize("NFKD", str(texto))
+    return "".join(c for c in t if not unicodedata.combining(c)).casefold()
+
+
+def _buzon(texto):
+    """Identidad de buzón: NFC + minúsculas, SIN quitar tildes (josé@ y jose@
+    son buzones distintos). La insensibilidad a tildes es solo para palabras."""
+    return unicodedata.normalize("NFC", str(texto)).casefold().strip()
+
+
+def _direccion(remitente):
+    """(dirección normalizada sin +sufijo, dominio) del remitente. La
+    dirección sale de la ESTRUCTURA del campo (email.utils.parseaddr), no de
+    la primera subcadena con @: en «"Jefe <jefe@x>" <atacante@y>» manda
+    atacante@y. Si el campo es ambiguo, no hay dirección y nada casa."""
+    from email.utils import parseaddr
+    addr = parseaddr(remitente)[1]
+    if "@" not in addr:
+        m = _RE_ADDR_FINAL.search(remitente) or _RE_ADDR_SOLA.match(remitente)
+        addr = m.group(1) if m else ""
+    addr = _buzon(addr).strip(".,;")
+    local, _, dominio = addr.rpartition("@")
+    if not local or not dominio:
+        return "", ""
+    return "%s@%s" % (local.split("+", 1)[0], dominio), dominio
+
+
+def _casa_palabra(palabra, texto_plano):
+    """Palabra o frase COMPLETA (no subcadena), sin tildes ni mayúsculas."""
+    p = _plano(palabra).strip()
+    if not p:
+        return False
+    return re.search(r"(?<!\w)%s(?!\w)" % re.escape(p), texto_plano) is not None
+
+
+def _tipo_entrada(entrada):
+    """'direccion', 'dominio' o None. A propósito NO hay coincidencia por
+    nombre visible: lo controla el remitente, y «Žižek <x@cualquiera>» se
+    llevaría el +3 de prioritario."""
+    e = _buzon(entrada)
+    if "@" in e and not e.startswith("@") and "." in e.rpartition("@")[2]:
+        return "direccion"
+    if (e.startswith("@") or "." in e) and " " not in e and len(e.lstrip("@")) > 2:
+        return "dominio"
+    return None
+
+
+def _casa_remitente(entrada, addr, dominio):
+    """Dirección exacta ignorando +sufijo, o dominio («@dom.com» / «dom.com»,
+    también subdominios)."""
+    e, tipo = _buzon(entrada), _tipo_entrada(entrada)
+    if tipo == "direccion":
+        local, _, dom = e.rpartition("@")
+        return bool(addr) and addr == "%s@%s" % (local.split("+", 1)[0], dom)
+    if tipo == "dominio":
+        d = e.lstrip("@")
+        return bool(dominio) and (dominio == d or dominio.endswith("." + d))
+    return False
+
+
+def _lista_texto(v):
+    return [x for x in v if isinstance(x, str)] if isinstance(v, list) else []
+
+
+def _keywords_boost(v):
+    salida = []
+    for k in v if isinstance(v, list) else []:
+        if isinstance(k, str):
+            salida.append((k, "bajo"))
+        elif isinstance(k, dict) and isinstance(k.get("palabra"), str):
+            peso = k.get("peso") if k.get("peso") in PUNTOS_KEYWORD else "bajo"
+            salida.append((k["palabra"], peso))
+    return salida
+
+
+def cmd_coincidencias(datos, cfg) -> dict:
+    """Aplica `filtros` del config (remitentes_prioritarios, remitentes_ignorar,
+    palabras_clave_boost, palabras_clave_penalizar) a {"correos": [{id,
+    remitente, asunto, cuerpo?}]}. Devuelve por correo `extra_points_filtros`
+    (a sumar en extra_points), `prioritario`, `ignorar` y el detalle. Solo
+    devuelve textos del CONFIG, nunca del correo. Función TOTAL; no escribe."""
+    try:
+        return _coincidencias_nucleo(datos, cfg)
+    except Exception as e:   # red universal: cultura de fuzz del repo
+        return {"ok": False, "error": "coincidencias reventó (%s: %s)"
+                % (type(e).__name__, e)}
+
+
+def _coincidencias_nucleo(datos, cfg):
+    correos = datos.get("correos") if isinstance(datos, dict) else None
+    if not isinstance(correos, list):
+        return {"ok": False, "error": 'se esperaba {"correos": [{"id", '
+                '"remitente", "asunto", "cuerpo"?}]}'}
+    f = cfg.get("filtros") if isinstance(cfg, dict) else None
+    f = f if isinstance(f, dict) else {}
+    prioritarios = _lista_texto(f.get("remitentes_prioritarios"))
+    ignorar = _lista_texto(f.get("remitentes_ignorar"))
+    boost = _keywords_boost(f.get("palabras_clave_boost"))
+    penalizar = _lista_texto(f.get("palabras_clave_penalizar"))
+    usados, resultados = set(), []
+    for i, c in enumerate(correos):
+        if not isinstance(c, dict):
+            resultados.append({"indice": i, "error": "no es un objeto JSON"})
+            continue
+        texto = {k: c.get(k) if isinstance(c.get(k), str) else ""
+                 for k in ("remitente", "asunto", "cuerpo")}
+        addr, dominio = _direccion(texto["remitente"])
+        asunto, cuerpo = _plano(texto["asunto"]), _plano(texto["cuerpo"])
+        r = {"id": c.get("id", i), "prioritario": False, "ignorar": False,
+             "extra_points_filtros": 0, "detalle": []}
+        for lista, campo in ((prioritarios, "prioritario"), (ignorar, "ignorar")):
+            for e in lista:
+                if _casa_remitente(e, addr, dominio):
+                    r[campo] = True
+                    usados.add(("remitente", e))
+                    r["detalle"].append({"filtro": "remitentes_" + (
+                        "prioritarios" if campo == "prioritario" else campo),
+                        "entrada": e})
+                    break
+        if r["prioritario"]:
+            r["extra_points_filtros"] += PUNTOS_PRIORITARIO
+        for palabra, peso in boost:
+            if _casa_palabra(palabra, asunto):
+                pts, donde = PUNTOS_KEYWORD[peso], "asunto"
+            elif _casa_palabra(palabra, cuerpo):
+                pts, donde = PUNTOS_KEYWORD_CUERPO, "cuerpo"
+            else:
+                continue
+            usados.add(("palabra", palabra))
+            r["extra_points_filtros"] += pts
+            r["detalle"].append({"filtro": "palabras_clave_boost",
+                                 "entrada": palabra, "donde": donde,
+                                 "puntos": pts})
+        for palabra in penalizar:
+            if _casa_palabra(palabra, asunto) or _casa_palabra(palabra, cuerpo):
+                usados.add(("palabra", palabra))
+                r["extra_points_filtros"] += PUNTOS_KEYWORD_PENALIZAR
+                r["detalle"].append({"filtro": "palabras_clave_penalizar",
+                                     "entrada": palabra,
+                                     "puntos": PUNTOS_KEYWORD_PENALIZAR})
+        resultados.append(r)
+    sin_uso = [e for e in prioritarios if ("remitente", e) not in usados]
+    no_validas = [e for e in prioritarios + ignorar if _tipo_entrada(e) is None]
+    return {"ok": True, "resultados": resultados,
+            "prioritarios_sin_coincidencia": sin_uso,
+            "entradas_no_validas": no_validas,
+            "nota": "extra_points_filtros solo cubre filtros del config; los "
+                    "boosts de calibración (historial, dominio) se suman aparte"}
+
+
 def cmd_calibrar(datos) -> dict:
     """Perfil determinista del historial: la aritmética del PASO 2, en código.
 
@@ -3551,6 +3724,12 @@ def _construir_parser():
     pdx.add_argument("--config",
                      default=_expandir("~/.email-triage/config.yaml"),
                      help="solo para los umbrales de tier")
+    pco = sub.add_parser("coincidencias")
+    pco.add_argument("--datos", default=None,
+                     help='JSON {"correos": [{"id", "remitente", "asunto", '
+                          '"cuerpo"?}]}; sin él se lee de stdin')
+    pco.add_argument("--config",
+                     default=_expandir("~/.email-triage/config.yaml"))
     pcal = sub.add_parser("calibrar")
     pcal.add_argument("--datos", default=None,
                       help='JSON {"correos": [{"remitente", "asunto"}, ...]}; '
@@ -3688,6 +3867,20 @@ def main():
         out = cmd_diagnostico_ejes(docs, cfg)
         if fallos:
             out.setdefault("ignorados", []).extend(fallos)
+    elif args.cmd == "coincidencias":
+        # v3.21.8: SOLO LEE; filtros del config contra remitente y asunto.
+        crudo = (args.datos if args.datos is not None
+                 else sys.stdin.buffer.read(MAX_INGESTA_BYTES)
+                 .decode("utf-8", errors="replace"))
+        try:
+            datos = json.loads(crudo or "{}")
+        except json.JSONDecodeError as e:
+            out = {"ok": False, "error": "JSON inválido: %s" % e}
+        else:
+            try:
+                out = cmd_coincidencias(datos, _cargar_config(args.config))
+            except ConfigError as e:
+                out = e.payload
     elif args.cmd == "calibrar":
         if args.leer is not None and args.guardar is not None:
             out = {"ok": False, "error": "--leer y --guardar son excluyentes: "

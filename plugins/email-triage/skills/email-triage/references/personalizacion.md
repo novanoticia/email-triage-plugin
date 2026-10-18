@@ -9,6 +9,29 @@ un stub con la condición de entrada y apunta aquí. -->
 - `remitentes_ignorar` — skip total (-99)
 - `palabras_clave_boost` — con peso: `alto` (+3), `medio` (+2), `bajo` (+1)
 - `palabras_clave_penalizar` — reducen puntuación (-2)
+
+**Cálculo mecánico (v3.21.8).** Estos cuatro filtros no se aplican a ojo:
+`coincidencias` los calcula sobre remitente, asunto y, si se pasa, el extracto
+YA sanitizado del cuerpo, y devuelve `extra_points_filtros` para sumar a
+`extra_points`, junto con los boosts de calibración, que siguen aparte.
+
+```bash
+# coincidencias.json: {"correos": [{"id": 1, "remitente": "...", "asunto": "...", "cuerpo": "..."}]}
+python3 "<ruta-del-skill>/scripts/triage_helpers.py" coincidencias --config ~/.email-triage/config.yaml < ~/.email-triage/tmp/coincidencias.json
+```
+
+Reglas, fijadas por tests:
+- **Remitentes:** por dirección (se ignora el `+sufijo`:
+  `ana+boletin@x.com` casa con `ana@x.com`) o por dominio (`@x.com` o `x.com`,
+  subdominios incluidos). **Nunca por nombre visible**, que lo controla el
+  remitente; una entrada que es solo un nombre sale en `entradas_no_validas`.
+- **Palabras clave:** palabra o frase completa, sin mayúsculas ni tildes
+  («curso» no casa con «recursos»; sí con «Curso»). Boost en el asunto: su
+  peso; solo en el cuerpo: +1. Penalizar: -2 por palabra.
+- `prioritarios_sin_coincidencia` lista las entradas que no casaron con
+  ningún correo del lote: pista de una dirección mal escrita, no una prueba.
+- `remitentes_ignorar` sale como `ignorar: true`: ese correo se descarta antes
+  del scoring.
 - `limite_por_sesion` — máximo por ejecución (default: 50)
 - `leer_cuerpo` — `true`/`false`, activa lectura del contenido del email
 - `modo` — `confirmacion` (default) | `lote` | `silencioso` | `simulacion`
