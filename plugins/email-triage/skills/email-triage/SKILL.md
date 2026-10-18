@@ -16,11 +16,11 @@ compatibility: >
   Claude Code, Claude Cowork y ChatGPT.
 license: Apache-2.0
 metadata:
-  version: "3.20.0"
+  version: "3.21.0"
   author: novanoticia
 ---
 
-# Email Triage v3.20 — Filtrado epistémico por valor diferencial
+# Email Triage v3.21 — Filtrado epistémico por valor diferencial
 
 ## Qué hace este skill
 
