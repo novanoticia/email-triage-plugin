@@ -680,9 +680,10 @@ telemetria:
 
   guardar_desglose: false
   # (v3.21, opt-in) Con true, cada sesión guarda el desglose completo del
-  # scoring en ~/.email-triage/desgloses/<session_id>.json, también en
-  # simulación (no alimenta el aprendizaje). Lo lee `diagnostico-ejes` para
-  # medir la saturación de ejes (ROADMAP P1). Sin texto de correos.
+  # scoring en ~/.email-triage/desgloses/<session_id>.jsonl (una línea por
+  # invocación, v3.21.5), también en simulación (no alimenta el
+  # aprendizaje). Lo lee `diagnostico-ejes` para medir la saturación de ejes
+  # (ROADMAP P1) y los correos repuntuados. Sin texto de correos.
 
 
 # ═══════════════════════════════════════════════════════════════

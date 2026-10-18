@@ -123,6 +123,99 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(r["ignorados"][0]["ruta"], os.path.join(d, "no.json"))
 
 
+def _cli_scoring(ruta, lote, *extra):
+    return subprocess.run([sys.executable, SCRIPT, "scoring", "--config", CFG,
+                           "--brief", *extra, "--desglose", ruta],
+                          input=json.dumps(lote), capture_output=True,
+                          text=True, check=True, timeout=60)
+
+
+class TestDesgloseAcumulado(unittest.TestCase):
+    """v3.21.5: `--desglose-append` añade una línea por invocación en vez de
+    sobrescribir. La sobrescritura borraba la primera pasada cuando el modelo
+    veía el lote y retocaba veredictos; ahora diagnostico-ejes lo detecta y
+    cuenta cada correo una sola vez (su última pasada)."""
+
+    LOTE1 = {"emails": [
+        {"id": 1, "verdicts": {"cambia_algo_concreto": "si"}},
+        {"id": 2, "verdicts": {"cambia_algo_concreto": "no"}},
+    ]}
+    LOTE2 = {"emails": [
+        {"id": 1, "verdicts": {"cambia_algo_concreto": "si",
+                               "cambio_predicciones": "si"}},
+    ]}
+
+    def test_dos_pasadas_un_repuntuado(self):
+        with tempfile.TemporaryDirectory() as d:
+            ruta = os.path.join(d, "desgloses", "s1.jsonl")
+            a = _cli_scoring(ruta, self.LOTE1, "--desglose-append")
+            _cli_scoring(ruta, self.LOTE2, "--desglose-append")
+            with open(ruta, encoding="utf-8") as f:
+                lineas = f.read().splitlines()
+            p = subprocess.run([sys.executable, SCRIPT, "diagnostico-ejes",
+                                "--desglose", ruta, "--config", CFG],
+                               capture_output=True, text=True, timeout=60)
+        self.assertNotIn("desglose_error", json.loads(a.stdout))
+        self.assertEqual(len(lineas), 2)
+        self.assertEqual(set(json.loads(lineas[0])), {"ts", "desglose"})
+        r = json.loads(p.stdout)
+        self.assertIs(r["ok"], True)
+        self.assertEqual(r["correos"], 2)          # no 3: el id 1 cuenta una vez
+        self.assertEqual(r["repuntuados"], 1)
+        rep = r["detalle_repuntuados"][0]
+        self.assertEqual((rep["id"], rep["pasadas"]), (1, 2))
+        self.assertEqual(rep["veredictos_cambiados"], ["cambio_predicciones"])
+        self.assertLess(rep["score_antes"], rep["score_despues"])
+
+    def test_sin_el_flag_sigue_sobrescribiendo(self):
+        with tempfile.TemporaryDirectory() as d:
+            ruta = os.path.join(d, "s1.json")
+            _cli_scoring(ruta, self.LOTE1)
+            _cli_scoring(ruta, self.LOTE2)
+            with open(ruta, encoding="utf-8") as f:
+                doc = json.load(f)
+        self.assertEqual([x["id"] for x in doc["resultados"]], [1])
+
+    def test_append_sin_ruta_avisa_y_no_escribe(self):
+        p = subprocess.run([sys.executable, SCRIPT, "scoring", "--config", CFG,
+                            "--brief", "--desglose-append"],
+                           input=json.dumps(self.LOTE1), capture_output=True,
+                           text=True, check=True, timeout=60)
+        out = json.loads(p.stdout)
+        self.assertIn("--desglose", out["desglose_error"])
+        self.assertEqual(len(out["resultados"]), 2)
+
+    def test_parsear_jsonl_de_una_linea_y_lineas_malas(self):
+        una = json.dumps({"ts": "t", "desglose": _res({"vd": 1}, {"vd": 1}, 1, 7)})
+        self.assertEqual(th._parsear_desglose(una)["pasadas"][0]["id"], 7)
+        doc = th._parsear_desglose(una + "\nbasura\n\n" + una)
+        self.assertEqual((len(doc["pasadas"]), doc["lineas_ignoradas"]), (2, [2]))
+        with self.assertRaises(ValueError):
+            th._parsear_desglose("basura\n{]")
+        # El formato de siempre (JSON sobrescrito) no cambia.
+        self.assertEqual(th._parsear_desglose('{"resultados": []}'),
+                         {"resultados": []})
+
+    def test_pasadas_sin_id_cuentan_todas(self):
+        r = th.cmd_diagnostico_ejes(
+            [{"pasadas": [_res({"vd": 1}, {"vd": 1}, 1),
+                          {"resultados": [_res({"vd": 2}, {"vd": 2}, 2),
+                                          _res({"vd": 3}, {"vd": 3}, 3, {"x": 1})]}],
+              "lineas_ignoradas": [4]}], {"tiers": TIERS})
+        self.assertEqual((r["correos"], r["repuntuados"]), (3, 0))
+        self.assertEqual(r["ignorados"][0]["linea"], 4)
+
+    def test_pasadas_basura_no_revienta(self):
+        rnd = random.Random(5)
+        trozos = [None, 1, "x", [], {}, {"id": 1}, {"resultados": "no"},
+                  _res({"vd": 1}, {"vd": 2}, 1, 1), {"id": [1]}]
+        for _ in range(300):
+            pas = [rnd.choice(trozos) for _ in range(rnd.randint(0, 5))]
+            r = th.cmd_diagnostico_ejes([{"pasadas": pas}], {"tiers": TIERS})
+            json.dumps(r)
+            self.assertIs(r["ok"], True)
+
+
 class TestDocumentacion(unittest.TestCase):
     def test_plantilla_lo_trae_apagado(self):
         try:
@@ -139,6 +232,12 @@ class TestDocumentacion(unittest.TestCase):
             skill = f.read()
         self.assertIn("telemetria.guardar_desglose: true", skill)
         self.assertIn("diagnostico-ejes", skill)
+        self.assertIn("--desglose-append", skill)
+
+    def test_claude_md_lo_anota_en_el_inventario(self):
+        with open(os.path.join(_RAIZ, "CLAUDE.md"), encoding="utf-8") as f:
+            self.assertIn("--desglose-append", f.read())
+        self.assertIn("--desglose-append", th.__doc__)
 
 
 if __name__ == "__main__":
