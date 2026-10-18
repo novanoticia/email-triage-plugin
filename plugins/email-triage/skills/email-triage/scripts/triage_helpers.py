@@ -102,6 +102,11 @@ Uso:
                             compara con los declarados; veredicto valido /
                             incompleto / sin_registro / sin_cerrar /
                             descuadre, y `cierre`. Solo lee)
+  python3 triage_helpers.py estado-log [--ruta RUTA] [--session SID] [--ultimas N]
+                            (v3.21.13, PASO 6: sin --session lista las
+                            últimas sesiones con algo que deshacer; con él,
+                            el último estado de cada correo y si es
+                            deshacible. Solo lee)
   python3 triage_helpers.py cerrar-lote [--ruta RUTA] [--datos JSON]
                             (v3.21.4: JSON {"session_id","salida"} con el
                             return literal del SCRIPT 3; añade vía registrar
@@ -2368,6 +2373,154 @@ def cmd_verificar_sesion(datos: dict) -> dict:
     return salida
 
 
+# v3.21.13: vista de solo lectura del session_log para el PASO 6. Deshacer
+# exigía que el modelo agrupara a mano el JSONL por session_id y aplicara
+# de cabeza la regla del punto 4 (pending/moved, sin move_failed, sin
+# undone posterior, fuera de los `fallidos` del cierre): la misma
+# aritmética mental que el resto del pipeline ya no hace. Este subcomando
+# la mecaniza; el undo solo mueve los `deshacibles` que devuelve.
+STATUS_DESHACIBLES = ("pending", "moved")
+ULTIMAS_SESIONES = 3
+
+
+def _estado_sesiones(registros):
+    """Agrupa los registros (en orden de append) por session_id y deduce
+    el último estado de cada message_id movido."""
+    sesiones = {}
+    for reg in registros:
+        sid = reg.get("session_id")
+        if not isinstance(sid, str) or not sid.strip():
+            continue
+        s = sesiones.setdefault(sid, {"correos": {}, "cierres": [],
+                                      "fallidos": set(), "ts": None})
+        ev = reg.get("event")
+        mid = reg.get("message_id")
+        if ev == EVENTO_CIERRE:
+            if _valida_cierre(reg) is None:
+                s["cierres"].append(reg)
+                s["fallidos"].update(reg.get("fallidos", []))
+            continue
+        if ev in ("move_failed", "undone", "undo_failed"):
+            if isinstance(mid, str):
+                if ev == "move_failed":
+                    s["fallidos"].add(mid)
+                elif mid in s["correos"]:
+                    s["correos"][mid]["undo"] = ev
+            continue
+        if not reg.get("to_folder") or not isinstance(mid, str):
+            continue              # telemetría, no movimiento
+        if s["ts"] is None and isinstance(reg.get("ts"), str):
+            s["ts"] = reg["ts"]
+        s["correos"][mid] = {"reg": reg, "undo": None}
+    return sesiones
+
+
+def _resumen_sesion(sid, s, detalle):
+    n_ok = sum(c["n_ok"] for c in s["cierres"])
+    registrados = len(s["correos"])
+    if not s["cierres"]:
+        cierre = "legado" if _sesion_legado(sid) else "sin_cerrar"
+    elif n_ok + len(s["fallidos"]) != registrados:
+        cierre = "descuadre"
+    else:
+        cierre = "confirmado"
+    correos, por_estado, por_tier = [], {}, {}
+    for mid, c in s["correos"].items():
+        reg = c["reg"]
+        if mid in s["fallidos"]:
+            estado = "fallido"
+        elif c["undo"] == "undone":
+            estado = "deshecho"
+        elif c["undo"] == "undo_failed":
+            estado = "undo_fallido"
+        elif cierre == "confirmado":
+            estado = "movido"
+        else:
+            estado = "registrado"
+        deshacible = (estado in ("movido", "registrado", "undo_fallido")
+                      and reg.get("status") in STATUS_DESHACIBLES)
+        tier = reg.get("tier") if isinstance(reg.get("tier"), str) else "?"
+        por_estado[estado] = por_estado.get(estado, 0) + 1
+        por_tier[tier] = por_tier.get(tier, 0) + 1
+        correos.append({"message_id": mid, "subject": reg.get("subject"),
+                        "from_folder": reg.get("from_folder"),
+                        "to_folder": reg.get("to_folder"), "tier": tier,
+                        "estado": estado, "deshacible": deshacible})
+    resumen = {"session_id": sid, "ts": s["ts"], "movimientos": registrados,
+               "deshacibles": sum(c["deshacible"] for c in correos),
+               "cierre": cierre, "por_estado": por_estado}
+    if detalle:
+        resumen["por_tier"] = por_tier
+        resumen["correos"] = correos
+    return resumen
+
+
+def cmd_estado_log(ruta=None, session=None, ultimas=ULTIMAS_SESIONES):
+    """Estado de las sesiones del session_log. Sin `session`: las `ultimas`
+    sesiones con algo que deshacer (la más reciente primero), para el punto
+    2 del PASO 6. Con `session`: cada correo movido con su último estado
+    (movido / registrado / fallido / deshecho / undo_fallido) y si es
+    `deshacible`, más recuentos por estado y tier.
+
+    SOLO LEE: no escribe ni mueve nada. TOTAL: nunca lanza."""
+    ruta = ruta or RUTA_SESSION_LOG
+    if not isinstance(ruta, str):
+        return {"ok": False, "error": "ruta debe ser una cadena"}
+    if session is not None and (not isinstance(session, str)
+                                or not session.strip()):
+        return {"ok": False, "error": "session debe ser una cadena no vacía"}
+    if isinstance(ultimas, bool) or not isinstance(ultimas, int) or ultimas < 1:
+        return {"ok": False, "error": "ultimas debe ser un entero >= 1"}
+    ruta_exp = _expandir(ruta)
+    total, cola = 0, deque(maxlen=MAX_LINEAS_SESSION_LOG)
+    try:
+        with open(ruta_exp, encoding="utf-8", errors="replace") as fh:
+            for linea in fh:
+                total += 1
+                cola.append(linea)
+    except FileNotFoundError:
+        return {"ok": True, "ruta": ruta_exp, "sesiones": [],
+                "aviso": "No hay sesiones anteriores registradas."}
+    except OSError as e:
+        return {"ok": False, "ruta": ruta_exp,
+                "error": "no se pudo leer %s: %s" % (ruta_exp, e)}
+    registros = []
+    for linea in cola:
+        try:
+            reg = json.loads(linea)
+        except (ValueError, TypeError):
+            continue              # línea corrupta o vacía: no revienta
+        if isinstance(reg, dict):
+            registros.append(reg)
+    sesiones = _estado_sesiones(registros)
+    salida = {"ok": True, "ruta": ruta_exp}
+    if session is not None:
+        sid = session.strip()
+        if sid not in sesiones or not sesiones[sid]["correos"]:
+            salida.update({"ok": False, "session_id": sid,
+                           "error": "la sesión %s no tiene movimientos en el "
+                                    "log" % sid})
+        else:
+            salida.update(_resumen_sesion(sid, sesiones[sid], True))
+    else:
+        # Orden de append: la última sesión en aparecer es la más reciente.
+        ofrecibles = [r for r in (_resumen_sesion(sid, s, False)
+                                  for sid, s in reversed(list(sesiones.items())))
+                      if r["deshacibles"]]
+        salida["sesiones"] = ofrecibles[:ultimas]
+        salida["total_sesiones"] = len(ofrecibles)
+        if not ofrecibles:
+            salida["aviso"] = ("No hay sesiones con movimientos por "
+                               "deshacer." if sesiones else
+                               "No hay sesiones anteriores registradas.")
+    if total > MAX_LINEAS_SESSION_LOG:
+        salida["truncado"] = True
+        salida["aviso_truncado"] = ("se leyeron las últimas %d líneas de %d; "
+                                    "compacta el log"
+                                    % (MAX_LINEAS_SESSION_LOG, total))
+    return salida
+
+
 # ════════════════════════════════════════════════════════════════
 # PASO 2 — calibración estadística mecanizada (CM2, auditoría 2026-07-19)
 # ════════════════════════════════════════════════════════════════
@@ -3875,6 +4028,13 @@ def _construir_parser():
     pe = sub.add_parser("escapar-applescript")
     pe.add_argument("--valores", default=None,
                     help='JSON {"valores":[...]}; sin él se lee de stdin')
+    pel = sub.add_parser("estado-log")
+    pel.add_argument("--ruta", default=RUTA_SESSION_LOG,
+                     help="session_log.jsonl (solo lectura)")
+    pel.add_argument("--session", default=None,
+                     help="session_id: detalle por correo; sin él, lista")
+    pel.add_argument("--ultimas", type=int, default=ULTIMAS_SESIONES,
+                     help="sesiones a listar (por defecto %d)" % ULTIMAS_SESIONES)
     pv = sub.add_parser("verificar-sesion")
     pv.add_argument("--datos", default=None,
                     help='JSON {"session_id":..,"esperados":N}; sin él, stdin')
@@ -4101,6 +4261,8 @@ def main():
             out = {"ok": False, "error": "JSON inválido: %s" % e}
         else:
             out = cmd_cerrar_lote(args.ruta, data)
+    elif args.cmd == "estado-log":
+        out = cmd_estado_log(args.ruta, args.session, args.ultimas)
     elif args.cmd == "verificar-sesion":
         crudo = (args.datos if args.datos is not None
                  else sys.stdin.read(MAX_INGESTA_BYTES))

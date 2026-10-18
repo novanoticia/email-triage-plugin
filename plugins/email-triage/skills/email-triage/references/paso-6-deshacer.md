@@ -9,11 +9,16 @@ Se activa cuando el usuario dice "deshaz el triaje", "undo", "revierte los movim
 
 ### Procedimiento
 
-1. **Leer el log**: acceder a `~/.email-triage/session_log.jsonl` con Desktop Commander.
-   Si no existe o está vacío, informar: "No hay sesiones anteriores registradas."
+1. **Leer el log** (v3.21.13: con el script, no a mano):
+   `python3 <scripts>/triage_helpers.py estado-log` lista las 3 sesiones más
+   recientes con algo que deshacer (`--ultimas N` para más). Solo lee; no
+   agrupes el JSONL tú. Si `sesiones` viene vacía y no hay log, informar:
+   "No hay sesiones anteriores registradas." Si hay log pero todo está ya
+   deshecho o fallido, dilo así (es lo que explica su `aviso`).
 
-2. **Identificar la última sesión**: agrupar las entradas por `session_id` y mostrar
-   las 3 más recientes para que el usuario elija cuál deshacer:
+2. **Identificar la última sesión**: muestra las de `sesiones` (ya vienen
+   agrupadas, la más reciente primero, con `deshacibles`) para que el usuario
+   elija cuál deshacer:
 
    ```
    Sesiones disponibles para deshacer:
@@ -29,7 +34,9 @@ Se activa cuando el usuario dice "deshaz el triaje", "undo", "revierte los movim
    ¿Confirmas? (sí/no)
    ```
 
-4. **Ejecutar el undo**: para cada entrada de movimiento de la sesión con
+4. **Ejecutar el undo**: `estado-log --session <id>` devuelve cada correo con
+   su `estado` y `deshacible`; revierte SOLO los que traen `deshacible: true`
+   (el script ya aplica esta regla) — para cada entrada de movimiento de la sesión con
    `status: pending` o `moved` (logs de versiones previas) que NO tenga un
    evento `move_failed` ni `undone` posterior con su `message_id` (ni figure
    en los `fallidos` de su `move_batch_done`, desde v3.21.4), mover el
