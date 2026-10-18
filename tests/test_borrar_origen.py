@@ -48,6 +48,7 @@ class TestBorrarOrigen(unittest.TestCase):
                             "--borrar-origen")
         self.assertIn("texto", r)
         self.assertEqual([x["borrado"] for x in r["origen_borrado"]], [True, True])
+        self.assertEqual(r["origen_pendiente"], [])
         self.assertFalse(os.path.exists(cuerpo))
         self.assertFalse(os.path.exists(meta))
 
@@ -61,7 +62,18 @@ class TestBorrarOrigen(unittest.TestCase):
         fuera = self._fichero(self.d.name, "importante.txt", "no me borres")
         r = self._sanitizar("--archivo", fuera, "--borrar-origen")
         self.assertIs(r["origen_borrado"][0]["borrado"], False)
+        self.assertEqual(r["origen_pendiente"], [fuera])   # visible, no oculto
         self.assertTrue(os.path.exists(fuera))
+
+    def test_borrado_fallido_queda_pendiente(self):
+        cuerpo = self._fichero(self.tmp, "tbody_5.txt", "texto")
+        os.chmod(self.tmp, 0o500)              # tmp/ de solo lectura
+        self.addCleanup(os.chmod, self.tmp, 0o700)
+        if os.access(self.tmp, os.W_OK):       # p. ej. ejecutando como root
+            self.skipTest("el sistema permite borrar aun sin permiso")
+        r = self._sanitizar("--archivo", cuerpo, "--borrar-origen")
+        self.assertIn("texto", r)
+        self.assertEqual(r["origen_pendiente"], [cuerpo])
 
     def test_symlink_en_tmp_hacia_fuera_no_se_sigue(self):
         fuera = self._fichero(self.d.name, "importante.txt", "no me borres")

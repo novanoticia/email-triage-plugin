@@ -314,7 +314,8 @@ python3 "<ruta-del-skill>/scripts/triage_helpers.py" sanitizar \
 ```
 
 `--borrar-origen` borra el cuerpo crudo y sus metadatos en cuanto quedan
-saneados (`origen_borrado`): no dependas de una limpieza al final.
+saneados: no dependas de una limpieza al final. Si `origen_pendiente` no
+está vacío, dilo y bórralos antes de seguir.
 
 **Datos del correo, siempre por fichero (F8, v3.15).** Asunto, remitente, message-id
 y cualquier texto de un correo se escriben en JSON con tu herramienta de escritura de

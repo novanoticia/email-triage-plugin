@@ -4156,6 +4156,11 @@ def main():
                 out = dict(out)
                 out["origen_borrado"] = [_borrar_crudo(r) for r in
                                          (args.archivo, args.metadatos) if r]
+                # Codex (PR 80): un borrado fallido no puede quedar escondido
+                # en una respuesta correcta. «No existe» no cuenta: ya no está.
+                out["origen_pendiente"] = [
+                    b["ruta"] for b in out["origen_borrado"]
+                    if not b["borrado"] and b.get("motivo") != "no existe"]
     json.dump(out, sys.stdout, ensure_ascii=False, indent=2)
     print()
 
