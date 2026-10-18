@@ -16,7 +16,7 @@ compatibility: >
   Claude Code, Claude Cowork y ChatGPT.
 license: Apache-2.0
 metadata:
-  version: "3.21.9"
+  version: "3.21.10"
   author: novanoticia
 ---
 
@@ -170,13 +170,15 @@ cualquier fase, valida el parseo:
 
 ```bash
 python3 "<ruta-del-skill>/scripts/triage_helpers.py" validar-config \
-  --config ~/.email-triage/config.yaml
+  --config ~/.email-triage/config.yaml --plantilla
 ```
 
 Si devuelve `{"ok": false, ...}`, **detente**: muestra `error` + `linea`/`columna`
 al usuario y ofrece arreglarlo (suele ser una indentación). Si trae `avisos`
 (p. ej. `correo.cuenta` vacío), resuélvelos —para la cuenta, autodetecta las
-cuentas de Mail antes de pedírsela al usuario.
+cuentas de Mail antes de pedírsela al usuario. Los de `desfase` (config más
+vieja que la plantilla) se le dicen a la persona; no edites su config sin que
+lo pida.
 
 Si no existe ninguno de los dos, pide al usuario estos campos mínimos:
 1. **nombre** y **perfil** (rol, formación, intereses)

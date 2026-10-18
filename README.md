@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.21.9
+# Email Triage Plugin v3.21.10
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,24 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.21.10
+
+- **`validar-config` avisa cuando tu config se ha quedado atrás.** Las
+  actualizaciones del plugin cambian la plantilla, pero nunca tu config
+  personal, así que con el tiempo se separan sin que lo notes. Ahora, al
+  arrancar, el skill compara las dos y te dice:
+  - de qué versión es tu config y de cuál la plantilla;
+  - qué criterios son core en la plantilla y no en tu config (o al revés);
+  - qué criterios u opciones nuevas no tienes, y que por eso toman su valor
+    por defecto.
+- Avisa también de dos fallos que se vieron en pruebas reales:
+  - `guardar_desglose` puesto fuera del bloque `telemetria:`, o con un valor
+    que no es `true` ni `false`. Así no se guarda nada, y por eso no aparecía
+    la carpeta `desgloses/`.
+  - Remitentes prioritarios escritos como nombre («Žižek») en vez de dirección
+    o dominio. Así no coinciden nunca.
+- Solo informa: no cambia tu config.
 
 ## Novedades en v3.21.9
 

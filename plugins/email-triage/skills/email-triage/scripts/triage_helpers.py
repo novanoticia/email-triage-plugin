@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.21.9).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.21.10).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -86,7 +86,7 @@ Uso:
                             --desglose escribe el desglose completo a RUTA y
                             deja stdout intacto; con --desglose-append añade
                             una línea JSONL por invocación en vez de sobrescribir)
-  python3 triage_helpers.py validar-config [--config RUTA]
+  python3 triage_helpers.py validar-config [--config RUTA] [--plantilla [RUTA]]
   python3 triage_helpers.py diagnostico-ejes --desglose RUTA [RUTA ...] [--config RUTA]
                             (P1: mide la saturación de ejes en desgloses
                             reales; solo lee, no escribe ni cambia scores)
@@ -1366,9 +1366,123 @@ def _payload_error_yaml(e):
     return info
 
 
-def cmd_validar_config(ruta: str) -> dict:
+RUTA_PLANTILLA = os.path.join(os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__))), "config.yaml")
+_RE_VERSION_CONFIG = re.compile(r"EMAIL TRIAGE v(\d+\.\d+)")
+
+
+def _core_activos(criterios):
+    if not isinstance(criterios, dict):
+        return set()
+    return {str(n) for n, c in criterios.items()
+            if isinstance(c, dict) and c.get("core") is True
+            and c.get("activo", True) is not False}
+
+
+def _avisos_config_usuario(data):
+    """v3.21.8 (pruebas reales 7-10): dos fallos de config que el usuario no
+    ve. `guardar_desglose` fuera de `telemetria` (o no booleano) no surte
+    efecto y no aparece `desgloses/`; y una entrada de remitentes que es un
+    nombre, no una dirección ni un dominio, no casa nunca en `coincidencias`."""
+    avisos, info = [], {}
+    tel = data.get("telemetria")
+    gd = tel.get("guardar_desglose") if isinstance(tel, dict) else None
+    # Presencia aparte del valor: «guardar_desglose:» vacío da None en YAML.
+    if (isinstance(tel, dict) and "guardar_desglose" in tel
+            and not isinstance(gd, bool)):
+        avisos.append("telemetria.guardar_desglose=%r debe ser true o false: "
+                      "con otro valor no se guarda ningún desglose" % (gd,))
+    fuera = ["(raíz)"] if "guardar_desglose" in data else []
+    fuera += [str(k) for k, v in data.items() if k != "telemetria"
+              and isinstance(v, dict) and "guardar_desglose" in v]
+    if fuera:
+        avisos.append("guardar_desglose está fuera del bloque telemetria (en %s): "
+                      "así no surte efecto; muévelo dentro de telemetria:"
+                      % ", ".join(fuera))
+    info["guardar_desglose_efectivo"] = gd is True
+    f = data.get("filtros") if isinstance(data.get("filtros"), dict) else {}
+    no_validas = []
+    for lista in ("remitentes_prioritarios", "remitentes_ignorar"):
+        v = f.get(lista)
+        if v is None:
+            continue
+        if not isinstance(v, list):
+            avisos.append("filtros.%s debe ser una lista: con otro valor se "
+                          "ignora entera" % lista)
+            continue
+        no_validas += [e for e in v if not isinstance(e, str)
+                       or _tipo_entrada(e) is None]
+    if no_validas:
+        avisos.append("%d entrada(s) de remitentes que no son dirección ni "
+                      "dominio y no casarán nunca (no se casa por nombre "
+                      "visible): %s" % (len(no_validas),
+                                        ", ".join(map(str, no_validas[:8]))))
+    info["remitentes_no_validos"] = [str(e) for e in no_validas]
+    return avisos, info
+
+
+def _desfase_plantilla(data, texto_usuario, ruta_plantilla):
+    """Compara el config del usuario con la plantilla del plugin, que se
+    sobrescribe en cada update mientras el config personal se queda como
+    estaba. Solo informa: nunca propone ni hace cambios."""
+    try:
+        import yaml
+        with open(ruta_plantilla, encoding="utf-8") as fh:
+            texto_p = fh.read()
+        p = yaml.safe_load(texto_p)
+    except Exception as e:   # plantilla ausente o rota: avisar, no fallar
+        return (["no se pudo leer la plantilla %s (%s): sin comparación"
+                 % (ruta_plantilla, type(e).__name__)], None)
+    if not isinstance(p, dict):
+        return (["la plantilla no es un mapeo: sin comparación"], None)
+    vu = _RE_VERSION_CONFIG.search(texto_usuario or "")
+    vp = _RE_VERSION_CONFIG.search(texto_p)
+    core_p = _core_activos(p.get("criterios_epistemicos"))
+    core_u = _core_activos(data.get("criterios_epistemicos"))
+    crit_u = data.get("criterios_epistemicos")
+    crit_u = crit_u if isinstance(crit_u, dict) else {}
+    nuevas = [str(k) for k in p if k not in data]
+    for k, v in p.items():
+        if (k != "criterios_epistemicos" and isinstance(v, dict)
+                and isinstance(data.get(k), dict)):
+            nuevas += ["%s.%s" % (k, s) for s in v if s not in data[k]]
+    d = {"version_config": vu.group(1) if vu else None,
+         "version_plantilla": vp.group(1) if vp else None,
+         "core_plantilla": len(core_p), "core_tuyo": len(core_u),
+         "core_faltan": sorted(core_p - core_u),
+         "core_sobran": sorted(core_u - core_p),
+         "criterios_ausentes": sorted(str(n) for n in
+                                      (p.get("criterios_epistemicos") or {})
+                                      if n not in crit_u),
+         "opciones_nuevas": sorted(nuevas)}
+    avisos = []
+    if d["version_plantilla"] and d["version_config"] != d["version_plantilla"]:
+        avisos.append("tu config es de v%s y la plantilla instalada de v%s: "
+                      "las actualizaciones no tocan tu config"
+                      % (d["version_config"] or "?", d["version_plantilla"]))
+    if d["core_faltan"] or d["core_sobran"]:
+        avisos.append("tu config marca %d criterios core y la plantilla %d "
+                      "(faltan: %s; de más: %s)"
+                      % (d["core_tuyo"], d["core_plantilla"],
+                         ", ".join(d["core_faltan"]) or "ninguno",
+                         ", ".join(d["core_sobran"]) or "ninguno"))
+    if d["criterios_ausentes"]:
+        avisos.append("%d criterio(s) de la plantilla no están en tu config: %s"
+                      % (len(d["criterios_ausentes"]),
+                         ", ".join(d["criterios_ausentes"][:8])))
+    if d["opciones_nuevas"]:
+        avisos.append("%d opción(es) de la plantilla que tu config no tiene "
+                      "(toman su valor por defecto): %s"
+                      % (len(d["opciones_nuevas"]),
+                         ", ".join(d["opciones_nuevas"][:8])))
+    return avisos, d
+
+
+def cmd_validar_config(ruta: str, plantilla: Optional[str] = None) -> dict:
     """Parsea el YAML y reporta ok/error+línea para que el SKILL pueda
-    abortar con un mensaje claro (y ofrecer autofix) antes de operar."""
+    abortar con un mensaje claro (y ofrecer autofix) antes de operar.
+    Con `plantilla` (v3.21.8) compara además con la plantilla del plugin y
+    añade `desfase`; sin ella la salida no cambia salvo los avisos nuevos."""
     try:
         import yaml
     except ImportError:
@@ -1378,7 +1492,8 @@ def cmd_validar_config(ruta: str) -> dict:
         return {"ok": False, "error": "no existe: %s" % ruta}
     try:
         with open(ruta, encoding="utf-8") as fh:
-            data = yaml.safe_load(fh)
+            texto_config = fh.read()
+        data = yaml.safe_load(texto_config)
     except OSError as e:
         # Config ilegible (permisos, E/S): mismo contrato que un YAML roto —
         # error legible para que PASO 0 lo reporte, nunca un traceback.
@@ -1608,7 +1723,14 @@ def cmd_validar_config(ruta: str) -> dict:
             "positivo: %s — cada perfil debe ser un numero de caracteres "
             "(p. ej. rapido: 800)"
             % (len(perfiles_invalidos), ", ".join(perfiles_invalidos[:8])))
-    return {"ok": True, "claves_top": sorted(data.keys()),
+    avisos_usuario, info_usuario = _avisos_config_usuario(data)
+    avisos += avisos_usuario
+    desfase = None
+    if plantilla:
+        avisos_desfase, desfase = _desfase_plantilla(data, texto_config,
+                                                     plantilla)
+        avisos += avisos_desfase
+    salida = {"ok": True, "claves_top": sorted(data.keys()),
             "campos_recomendados_ausentes": faltan, "avisos": avisos,
             "criterios_sin_eje": sin_eje,
             "criterios_eje_desconocido": eje_desconocido,
@@ -1624,6 +1746,10 @@ def cmd_validar_config(ruta: str) -> dict:
             "extraccion_cruda_max_invalido": extraccion_invalida,
             "perfiles_no_mapa": perfiles_no_mapa,
             "perfiles_invalidos": perfiles_invalidos}
+    salida.update(info_usuario)
+    if plantilla:
+        salida["desfase"] = desfase
+    return salida
 
 
 # ════════════════════════════════════════════════════════════════
@@ -3695,6 +3821,10 @@ def _construir_parser():
     pv = sub.add_parser("validar-config")
     pv.add_argument("--config",
                     default=_expandir("~/.email-triage/config.yaml"))
+    pv.add_argument("--plantilla", nargs="?", const=RUTA_PLANTILLA,
+                    default=None, metavar="RUTA",
+                    help="compara con la plantilla del plugin (por defecto la "
+                         "instalada junto al skill) y añade `desfase` — v3.21.8")
     pr = sub.add_parser("registrar")
     pr.add_argument("--ruta", required=True,
                     help="fichero JSONL destino (append atómico con flock)")
@@ -3828,7 +3958,7 @@ def main():
                 out = dict(out)
                 out["desglose_error"] = "--desglose-append requiere --desglose RUTA"
     elif args.cmd == "validar-config":
-        out = cmd_validar_config(args.config)
+        out = cmd_validar_config(args.config, args.plantilla)
     elif args.cmd == "registrar":
         crudo = (args.registro if args.registro is not None
                  else sys.stdin.read(MAX_INGESTA_BYTES))
