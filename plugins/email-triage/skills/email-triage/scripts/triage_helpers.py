@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.21.1).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.21.2).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -1524,6 +1524,41 @@ def _fd_apunta_a(fd, ruta):
         return True
 
 
+ORIGENES_MOVIMIENTO = ("triaje", "regla_manual")
+
+
+def _valida_movimiento(registro):
+    """v3.21.2 (pruebas reales, problema 2): un registro de MOVIMIENTO (el que
+    lleva `to_folder`, mismo criterio que verificar-sesion) debe decir de dónde
+    sale. O es triaje —con `score` numérico, prueba de que pasó por el
+    scoring— o es `origen: "regla_manual"` con su `regla` (p. ej.
+    "remitente=x@y"), pedido explícitamente por la persona. Sin esto, mover por
+    remitente se registraba y se daba por bueno como si fuera un triaje.
+    Devuelve None si vale, o el payload de error."""
+    if not registro.get("to_folder"):
+        return None              # correcciones, eventos, telemetría: libres
+    origen = registro.get("origen", "triaje")
+    if origen not in ORIGENES_MOVIMIENTO:
+        return {"ok": False, "error": "origen desconocido %r; opciones: %s"
+                % (origen, list(ORIGENES_MOVIMIENTO))}
+    score = registro.get("score")
+    if origen == "regla_manual":
+        regla = registro.get("regla")
+        if not isinstance(regla, str) or not regla.strip():
+            return {"ok": False, "error": "movimiento por regla manual sin "
+                    "`regla` (p. ej. \"remitente=x@y\")"}
+        return None
+    if isinstance(score, bool) or not isinstance(score, (int, float)):
+        return {"ok": False,
+                "error": "movimiento sin `score` numérico: no pasó por el "
+                         "scoring y no puede registrarse como triaje",
+                "remedio": "puntúa el correo con `scoring`, o, si la persona "
+                           "pidió mover por una regla (remitente, asunto), "
+                           "registra con \"origen\": \"regla_manual\" y "
+                           "\"regla\": \"...\""}
+    return None
+
+
 def cmd_registrar(ruta: str, registro: dict) -> dict:
     """Append atómico de `registro` como una línea JSON en `ruta`.
 
@@ -1534,6 +1569,9 @@ def cmd_registrar(ruta: str, registro: dict) -> dict:
     """
     if not isinstance(registro, dict):
         return {"ok": False, "error": "el registro debe ser un objeto JSON"}
+    invalido = _valida_movimiento(registro)
+    if invalido:
+        return invalido
     try:
         linea = json.dumps(registro, ensure_ascii=False, separators=(",", ":"))
     except (TypeError, ValueError) as e:
@@ -1805,6 +1843,7 @@ def cmd_verificar_sesion(datos: dict) -> dict:
     ruta_exp = _expandir(ruta)
 
     encontrados, truncado = [], False
+    por_origen = {"triaje": 0, "regla_manual": 0, "otro": 0}
     try:
         # QW1 (auditoría 2026-08-07, F1): session_log.jsonl es APPEND-ONLY, así
         # que la sesión que se acaba de ejecutar está al FINAL. Leer las
@@ -1836,6 +1875,8 @@ def cmd_verificar_sesion(datos: dict) -> dict:
                 continue
             mid = reg.get("message_id")
             encontrados.append(mid if isinstance(mid, str) else None)
+            o = reg.get("origen", "triaje")
+            por_origen[o if o in ORIGENES_MOVIMIENTO else "otro"] += 1
     except FileNotFoundError:
         return {"ok": False, "veredicto": "sin_registro", "session_id": sid,
                 "registrados": 0, "esperados": esperados, "faltan": esperados,
@@ -1860,7 +1901,10 @@ def cmd_verificar_sesion(datos: dict) -> dict:
     salida = {"ok": veredicto == "valido", "veredicto": veredicto,
               "session_id": sid, "registrados": registrados,
               "esperados": esperados, "faltan": faltan, "ruta": ruta_exp,
-              "message_ids": encontrados}
+              "message_ids": encontrados,
+              # v3.21.2: cuántos movimientos salieron del scoring y cuántos
+              # de una regla manual pedida por la persona (no son triaje).
+              "por_origen": por_origen}
     if truncado:
         salida["truncado"] = True
         salida["aviso"] = ("se leyeron las últimas %d líneas de %d; compacta "

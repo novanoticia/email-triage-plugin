@@ -3138,7 +3138,10 @@ class TestVerificarSesion(unittest.TestCase):
         self.assertEqual(os.stat(laxo).st_mode & 0o777, 0o755)
         out = th.cmd_registrar(os.path.join(laxo, "session_log.jsonl"),
                                {"session_id": "S1", "message_id": "a@x",
-                                "to_folder": "ARCHIVE-TRIAGE"})
+                                "to_folder": "ARCHIVE-TRIAGE",
+                                # v3.21.2: un movimiento lleva score o es
+                                # regla manual (lo que aquí se prueba es 700).
+                                "score": -2})
         self.assertTrue(out["ok"], out)
         self.assertEqual(os.stat(laxo).st_mode & 0o777, 0o700)
 
