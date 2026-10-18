@@ -6,7 +6,7 @@ frases:
   # ── SKILL.md · avisos de modo ──
   - {clave: aviso.simulacion_activa, fichero: SKILL.md, cita: true,
      patron: '(?s)^(> 🧪 \*\*Modo simulación activo\*\* — analizaré y clasificaré todos los correos\n> pero NO moveré ninguno\. Al final verás exactamente qué habría ocurrido\.)$'}
-  - {clave: aviso.rutina_inicio, fichero: SKILL.md, cita: true,
+  - {clave: aviso.rutina_inicio, fichero: references/modo-rutina.md, cita: true,
      patron: '^\s*(> ⏱️ \*\*Inicio:\*\* HH:MM:SS — modo rutina \(silencioso con umbral\))$'}
   - {clave: config.plantilla, fichero: SKILL.md, plano: true, riesgo: normal,
      patron: '(?s)"(He encontrado solo la plantilla\..*?sobreviva a las\s+actualizaciones\?)"'}

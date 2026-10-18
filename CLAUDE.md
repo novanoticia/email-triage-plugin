@@ -249,6 +249,12 @@ eso `es`. La regla vive en `scripts/idioma.py` y en un bloque de `SKILL.md`.
   la base se mueve en un commit propio: `COMMIT_BASE` en `scripts/i18n_baseline.py`
   al commit que contiene el cambio, `python3 scripts/i18n_baseline.py generar` y
   explicación en el mensaje. Nunca para tapar un cambio accidental.
+  **Instrucciones al modelo ≠ literales visibles** (decisión del
+  mantenedor, 2026-10-18): una regla o un paso para el modelo («dilo con el
+  número», «lee X AHORA») no es una frase que la persona vea tal cual, y
+  puede ir fuera de bloque `i18n` como cambio intencionado del original, con
+  la base movida en commit propio. Al catálogo solo va el texto que se
+  muestra literalmente (avisos, plantillas, frases de `riesgo: alto`).
 - **No escribas literales visibles nuevos fuera del catálogo.** Una frase nueva que la
   persona vea es una clave de `i18n/*.yaml`; añádela al manifiesto
   `scripts/i18n_fuentes.yaml` (es una regex sobre el original, nunca el texto copiado) y

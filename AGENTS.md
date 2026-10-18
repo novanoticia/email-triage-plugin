@@ -51,7 +51,9 @@ AppleScript / MCP de Gmail.
 - **Multiidioma (i18n)**: lo visible para la persona sale de `i18n/<código>.yaml`
   (`es` generado, `en`/`fr` borrador de IA sin revisar). Las adiciones a `SKILL.md`
   van entre `<!-- i18n:inicio -->` y `<!-- i18n:fin -->`; no se escriben literales
-  nuevos fuera del catálogo; `es.yaml` no se edita a mano. La detección de inyección S0
+  nuevos fuera del catálogo; `es.yaml` no se edita a mano. Una instrucción al
+  modelo (regla, paso) no es un literal visible: puede ir fuera de bloque como
+  cambio intencionado del original, con la línea base movida (ver `CLAUDE.md`). La detección de inyección S0
   cubre **español, inglés y francés** y **no cambia con `idioma=`**. Detalle en `CLAUDE.md`.
 - Cambios en scoring o en S0–S5 → **añade un test** que fije el comportamiento.
 
