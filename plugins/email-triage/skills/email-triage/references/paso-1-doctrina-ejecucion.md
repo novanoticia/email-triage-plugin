@@ -14,17 +14,24 @@ SCRIPT 1 v1, que emite metadatos tras volcar los 50 cuerpos) pierde TODA la
 salida en un timeout aunque el trabajo ya esté hecho en disco.
 
 **Nunca ejecutes un read de Mail esperando la salida directa del conector.**
-Usa siempre el patrón background + poll:
+Usa siempre el patrón background + espera por condición:
 
 ```bash
 # 1. lanzar en segundo plano, redirigiendo a fichero
 cd ~/.email-triage/tmp && nohup osascript read_meta.scpt > out_meta.txt 2>&1 &
 
-# 2. poll en llamadas cortas hasta que aparezca el marcador de fin
+# 2. esperar al marcador de fin con un bucle acotado (< 50 s por llamada)
 #    (metadatos: la primera línea "TOTAL:"; cuerpos: "bodies_ok:")
-sleep 40; head -1 out_meta.txt        # ¿ya hay TOTAL:?
-# repetir sleep/cat hasta que el fichero esté completo
+t=0; until grep -q '^TOTAL:' out_meta.txt 2>/dev/null || [ $t -ge 45 ]; do sleep 3; t=$((t+3)); done; head -1 out_meta.txt
+# si aún no está, repite SOLO el paso 2
 ```
+
+**Nunca encadenes `sleep N; cat …` para esperar** (v3.21.6, prueba real
+2026-10-18): Claude Code bloquea ese patrón y la lectura se queda a medias. Si
+el host ofrece ejecución en segundo plano con aviso de fin (en Claude Code,
+`run_in_background` o `Monitor`), úsala para el paso 1 y espera el aviso; si
+no, el bucle `until` de arriba, que termina en cuanto aparece el marcador y
+nunca pasa de ~45 s por llamada (el conector expira hacia los 60 s).
 
 ## Regla 1 — Matar zombis ANTES de relanzar
 
@@ -33,7 +40,8 @@ instancias golpean Mail a la vez, se ralentizan entre sí y pueden dejar los
 `tbody_*.txt` en estado inconsistente. Antes de cada relanzamiento de una lectura:
 
 ```bash
-pkill -f read_meta.scpt; pkill -f read_bodies.scpt; sleep 3
+pkill -f read_meta.scpt; pkill -f read_bodies.scpt
+t=0; until ! pgrep -f 'read_(meta|bodies).scpt' >/dev/null || [ $t -ge 15 ]; do sleep 1; t=$((t+1)); done
 pgrep -f read_bodies.scpt | wc -l   # debe ser 0 antes de seguir
 ```
 
