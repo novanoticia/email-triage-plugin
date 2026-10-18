@@ -213,6 +213,9 @@ rompes la conformidad (gate #7) y el skill deja de cargar fuera de Claude.
   script manda sobre la impresión del modelo. Si añades una vía nueva de
   mover correo, tiene que pasar por `montar-mover` y quedar registrada, o el
   triaje deja de ser auditable y de alimentar la calibración.
+  Desde v3.21.2 `registrar` rechaza un movimiento sin `score` numérico salvo
+  que declare `"origen": "regla_manual"` con su `regla`: mover por remitente
+  es legítimo si la persona lo pide, pero nunca se registra como triaje.
 - `~/.email-triage/` y su `tmp/` van a **700**; los cuerpos crudos temporales se
   borran tras leerlos.
 - El **config del usuario vive FUERA del repo** en `~/.email-triage/config.yaml`.
