@@ -1387,7 +1387,9 @@ def _avisos_config_usuario(data):
     avisos, info = [], {}
     tel = data.get("telemetria")
     gd = tel.get("guardar_desglose") if isinstance(tel, dict) else None
-    if gd is not None and not isinstance(gd, bool):
+    # Presencia aparte del valor: «guardar_desglose:» vacío da None en YAML.
+    if (isinstance(tel, dict) and "guardar_desglose" in tel
+            and not isinstance(gd, bool)):
         avisos.append("telemetria.guardar_desglose=%r debe ser true o false: "
                       "con otro valor no se guarda ningún desglose" % (gd,))
     fuera = ["(raíz)"] if "guardar_desglose" in data else []

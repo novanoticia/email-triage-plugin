@@ -103,6 +103,9 @@ class TestAvisosDelUsuario(_Base):
         r = self._validar(self.cfg, plantilla=None)
         self.assertIs(r["guardar_desglose_efectivo"], False)
         self.assertTrue(any("true o false" in a for a in r["avisos"]))
+        self.cfg["telemetria"]["guardar_desglose"] = None   # «clave:» vacía
+        r = self._validar(self.cfg, plantilla=None)
+        self.assertTrue(any("true o false" in a for a in r["avisos"]))
         self.cfg["telemetria"]["guardar_desglose"] = True
         self.assertIs(self._validar(self.cfg, plantilla=None)
                       ["guardar_desglose_efectivo"], True)
