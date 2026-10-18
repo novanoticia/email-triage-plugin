@@ -532,6 +532,8 @@ no existen). Derivan de las listas del config (`remitentes_prioritarios`,
 `palabras_clave_*`) y de la calibración (PASO 0.B / PASO 2). En modo
 determinista se suman entre sí y se pasan como un único entero en
 `extra_points`; en modo mental se aplican con este mismo baremo.
+Los de `filtros` los calcula `coincidencias` (v3.21.8, ver
+`references/personalizacion.md`): no los cuentes a mano.
 
 | Fuente | Puntos | Condición |
 |--------|--------|-----------|

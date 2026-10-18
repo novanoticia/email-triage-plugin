@@ -295,7 +295,8 @@ scoring:
 
 filtros:
   remitentes_prioritarios: []
-  # Direcciones que reciben +3 puntos automáticos.
+  # Direcciones que reciben +3 puntos automáticos. Dirección («ana@x.com»,
+  # el +sufijo se ignora) o dominio («@x.com»); nunca el nombre visible.
 
   remitentes_ignorar: []
   # Direcciones que se saltan completamente (-99).
