@@ -907,6 +907,15 @@ línea de evento e informar al usuario:
 {"event":"move_failed","session_id":"...","message_id":"<id>","ts":"ISO8601"}
 ```
 
+Al terminar el SCRIPT 3, **cierra el lote** pegando su return literal (sin
+resumirlo): `cerrar-lote` lo parsea y registra cuántos se movieron y cuáles
+fallaron. Sin cierre, el PASO 5.V da `sin_cerrar`.
+
+```bash
+# cerrar-lote.json: {"session_id":"<SID>","salida":"<return del SCRIPT 3>"}
+python3 "<ruta-del-skill>/scripts/triage_helpers.py" cerrar-lote < ~/.email-triage/tmp/cerrar-lote.json
+```
+
 #### Dónde escribir
 
 **Vía canónica (v3.8.2)**: usar el helper `registrar`, que hace un **append
@@ -960,6 +969,8 @@ El veredicto del script manda sobre tu propia impresión de haber terminado:
   resumen, con el número de movimientos declarados y el de registrados, y no
   informes de éxito. Si moviste correo, se movió fuera del pipeline: repara el
   registro con `registrar` antes de declarar nada.
+- `sin_cerrar` o `descuadre` → tampoco es válido: falta el `cerrar-lote` o
+  sus cuentas no cuadran con lo registrado. Dilo con `n_ok` y `fallidos`.
 
 ### Por qué existe este paso
 

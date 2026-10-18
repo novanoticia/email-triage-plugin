@@ -3056,8 +3056,14 @@ class TestVerificarSesion(unittest.TestCase):
         return {"session_id": sid, "message_id": mid, "to_folder": carpeta,
                 "tier": "ARCHIVE"}
 
+    def _cierre(self, sid, n_ok, fallidos=()):
+        # v3.21.4: sin cierre del lote, una sesión actual es `sin_cerrar`.
+        return {"event": "move_batch_done", "session_id": sid,
+                "n_ok": n_ok, "fallidos": list(fallidos)}
+
     def test_sesion_completa_es_valida(self):
-        self._escribir([self._mov("S1", "a@x"), self._mov("S1", "b@x")])
+        self._escribir([self._mov("S1", "a@x"), self._mov("S1", "b@x"),
+                        self._cierre("S1", 2)])
         out = th.cmd_verificar_sesion(
             {"session_id": "S1", "esperados": 2, "ruta": self.ruta})
         self.assertTrue(out["ok"])
@@ -3105,6 +3111,7 @@ class TestVerificarSesion(unittest.TestCase):
         with open(self.ruta, "w", encoding="utf-8") as fh:
             fh.write("esto no es json\n")
             fh.write(json.dumps(self._mov("S3", "d@x")) + "\n")
+            fh.write(json.dumps(self._cierre("S3", 1)) + "\n")
         out = th.cmd_verificar_sesion(
             {"session_id": "S3", "esperados": 1, "ruta": self.ruta})
         self.assertTrue(out["ok"])
@@ -3155,7 +3162,8 @@ class TestVerificarSesion(unittest.TestCase):
         try:
             viejos = [self._mov("VIEJA", "old%d@x" % i) for i in range(50)]
             self._escribir(viejos + [self._mov("HOY", "a@x"),
-                                     self._mov("HOY", "b@x")])
+                                     self._mov("HOY", "b@x"),
+                                     self._cierre("HOY", 2)])
             out = th.cmd_verificar_sesion(
                 {"session_id": "HOY", "esperados": 2, "ruta": self.ruta})
             self.assertTrue(out["ok"], out)
