@@ -3148,7 +3148,9 @@ class TestVerificarSesion(unittest.TestCase):
                                 "to_folder": "ARCHIVE-TRIAGE",
                                 # v3.21.2: un movimiento lleva score o es
                                 # regla manual (lo que aquí se prueba es 700).
-                                "score": -2})
+                                "score": -2,
+                                # v3.21.12: y el score es del script.
+                                "modo_scoring": "determinista"})
         self.assertTrue(out["ok"], out)
         self.assertEqual(os.stat(laxo).st_mode & 0o777, 0o700)
 

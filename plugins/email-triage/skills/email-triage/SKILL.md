@@ -613,6 +613,10 @@ en `config.yaml`:
 1. Permanente: `scoring.modo: determinista` en `config.yaml`.
 2. Por sesión: el usuario lo pide en el chat ("modo determinista", "scoring
    determinista"). Esta petición del usuario tiene prioridad sobre el config.
+3. **Siempre antes de mover en real** (v3.21.12), como en rutina: `mental`
+   sirve para clasificar y proponer, pero lo que se mueva se repuntúa con el
+   script, y su registro lleva `"modo_scoring": "determinista"`. Si el script
+   falla, no se mueve nada.
 
 **Cómo se invoca** (solo en modo determinista). Por cada correo, tras evaluar
 los criterios, pasa los veredictos al script. Fija los veredictos de cada correo
@@ -875,7 +879,7 @@ movimiento, el log conserva el rastro).
 #### Formato de entrada
 
 ```
-{"session_id":"YYYYMMDD-HHMMSS","ts":"ISO8601","message_id":"<id>","subject":"...","from":"...","from_folder":"...","to_folder":"...","tier":"REVIEW","score":7,"status":"pending"}
+{"session_id":"YYYYMMDD-HHMMSS","ts":"ISO8601","message_id":"<id>","subject":"...","from":"...","from_folder":"...","to_folder":"...","tier":"REVIEW","score":7,"modo_scoring":"determinista","status":"pending"}
 ```
 
 Un movimiento sin `score` es **regla manual** y solo si la persona lo pide

@@ -231,6 +231,10 @@ rompes la conformidad (gate #7) y el skill deja de cargar fuera de Claude.
   como triaje un movimiento con `plantilla: true`: el 2026-10-18 se movieron
   49 correos con veredictos asignados por remitente. Es una huella, no una
   prueba; el freno es que no cuenten como triaje.
+  Desde v3.21.12 un movimiento de triaje exige además
+  `"modo_scoring": "determinista"`: en modo `mental` no actúa ninguno de
+  esos frenos (prueba real 11), así que puntuar de cabeza sirve para
+  proponer, no para mover.
 - `~/.email-triage/` y su `tmp/` van a **700**; los cuerpos crudos temporales se
   borran tras leerlos.
 - El **config del usuario vive FUERA del repo** en `~/.email-triage/config.yaml`.

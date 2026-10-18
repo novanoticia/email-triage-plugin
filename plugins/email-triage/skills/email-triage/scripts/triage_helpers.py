@@ -1856,6 +1856,18 @@ def _negativa_movimiento(registro):
                            "la persona decide moverlo igualmente, registra con "
                            "\"origen\": \"regla_manual\" y \"regla\": "
                            "\"plantilla=...\""}
+    if (not (isinstance(score, bool) or not isinstance(score, (int, float)))
+            and registro.get("modo_scoring") != "determinista"):
+        # v3.21.12 (prueba real 11): en modo `mental` el score lo calcula el
+        # modelo y no actúa ningún freno mecánico (plantilla, coincidencias,
+        # P2). Puntuar de cabeza vale para proponer; para mover, no.
+        return {"ok": False,
+                "error": "movimiento con score sin `modo_scoring: "
+                         "\"determinista\"`: un score mental no basta para "
+                         "mover como triaje",
+                "remedio": "repuntúa con `triage_helpers.py scoring` y registra "
+                           "\"modo_scoring\": \"determinista\"; si el script "
+                           "falla, no muevas"}
     if isinstance(score, bool) or not isinstance(score, (int, float)):
         return {"ok": False,
                 "error": "movimiento sin `score` numérico: no pasó por el "
