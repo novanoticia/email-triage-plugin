@@ -16,7 +16,7 @@ compatibility: >
   Claude Code, Claude Cowork y ChatGPT.
 license: Apache-2.0
 metadata:
-  version: "3.21.6"
+  version: "3.21.7"
   author: novanoticia
 ---
 
@@ -933,6 +933,7 @@ python3 "<ruta-del-skill>/scripts/triage_helpers.py" registrar --ruta ~/.email-t
 
 El mismo helper sirve para `correcciones.jsonl`. Devuelve `{"ok":true,...}` o
 `{"ok":false,"error":...}`; si falla, avisa al usuario y continúa el triaje.
+Si trae `bloquea_movimiento`, ese correo **no se mueve** (ni por el fallback).
 
 **Fallback**: si no puedes ejecutar Python, usar Desktop Commander (`write_file`)
 para añadir la línea a `~/.email-triage/session_log.jsonl` (crear el directorio
@@ -1000,6 +1001,11 @@ tiene dos costes que no se ven en la bandeja:
   AppleScript escrito a mano. Va el Message-ID RFC (`message id of msg`),
   nunca el `id` numérico de Mail: `montar-mover` lo rechaza y hay que
   releer los metadatos, no reintentar.
+- Si `scoring` devuelve `alerta_plantilla`, esos correos tienen veredictos
+  idénticos en bloque: no consta que se evaluaran uno a uno y **no se mueven
+  como triaje**. Dilo con el número; evalúalos por separado o, si la persona
+  lo decide, muévelos como `regla_manual`. Copia `plantilla` al registro:
+  `registrar` lo rechaza como triaje.
 - Todo movimiento se registra con `registrar` (PASO 4.I) **antes** de
   informarlo como hecho.
 - Nunca digas «N/N movidos» sin la salida del comando que los movió y el

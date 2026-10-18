@@ -203,7 +203,27 @@ def validar(p):
                            "payload_scoring": entrada, "resultado": score,
                            "evidencias": fila["evidencias"], "resumen": fila["resumen"],
                            "revision_obligatoria": True})
-    return {"ok": True, "resultados": resultados}
+    salida = {"ok": True, "resultados": resultados}
+    _frenar_plantillas(salida)
+    return salida
+
+
+def _frenar_plantillas(salida):
+    """v3.21.7: el freno de plantilla de triage_helpers también para el lote
+    delegado, que se puntúa correo a correo. Las propuestas con veredictos
+    idénticos en bloque vuelven al principal. Jev guarda el score en
+    `propuesta`; la delegación nativa, en `resultado`."""
+    validas = [(r, r.get("resultado", r.get("propuesta")))
+               for r in salida["resultados"] if "payload_scoring" in r]
+    validas = [(r, sc) for r, sc in validas if isinstance(sc, dict)]
+    alerta = th._alerta_plantilla([r["payload_scoring"] for r, _ in validas],
+                                  [sc for _, sc in validas])
+    if not alerta:
+        return
+    salida["alerta_plantilla"] = alerta
+    for r, sc in validas:
+        if sc.get("plantilla"):
+            r.update(usar_principal=True, motivo="plantilla")
 
 
 def comparar(p):

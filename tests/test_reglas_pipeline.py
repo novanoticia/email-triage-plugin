@@ -312,5 +312,117 @@ class TestEsperaSinSleepEncadenado(unittest.TestCase):
         self.assertIn("run_in_background", doc)
 
 
+
+class TestFrenoPlantilla(unittest.TestCase):
+    """v3.21.7 (prueba real 9): un lote con veredictos asignados por remitente
+    se movió como si fuera triaje. scoring marca el bloque idéntico y
+    registrar se niega a contarlo como triaje."""
+
+    V = {"cambia_algo_concreto": "no", "cambio_predicciones": "no",
+         "hug_the_query": "tangencial"}
+
+    def _lote(self, n_iguales, n_distintos=0):
+        emails = [{"id": i, "verdicts": dict(self.V)} for i in range(n_iguales)]
+        for j in range(n_distintos):
+            v = dict(self.V)
+            v["cambia_algo_concreto"] = "si" if j % 2 else "parcial"
+            v["extra_%d" % j] = "no"
+            emails.append({"id": 100 + j, "verdicts": v})
+        return {"emails": emails}
+
+    def _cfg(self):
+        import triage_helpers as th
+        return th._cargar_config(os.path.join(
+            _RAIZ, "plugins", "email-triage", "skills", "email-triage",
+            "config.yaml"))
+
+    def setUp(self):
+        try:
+            import yaml  # noqa: F401
+        except ImportError:
+            self.skipTest("PyYAML no instalado")
+        import triage_helpers as th
+        self.th = th
+
+    def test_bloque_de_cinco_iguales_se_marca(self):
+        out = self.th.cmd_scoring_dispatch(self._lote(5, 2), self._cfg(),
+                                           brief=True)
+        alerta = out["alerta_plantilla"]
+        self.assertEqual(alerta["correos"], 5)
+        self.assertEqual(alerta["grupos"][0]["ids"], [0, 1, 2, 3, 4])
+        marcados = [r["id"] for r in out["resultados"] if r.get("plantilla")]
+        self.assertEqual(marcados, [0, 1, 2, 3, 4])
+
+    def test_cuatro_iguales_no_alertan(self):
+        out = self.th.cmd_scoring_dispatch(self._lote(4, 3), self._cfg())
+        self.assertNotIn("alerta_plantilla", out)
+        self.assertFalse(any(r.get("plantilla") for r in out["resultados"]))
+
+    def test_pocos_criterios_no_cuentan(self):
+        lote = {"emails": [{"id": i, "verdicts": {"cambia_algo_concreto": "no"}}
+                           for i in range(8)]}
+        self.assertNotIn("alerta_plantilla",
+                         self.th.cmd_scoring_dispatch(lote, self._cfg()))
+
+    def test_items_raros_no_revientan(self):
+        lote = self._lote(5)
+        lote["emails"] += [None, 3, {"id": 9, "verdicts": "x"},
+                           {"id": 10, "verdicts": {"a": object(), "b": 1, "c": 2}}]
+        out = self.th.cmd_scoring_dispatch(lote, self._cfg())
+        self.assertEqual(out["alerta_plantilla"]["correos"], 5)
+
+    def test_registrar_rechaza_plantilla_como_triaje(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            ruta = os.path.join(d, "s.jsonl")
+            mov = {"event": "move", "message_id": "<a@b>", "to_folder": "X",
+                   "score": -6, "plantilla": True}
+            r = self.th.cmd_registrar(ruta, mov)
+            self.assertIs(r["ok"], False)
+            self.assertIn("regla_manual", r["remedio"])
+            self.assertFalse(os.path.exists(ruta))
+            mov.update(origen="regla_manual", regla="plantilla=remitente")
+            self.assertIs(self.th.cmd_registrar(ruta, mov)["ok"], True)
+            mov2 = dict(mov, plantilla=False, origen="triaje")
+            self.assertIs(self.th.cmd_registrar(ruta, mov2)["ok"], True)
+
+    def test_toda_negativa_de_movimiento_bloquea(self):
+        # Codex P1: el SKILL decía «si registrar falla, avisa y continúa».
+        casos = [{"to_folder": "X", "score": 1, "plantilla": True},
+                 {"to_folder": "X"},
+                 {"to_folder": "X", "origen": "raro", "score": 1},
+                 {"to_folder": "X", "origen": "regla_manual"}]
+        for reg in casos:
+            with self.subTest(reg=reg):
+                self.assertIs(self.th._valida_movimiento(reg)["bloquea_movimiento"],
+                              True)
+        self.assertIsNone(self.th._valida_movimiento({"to_folder": "X",
+                                                      "score": 1}))
+
+    def test_lote_delegado_tambien_frena(self):
+        # Codex P1: modelos.py y jev.py puntúan correo a correo.
+        import modelos
+        cfg = self._cfg()
+        filas = []
+        for i in range(6):
+            pay = {"id": i, "verdicts": dict(self.V)}
+            clave = "resultado" if i % 2 else "propuesta"   # nativo / Jev
+            filas.append({"id": i, "usar_principal": False, "motivo": "x",
+                          "payload_scoring": pay,
+                          clave: self.th.cmd_scoring_dispatch(pay, cfg)})
+        filas.append({"id": 9, "usar_principal": True, "motivo": "control_invalido"})
+        salida = {"ok": True, "resultados": filas}
+        modelos._frenar_plantillas(salida)
+        self.assertEqual(salida["alerta_plantilla"]["correos"], 6)
+        self.assertTrue(all(r["usar_principal"] for r in filas))
+        self.assertEqual({r["motivo"] for r in filas[:6]}, {"plantilla"})
+
+    def test_skill_y_claude_md_lo_documentan(self):
+        self.assertIn("alerta_plantilla", _leer("SKILL.md"))
+        self.assertIn("bloquea_movimiento", _leer("SKILL.md"))
+        with open(os.path.join(_RAIZ, "CLAUDE.md"), encoding="utf-8") as f:
+            self.assertIn("plantilla", f.read())
+
+
 if __name__ == "__main__":
     unittest.main()
