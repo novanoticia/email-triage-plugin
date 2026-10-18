@@ -154,6 +154,24 @@ class TestEstadoLog(unittest.TestCase):
         self.assertNotIn("truncado", r)
         self.assertTrue(th.cmd_estado_log(self.ruta)["truncado"])
 
+    def test_reintento_tras_fallo_es_deshacible(self):
+        s = "20261018-100000"
+        self._log(_mov(s, "a"),
+                  {"session_id": s, "event": "move_failed", "message_id": "a"},
+                  {"session_id": s, "event": EVENTO, "n_ok": 0,
+                   "fallidos": ["a"]},
+                  _mov(s, "a"),
+                  {"session_id": s, "event": EVENTO, "n_ok": 1,
+                   "fallidos": []})
+        r = th.cmd_estado_log(self.ruta, s)
+        self.assertEqual(r["correos"][0]["estado"], "movido")
+        self.assertTrue(r["correos"][0]["deshacible"])
+
+    def test_session_sin_log_falla(self):
+        r = th.cmd_estado_log(self.ruta, "20261018-100000")
+        self.assertFalse(r["ok"])
+        self.assertNotIn("sesiones", r)
+
     def test_solo_lee(self):
         s = "20261018-100000"
         self._log(_mov(s, "a"))

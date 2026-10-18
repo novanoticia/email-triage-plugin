@@ -2416,6 +2416,9 @@ def _estado_sesiones(registros):
             continue              # telemetría, no movimiento
         if s["ts"] is None and isinstance(reg.get("ts"), str):
             s["ts"] = reg["ts"]
+        # Un movimiento nuevo del mismo mid (reintento) abre otra época:
+        # el fallo anterior ya no describe este movimiento.
+        s["fallidos"].discard(mid)
         s["correos"][mid] = {"reg": reg, "undo": None}
     return sesiones
 
@@ -2510,6 +2513,10 @@ def cmd_estado_log(ruta=None, session=None, ultimas=ULTIMAS_SESIONES):
                 if sid is None or sid in linea:
                     cola.append(linea)
     except FileNotFoundError:
+        if sid is not None:
+            return {"ok": False, "ruta": ruta_exp, "session_id": sid,
+                    "error": "no existe %s: no hay nada que deshacer de la "
+                             "sesión %s" % (ruta_exp, sid)}
         return {"ok": True, "ruta": ruta_exp, "sesiones": [],
                 "aviso": "No hay sesiones anteriores registradas."}
     except OSError as e:
