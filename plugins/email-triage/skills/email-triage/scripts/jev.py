@@ -414,6 +414,7 @@ def _procesar(p, cfg, capa, transporte, modo):
             salida["comparacion"] = (modelos.comparar({"base": bases, "propuesta": propuestas})
                                       if bases else {"total": 0, "diferencias": []})
         else:
+            modelos._frenar_plantillas(salida)
             salida["usar_principal"] = any(r["usar_principal"] for r in salida["resultados"])
         salida["sin_propuesta"] = len(filas) - len(propuestas)
         salida["cobertura"] = {"correos_total": len(filas)}

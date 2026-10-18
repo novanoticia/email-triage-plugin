@@ -1673,9 +1673,18 @@ def _valida_movimiento(registro):
     scoring— o es `origen: "regla_manual"` con su `regla` (p. ej.
     "remitente=x@y"), pedido explícitamente por la persona. Sin esto, mover por
     remitente se registraba y se daba por bueno como si fuera un triaje.
-    Devuelve None si vale, o el payload de error."""
+    Devuelve None si vale, o el payload de error, que siempre lleva
+    `bloquea_movimiento: true` (v3.21.7): es una negativa de política, no un
+    fallo de escritura, y ese correo NO se mueve, ni por el fallback."""
     if not registro.get("to_folder"):
         return None              # correcciones, eventos, telemetría: libres
+    error = _negativa_movimiento(registro)
+    if error:
+        error["bloquea_movimiento"] = True
+    return error
+
+
+def _negativa_movimiento(registro):
     origen = registro.get("origen", "triaje")
     if origen not in ORIGENES_MOVIMIENTO:
         return {"ok": False, "error": "origen desconocido %r; opciones: %s"

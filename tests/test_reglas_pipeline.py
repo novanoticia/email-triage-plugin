@@ -386,8 +386,40 @@ class TestFrenoPlantilla(unittest.TestCase):
             mov2 = dict(mov, plantilla=False, origen="triaje")
             self.assertIs(self.th.cmd_registrar(ruta, mov2)["ok"], True)
 
+    def test_toda_negativa_de_movimiento_bloquea(self):
+        # Codex P1: el SKILL decía «si registrar falla, avisa y continúa».
+        casos = [{"to_folder": "X", "score": 1, "plantilla": True},
+                 {"to_folder": "X"},
+                 {"to_folder": "X", "origen": "raro", "score": 1},
+                 {"to_folder": "X", "origen": "regla_manual"}]
+        for reg in casos:
+            with self.subTest(reg=reg):
+                self.assertIs(self.th._valida_movimiento(reg)["bloquea_movimiento"],
+                              True)
+        self.assertIsNone(self.th._valida_movimiento({"to_folder": "X",
+                                                      "score": 1}))
+
+    def test_lote_delegado_tambien_frena(self):
+        # Codex P1: modelos.py y jev.py puntúan correo a correo.
+        import modelos
+        cfg = self._cfg()
+        filas = []
+        for i in range(6):
+            pay = {"id": i, "verdicts": dict(self.V)}
+            clave = "resultado" if i % 2 else "propuesta"   # nativo / Jev
+            filas.append({"id": i, "usar_principal": False, "motivo": "x",
+                          "payload_scoring": pay,
+                          clave: self.th.cmd_scoring_dispatch(pay, cfg)})
+        filas.append({"id": 9, "usar_principal": True, "motivo": "control_invalido"})
+        salida = {"ok": True, "resultados": filas}
+        modelos._frenar_plantillas(salida)
+        self.assertEqual(salida["alerta_plantilla"]["correos"], 6)
+        self.assertTrue(all(r["usar_principal"] for r in filas))
+        self.assertEqual({r["motivo"] for r in filas[:6]}, {"plantilla"})
+
     def test_skill_y_claude_md_lo_documentan(self):
         self.assertIn("alerta_plantilla", _leer("SKILL.md"))
+        self.assertIn("bloquea_movimiento", _leer("SKILL.md"))
         with open(os.path.join(_RAIZ, "CLAUDE.md"), encoding="utf-8") as f:
             self.assertIn("plantilla", f.read())
 

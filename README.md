@@ -102,6 +102,10 @@ relue par un humain. / Traducción generada por una IA, sin revisión humana.
   como tal.
 - Es una señal, no una prueba: diez promociones idénticas pueden coincidir de
   verdad. Por eso no bloquea el movimiento; impide que cuente como triaje.
+- Cuando `registrar` rechaza un movimiento por estas reglas, la respuesta lo
+  dice (`bloquea_movimiento`) y ese correo no se mueve. Antes, ante cualquier
+  fallo de `registrar`, la instrucción era avisar y seguir. El aviso cubre
+  también los lotes puntuados por un modelo delegado (modo híbrido).
 
 ## Novedades en v3.21.6
 
