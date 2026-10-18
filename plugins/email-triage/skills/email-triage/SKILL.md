@@ -16,7 +16,7 @@ compatibility: >
   Claude Code, Claude Cowork y ChatGPT.
 license: Apache-2.0
 metadata:
-  version: "3.21.12"
+  version: "3.21.13"
   author: novanoticia
 ---
 
@@ -1061,7 +1061,8 @@ resumen, nunca aborta la sesión.
 
 Se activa con "deshaz el triaje", "undo", "revierte los movimientos" o similar.
 **Lee `references/paso-6-deshacer.md`** y sigue su protocolo (usa la telemetría
-de la última sesión para revertir movimientos; nunca improvises los mids).
+de la última sesión para revertir movimientos; nunca improvises los mids:
+los da `estado-log`).
 
 ## Errores comunes a evitar
 
