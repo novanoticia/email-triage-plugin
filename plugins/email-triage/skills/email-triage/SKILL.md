@@ -16,7 +16,7 @@ compatibility: >
   Claude Code, Claude Cowork y ChatGPT.
 license: Apache-2.0
 metadata:
-  version: "3.21.10"
+  version: "3.21.11"
   author: novanoticia
 ---
 
@@ -309,9 +309,13 @@ entre en el contexto de evaluación:
 # meta_N.json: {"asunto": "...", "remitente": "..."}
 python3 "<ruta-del-skill>/scripts/triage_helpers.py" sanitizar \
   --archivo ~/.email-triage/tmp/tbody_N.txt \
-  --metadatos ~/.email-triage/tmp/meta_N.json \
+  --metadatos ~/.email-triage/tmp/meta_N.json --borrar-origen \
   --max-chars <valor de puntuacion.max_caracteres_cuerpo del config>
 ```
+
+`--borrar-origen` borra el cuerpo crudo y sus metadatos en cuanto quedan
+saneados: no dependas de una limpieza al final. Si `origen_pendiente` no
+está vacío, dilo y bórralos antes de seguir.
 
 **Datos del correo, siempre por fichero (F8, v3.15).** Asunto, remitente, message-id
 y cualquier texto de un correo se escriben en JSON con tu herramienta de escritura de
