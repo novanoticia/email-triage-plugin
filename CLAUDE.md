@@ -216,6 +216,9 @@ rompes la conformidad (gate #7) y el skill deja de cargar fuera de Claude.
   Desde v3.21.2 `registrar` rechaza un movimiento sin `score` numérico salvo
   que declare `"origen": "regla_manual"` con su `regla`: mover por remitente
   es legítimo si la persona lo pide, pero nunca se registra como triaje.
+  Desde v3.21.4 cada lote movido se cierra con `cerrar-lote` (escribe vía
+  `registrar`, no es una escritura nueva): sin ese evento `move_batch_done`,
+  `verificar-sesion` da `sin_cerrar` y el triaje no es válido.
 - `~/.email-triage/` y su `tmp/` van a **700**; los cuerpos crudos temporales se
   borran tras leerlos.
 - El **config del usuario vive FUERA del repo** en `~/.email-triage/config.yaml`.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.21.3).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.21.4).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -99,7 +99,12 @@ Uso:
                             (PASO 5.V: cuenta los movimientos que la sesión
                             registró de verdad en session_log.jsonl y los
                             compara con los declarados; veredicto valido /
-                            incompleto / sin_registro. Solo lee)
+                            incompleto / sin_registro / sin_cerrar /
+                            descuadre, y `cierre`. Solo lee)
+  python3 triage_helpers.py cerrar-lote [--ruta RUTA] [--datos JSON]
+                            (v3.21.4: JSON {"session_id","salida"} con el
+                            return literal del SCRIPT 3; añade vía registrar
+                            el evento move_batch_done con n_ok y fallidos)
   python3 triage_helpers.py montar-mover [--datos JSON]
                             (SCRIPT 3 de mover con todo escapado; 3 destinos:
                             review, archive nativo o a carpeta, y reply_needed)
@@ -150,6 +155,8 @@ Efectos laterales — inventario CERRADO de escrituras a disco, cada una de
 su clase (CM2, auditoría 2026-07-19):
   1. 'registrar':          append atómico con flock a los JSONL de DATOS
                            (correcciones.jsonl / session_log.jsonl, append-only);
+                           'cerrar-lote' (v3.21.4) escribe A TRAVÉS de él: no
+                           es una escritura nueva, solo arma el evento;
   2. 'compactar':          mantenimiento explícito — REESCRIBE ese JSONL bajo
                            el mismo flock (temp + os.replace) truncándolo;
   3. 'calibrar --guardar': snapshot de CACHÉ regenerable (calibracion.json,
@@ -1559,6 +1566,30 @@ def _valida_movimiento(registro):
     return None
 
 
+EVENTO_CIERRE = "move_batch_done"
+
+
+def _valida_cierre(registro):
+    """v3.21.4 (pruebas reales, problema 4): el evento que cierra un lote
+    movido debe traer lo que lo hace útil para verificar-sesion. None si vale
+    (o si no es un cierre), o el payload de error."""
+    if registro.get("event") != EVENTO_CIERRE:
+        return None
+    sid = registro.get("session_id")
+    n_ok = registro.get("n_ok")
+    fallidos = registro.get("fallidos", [])
+    if not isinstance(sid, str) or not sid.strip():
+        return {"ok": False, "error": "%s sin session_id" % EVENTO_CIERRE}
+    if isinstance(n_ok, bool) or not isinstance(n_ok, int) or n_ok < 0:
+        return {"ok": False, "error": "%s: n_ok debe ser un entero >= 0"
+                % EVENTO_CIERRE}
+    if (not isinstance(fallidos, list)
+            or any(not isinstance(m, str) for m in fallidos)):
+        return {"ok": False, "error": "%s: fallidos debe ser una lista de "
+                "message-ids" % EVENTO_CIERRE}
+    return None
+
+
 def cmd_registrar(ruta: str, registro: dict) -> dict:
     """Append atómico de `registro` como una línea JSON en `ruta`.
 
@@ -1569,7 +1600,7 @@ def cmd_registrar(ruta: str, registro: dict) -> dict:
     """
     if not isinstance(registro, dict):
         return {"ok": False, "error": "el registro debe ser un objeto JSON"}
-    invalido = _valida_movimiento(registro)
+    invalido = _valida_movimiento(registro) or _valida_cierre(registro)
     if invalido:
         return invalido
     try:
@@ -1807,12 +1838,84 @@ RUTA_SESSION_LOG = "~/.email-triage/session_log.jsonl"
 MAX_LINEAS_SESSION_LOG = 50_000
 
 
+# Salida del SCRIPT 3 de montar-mover, p. ej.:
+#   movidos_review:3/4 movidos_archive:2/2 archivo_nativo_fallido:0 |
+#   fallidos_review:[x@y] fallidos_archive:[] | src_restantes:12
+_RE_MOVIDOS = re.compile(r"movidos_(review|archive|reply):(\d+)/(\d+)")
+_RE_FALLIDOS = re.compile(r"fallidos_(review|archive|reply):\[([^\]]*)\]")
+
+
+def _parsear_salida_mover(texto):
+    """{"n_ok", "n_lanzados", "fallidos"} a partir del return del SCRIPT 3, o
+    None si el texto no tiene esa forma. Determinista: el modelo pega la
+    salida tal cual y no suma nada de cabeza."""
+    if not isinstance(texto, str):
+        return None
+    movidos = _RE_MOVIDOS.findall(texto)
+    if not movidos:
+        return None
+    fallidos = []
+    for _, lista in _RE_FALLIDOS.findall(texto):
+        fallidos += [m.strip() for m in lista.split(",") if m.strip()]
+    return {"n_ok": sum(int(ok) for _, ok, _ in movidos),
+            "n_lanzados": sum(int(n) for _, _, n in movidos),
+            "fallidos": fallidos}
+
+
+def cmd_cerrar_lote(ruta: str, datos: dict) -> dict:
+    """Registra el cierre de un lote movido (v3.21.4, problema 4).
+
+    Entrada: {"session_id", "salida": <texto devuelto por el SCRIPT 3>}.
+    Parsea la salida y añade al log, VÍA cmd_registrar, una línea
+    {"event": "move_batch_done", "session_id", "ts", "n_ok", "n_lanzados",
+    "fallidos"}. Sin este evento, las entradas `pending` del log no
+    distinguen «movido» de «lanzado y el proceso murió» ni de «nunca se
+    lanzó». No reescribe nada (append-only) y nunca mueve correos. TOTAL.
+    """
+    if not isinstance(datos, dict):
+        return {"ok": False, "error": "se esperaba un objeto JSON con "
+                "session_id y salida"}
+    sid = datos.get("session_id")
+    if not isinstance(sid, str) or not sid.strip():
+        return {"ok": False, "error": "session_id ausente o no es una cadena"}
+    parsed = _parsear_salida_mover(datos.get("salida"))
+    if parsed is None:
+        return {"ok": False, "error": "la salida no tiene la forma del SCRIPT "
+                "3 de montar-mover (movidos_review:N/M ...); pega su return "
+                "literal, sin resumirlo"}
+    evento = {"event": EVENTO_CIERRE, "session_id": sid.strip(),
+              "ts": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+    evento.update(parsed)
+    out = cmd_registrar(ruta, evento)
+    if out.get("ok"):
+        out = dict(out)
+        out.update(parsed)
+    return out
+
+
+# Sesiones anteriores a v3.21.4 no podían escribir el cierre: se informan como
+# `legado` en vez de romper su veredicto. Se deduce del session_id
+# (YYYYMMDD-HHMMSS, formato del SKILL); uno sin ese formato se trata como
+# actual, que es lo seguro.
+FECHA_CIERRE_OBLIGATORIO = "20261018"
+_RE_SID_FECHA = re.compile(r"^(\d{8})-\d{6}$")
+
+
+def _sesion_legado(sid):
+    m = _RE_SID_FECHA.match(sid)
+    return bool(m) and m.group(1) < FECHA_CIERRE_OBLIGATORIO
+
+
 def cmd_verificar_sesion(datos: dict) -> dict:
     """Comprueba que `session_id` dejó tantos registros como movimientos declara.
 
     Entrada: {"session_id": str, "esperados": int, "ruta": str opcional}.
-    Salida: veredicto en {"valido", "incompleto", "sin_registro"} más los
-    message_id encontrados, para poder señalar cuáles faltan.
+    Salida: veredicto en {"valido", "incompleto", "sin_registro",
+    "sin_cerrar", "descuadre"} más los message_id encontrados, para poder
+    señalar cuáles faltan. v3.21.4: `cierre` dice si el lote se cerró con
+    `cerrar-lote` ("confirmado"), no ("sin_cerrar"), sus cuentas no cuadran
+    con los movimientos registrados ("descuadre") o la sesión es anterior al
+    cierre ("legado", no rompe el veredicto).
 
     TOTAL: cualquier entrada devuelve un dict serializable; nunca lanza. Un
     fichero ausente NO es un error del comando — es el hallazgo que buscamos, y
@@ -1843,6 +1946,7 @@ def cmd_verificar_sesion(datos: dict) -> dict:
     ruta_exp = _expandir(ruta)
 
     encontrados, truncado = [], False
+    cierres, fallidos_ev = [], set()
     por_origen = {"triaje": 0, "regla_manual": 0, "otro": 0}
     try:
         # QW1 (auditoría 2026-08-07, F1): session_log.jsonl es APPEND-ONLY, así
@@ -1868,6 +1972,14 @@ def cmd_verificar_sesion(datos: dict) -> dict:
             except (ValueError, TypeError):
                 continue              # línea corrupta: no cuenta, no revienta
             if not isinstance(reg, dict) or reg.get("session_id") != sid:
+                continue
+            if reg.get("event") == EVENTO_CIERRE:
+                if _valida_cierre(reg) is None:
+                    cierres.append(reg)
+                continue
+            if reg.get("event") == "move_failed":
+                if isinstance(reg.get("message_id"), str):
+                    fallidos_ev.add(reg["message_id"])
                 continue
             # Solo cuentan los registros de MOVIMIENTO: un registro sin
             # to_folder es telemetría, no prueba de que se movió nada.
@@ -1898,18 +2010,43 @@ def cmd_verificar_sesion(datos: dict) -> dict:
     else:
         veredicto = "valido"
 
+    # v3.21.4: el recuento solo prueba que se REGISTRÓ; el cierre prueba que
+    # el script de mover terminó y dice cuántos movió de verdad.
+    fallidos = sorted(fallidos_ev.union(
+        *[set(c.get("fallidos", [])) for c in cierres]))
+    n_ok = sum(c["n_ok"] for c in cierres)
+    if not cierres:
+        cierre = "legado" if _sesion_legado(sid) else "sin_cerrar"
+    elif n_ok + len(fallidos) != registrados:
+        cierre = "descuadre"
+    else:
+        cierre = "confirmado"
+    if veredicto == "valido" and cierre in ("sin_cerrar", "descuadre"):
+        veredicto = cierre
+
     salida = {"ok": veredicto == "valido", "veredicto": veredicto,
               "session_id": sid, "registrados": registrados,
               "esperados": esperados, "faltan": faltan, "ruta": ruta_exp,
               "message_ids": encontrados,
               # v3.21.2: cuántos movimientos salieron del scoring y cuántos
               # de una regla manual pedida por la persona (no son triaje).
-              "por_origen": por_origen}
+              "por_origen": por_origen,
+              "cierre": cierre, "n_ok": n_ok, "fallidos": fallidos}
     if truncado:
         salida["truncado"] = True
         salida["aviso"] = ("se leyeron las últimas %d líneas de %d; compacta "
                            "el log" % (MAX_LINEAS_SESSION_LOG, total))
-    if veredicto != "valido":
+    if veredicto == "sin_cerrar":
+        salida["error"] = (
+            "el triaje NO es válido: hay %d movimiento(s) registrados pero "
+            "ningún cierre. Sin `cerrar-lote` no se sabe si el script de "
+            "mover terminó, falló a mitad o no llegó a ejecutarse." % registrados)
+    elif veredicto == "descuadre":
+        salida["error"] = (
+            "el triaje NO es válido: el cierre dice %d movido(s) y %d "
+            "fallido(s), pero hay %d registrado(s)." % (n_ok, len(fallidos),
+                                                        registrados))
+    elif veredicto != "valido":
         salida["error"] = (
             "el triaje NO es válido: declara %d movimiento(s) y el log tiene "
             "%d. Un resultado correcto sin registro significa que el correo se "
@@ -3236,6 +3373,11 @@ def _construir_parser():
                     help="fichero JSONL destino (append atómico con flock)")
     pr.add_argument("--registro", default=None,
                     help="registro JSON en línea; sin él se lee de stdin")
+    pcl = sub.add_parser("cerrar-lote")
+    pcl.add_argument("--ruta", default=RUTA_SESSION_LOG,
+                     help="session_log.jsonl (append vía registrar)")
+    pcl.add_argument("--datos", default=None,
+                     help='JSON {"session_id":..,"salida":".."}; sin él, stdin')
     pe = sub.add_parser("escapar-applescript")
     pe.add_argument("--valores", default=None,
                     help='JSON {"valores":[...]}; sin él se lee de stdin')
@@ -3424,6 +3566,15 @@ def main():
             out = {"ok": False, "error": "JSON inválido: %s" % e}
         else:
             out = cmd_montar_consulta_enviados(data)
+    elif args.cmd == "cerrar-lote":
+        crudo = (args.datos if args.datos is not None
+                 else sys.stdin.read(MAX_INGESTA_BYTES))
+        try:
+            data = json.loads(crudo or "{}")
+        except json.JSONDecodeError as e:
+            out = {"ok": False, "error": "JSON inválido: %s" % e}
+        else:
+            out = cmd_cerrar_lote(args.ruta, data)
     elif args.cmd == "verificar-sesion":
         crudo = (args.datos if args.datos is not None
                  else sys.stdin.read(MAX_INGESTA_BYTES))

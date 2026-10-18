@@ -104,6 +104,8 @@ class TestMovimientoSinScoring(unittest.TestCase):
         self.th.cmd_registrar(self.ruta, self._mov(score=3))
         self.th.cmd_registrar(self.ruta, self._mov(
             message_id="b@x", origen="regla_manual", regla="remitente=z"))
+        self.th.cmd_registrar(self.ruta, {"event": "move_batch_done",
+                                          "session_id": "S1", "n_ok": 2})
         out = self.th.cmd_verificar_sesion(
             {"session_id": "S1", "esperados": 2, "ruta": self.ruta})
         self.assertEqual(out["veredicto"], "valido")
@@ -174,6 +176,110 @@ class TestIdsInternosDeMail(unittest.TestCase):
         out = self._mover(mids_review=["CAF=1234@mail.gmail.com"])
         self.assertTrue(out["ok"])
         self.assertEqual(out["sospechosos"], [])
+
+
+class TestCierreDeLote(unittest.TestCase):
+    """Problema 4: las entradas `pending` nunca se cerraban, así que el log no
+    distinguía «movido» de «lanzado y murió» ni de «nunca se lanzó»."""
+
+    SALIDA = ("movidos_review:2/3 movidos_archive:1/1 archivo_nativo_fallido:0"
+              " | fallidos_review:[c@x] fallidos_archive:[] | src_restantes:7")
+
+    def setUp(self):
+        import tempfile
+        sys.path.insert(0, DIR_SCRIPTS)
+        import triage_helpers as th
+        self.th = th
+        self.dir = tempfile.mkdtemp()
+        self.ruta = os.path.join(self.dir, "session_log.jsonl")
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def _movs(self, sid, mids):
+        for m in mids:
+            self.assertTrue(self.th.cmd_registrar(self.ruta, {
+                "session_id": sid, "message_id": m, "to_folder": "R",
+                "score": 5, "status": "pending"})["ok"])
+
+    def _verificar(self, sid, n):
+        return self.th.cmd_verificar_sesion(
+            {"session_id": sid, "esperados": n, "ruta": self.ruta})
+
+    def test_parsea_la_salida_del_script_3(self):
+        self.assertEqual(self.th._parsear_salida_mover(self.SALIDA),
+                         {"n_ok": 3, "n_lanzados": 4, "fallidos": ["c@x"]})
+        for malo in (None, "", "ok", 3, "movidos 3 de 4"):
+            self.assertIsNone(self.th._parsear_salida_mover(malo))
+
+    def test_cerrar_lote_confirma_la_sesion(self):
+        self._movs("S1", ["a@x", "b@x", "c@x", "d@x"])
+        out = self.th.cmd_cerrar_lote(self.ruta, {"session_id": "S1",
+                                                  "salida": self.SALIDA})
+        self.assertTrue(out["ok"], out)
+        v = self._verificar("S1", 4)
+        self.assertEqual((v["veredicto"], v["cierre"]), ("valido", "confirmado"))
+        self.assertEqual((v["n_ok"], v["fallidos"]), (3, ["c@x"]))
+
+    def test_sin_cierre_no_es_valido(self):
+        self._movs("S1", ["a@x", "b@x"])
+        v = self._verificar("S1", 2)
+        self.assertFalse(v["ok"])
+        self.assertEqual((v["veredicto"], v["cierre"]),
+                         ("sin_cerrar", "sin_cerrar"))
+        self.assertIn("cerrar-lote", v["error"])
+
+    def test_cierre_que_no_cuadra_es_descuadre(self):
+        self._movs("S1", ["a@x", "b@x", "c@x"])
+        self.th.cmd_cerrar_lote(self.ruta, {"session_id": "S1",
+                                            "salida": self.SALIDA})
+        v = self._verificar("S1", 3)
+        self.assertEqual(v["veredicto"], "descuadre")
+
+    def test_move_failed_cuenta_como_fallido(self):
+        self._movs("S1", ["a@x", "b@x"])
+        self.th.cmd_registrar(self.ruta, {"event": "move_failed",
+                                          "session_id": "S1",
+                                          "message_id": "b@x"})
+        self.th.cmd_registrar(self.ruta, {"event": "move_batch_done",
+                                          "session_id": "S1", "n_ok": 1})
+        v = self._verificar("S1", 2)
+        self.assertEqual((v["cierre"], v["fallidos"]), ("confirmado", ["b@x"]))
+
+    def test_sesion_anterior_es_legado(self):
+        self._movs("20261001-090000", ["a@x"])
+        v = self._verificar("20261001-090000", 1)
+        self.assertEqual((v["veredicto"], v["cierre"]), ("valido", "legado"))
+        self._movs("20261018-090000", ["b@x"])
+        self.assertEqual(self._verificar("20261018-090000", 1)["cierre"],
+                         "sin_cerrar")
+
+    def test_salida_ilegible_no_escribe(self):
+        out = self.th.cmd_cerrar_lote(self.ruta, {"session_id": "S1",
+                                                  "salida": "todo bien"})
+        self.assertFalse(out["ok"])
+        self.assertFalse(os.path.exists(self.ruta))
+
+    def test_registrar_valida_el_evento(self):
+        for malo in ({"n_ok": -1}, {"n_ok": "3"}, {"n_ok": True},
+                     {"n_ok": 1, "fallidos": "x"}, {"n_ok": 1, "fallidos": [1]}):
+            r = {"event": "move_batch_done", "session_id": "S1"}
+            r.update(malo)
+            self.assertFalse(self.th.cmd_registrar(self.ruta, r)["ok"], malo)
+        self.assertFalse(self.th.cmd_registrar(
+            self.ruta, {"event": "move_batch_done", "n_ok": 1})["ok"])
+
+    def test_entradas_raras_no_lanzan(self):
+        import json
+        for d in (None, [], "x", {}, {"session_id": 3}, {"session_id": "S"},
+                  {"session_id": "S", "salida": ["movidos_review:1/1"]}):
+            json.dumps(self.th.cmd_cerrar_lote(self.ruta, d))
+
+    def test_el_skill_lo_documenta(self):
+        skill = _leer("SKILL.md")
+        self.assertIn("cerrar-lote", skill)
+        self.assertIn("`sin_cerrar`", skill)
 
 
 if __name__ == "__main__":
