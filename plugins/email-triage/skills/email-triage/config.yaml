@@ -1,5 +1,5 @@
 # ═══════════════════════════════════════════════════════════════
-# EMAIL TRIAGE v3.20 — Configuración del usuario
+# EMAIL TRIAGE v3.21 — Configuración del usuario
 # ═══════════════════════════════════════════════════════════════
 #
 # Este archivo define quién eres, qué te importa, cómo se
@@ -677,6 +677,12 @@ telemetria:
 
   exportar_mal_clasificados: true
   # Marca los correos donde el usuario corrigió para análisis.
+
+  guardar_desglose: false
+  # (v3.21, opt-in) Con true, cada sesión guarda el desglose completo del
+  # scoring en ~/.email-triage/desgloses/<session_id>.json, también en
+  # simulación (no alimenta el aprendizaje). Lo lee `diagnostico-ejes` para
+  # medir la saturación de ejes (ROADMAP P1). Sin texto de correos.
 
 
 # ═══════════════════════════════════════════════════════════════

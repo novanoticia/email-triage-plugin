@@ -134,6 +134,10 @@ Paso a **P1, para investigar**, dos hechos de la auditoría: el motor suma
 veredictos sin comprobar si usan la misma evidencia (B); `valor_decisional`
 satura a 10 con tres core: 1, 2 y 24 suman 13 (D). No decido todavía cómo
 corregirlos. Esta decisión fija trabajo pendiente; no implementa cambios.
+*Saturación, Fase 1 (2026-10-18):* medir antes de cambiar. Subcomando
+`diagnostico-ejes` y opción `telemetria.guardar_desglose` (v3.21.0). La
+Fase 2 elegirá, con desgloses reales, entre ampliar rangos y recalibrar
+umbrales, agregación suave o tope a los puntos extra.
 
 ## 3. Restricciones de diseño (lo que no se puede romper al avanzar)
 
@@ -217,7 +221,8 @@ la que más informa a P2 y al resto de P3.
 | 2026-10-17 | Contrato de salida P2 en el motor, opt-in (#63) | 3.19.0 |
 | 2026-10-17 | Contrato de salida P2 en el skill e i18n, opt-in (#64) | 3.19.1 |
 | 2026-10-17 | Ensayo P3 como capa opt-in: fusión 5+26, sentido de 19, responsabilidad personal (#66) | 3.20.0 |
-| 2026-10-17 | Ensayo P3 validado con 8 correos ficticios de G.7: informe y script de comparación (#67 + PR-C2) | 3.20.0 |
+| 2026-10-17 | Ensayo P3 validado con 8 correos ficticios de G.7: informe y script de comparación (#67 + #68) | 3.20.0 |
+| 2026-10-18 | P1, saturación de ejes, Fase 1: `diagnostico-ejes` y `guardar_desglose` (opt-in) | 3.21.0 |
 
 ---
 

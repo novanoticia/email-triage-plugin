@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.20.0
+# Email Triage Plugin v3.21.0
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,18 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.21.0
+
+- **Diagnóstico de saturación de ejes** (ROADMAP P1, Fase 1). Nuevo
+  subcomando `diagnostico-ejes --desglose RUTA…`. Solo lee: informa, por eje,
+  de cuántos correos se recortan y cuántos puntos se pierden, de cuántos tiers
+  cambiarían sin recorte y de cuánto del score viene de reglas duras y puntos
+  extra. No cambia ningún score.
+- **Nueva opción `telemetria.guardar_desglose`** (`false` por defecto). Con
+  `true`, cada sesión guarda su desglose en `~/.email-triage/desgloses/`,
+  también en simulación, para poder diagnosticarlo después. No contiene texto
+  de correos.
 
 ## Novedades en v3.20.0
 
