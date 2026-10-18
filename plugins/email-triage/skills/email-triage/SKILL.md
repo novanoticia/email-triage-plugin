@@ -985,7 +985,9 @@ tiene dos costes que no se ven en la bandeja:
   leas un cuerpo con un script propio ni lo interpretes sin sanitizar.
 - Los movimientos se construyen **solo** con `montar-mover`, que es lo que
   escapa el message-id. Nunca interpoles un message-id en un literal
-  AppleScript escrito a mano.
+  AppleScript escrito a mano. Va el Message-ID RFC (`message id of msg`),
+  nunca el `id` numérico de Mail: `montar-mover` lo rechaza y hay que
+  releer los metadatos, no reintentar.
 - Todo movimiento se registra con `registrar` (PASO 4.I) **antes** de
   informarlo como hecho.
 - Nunca digas «N/N movidos» sin la salida del comando que los movió y el

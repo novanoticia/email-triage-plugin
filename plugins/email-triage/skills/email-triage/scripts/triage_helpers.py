@@ -2275,6 +2275,48 @@ def _mid_sospechoso(valor):
     return "; ".join(motivos) if motivos else None
 
 
+# Prueba 4 del mantenedor (2026-10-17): el modelo pasó a montar-mover los ids
+# internos de Mail (`id` de AppleScript: un entero como 284731) en vez del
+# Message-ID RFC. El script resultante no encuentra nada y todo cae en
+# `fallidos`, o peor, se registra un lote que no se puede auditar. Un valor
+# solo de dígitos nunca es un Message-ID (exige '@'), así que se RECHAZA: es
+# el único criterio sin falsos positivos. Lo demás sin '@' solo se señala.
+_RE_ID_INTERNO = re.compile(r"^\s*\d+\s*$", re.ASCII)
+
+ERROR_ID_INTERNO = ("parece un id interno de Mail, no un Message-ID RFC; "
+                    "vuelve a leer los metadatos (message id of msg)")
+
+
+def _mid_es_id_interno(valor):
+    """True si `valor` es un número o un texto formado solo por dígitos."""
+    if isinstance(valor, (int, float)) and not isinstance(valor, bool):
+        return True
+    return isinstance(valor, str) and bool(_RE_ID_INTERNO.match(valor))
+
+
+def _ids_internos(listas):
+    """[(lista, indice, valor)] de los ids internos en `listas`, o []."""
+    return [(nombre, i, str(v)[:120]) for nombre, lst in listas
+            for i, v in enumerate(lst) if _mid_es_id_interno(v)]
+
+
+def _error_ids_internos(hallados):
+    return {"ok": False,
+            "error": "%d valor(es) %s: %s" % (len(hallados), ERROR_ID_INTERNO,
+                                             ", ".join(v for _, _, v in hallados[:5])),
+            "ids_internos": [{"lista": n, "indice": i, "valor": v}
+                             for n, i, v in hallados]}
+
+
+def _motivo_montar(valor):
+    """_mid_sospechoso + la señal «sin @», que solo aplican los montadores:
+    escapar-applescript sirve también para nombres de carpeta."""
+    motivos = [m for m in (_mid_sospechoso(valor),) if m]
+    if "@" not in str(valor):
+        motivos.append("sin @ (¿no es un Message-ID?)")
+    return "; ".join(motivos) if motivos else None
+
+
 def _lista_applescript(valores):
     """`{"a", "b"}` con cada elemento escapado. Lista vacía -> `{}`."""
     return "{" + ", ".join(applescript_quote(v) for v in valores) + "}"
@@ -2374,11 +2416,14 @@ def cmd_montar_mover(datos: dict) -> dict:
                for v in lst):
             return {"ok": False,
                     "error": "%s: cada message-id debe ser texto/número" % nombre}
+    internos = _ids_internos(listas)
+    if internos:
+        return _error_ids_internos(internos)
 
     sospechosos = []
     for etiqueta, lst in listas:
         for i, v in enumerate(lst):
-            motivo = _mid_sospechoso(v)
+            motivo = _motivo_montar(v)
             if motivo:
                 sospechosos.append({"lista": etiqueta, "indice": i,
                                     "valor": str(v)[:120], "motivo": motivo})
@@ -2579,6 +2624,9 @@ def cmd_montar_leer_cuerpos(datos: dict) -> dict:
            for v in mids):
         return {"ok": False,
                 "error": "cada message-id de mids debe ser texto/número"}
+    internos = _ids_internos([("mids", mids)])
+    if internos:
+        return _error_ids_internos(internos)
     prefijo = datos.get("prefijo", "tbody_")
     if not isinstance(prefijo, str) or not _RE_PREFIJO_TBODY.match(prefijo):
         return {"ok": False,
@@ -2586,7 +2634,7 @@ def cmd_montar_leer_cuerpos(datos: dict) -> dict:
                 % (prefijo,)}
     sospechosos = []
     for i, v in enumerate(mids):
-        motivo = _mid_sospechoso(v)
+        motivo = _motivo_montar(v)
         if motivo:
             sospechosos.append({"indice": i, "valor": str(v)[:120],
                                 "motivo": motivo})
