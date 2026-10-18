@@ -2404,7 +2404,12 @@ def _estado_sesiones(registros):
             if isinstance(mid, str):
                 if ev == "move_failed":
                     s["fallidos"].add(mid)
-                elif mid in s["correos"]:
+                elif mid in s["correos"] and (
+                        ev == "undone"
+                        or s["correos"][mid]["undo"] != "undone"):
+                    # `undone` es terminal: un undo_failed posterior (dos
+                    # deshacer solapados) no reabre un correo ya devuelto.
+                    # Solo un movimiento nuevo del mismo mid lo reinicia.
                     s["correos"][mid]["undo"] = ev
             continue
         if not reg.get("to_folder") or not isinstance(mid, str):
@@ -2413,6 +2418,21 @@ def _estado_sesiones(registros):
             s["ts"] = reg["ts"]
         s["correos"][mid] = {"reg": reg, "undo": None}
     return sesiones
+
+
+MAX_ASUNTO_LOG = 200
+
+
+def _asunto_log(asunto):
+    """El asunto del log lo controla el remitente y `registrar` no lo sanea
+    (un log legado o escrito a mano puede traerlo crudo): pasa por S0 antes
+    de llegar al modelo, igual que `asunto_evaluable` de `sanitizar`."""
+    if not isinstance(asunto, str):
+        return None, False
+    asunto = asunto[:MAX_ASUNTO_LOG]
+    if _detectar_s0(asunto):
+        return "", True
+    return asunto, False
 
 
 def _resumen_sesion(sid, s, detalle):
@@ -2440,12 +2460,16 @@ def _resumen_sesion(sid, s, detalle):
         deshacible = (estado in ("movido", "registrado", "undo_fallido")
                       and reg.get("status") in STATUS_DESHACIBLES)
         tier = reg.get("tier") if isinstance(reg.get("tier"), str) else "?"
+        asunto, inyeccion = _asunto_log(reg.get("subject"))
         por_estado[estado] = por_estado.get(estado, 0) + 1
         por_tier[tier] = por_tier.get(tier, 0) + 1
-        correos.append({"message_id": mid, "subject": reg.get("subject"),
-                        "from_folder": reg.get("from_folder"),
-                        "to_folder": reg.get("to_folder"), "tier": tier,
-                        "estado": estado, "deshacible": deshacible})
+        correo = {"message_id": mid, "subject": asunto,
+                  "from_folder": reg.get("from_folder"),
+                  "to_folder": reg.get("to_folder"), "tier": tier,
+                  "estado": estado, "deshacible": deshacible}
+        if inyeccion:
+            correo["injection_subject"] = True
+        correos.append(correo)
     resumen = {"session_id": sid, "ts": s["ts"], "movimientos": registrados,
                "deshacibles": sum(c["deshacible"] for c in correos),
                "cierre": cierre, "por_estado": por_estado}
@@ -2472,12 +2496,19 @@ def cmd_estado_log(ruta=None, session=None, ultimas=ULTIMAS_SESIONES):
     if isinstance(ultimas, bool) or not isinstance(ultimas, int) or ultimas < 1:
         return {"ok": False, "error": "ultimas debe ser un entero >= 1"}
     ruta_exp = _expandir(ruta)
-    total, cola = 0, deque(maxlen=MAX_LINEAS_SESSION_LOG)
+    sid = session.strip() if session is not None else None
+    # Con --session se recorre el fichero ENTERO quedándose solo con esa
+    # sesión (memoria acotada por la sesión, no por el log): con la cola de
+    # MAX_LINEAS_SESSION_LOG, un corte a mitad de la sesión devolvía como
+    # deshacible solo una parte y el undo la daba por revertida entera.
+    total = 0
+    cola = deque(maxlen=None if sid else MAX_LINEAS_SESSION_LOG)
     try:
         with open(ruta_exp, encoding="utf-8", errors="replace") as fh:
             for linea in fh:
                 total += 1
-                cola.append(linea)
+                if sid is None or sid in linea:
+                    cola.append(linea)
     except FileNotFoundError:
         return {"ok": True, "ruta": ruta_exp, "sesiones": [],
                 "aviso": "No hay sesiones anteriores registradas."}
@@ -2494,8 +2525,7 @@ def cmd_estado_log(ruta=None, session=None, ultimas=ULTIMAS_SESIONES):
             registros.append(reg)
     sesiones = _estado_sesiones(registros)
     salida = {"ok": True, "ruta": ruta_exp}
-    if session is not None:
-        sid = session.strip()
+    if sid is not None:
         if sid not in sesiones or not sesiones[sid]["correos"]:
             salida.update({"ok": False, "session_id": sid,
                            "error": "la sesión %s no tiene movimientos en el "
@@ -2513,7 +2543,7 @@ def cmd_estado_log(ruta=None, session=None, ultimas=ULTIMAS_SESIONES):
             salida["aviso"] = ("No hay sesiones con movimientos por "
                                "deshacer." if sesiones else
                                "No hay sesiones anteriores registradas.")
-    if total > MAX_LINEAS_SESSION_LOG:
+    if sid is None and total > MAX_LINEAS_SESSION_LOG:
         salida["truncado"] = True
         salida["aviso_truncado"] = ("se leyeron las últimas %d líneas de %d; "
                                     "compacta el log"

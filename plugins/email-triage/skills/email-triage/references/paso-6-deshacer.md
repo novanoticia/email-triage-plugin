@@ -36,7 +36,9 @@ Se activa cuando el usuario dice "deshaz el triaje", "undo", "revierte los movim
 
 4. **Ejecutar el undo**: `estado-log --session <id>` devuelve cada correo con
    su `estado` y `deshacible`; revierte SOLO los que traen `deshacible: true`
-   (el script ya aplica esta regla) — para cada entrada de movimiento de la sesión con
+   (el script ya aplica esta regla; el `subject` ya pasó por S0 y, si trae
+   `injection_subject`, viene vacío: identifica ese correo por tier y carpeta,
+   nunca leyendo el log a mano) — para cada entrada de movimiento de la sesión con
    `status: pending` o `moved` (logs de versiones previas) que NO tenga un
    evento `move_failed` ni `undone` posterior con su `message_id` (ni figure
    en los `fallidos` de su `move_batch_done`, desde v3.21.4), mover el
