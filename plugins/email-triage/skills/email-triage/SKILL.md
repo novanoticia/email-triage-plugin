@@ -11,12 +11,12 @@ description: >
 compatibility: >
   Requiere que el cliente pueda alcanzar el buzón (Mail.app/AppleScript en macOS
   para iCloud, el MCP de Gmail, u otra vía de acceso a la cuenta) y ejecutar los
-  scripts de scripts/ con Python 3.9+ (stdlib; PyYAML opcional). Sin acceso al
+  scripts de scripts/ con Python 3.9+ (stdlib; PyYAML para mover). Sin acceso al
   buzón puede razonar con los criterios, pero no mover correo. Verificado en
   Claude Code, Claude Cowork y ChatGPT.
 license: Apache-2.0
 metadata:
-  version: "3.21.11"
+  version: "3.21.12"
   author: novanoticia
 ---
 
@@ -613,6 +613,11 @@ en `config.yaml`:
 1. Permanente: `scoring.modo: determinista` en `config.yaml`.
 2. Por sesión: el usuario lo pide en el chat ("modo determinista", "scoring
    determinista"). Esta petición del usuario tiene prioridad sobre el config.
+3. **Siempre antes de mover en real** (v3.21.12), como en rutina: `mental`
+   sirve para clasificar, pero lo que se vaya a mover se repuntúa con el
+   script **antes de pedir confirmación**, y la propuesta que ve la persona
+   es la del script; su registro lleva `"modo_scoring": "determinista"`. Si
+   el script falla, no se mueve nada.
 
 **Cómo se invoca** (solo en modo determinista). Por cada correo, tras evaluar
 los criterios, pasa los veredictos al script. Fija los veredictos de cada correo
@@ -636,7 +641,7 @@ deadline ≤72h, usuario blocker) y es **lo único** que permite alcanzar
 REPLY_NEEDED (ver 4.C); `tier_maximo` aplica el cap por inyección de S0;
 `remitente_en_historial: true` atenúa `sender_bulk` de -4 a -1 (v3.7). Si PyYAML
 no está instalado o el script falla, **cae al modo mental** y se avisa en el
-desglose.
+desglose: vale para proponer, no para mover (vía 3).
 
 **Lote y salida compacta (v3.7, recomendado para ahorrar tiempo y tokens).**
 En vez de invocar el script una vez por correo (cada llamada reparsea el YAML
@@ -875,7 +880,7 @@ movimiento, el log conserva el rastro).
 #### Formato de entrada
 
 ```
-{"session_id":"YYYYMMDD-HHMMSS","ts":"ISO8601","message_id":"<id>","subject":"...","from":"...","from_folder":"...","to_folder":"...","tier":"REVIEW","score":7,"status":"pending"}
+{"session_id":"YYYYMMDD-HHMMSS","ts":"ISO8601","message_id":"<id>","subject":"...","from":"...","from_folder":"...","to_folder":"...","tier":"REVIEW","score":7,"modo_scoring":"determinista","status":"pending"}
 ```
 
 Un movimiento sin `score` es **regla manual** y solo si la persona lo pide

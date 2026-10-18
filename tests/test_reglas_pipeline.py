@@ -75,7 +75,21 @@ class TestMovimientoSinScoring(unittest.TestCase):
         return r
 
     def test_triaje_con_score_se_acepta(self):
-        self.assertTrue(self.th.cmd_registrar(self.ruta, self._mov(score=7))["ok"])
+        self.assertTrue(self.th.cmd_registrar(self.ruta, self._mov(
+            score=7, modo_scoring="determinista"))["ok"])
+
+    def test_score_mental_no_basta_para_mover(self):
+        # v3.21.12 (prueba real 11): en `mental` no actúa ningún freno.
+        for modo in (None, "mental", "Determinista"):
+            extra = {} if modo is None else {"modo_scoring": modo}
+            out = self.th.cmd_registrar(self.ruta, self._mov(score=7, **extra))
+            self.assertIs(out["ok"], False, modo)
+            self.assertIs(out["bloquea_movimiento"], True)
+            self.assertIn("determinista", out["remedio"])
+        self.assertFalse(os.path.exists(self.ruta))
+        # La regla manual no puntúa: no se le exige modo de scoring.
+        self.assertTrue(self.th.cmd_registrar(self.ruta, self._mov(
+            origen="regla_manual", regla="remitente=x@y.example"))["ok"])
 
     def test_movimiento_sin_score_se_rechaza(self):
         for extra in ({}, {"score": None}, {"score": "7"}, {"score": True}):
@@ -101,7 +115,8 @@ class TestMovimientoSinScoring(unittest.TestCase):
             self.assertTrue(self.th.cmd_registrar(self.ruta, r)["ok"], r)
 
     def test_verificar_sesion_cuenta_por_origen(self):
-        self.th.cmd_registrar(self.ruta, self._mov(score=3))
+        self.th.cmd_registrar(self.ruta, self._mov(score=3,
+                                                   modo_scoring="determinista"))
         self.th.cmd_registrar(self.ruta, self._mov(
             message_id="b@x", origen="regla_manual", regla="remitente=z"))
         self.th.cmd_registrar(self.ruta, {"event": "move_batch_done",
@@ -201,7 +216,8 @@ class TestCierreDeLote(unittest.TestCase):
         for m in mids:
             self.assertTrue(self.th.cmd_registrar(self.ruta, {
                 "session_id": sid, "message_id": m, "to_folder": "R",
-                "score": 5, "status": "pending"})["ok"])
+                "score": 5, "modo_scoring": "determinista",
+                "status": "pending"})["ok"])
 
     def _verificar(self, sid, n):
         return self.th.cmd_verificar_sesion(
@@ -376,7 +392,8 @@ class TestFrenoPlantilla(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             ruta = os.path.join(d, "s.jsonl")
             mov = {"event": "move", "message_id": "<a@b>", "to_folder": "X",
-                   "score": -6, "plantilla": True}
+                   "score": -6, "plantilla": True,
+                   "modo_scoring": "determinista"}
             r = self.th.cmd_registrar(ruta, mov)
             self.assertIs(r["ok"], False)
             self.assertIn("regla_manual", r["remedio"])
@@ -391,13 +408,15 @@ class TestFrenoPlantilla(unittest.TestCase):
         casos = [{"to_folder": "X", "score": 1, "plantilla": True},
                  {"to_folder": "X"},
                  {"to_folder": "X", "origen": "raro", "score": 1},
+                 {"to_folder": "X", "score": 1},     # v3.21.12: score mental
                  {"to_folder": "X", "origen": "regla_manual"}]
         for reg in casos:
             with self.subTest(reg=reg):
                 self.assertIs(self.th._valida_movimiento(reg)["bloquea_movimiento"],
                               True)
         self.assertIsNone(self.th._valida_movimiento({"to_folder": "X",
-                                                      "score": 1}))
+                                                      "score": 1,
+                                                      "modo_scoring": "determinista"}))
 
     def test_lote_delegado_tambien_frena(self):
         # Codex P1: modelos.py y jev.py puntúan correo a correo.
