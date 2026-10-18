@@ -86,6 +86,9 @@ Uso:
                             --desglose escribe el desglose completo a RUTA y
                             deja stdout intacto)
   python3 triage_helpers.py validar-config [--config RUTA]
+  python3 triage_helpers.py diagnostico-ejes --desglose RUTA [RUTA ...] [--config RUTA]
+                            (P1: mide la saturación de ejes en desgloses
+                            reales; solo lee, no escribe ni cambia scores)
   python3 triage_helpers.py registrar --ruta RUTA [--registro JSON]
                             (append atómico con flock; sin --registro lee de stdin)
   python3 triage_helpers.py escapar-applescript [--valores JSON]
@@ -1044,6 +1047,103 @@ def _p2_confianza(payload, cobertura, ignorados):
         efectiva = "media"
     return {"declarada": declarada, "efectiva": efectiva,
             "causas": causas, "topes_aplicados": topes}
+
+
+def cmd_diagnostico_ejes(docs, cfg) -> dict:
+    """Mide la saturación de ejes sobre desgloses reales (P1, Fase 1).
+
+    docs: lista de documentos tal como los escribe `scoring --desglose`
+    (un resultado suelto o {"resultados": [...]}). cfg: config parseado,
+    solo para los umbrales de tier. SOLO LEE: no escribe nada y no cambia
+    ningún score; dice cuántos puntos se pierden por el recorte de cada eje,
+    cuántos tiers cambiarían sin él (solo por umbral, sin los caps de
+    acción ni de inyección) y cuánto del score viene de reglas duras y
+    puntos extra en vez de los criterios. Función TOTAL."""
+    try:
+        return _diagnostico_ejes_nucleo(docs, cfg)
+    except Exception as e:   # red universal: cultura de fuzz del repo
+        return {"ok": False,
+                "error": "diagnostico-ejes reventó (%s: %s)"
+                % (type(e).__name__, e)}
+
+
+def _num(x):
+    return isinstance(x, (int, float)) and not isinstance(x, bool)
+
+
+def _diagnostico_ejes_nucleo(docs, cfg):
+    if not isinstance(docs, list):
+        return {"ok": False, "error": "se esperaba una lista de desgloses, "
+                "llegó %s" % type(docs).__name__}
+    tiers = (cfg.get("tiers") if isinstance(cfg, dict) else None) or {}
+    if not isinstance(tiers, dict):
+        tiers = {}
+    resultados, ignorados = [], []
+    for i, d in enumerate(docs):
+        if isinstance(d, dict) and isinstance(d.get("resultados"), list):
+            resultados.extend(d["resultados"])
+        elif isinstance(d, dict):
+            resultados.append(d)
+        else:
+            ignorados.append({"documento": i, "motivo": "no es un objeto JSON"})
+    por_eje, n = {}, 0
+    cambios_umbral, deciden_extras = [], 0
+    peso_extras = []
+    for j, r in enumerate(resultados):
+        ejes, crudos = (r.get("ejes"), r.get("ejes_sin_clampar")) \
+            if isinstance(r, dict) else (None, None)
+        if not (isinstance(ejes, dict) and isinstance(crudos, dict)
+                and _num(r.get("score"))):
+            ignorados.append({"resultado": j, "motivo": "sin ejes, ejes_sin_"
+                              "clampar o score numérico (¿no es un desglose?)"})
+            continue
+        n += 1
+        suma_ejes = suma_crudos = 0
+        for e, v in ejes.items():
+            c = crudos.get(e, v)
+            if not (_num(v) and _num(c)):
+                continue
+            suma_ejes += v
+            suma_crudos += c
+            s = por_eje.setdefault(e, {"saturado_arriba": 0, "saturado_abajo": 0,
+                                       "puntos_perdidos": 0})
+            if c > v:
+                s["saturado_arriba"] += 1
+            elif c < v:
+                s["saturado_abajo"] += 1
+            s["puntos_perdidos"] += abs(c - v)
+        score = r["score"]
+        extras = score - suma_ejes
+        sin_recorte = suma_crudos + extras
+        tier_umbral = _tier_por_score(score, tiers)
+        tier_sin = _tier_por_score(sin_recorte, tiers)
+        if tier_umbral != tier_sin:
+            cambios_umbral.append({"id": r.get("id", j), "score": score,
+                                   "score_sin_recorte": sin_recorte,
+                                   "tier": tier_umbral, "tier_sin_recorte": tier_sin})
+        if _tier_por_score(suma_ejes, tiers) != tier_umbral:
+            deciden_extras += 1
+        total = abs(suma_ejes) + abs(extras)
+        if total:
+            peso_extras.append(abs(extras) / total)
+    for s in por_eje.values():
+        s["pct_saturado"] = round(100.0 * (s["saturado_arriba"]
+                                           + s["saturado_abajo"]) / n, 1) if n else 0.0
+        s["puntos_perdidos_media"] = round(s["puntos_perdidos"] / n, 2) if n else 0.0
+    return {
+        "ok": True,
+        "correos": n,
+        "por_eje": por_eje,
+        "cambiarian_tier_sin_recorte": len(cambios_umbral),
+        "detalle_cambios": cambios_umbral[:50],
+        "tier_decidido_por_extras": deciden_extras,
+        "peso_medio_extras_pct": round(100.0 * sum(peso_extras)
+                                       / len(peso_extras), 1) if peso_extras else 0.0,
+        "nota": "Tiers por umbral, sin caps de acción ni de inyección: mide el "
+                "efecto del recorte, no el tier final. 'Extras' = reglas duras "
+                "+ extra_points (keywords, remitentes, ajustes aprendidos).",
+        "ignorados": ignorados,
+    }
 
 
 def _brief(r):
@@ -3057,6 +3157,12 @@ def _construir_parser():
                     help="líneas a conservar (por defecto %d)" % MAX_CORRECCIONES)
     pc.add_argument("--dry-run", action="store_true",
                     help="reporta qué haría sin escribir")
+    pdx = sub.add_parser("diagnostico-ejes")
+    pdx.add_argument("--desglose", nargs="+", required=True, metavar="RUTA",
+                     help="uno o más ficheros escritos por scoring --desglose")
+    pdx.add_argument("--config",
+                     default=_expandir("~/.email-triage/config.yaml"),
+                     help="solo para los umbrales de tier")
     pcal = sub.add_parser("calibrar")
     pcal.add_argument("--datos", default=None,
                       help='JSON {"correos": [{"remitente", "asunto"}, ...]}; '
@@ -3165,6 +3271,23 @@ def main():
             out = cmd_escapar_applescript(valores)
     elif args.cmd == "compactar":
         out = cmd_compactar(args.archivo, args.max_lineas, dry_run=args.dry_run)
+    elif args.cmd == "diagnostico-ejes":
+        # P1, Fase 1: SOLO LEE desgloses; no escribe nada ni cambia scores.
+        docs, fallos = [], []
+        for ruta in args.desglose:
+            try:
+                with open(_expandir(ruta), encoding="utf-8") as fh:
+                    docs.append(json.loads(fh.read(MAX_INGESTA_BYTES)))
+            except (OSError, ValueError) as e:
+                fallos.append({"ruta": ruta, "motivo": "%s: %s"
+                               % (type(e).__name__, e)})
+        try:
+            cfg = _cargar_config(args.config)
+        except (ConfigError, SystemExit):
+            cfg = {}
+        out = cmd_diagnostico_ejes(docs, cfg)
+        if fallos:
+            out.setdefault("ignorados", []).extend(fallos)
     elif args.cmd == "calibrar":
         if args.leer is not None and args.guardar is not None:
             out = {"ok": False, "error": "--leer y --guardar son excluyentes: "

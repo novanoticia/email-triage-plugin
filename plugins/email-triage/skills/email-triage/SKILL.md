@@ -672,6 +672,9 @@ Para conservar el desglose completo sin meterlo al contexto, añade
 escribe el desglose por correo a fichero (JSON, escritura atómica) mientras
 stdout sigue compacto; un fallo de escritura se reporta en `desglose_error`,
 nunca en silencio (CM2/F12).
+Si `telemetria.guardar_desglose: true`, añade siempre `--desglose
+~/.email-triage/desgloses/<session_id>.json`, también en simulación; lo lee
+`diagnostico-ejes`.
 
 **Contrato P2 (opt-in):** solo si `scoring.contrato_p2: true` y el modo es
 `determinista`, **lee `references/contrato-p2.md` AHORA**: veredictos
