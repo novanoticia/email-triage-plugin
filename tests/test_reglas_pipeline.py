@@ -282,5 +282,35 @@ class TestCierreDeLote(unittest.TestCase):
         self.assertIn("`sin_cerrar`", skill)
 
 
+
+class TestEsperaSinSleepEncadenado(unittest.TestCase):
+    """v3.21.6 (prueba real 2026-10-18): la doctrina enseñaba a esperar a Mail
+    con `sleep 40; head …` y Claude Code bloquea ese patrón. Ningún texto que
+    lea el modelo puede volver a enseñar un `sleep` suelto: solo dentro de un
+    bucle `until … do sleep` acotado."""
+
+    def test_ningun_sleep_fuera_de_un_bucle(self):
+        import glob
+        import re
+        raiz = os.path.join(_RAIZ, "plugins", "email-triage")
+        ficheros = glob.glob(os.path.join(raiz, "skills", "email-triage", "*.md"))
+        ficheros += glob.glob(os.path.join(raiz, "skills", "email-triage",
+                                           "references", "*"))
+        ficheros += glob.glob(os.path.join(raiz, "commands", "*.md"))
+        malos = []
+        for f in ficheros:
+            with open(f, encoding="utf-8") as fh:
+                for n, linea in enumerate(fh, 1):
+                    if (re.search(r"\bsleep\s+\d", linea)
+                            and not re.search(r"\buntil\b.*\bdo\s+sleep\b", linea)):
+                        malos.append("%s:%d" % (os.path.basename(f), n))
+        self.assertEqual(malos, [])
+
+    def test_la_doctrina_lo_prohibe(self):
+        doc = _leer("references", "paso-1-doctrina-ejecucion.md")
+        self.assertIn("Nunca encadenes `sleep N; cat …`", doc)
+        self.assertIn("run_in_background", doc)
+
+
 if __name__ == "__main__":
     unittest.main()
