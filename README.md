@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.21.7
+# Email Triage Plugin v3.21.8
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,23 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.21.8
+
+- **Los remitentes prioritarios y las palabras clave ya no se comprueban a
+  ojo.** El modelo decidía si una dirección o una palabra coincidían, y en
+  pruebas reales falló así: `sociologiainquieta+sociologia-y-cine@…` no
+  contaba como `sociologiainquieta@…`, y «RECURSOS» activaba la palabra
+  «curso». Ahora lo calcula el subcomando `coincidencias`, y el modelo solo
+  suma el resultado.
+- **Remitentes:** por dirección, ignorando lo que va tras el `+`, o por dominio
+  (`@dominio.com`, incluidos subdominios). Nunca por el nombre que se ve,
+  porque cualquiera puede ponerse el nombre de otro. Si tu lista tiene un nombre
+  en vez de una dirección, se avisa en `entradas_no_validas`.
+- **Palabras clave:** palabra o frase completa, sin importar mayúsculas ni
+  tildes. «psicologia» casa con «Psicología»; «curso» no casa con «recursos».
+- Avisa también de las entradas prioritarias que no coincidieron con ningún
+  correo del lote: suele ser una dirección mal copiada.
 
 ## Novedades en v3.21.7
 
