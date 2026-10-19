@@ -79,6 +79,10 @@ def planificar(p):
             "concurrencia": 1}
 
 
+CLAVES_PLAN = {"ok", "modo", "delegar", "modelo_solicitado", "proveedor",
+               "llamadas_restantes", "tamano_lote", "concurrencia"}
+
+
 def _plan_autoriza(p):
     """v3.21.17 (prueba real comparar, 2026-10-19): `planificar` devolvió
     delegacion_nativa_no_verificada y el modelo delegó igualmente; validar
@@ -89,8 +93,19 @@ def _plan_autoriza(p):
     plan = p.get("plan")
     if (not isinstance(plan, dict) or plan.get("ok") is not True
             or plan.get("delegar") is not True
-            or plan.get("modo") not in ("comparar", "hibrido")):
+            or plan.get("modo") not in ("comparar", "hibrido")
+            or set(plan) != CLAVES_PLAN
+            or not _texto(plan.get("modelo_solicitado"))
+            or not _entero(plan.get("llamadas_restantes"), 1, 10)
+            or not _entero(plan.get("tamano_lote"), 1, 50)):
         return _error("delegacion_no_autorizada")
+    # El lote no puede ser mayor que el que autorizó el plan. Reusar un plan
+    # viejo tras agotar max_llamadas no se puede impedir sin estado (este
+    # módulo no escribe): es una huella, no una prueba, como los otros frenos.
+    for clave in ("esperados", "base"):
+        filas = p.get(clave)
+        if isinstance(filas, list) and len(filas) > plan["tamano_lote"]:
+            return _error("lote_mayor_que_el_autorizado")
     return None
 
 

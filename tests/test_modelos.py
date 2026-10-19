@@ -30,7 +30,9 @@ def plan():
                              "sin_herramientas", "misma_conexion")}}}
 
 
-PLAN_OK = {"ok": True, "modo": "hibrido", "delegar": True}
+PLAN_OK = {"ok": True, "modo": "hibrido", "delegar": True,
+           "modelo_solicitado": "economico-prueba", "proveedor": "anthropic",
+           "llamadas_restantes": 2, "tamano_lote": 25, "concurrencia": 1}
 
 
 def lote():
@@ -253,6 +255,24 @@ class TestPlanAutorizaDelegacion(unittest.TestCase):
             r = m.ejecutar("validar", p)
             self.assertFalse(r["ok"], p_falso)
             self.assertEqual(r["motivo"], "delegacion_no_autorizada")
+
+    def test_un_plan_incompleto_o_de_otro_lote_no_autoriza(self):
+        # Revisión (Codex P1): basta con tres campos sueltos no debe valer, y
+        # un lote mayor que el autorizado tampoco.
+        p = lote()
+        p["plan"] = {"ok": True, "modo": "hibrido", "delegar": True}
+        self.assertEqual(m.ejecutar("validar", p)["motivo"],
+                         "delegacion_no_autorizada")
+        p = lote()
+        p["plan"] = dict(PLAN_OK, llamadas_restantes=0)
+        self.assertEqual(m.ejecutar("validar", p)["motivo"],
+                         "delegacion_no_autorizada")
+        p = lote()
+        p["plan"] = dict(PLAN_OK, tamano_lote=1)
+        p["esperados"] = p["esperados"] * 2
+        p["esperados"][1] = dict(p["esperados"][1], id="2")
+        self.assertEqual(m.ejecutar("validar", p)["motivo"],
+                         "lote_mayor_que_el_autorizado")
 
     def test_el_plan_real_de_planificar_si_autoriza(self):
         p = lote()
