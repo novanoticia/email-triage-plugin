@@ -212,6 +212,9 @@ rompes la conformidad (gate #7) y el skill deja de cargar fuera de Claude.
   la ruta de datos**; escríbelos con `registrar`, no con `echo >>`. La única
   excepción es `compactar` (purga atómica y explícita a N líneas): trata
   cualquier otra reescritura como bug.
+  Desde v3.21.15 `registrar` sella cada línea con `ts_registro` (UTC, la
+  hora real del append) y pisa el que traiga: es la única hora del log que
+  no escribe el modelo. Úsala para cualquier corte temporal futuro.
 - **Un resultado correcto no prueba que el pipeline se haya ejecutado.** Un
   cliente capaz de lanzar `osascript` puede mover el correo bien saltándose
   este módulo: con su propio AppleScript, sin `sanitizar` y sin `registrar`.

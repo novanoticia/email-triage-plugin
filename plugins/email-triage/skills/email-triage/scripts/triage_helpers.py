@@ -1250,7 +1250,9 @@ def _parsear_desglose(texto):
         pass
     else:
         # Un JSONL de UNA sola pasada también es JSON válido.
-        if isinstance(doc, dict) and set(doc) == {"ts", "desglose"}:
+        # v3.21.15: `registrar` añade `ts_registro` a cada línea.
+        if isinstance(doc, dict) and set(doc) - {"ts_registro"} == {
+                "ts", "desglose"}:
             return {"pasadas": [doc["desglose"]], "lineas_ignoradas": []}
         return doc
     pasadas, malas = [], []
@@ -1916,12 +1918,21 @@ def cmd_registrar(ruta: str, registro: dict) -> dict:
     (exclusivo). Crea el fichero y su directorio si faltan (700/600:
     contiene metadatos de correo). Devuelve {"ok": True, "bytes": n,
     "ruta": ...} o {"ok": False, "error": ...}. NUNCA mueve correos.
+
+    v3.21.15: sella cada línea con `ts_registro` (UTC, segundos), la hora
+    real del append. El `ts` de un movimiento lo escribe el modelo, sin
+    zona fiable; el sello lo pone el script y pisa cualquier `ts_registro`
+    que traiga el registro, así que no se puede falsear. Aditivo: `ts` y el
+    resto de campos no cambian.
     """
     if not isinstance(registro, dict):
         return {"ok": False, "error": "el registro debe ser un objeto JSON"}
     invalido = _valida_movimiento(registro) or _valida_cierre(registro)
     if invalido:
         return invalido
+    registro = dict(registro)
+    registro["ts_registro"] = datetime.now(timezone.utc).isoformat(
+        timespec="seconds")
     try:
         linea = json.dumps(registro, ensure_ascii=False, separators=(",", ":"))
     except (TypeError, ValueError) as e:
