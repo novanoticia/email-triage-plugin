@@ -18,11 +18,12 @@ Se activa cuando el usuario dice "deshaz el triaje", "undo", "revierte los movim
 
 2. **Identificar la última sesión**: muestra las de `sesiones` (ya vienen
    agrupadas, la más reciente primero, con `deshacibles`) para que el usuario
-   elija cuál deshacer. Una sesión con `deshacibles: 0` y `sin_confirmar` > 0
-   NO se ofrece: se registró sin cierre (`cerrar-lote`) y no consta que sus
-   correos se movieran; dilo con el número. Solo si la persona pide
-   expresamente deshacerla, avisa de que puede fallar en todos y repite el
-   punto 4 con `--incluir-sin-cerrar`:
+   elija cuál deshacer. Las de `sesiones_sin_confirmar` NO se ofrecen: no
+   consta que sus correos se movieran. Dilo con el número y según su
+   `cierre`: `sin_cerrar` = nunca se cerró el lote (`cerrar-lote`);
+   `descuadre` = hay cierre pero sus cuentas no cuadran con lo registrado.
+   Solo si la persona pide expresamente deshacerla, avisa de que puede
+   fallar en todos y repite el punto 4 con `--incluir-sin-cerrar`:
 
    ```
    Sesiones disponibles para deshacer:

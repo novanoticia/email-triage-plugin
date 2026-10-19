@@ -2215,14 +2215,19 @@ def cmd_cerrar_lote(ruta: str, datos: dict) -> dict:
 # Sesiones anteriores a v3.21.4 no podían escribir el cierre: se informan como
 # `legado` en vez de romper su veredicto. Se deduce del session_id
 # (YYYYMMDD-HHMMSS, formato del SKILL); uno sin ese formato se trata como
-# actual, que es lo seguro.
-FECHA_CIERRE_OBLIGATORIO = "20261018"
-_RE_SID_FECHA = re.compile(r"^(\d{8})-\d{6}$")
+# actual, que es lo seguro. v3.21.14 (pruebas reales 13-14): el corte era
+# solo la fecha 20261018 y v3.21.4 se fusionó ESE día, a las 08:33:08 hora
+# de Madrid (PR #73): sesiones de las 07:xx salían sin_cerrar sin poder
+# haberse cerrado. El corte es ahora fecha y hora, en hora local de Madrid
+# (el session_id es hora local). Es el momento más temprano en que se pudo
+# usar cerrar-lote, así que el error posible cae del lado seguro: una
+# sesión posterior nunca se toma por legado.
+INICIO_CIERRE_OBLIGATORIO = "20261018-083308"
+_RE_SID_FECHA = re.compile(r"^\d{8}-\d{6}$")
 
 
 def _sesion_legado(sid):
-    m = _RE_SID_FECHA.match(sid)
-    return bool(m) and m.group(1) < FECHA_CIERRE_OBLIGATORIO
+    return bool(_RE_SID_FECHA.match(sid)) and sid < INICIO_CIERRE_OBLIGATORIO
 
 
 def cmd_verificar_sesion(datos: dict) -> dict:
@@ -2466,7 +2471,10 @@ def _resumen_sesion(sid, s, detalle, incluir_sin_cerrar=False):
         # sin_cerrar o con descuadre no prueba que el correo se moviera;
         # revertirlo a ciegas mueve (o falla en) cientos de correos que
         # nadie verificó. Solo con incluir_sin_cerrar, que pide la persona.
-        sin_confirmar = (estado == "registrado" and cierre != "legado"
+        # undo_fallido tampoco: un intento fallido con el opt-in no prueba
+        # que el movimiento original ocurriera.
+        sin_confirmar = (estado in ("registrado", "undo_fallido")
+                         and cierre not in ("confirmado", "legado")
                          and not incluir_sin_cerrar)
         deshacible = (estado in ("movido", "registrado", "undo_fallido")
                       and reg.get("status") in STATUS_DESHACIBLES
@@ -2512,9 +2520,11 @@ def cmd_estado_log(ruta=None, session=None, ultimas=ULTIMAS_SESIONES,
     (movido / registrado / fallido / deshecho / undo_fallido) y si es
     `deshacible`, más recuentos por estado y tier.
 
-    v3.21.14: lo `registrado` de una sesión sin_cerrar o con descuadre no
-    es deshacible (cuenta en `sin_confirmar`) salvo `incluir_sin_cerrar`;
-    las sesiones `legado` (anteriores a cerrar-lote) no cambian.
+    v3.21.14: lo `registrado` o `undo_fallido` de una sesión sin_cerrar o
+    con descuadre no es deshacible (cuenta en `sin_confirmar`) salvo
+    `incluir_sin_cerrar`; en el listado esas sesiones van aparte, en
+    `sesiones_sin_confirmar`. Las `legado` (anteriores a cerrar-lote) no
+    cambian.
 
     SOLO LEE: no escribe ni mueve nada. TOTAL: nunca lanza."""
     ruta = ruta or RUTA_SESSION_LOG
@@ -2569,14 +2579,17 @@ def cmd_estado_log(ruta=None, session=None, ultimas=ULTIMAS_SESIONES,
                                           incluir_sin_cerrar is True))
     else:
         # Orden de append: la última sesión en aparecer es la más reciente.
-        # Una sesión sin cierre se lista (con deshacibles 0 y su
-        # sin_confirmar) para que no desaparezca en silencio.
-        ofrecibles = [r for r in (_resumen_sesion(sid, s, False,
-                                                  incluir_sin_cerrar is True)
-                                  for sid, s in reversed(list(sesiones.items())))
-                      if r["deshacibles"] or r["sin_confirmar"]]
+        resumenes = [_resumen_sesion(sid, s, False, incluir_sin_cerrar is True)
+                     for sid, s in reversed(list(sesiones.items()))]
+        ofrecibles = [r for r in resumenes if r["deshacibles"]]
         salida["sesiones"] = ofrecibles[:ultimas]
         salida["total_sesiones"] = len(ofrecibles)
+        # Las sesiones sin cierre van aparte, con su propio tope, para que
+        # no desaparezcan en silencio ni quiten sitio a las deshacibles.
+        sin_conf = [r for r in resumenes
+                    if not r["deshacibles"] and r["sin_confirmar"]]
+        if sin_conf:
+            salida["sesiones_sin_confirmar"] = sin_conf[:ultimas]
         if not ofrecibles:
             salida["aviso"] = ("No hay sesiones con movimientos por "
                                "deshacer." if sesiones else

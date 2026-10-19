@@ -94,13 +94,17 @@ relue par un humain. / Traducción generada por una IA, sin revisión humana.
 - **Deshacer no ofrece sesiones que nunca se cerraron.** Si una sesión
   registró movimientos pero no tiene cierre (`cerrar-lote`), no consta que
   esos correos se movieran de verdad. `estado-log` ya no los marca como
-  deshacibles: los cuenta en `sin_confirmar` y el skill te lo dice en vez
-  de ofrecerte revertirlos. Lo detectaron las pruebas reales 13 y 14, con
-  tres sesiones de 343, 286 y 102 movimientos en esa situación.
+  deshacibles: los cuenta en `sin_confirmar`, los lista aparte y el skill
+  te lo dice en vez de ofrecerte revertirlos.
 - Si de verdad quieres deshacer una de esas sesiones, se puede pidiéndolo
   expresamente (`--incluir-sin-cerrar`), avisando de que puede fallar.
-- Las sesiones antiguas, anteriores a que existiera el cierre, se pueden
-  deshacer como antes.
+- **Las sesiones anteriores al cierre se reconocen por fecha y hora.** El
+  cierre llegó con la v3.21.4, fusionada el 18 de octubre a las 08:33 (hora
+  de Madrid), pero el corte miraba solo la fecha: las sesiones de esa
+  mañana salían como «sin cerrar» cuando no podían haberse cerrado. Ahora
+  son `legado` y se deshacen como antes, también en `verificar-sesion`.
+  Es el caso de las tres sesiones (343, 286 y 102 movimientos) que
+  señalaron las pruebas reales 13 y 14.
 
 ## Novedades en v3.21.13
 

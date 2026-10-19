@@ -112,12 +112,47 @@ class TestEstadoLog(unittest.TestCase):
                   {"session_id": s2, "event": EVENTO, "n_ok": 1,
                    "fallidos": []})
         r = th.cmd_estado_log(self.ruta)
-        res = {x["session_id"]: (x["deshacibles"], x["sin_confirmar"])
-               for x in r["sesiones"]}
-        self.assertEqual(res, {s2: (1, 0), s1: (0, 1)})
+        self.assertEqual([x["session_id"] for x in r["sesiones"]], [s2])
+        self.assertEqual([(x["session_id"], x["sin_confirmar"])
+                          for x in r["sesiones_sin_confirmar"]], [(s1, 1)])
+
+    def test_sin_confirmar_no_quita_sitio_a_las_deshacibles(self):
+        # Revisión: tres sesiones sin cierre más recientes ocupaban los 3
+        # huecos y escondían la única que se podía deshacer.
+        ok = "20261018-090000"
+        regs = [_mov(ok, "a"), {"session_id": ok, "event": EVENTO,
+                                "n_ok": 1, "fallidos": []}]
+        regs += [_mov("20261018-1%d0000" % i, "x%d" % i) for i in range(3)]
+        self._log(*regs)
+        r = th.cmd_estado_log(self.ruta)
+        self.assertEqual([x["session_id"] for x in r["sesiones"]], [ok])
+        self.assertEqual(len(r["sesiones_sin_confirmar"]), 3)
+
+    def test_undo_fallido_sin_cierre_sigue_bloqueado(self):
+        s = "20261018-100000"
+        self._log(_mov(s, "a"),
+                  {"event": "undo_failed", "session_id": s,
+                   "message_id": "a"})
+        r = th.cmd_estado_log(self.ruta, s)
+        self.assertEqual(r["correos"][0]["estado"], "undo_fallido")
+        self.assertFalse(r["correos"][0]["deshacible"])
+        r = th.cmd_estado_log(self.ruta, s, incluir_sin_cerrar=True)
+        self.assertTrue(r["correos"][0]["deshacible"])
+
+    def test_corte_legado_por_hora_no_solo_fecha(self):
+        # v3.21.4 se fusionó el 2026-10-18 a las 08:33:08 (hora de Madrid):
+        # las sesiones de las 07:xx de las pruebas 13-14 son legado.
+        for sid, esperado in (("20261018-071254", "legado"),
+                              ("20261018-083307", "legado"),
+                              ("20261018-083308", "sin_cerrar"),
+                              ("20261018-100000", "sin_cerrar"),
+                              ("rutina-x", "sin_cerrar")):
+            self._log(_mov(sid, "a"))
+            self.assertEqual(th.cmd_estado_log(self.ruta, sid)["cierre"],
+                             esperado, sid)
 
     def test_listado_omite_deshechas_y_ordena(self):
-        s1, s2, s3 = "20261018-090000", "20261018-100000", "20261018-110000"
+        s1, s2, s3 = "20261017-090000", "20261017-100000", "20261017-110000"
         self._log(_mov(s1, "a"), _mov(s2, "b"), _mov(s3, "c"),
                   {"event": "undone", "session_id": s2, "message_id": "b"})
         r = th.cmd_estado_log(self.ruta)
