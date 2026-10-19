@@ -10,6 +10,7 @@ import os
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from datetime import datetime, timedelta, timezone
 
 _RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -53,6 +54,29 @@ class TestSelloRegistro(unittest.TestCase):
                                              "salida": "movidos_review:1/1"})
         self.assertTrue(out["ok"], out)
         self.assertIn("ts_registro", self._lineas()[0])
+
+    def test_el_sello_se_toma_con_el_lock_puesto(self):
+        # Revisión: sellado antes del flock, dos registrar en competencia
+        # podían dejar las horas en otro orden que las líneas.
+        import fcntl
+        orden = []
+        flock_real = fcntl.flock
+
+        def flock(fd, op):
+            if op == fcntl.LOCK_EX:
+                orden.append("lock")
+            return flock_real(fd, op)
+
+        class Reloj(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                orden.append("sello")
+                return datetime.now(tz)
+
+        with mock.patch("fcntl.flock", side_effect=flock), \
+                mock.patch.object(th, "datetime", Reloj):
+            self.assertTrue(th.cmd_registrar(self.ruta, {"x": 1})["ok"])
+        self.assertEqual(orden, ["lock", "sello"])
 
     def test_desglose_de_una_pasada_sellado_sigue_siendo_jsonl(self):
         doc = {"ts": "t", "desglose": {"a": 1}, "ts_registro": "t2"}

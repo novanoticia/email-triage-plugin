@@ -1930,21 +1930,27 @@ def cmd_registrar(ruta: str, registro: dict) -> dict:
     invalido = _valida_movimiento(registro) or _valida_cierre(registro)
     if invalido:
         return invalido
-    registro = dict(registro)
-    registro["ts_registro"] = datetime.now(timezone.utc).isoformat(
-        timespec="seconds")
     try:
-        linea = json.dumps(registro, ensure_ascii=False, separators=(",", ":"))
+        json.dumps(registro, ensure_ascii=False)   # falla pronto, sin lock
     except (TypeError, ValueError) as e:
         return {"ok": False, "error": "registro no serializable: %s" % e}
-    linea = linea.replace("\r", " ").replace("\n", " ")   # una sola línea
+
+    def _linea_sellada():
+        # El sello se toma YA con el lock (justo antes del write): así el
+        # orden de los ts_registro es el orden real de las líneas aunque
+        # varios registrar compitan por el flock.
+        sellado = dict(registro)
+        sellado["ts_registro"] = datetime.now(timezone.utc).isoformat(
+            timespec="seconds")
+        linea = json.dumps(sellado, ensure_ascii=False, separators=(",", ":"))
+        linea = linea.replace("\r", " ").replace("\n", " ")   # una sola línea
+        return (linea + "\n").encode("utf-8")
     ruta = _expandir(ruta)
     directorio = os.path.dirname(ruta) or "."
     try:
         _asegurar_dir_privado(directorio)
     except OSError as e:
         return {"ok": False, "error": "no se pudo preparar %s: %s" % (ruta, e)}
-    datos = (linea + "\n").encode("utf-8")
     # Reabrir-y-reintentar si el fichero fue rotado por `compactar` (os.replace)
     # entre nuestro os.open y el flock (CM1, auditoría 2026-07-10). Sin esto, un
     # registrar que abrió el fd ANTES del replace adquiría el flock sobre el
@@ -1969,6 +1975,7 @@ def cmd_registrar(ruta: str, registro: dict) -> dict:
                 lock = None   # sin flock (no-Unix): O_APPEND ya es atómico
             if lock is not None and not _fd_apunta_a(fd, ruta):
                 continue      # rotado bajo el lock: el finally cierra y reintenta
+            datos = _linea_sellada()
             os.write(fd, datos)
             return {"ok": True, "bytes": len(datos), "ruta": ruta}
         except OSError as e:
