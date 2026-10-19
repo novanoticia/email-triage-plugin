@@ -449,14 +449,14 @@ frases:
   deshacer.cual:
     texto: ¿Cuál quieres deshacer? (1/2/3 o "cancelar")
     origen: original
-    fuente: references/paso-6-deshacer.md:33
+    fuente: references/paso-6-deshacer.md:37
     riesgo: alto
     lista: true
     invariable: false
   deshacer.confirmar:
     texto: ¿Confirmas? (sí/no)
     origen: original
-    fuente: references/paso-6-deshacer.md:39
+    fuente: references/paso-6-deshacer.md:43
     riesgo: alto
     lista: true
     invariable: false
@@ -829,35 +829,35 @@ frases:
   deshacer.titulo:
     texto: 'Sesiones disponibles para deshacer:'
     origen: original
-    fuente: references/paso-6-deshacer.md:29
+    fuente: references/paso-6-deshacer.md:33
     riesgo: normal
     lista: false
     invariable: false
   deshacer.item1:
     texto: 1. 20250407-143022 — 12 correos movidos (hace 2 horas)
     origen: original
-    fuente: references/paso-6-deshacer.md:30
+    fuente: references/paso-6-deshacer.md:34
     riesgo: normal
     lista: false
     invariable: false
   deshacer.item2:
     texto: 2. 20250406-091500 — 8 correos movidos (ayer)
     origen: original
-    fuente: references/paso-6-deshacer.md:31
+    fuente: references/paso-6-deshacer.md:35
     riesgo: normal
     lista: false
     invariable: false
   deshacer.item3:
     texto: 3. 20250405-162300 — 23 correos movidos (hace 2 días)
     origen: original
-    fuente: references/paso-6-deshacer.md:32
+    fuente: references/paso-6-deshacer.md:36
     riesgo: normal
     lista: false
     invariable: false
   deshacer.revertir:
     texto: 'Voy a revertir N correos: [lista de asuntos].'
     origen: original
-    fuente: references/paso-6-deshacer.md:38
+    fuente: references/paso-6-deshacer.md:42
     riesgo: alto
     lista: false
     invariable: false

@@ -2416,9 +2416,18 @@ def _estado_sesiones(registros):
         if not isinstance(sid, str) or not sid.strip():
             continue
         s = sesiones.setdefault(sid, {"correos": {}, "cierres": [],
-                                      "fallidos": set(), "ts": None})
+                                      "fallidos": set(), "ts": None,
+                                      "ultimo_sello": None})
         ev = reg.get("event")
         mid = reg.get("message_id")
+        if ev == EVENTO_CIERRE or (reg.get("to_folder")
+                                   and isinstance(mid, str)):
+            # v3.21.16: la antigüedad sale del sello del script, nunca del
+            # `ts` del modelo; los eventos de deshacer no cuentan.
+            sello = _parse_ts(reg.get("ts_registro"))
+            if sello and (s["ultimo_sello"] is None
+                          or sello > s["ultimo_sello"]):
+                s["ultimo_sello"] = sello
         if ev == EVENTO_CIERRE:
             if _valida_cierre(reg) is None:
                 s["cierres"].append(reg)
@@ -2462,7 +2471,21 @@ def _asunto_log(asunto):
     return asunto, False
 
 
-def _resumen_sesion(sid, s, detalle, incluir_sin_cerrar=False):
+def _antiguedad(sello, ahora):
+    """{"cantidad", "unidad"} en minutos/horas/dias desde `sello`, o None
+    sin sello. Neutro de idioma: el modelo lo redacta («hace 2 horas»).
+    Sin «ayer»: depende del calendario local, que el log no conoce."""
+    if sello is None:
+        return None
+    seg = max(0, int((ahora - sello).total_seconds()))
+    if seg < 3600:
+        return {"cantidad": seg // 60, "unidad": "minutos", "segundos": seg}
+    if seg < 86400:
+        return {"cantidad": seg // 3600, "unidad": "horas", "segundos": seg}
+    return {"cantidad": seg // 86400, "unidad": "dias", "segundos": seg}
+
+
+def _resumen_sesion(sid, s, detalle, incluir_sin_cerrar=False, ahora=None):
     n_ok = sum(c["n_ok"] for c in s["cierres"])
     registrados = len(s["correos"])
     if not s["cierres"]:
@@ -2510,7 +2533,10 @@ def _resumen_sesion(sid, s, detalle, incluir_sin_cerrar=False):
         if inyeccion:
             correo["injection_subject"] = True
         correos.append(correo)
-    resumen = {"session_id": sid, "ts": s["ts"], "movimientos": registrados,
+    resumen = {"session_id": sid, "ts": s["ts"],
+               "antiguedad": _antiguedad(s["ultimo_sello"],
+                                         ahora or datetime.now(timezone.utc)),
+               "movimientos": registrados,
                "deshacibles": sum(c["deshacible"] for c in correos),
                "sin_confirmar": n_sin_confirmar,
                "cierre": cierre, "por_estado": por_estado}
@@ -2531,7 +2557,7 @@ def _registro_json(linea):
 
 
 def cmd_estado_log(ruta=None, session=None, ultimas=ULTIMAS_SESIONES,
-                   incluir_sin_cerrar=False):
+                   incluir_sin_cerrar=False, ahora=None):
     """Estado de las sesiones del session_log. Sin `session`: las `ultimas`
     sesiones con algo que deshacer (la más reciente primero), para el punto
     2 del PASO 6. Con `session`: cada correo movido con su último estado
@@ -2542,7 +2568,9 @@ def cmd_estado_log(ruta=None, session=None, ultimas=ULTIMAS_SESIONES,
     con descuadre no es deshacible (cuenta en `sin_confirmar`) salvo
     `incluir_sin_cerrar`; en el listado esas sesiones van aparte, en
     `sesiones_sin_confirmar`. Las `legado` (anteriores a cerrar-lote) no
-    cambian.
+    cambian. v3.21.16: cada sesión trae `antiguedad` ({"cantidad",
+    "unidad", "segundos"}) calculada con el `ts_registro` más reciente de
+    sus movimientos y cierre; None si sus líneas son anteriores al sello.
 
     SOLO LEE: no escribe ni mueve nada. TOTAL: nunca lanza."""
     ruta = ruta or RUTA_SESSION_LOG
@@ -2553,6 +2581,8 @@ def cmd_estado_log(ruta=None, session=None, ultimas=ULTIMAS_SESIONES,
         return {"ok": False, "error": "session debe ser una cadena no vacía"}
     if isinstance(ultimas, bool) or not isinstance(ultimas, int) or ultimas < 1:
         return {"ok": False, "error": "ultimas debe ser un entero >= 1"}
+    if not isinstance(ahora, datetime) or ahora.tzinfo is None:
+        ahora = datetime.now(timezone.utc)   # `ahora` solo lo fijan los tests
     ruta_exp = _expandir(ruta)
     sid = session.strip() if session is not None else None
     # Con --session se recorre el fichero ENTERO quedándose solo con esa
@@ -2594,10 +2624,11 @@ def cmd_estado_log(ruta=None, session=None, ultimas=ULTIMAS_SESIONES,
                                     "log" % sid})
         else:
             salida.update(_resumen_sesion(sid, sesiones[sid], True,
-                                          incluir_sin_cerrar is True))
+                                          incluir_sin_cerrar is True, ahora))
     else:
         # Orden de append: la última sesión en aparecer es la más reciente.
-        resumenes = [_resumen_sesion(sid, s, False, incluir_sin_cerrar is True)
+        resumenes = [_resumen_sesion(sid, s, False, incluir_sin_cerrar is True,
+                                     ahora)
                      for sid, s in reversed(list(sesiones.items()))]
         ofrecibles = [r for r in resumenes if r["deshacibles"]]
         salida["sesiones"] = ofrecibles[:ultimas]
