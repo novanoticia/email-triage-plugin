@@ -23,7 +23,11 @@ Se activa cuando el usuario dice "deshaz el triaje", "undo", "revierte los movim
    `cierre`: `sin_cerrar` = nunca se cerró el lote (`cerrar-lote`);
    `descuadre` = hay cierre pero sus cuentas no cuadran con lo registrado.
    Solo si la persona pide expresamente deshacerla, avisa de que puede
-   fallar en todos y repite el punto 4 con `--incluir-sin-cerrar`:
+   fallar en todos y repite el punto 4 con `--incluir-sin-cerrar`.
+   La antigüedad («hace 2 horas») sale de `antiguedad` (cantidad y unidad,
+   calculadas por el script con su sello UTC): redáctala, no la calcules.
+   Si `antiguedad` es null (sesión anterior a v3.21.15), da la fecha del
+   `session_id` sin inventar cuánto hace:
 
    ```
    Sesiones disponibles para deshacer:

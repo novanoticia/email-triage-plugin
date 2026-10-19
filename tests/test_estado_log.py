@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 
 _RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _RAIZ not in sys.path:
@@ -246,6 +247,44 @@ class TestEstadoLog(unittest.TestCase):
         self._log(_mov(s, "a"), ajeno)
         r = th.cmd_estado_log(self.ruta, s)
         self.assertEqual([c["message_id"] for c in r["correos"]], ["a"])
+
+    def test_antiguedad_sale_del_sello_del_script(self):
+        ahora = datetime(2026, 10, 19, 12, 0, tzinfo=timezone.utc)
+        casos = (("20261019-115500", timedelta(minutes=5), (5, "minutos")),
+                 ("20261019-095800", timedelta(hours=2, minutes=2), (2, "horas")),
+                 ("20261016-120000", timedelta(days=3, hours=1), (3, "dias")))
+        regs = []
+        for sid, hace, _ in casos:
+            m = _mov(sid, "a" + sid)
+            m["ts_registro"] = (ahora - hace).isoformat()
+            m["ts"] = "1999-01-01T00:00:00"     # el ts del modelo no cuenta
+            regs.append(m)
+        self._log(*regs)
+        for sid, _, (cant, unidad) in casos:
+            ant = th.cmd_estado_log(self.ruta, sid, ahora=ahora)["antiguedad"]
+            self.assertEqual((ant["cantidad"], ant["unidad"]), (cant, unidad), sid)
+        listado = th.cmd_estado_log(self.ruta, ultimas=5, ahora=ahora)
+        self.assertTrue(all(x["antiguedad"] for x in listado["sesiones"]))
+
+    def test_antiguedad_usa_la_ultima_linea_y_no_el_deshacer(self):
+        ahora = datetime(2026, 10, 19, 12, 0, tzinfo=timezone.utc)
+        s = "20261019-090000"
+        m = _mov(s, "a")
+        m["ts_registro"] = "2026-10-19T09:00:00+00:00"
+        cierre = {"session_id": s, "event": EVENTO, "n_ok": 1, "fallidos": [],
+                  "ts_registro": "2026-10-19T10:00:00+00:00"}
+        undo = {"event": "undo_failed", "session_id": s, "message_id": "a",
+                "ts_registro": "2026-10-19T11:59:00+00:00"}
+        self._log(m, cierre, undo)
+        ant = th.cmd_estado_log(self.ruta, s, ahora=ahora)["antiguedad"]
+        self.assertEqual((ant["cantidad"], ant["unidad"]), (2, "horas"))
+
+    def test_sin_sello_no_hay_antiguedad(self):
+        s = "20261017-100000"
+        self._log(_mov(s, "a"))                 # línea anterior a v3.21.15
+        self.assertIsNone(th.cmd_estado_log(self.ruta, s)["antiguedad"])
+        r = th.cmd_estado_log(self.ruta, s, ahora="no es fecha")
+        self.assertTrue(r["ok"])
 
     def test_solo_lee(self):
         s = "20261017-100000"

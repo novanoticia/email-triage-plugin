@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.21.15
+# Email Triage Plugin v3.21.16
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,17 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.21.16
+
+- **«Hace 2 horas» lo calcula el script.** Al deshacer, el listado de
+  sesiones indica cuánto hace de cada una. Antes el modelo lo deducía del
+  identificador de sesión, que va en hora local sin zona. Ahora
+  `estado-log` lo calcula con el sello `ts_registro` de la v3.21.15 y lo
+  entrega como un dato (cantidad y unidad: minutos, horas o días) que el
+  modelo redacta en tu idioma.
+- Las sesiones anteriores al sello no tienen ese dato. En ellas el skill da
+  la fecha de la sesión y no se inventa cuánto hace.
 
 ## Novedades en v3.21.15
 
