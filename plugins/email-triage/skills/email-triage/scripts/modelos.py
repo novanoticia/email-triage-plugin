@@ -79,6 +79,21 @@ def planificar(p):
             "concurrencia": 1}
 
 
+def _plan_autoriza(p):
+    """v3.21.17 (prueba real comparar, 2026-10-19): `planificar` devolvió
+    delegacion_nativa_no_verificada y el modelo delegó igualmente; validar
+    y comparar procesaron la respuesta sin preguntar. Ahora exigen el `plan`
+    literal de planificar con delegar: true. No impide llamar al
+    especialista (eso no lo controla ningún script), pero su respuesta ya no
+    tiene vía oficial para contar si el plan no la autorizó."""
+    plan = p.get("plan")
+    if (not isinstance(plan, dict) or plan.get("ok") is not True
+            or plan.get("delegar") is not True
+            or plan.get("modo") not in ("comparar", "hibrido")):
+        return _error("delegacion_no_autorizada")
+    return None
+
+
 def _indexar(filas):
     if not isinstance(filas, list) or not filas:
         raise ValueError("lote_vacio_o_invalido")
@@ -148,6 +163,9 @@ def validar(p):
     El especialista solo aporta veredictos; nunca caps, boosts ni movimientos.
     La validez de evidencia textual sigue exigiendo revisión del principal.
     """
+    no_autorizada = _plan_autoriza(p)
+    if no_autorizada:
+        return no_autorizada
     cfg = p.get("config")
     if not isinstance(cfg, dict):
         return _error("config_invalida")
@@ -228,6 +246,9 @@ def _frenar_plantillas(salida):
 
 def comparar(p):
     """Compara propuestas, no verdad de referencia ni movimientos reales."""
+    no_autorizada = _plan_autoriza(p)
+    if no_autorizada:
+        return no_autorizada
     base, propuesta = _indexar(p.get("base")), _indexar(p.get("propuesta"))
     if set(base) != set(propuesta):
         return _error("muestras_no_equivalentes")
