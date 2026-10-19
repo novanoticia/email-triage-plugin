@@ -14,6 +14,9 @@ import sys
 import triage_helpers as th
 
 
+PROVEEDORES_NATIVOS = ("anthropic", "openai")
+
+
 def _error(motivo):
     return {"ok": False, "motivo": motivo, "usar_principal": True}
 
@@ -58,7 +61,7 @@ def planificar(p):
     if any(host.get(k) is not True for k in necesarias):
         return _error("delegacion_nativa_no_verificada")
     proveedor = host.get("proveedor")
-    if proveedor not in ("anthropic", "openai"):
+    if proveedor not in PROVEEDORES_NATIVOS:
         return _error("proveedor_no_admitido")
     modelo = cfg.get("modelo", "") or host.get("modelo_economico")
     if not _texto(modelo):
@@ -96,6 +99,8 @@ def _plan_autoriza(p):
             or plan.get("modo") not in ("comparar", "hibrido")
             or set(plan) != CLAVES_PLAN
             or not _texto(plan.get("modelo_solicitado"))
+            or plan.get("proveedor") not in PROVEEDORES_NATIVOS
+            or not _entero(plan.get("concurrencia"), 1, 1)
             or not _entero(plan.get("llamadas_restantes"), 1, 10)
             or not _entero(plan.get("tamano_lote"), 1, 50)):
         return _error("delegacion_no_autorizada")

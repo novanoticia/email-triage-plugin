@@ -267,6 +267,12 @@ class TestPlanAutorizaDelegacion(unittest.TestCase):
         p["plan"] = dict(PLAN_OK, llamadas_restantes=0)
         self.assertEqual(m.ejecutar("validar", p)["motivo"],
                          "delegacion_no_autorizada")
+        for cambio in ({"proveedor": "jev"}, {"concurrencia": 2},
+                       {"concurrencia": True}, {"llamadas_restantes": 1.0}):
+            p = lote()
+            p["plan"] = dict(PLAN_OK, **cambio)
+            self.assertEqual(m.ejecutar("validar", p)["motivo"],
+                             "delegacion_no_autorizada", cambio)
         p = lote()
         p["plan"] = dict(PLAN_OK, tamano_lote=1)
         p["esperados"] = p["esperados"] * 2
