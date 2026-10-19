@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.21.13).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.21.14).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -103,6 +103,7 @@ Uso:
                             incompleto / sin_registro / sin_cerrar /
                             descuadre, y `cierre`. Solo lee)
   python3 triage_helpers.py estado-log [--ruta RUTA] [--session SID] [--ultimas N]
+                            [--incluir-sin-cerrar]
                             (v3.21.13, PASO 6: sin --session lista las
                             últimas sesiones con algo que deshacer; con él,
                             el último estado de cada correo y si es
@@ -2214,14 +2215,19 @@ def cmd_cerrar_lote(ruta: str, datos: dict) -> dict:
 # Sesiones anteriores a v3.21.4 no podían escribir el cierre: se informan como
 # `legado` en vez de romper su veredicto. Se deduce del session_id
 # (YYYYMMDD-HHMMSS, formato del SKILL); uno sin ese formato se trata como
-# actual, que es lo seguro.
-FECHA_CIERRE_OBLIGATORIO = "20261018"
-_RE_SID_FECHA = re.compile(r"^(\d{8})-\d{6}$")
+# actual, que es lo seguro. v3.21.14 (pruebas reales 13-14): el corte era
+# solo la fecha 20261018 y v3.21.4 se fusionó ESE día, a las 08:33:08 hora
+# de Madrid (PR #73): sesiones de las 07:xx salían sin_cerrar sin poder
+# haberse cerrado. El corte es ahora fecha y hora, en hora local de Madrid
+# (el session_id es hora local). Es el momento más temprano en que se pudo
+# usar cerrar-lote, así que el error posible cae del lado seguro: una
+# sesión posterior nunca se toma por legado.
+INICIO_CIERRE_OBLIGATORIO = "20261018-083308"
+_RE_SID_FECHA = re.compile(r"^\d{8}-\d{6}$")
 
 
 def _sesion_legado(sid):
-    m = _RE_SID_FECHA.match(sid)
-    return bool(m) and m.group(1) < FECHA_CIERRE_OBLIGATORIO
+    return bool(_RE_SID_FECHA.match(sid)) and sid < INICIO_CIERRE_OBLIGATORIO
 
 
 def cmd_verificar_sesion(datos: dict) -> dict:
@@ -2438,7 +2444,7 @@ def _asunto_log(asunto):
     return asunto, False
 
 
-def _resumen_sesion(sid, s, detalle):
+def _resumen_sesion(sid, s, detalle, incluir_sin_cerrar=False):
     n_ok = sum(c["n_ok"] for c in s["cierres"])
     registrados = len(s["correos"])
     if not s["cierres"]:
@@ -2448,6 +2454,7 @@ def _resumen_sesion(sid, s, detalle):
     else:
         cierre = "confirmado"
     correos, por_estado, por_tier = [], {}, {}
+    n_sin_confirmar = 0
     for mid, c in s["correos"].items():
         reg = c["reg"]
         if mid in s["fallidos"]:
@@ -2460,8 +2467,20 @@ def _resumen_sesion(sid, s, detalle):
             estado = "movido"
         else:
             estado = "registrado"
+        # v3.21.14 (pruebas reales 13-14): `registrado` en una sesión
+        # sin_cerrar o con descuadre no prueba que el correo se moviera;
+        # revertirlo a ciegas mueve (o falla en) cientos de correos que
+        # nadie verificó. Solo con incluir_sin_cerrar, que pide la persona.
+        # undo_fallido tampoco: un intento fallido con el opt-in no prueba
+        # que el movimiento original ocurriera.
+        sin_confirmar = (estado in ("registrado", "undo_fallido")
+                         and cierre not in ("confirmado", "legado")
+                         and not incluir_sin_cerrar)
         deshacible = (estado in ("movido", "registrado", "undo_fallido")
-                      and reg.get("status") in STATUS_DESHACIBLES)
+                      and reg.get("status") in STATUS_DESHACIBLES
+                      and not sin_confirmar)
+        if sin_confirmar and reg.get("status") in STATUS_DESHACIBLES:
+            n_sin_confirmar += 1
         tier = reg.get("tier") if isinstance(reg.get("tier"), str) else "?"
         asunto, inyeccion = _asunto_log(reg.get("subject"))
         por_estado[estado] = por_estado.get(estado, 0) + 1
@@ -2475,6 +2494,7 @@ def _resumen_sesion(sid, s, detalle):
         correos.append(correo)
     resumen = {"session_id": sid, "ts": s["ts"], "movimientos": registrados,
                "deshacibles": sum(c["deshacible"] for c in correos),
+               "sin_confirmar": n_sin_confirmar,
                "cierre": cierre, "por_estado": por_estado}
     if detalle:
         resumen["por_tier"] = por_tier
@@ -2492,12 +2512,19 @@ def _registro_json(linea):
     return reg if isinstance(reg, dict) else None
 
 
-def cmd_estado_log(ruta=None, session=None, ultimas=ULTIMAS_SESIONES):
+def cmd_estado_log(ruta=None, session=None, ultimas=ULTIMAS_SESIONES,
+                   incluir_sin_cerrar=False):
     """Estado de las sesiones del session_log. Sin `session`: las `ultimas`
     sesiones con algo que deshacer (la más reciente primero), para el punto
     2 del PASO 6. Con `session`: cada correo movido con su último estado
     (movido / registrado / fallido / deshecho / undo_fallido) y si es
     `deshacible`, más recuentos por estado y tier.
+
+    v3.21.14: lo `registrado` o `undo_fallido` de una sesión sin_cerrar o
+    con descuadre no es deshacible (cuenta en `sin_confirmar`) salvo
+    `incluir_sin_cerrar`; en el listado esas sesiones van aparte, en
+    `sesiones_sin_confirmar`. Las `legado` (anteriores a cerrar-lote) no
+    cambian.
 
     SOLO LEE: no escribe ni mueve nada. TOTAL: nunca lanza."""
     ruta = ruta or RUTA_SESSION_LOG
@@ -2548,14 +2575,21 @@ def cmd_estado_log(ruta=None, session=None, ultimas=ULTIMAS_SESIONES):
                            "error": "la sesión %s no tiene movimientos en el "
                                     "log" % sid})
         else:
-            salida.update(_resumen_sesion(sid, sesiones[sid], True))
+            salida.update(_resumen_sesion(sid, sesiones[sid], True,
+                                          incluir_sin_cerrar is True))
     else:
         # Orden de append: la última sesión en aparecer es la más reciente.
-        ofrecibles = [r for r in (_resumen_sesion(sid, s, False)
-                                  for sid, s in reversed(list(sesiones.items())))
-                      if r["deshacibles"]]
+        resumenes = [_resumen_sesion(sid, s, False, incluir_sin_cerrar is True)
+                     for sid, s in reversed(list(sesiones.items()))]
+        ofrecibles = [r for r in resumenes if r["deshacibles"]]
         salida["sesiones"] = ofrecibles[:ultimas]
         salida["total_sesiones"] = len(ofrecibles)
+        # Las sesiones sin cierre van aparte, con su propio tope, para que
+        # no desaparezcan en silencio ni quiten sitio a las deshacibles.
+        sin_conf = [r for r in resumenes
+                    if not r["deshacibles"] and r["sin_confirmar"]]
+        if sin_conf:
+            salida["sesiones_sin_confirmar"] = sin_conf[:ultimas]
         if not ofrecibles:
             salida["aviso"] = ("No hay sesiones con movimientos por "
                                "deshacer." if sesiones else
@@ -4080,6 +4114,9 @@ def _construir_parser():
                      help="session_log.jsonl (solo lectura)")
     pel.add_argument("--session", default=None,
                      help="session_id: detalle por correo; sin él, lista")
+    pel.add_argument("--incluir-sin-cerrar", action="store_true",
+                     help="trata como deshacibles los movimientos de una "
+                          "sesión sin cierre (solo si la persona lo pide)")
     pel.add_argument("--ultimas", type=int, default=ULTIMAS_SESIONES,
                      help="sesiones a listar (por defecto %d)" % ULTIMAS_SESIONES)
     pv = sub.add_parser("verificar-sesion")
@@ -4309,7 +4346,8 @@ def main():
         else:
             out = cmd_cerrar_lote(args.ruta, data)
     elif args.cmd == "estado-log":
-        out = cmd_estado_log(args.ruta, args.session, args.ultimas)
+        out = cmd_estado_log(args.ruta, args.session, args.ultimas,
+                             args.incluir_sin_cerrar)
     elif args.cmd == "verificar-sesion":
         crudo = (args.datos if args.datos is not None
                  else sys.stdin.read(MAX_INGESTA_BYTES))

@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.21.13
+# Email Triage Plugin v3.21.14
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,23 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.21.14
+
+- **Deshacer no ofrece sesiones que nunca se cerraron.** Si una sesión
+  registró movimientos pero no tiene cierre (`cerrar-lote`), no consta que
+  esos correos se movieran de verdad. `estado-log` ya no los marca como
+  deshacibles: los cuenta en `sin_confirmar`, los lista aparte y el skill
+  te lo dice en vez de ofrecerte revertirlos.
+- Si de verdad quieres deshacer una de esas sesiones, se puede pidiéndolo
+  expresamente (`--incluir-sin-cerrar`), avisando de que puede fallar.
+- **Las sesiones anteriores al cierre se reconocen por fecha y hora.** El
+  cierre llegó con la v3.21.4, fusionada el 18 de octubre a las 08:33 (hora
+  de Madrid), pero el corte miraba solo la fecha: las sesiones de esa
+  mañana salían como «sin cerrar» cuando no podían haberse cerrado. Ahora
+  son `legado` y se deshacen como antes, también en `verificar-sesion`.
+  Es el caso de las tres sesiones (343, 286 y 102 movimientos) que
+  señalaron las pruebas reales 13 y 14.
 
 ## Novedades en v3.21.13
 

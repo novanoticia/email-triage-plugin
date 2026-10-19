@@ -76,16 +76,83 @@ class TestEstadoLog(unittest.TestCase):
         self.assertEqual([c["message_id"] for c in r["correos"]
                           if c["deshacible"]], ["a"])
 
-    def test_sin_cierre_queda_registrado(self):
+    def test_sin_cierre_no_se_deshace_por_defecto(self):
+        # Pruebas reales 13-14: 343 movimientos registrados sin cierre se
+        # ofrecían para deshacer sin saber si llegaron a moverse.
         s = "20261018-100000"
-        self._log(_mov(s, "a"))
+        self._log(_mov(s, "a"), _mov(s, "b"))
         r = th.cmd_estado_log(self.ruta, s)
         self.assertEqual(r["cierre"], "sin_cerrar")
         self.assertEqual(r["correos"][0]["estado"], "registrado")
+        self.assertFalse(r["correos"][0]["deshacible"])
+        self.assertEqual((r["deshacibles"], r["sin_confirmar"]), (0, 2))
+        r = th.cmd_estado_log(self.ruta, s, incluir_sin_cerrar=True)
+        self.assertEqual((r["deshacibles"], r["sin_confirmar"]), (2, 0))
+
+    def test_descuadre_tampoco_se_deshace_por_defecto(self):
+        s = "20261018-100000"
+        self._log(_mov(s, "a"), _mov(s, "b"),
+                  {"session_id": s, "event": EVENTO, "n_ok": 1,
+                   "fallidos": []})
+        r = th.cmd_estado_log(self.ruta, s)
+        self.assertEqual(r["cierre"], "descuadre")
+        self.assertEqual(r["deshacibles"], 0)
+
+    def test_sesion_legado_sigue_siendo_deshacible(self):
+        # Anterior a cerrar-lote: nunca tuvo cierre y no se le exige.
+        s = "20261017-100000"
+        self._log(_mov(s, "a"))
+        r = th.cmd_estado_log(self.ruta, s)
+        self.assertEqual(r["cierre"], "legado")
         self.assertTrue(r["correos"][0]["deshacible"])
 
+    def test_listado_muestra_sin_cerrar_sin_ofrecerla(self):
+        s1, s2 = "20261018-090000", "20261018-100000"
+        self._log(_mov(s1, "a"), _mov(s2, "b"),
+                  {"session_id": s2, "event": EVENTO, "n_ok": 1,
+                   "fallidos": []})
+        r = th.cmd_estado_log(self.ruta)
+        self.assertEqual([x["session_id"] for x in r["sesiones"]], [s2])
+        self.assertEqual([(x["session_id"], x["sin_confirmar"])
+                          for x in r["sesiones_sin_confirmar"]], [(s1, 1)])
+
+    def test_sin_confirmar_no_quita_sitio_a_las_deshacibles(self):
+        # Revisión: tres sesiones sin cierre más recientes ocupaban los 3
+        # huecos y escondían la única que se podía deshacer.
+        ok = "20261018-090000"
+        regs = [_mov(ok, "a"), {"session_id": ok, "event": EVENTO,
+                                "n_ok": 1, "fallidos": []}]
+        regs += [_mov("20261018-1%d0000" % i, "x%d" % i) for i in range(3)]
+        self._log(*regs)
+        r = th.cmd_estado_log(self.ruta)
+        self.assertEqual([x["session_id"] for x in r["sesiones"]], [ok])
+        self.assertEqual(len(r["sesiones_sin_confirmar"]), 3)
+
+    def test_undo_fallido_sin_cierre_sigue_bloqueado(self):
+        s = "20261018-100000"
+        self._log(_mov(s, "a"),
+                  {"event": "undo_failed", "session_id": s,
+                   "message_id": "a"})
+        r = th.cmd_estado_log(self.ruta, s)
+        self.assertEqual(r["correos"][0]["estado"], "undo_fallido")
+        self.assertFalse(r["correos"][0]["deshacible"])
+        r = th.cmd_estado_log(self.ruta, s, incluir_sin_cerrar=True)
+        self.assertTrue(r["correos"][0]["deshacible"])
+
+    def test_corte_legado_por_hora_no_solo_fecha(self):
+        # v3.21.4 se fusionó el 2026-10-18 a las 08:33:08 (hora de Madrid):
+        # las sesiones de las 07:xx de las pruebas 13-14 son legado.
+        for sid, esperado in (("20261018-071254", "legado"),
+                              ("20261018-083307", "legado"),
+                              ("20261018-083308", "sin_cerrar"),
+                              ("20261018-100000", "sin_cerrar"),
+                              ("rutina-x", "sin_cerrar")):
+            self._log(_mov(sid, "a"))
+            self.assertEqual(th.cmd_estado_log(self.ruta, sid)["cierre"],
+                             esperado, sid)
+
     def test_listado_omite_deshechas_y_ordena(self):
-        s1, s2, s3 = "20261018-090000", "20261018-100000", "20261018-110000"
+        s1, s2, s3 = "20261017-090000", "20261017-100000", "20261017-110000"
         self._log(_mov(s1, "a"), _mov(s2, "b"), _mov(s3, "c"),
                   {"event": "undone", "session_id": s2, "message_id": "b"})
         r = th.cmd_estado_log(self.ruta)
@@ -143,7 +210,7 @@ class TestEstadoLog(unittest.TestCase):
         self.assertNotIn("injection_subject", b)
 
     def test_session_lee_el_log_entero_aunque_supere_el_tope(self):
-        s = "20261018-090000"
+        s = "20261017-090000"
         relleno = [_mov("20261018-1%05d" % i, "x%d" % i) for i in range(5)]
         self._log(_mov(s, "a"), _mov(s, "b"), *relleno)
         tope = th.MAX_LINEAS_SESSION_LOG
@@ -181,7 +248,7 @@ class TestEstadoLog(unittest.TestCase):
         self.assertEqual([c["message_id"] for c in r["correos"]], ["a"])
 
     def test_solo_lee(self):
-        s = "20261018-100000"
+        s = "20261017-100000"
         self._log(_mov(s, "a"))
         antes = open(self.ruta, "rb").read()
         out = subprocess.run(
