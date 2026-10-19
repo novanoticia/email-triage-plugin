@@ -157,7 +157,8 @@ class TestDesgloseAcumulado(unittest.TestCase):
                                capture_output=True, text=True, timeout=60)
         self.assertNotIn("desglose_error", json.loads(a.stdout))
         self.assertEqual(len(lineas), 2)
-        self.assertEqual(set(json.loads(lineas[0])), {"ts", "desglose"})
+        self.assertEqual(set(json.loads(lineas[0])),
+                         {"ts", "desglose", "ts_registro"})
         r = json.loads(p.stdout)
         self.assertIs(r["ok"], True)
         self.assertEqual(r["correos"], 2)          # no 3: el id 1 cuenta una vez

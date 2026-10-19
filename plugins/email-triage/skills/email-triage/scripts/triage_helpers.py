@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.21.14).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.21.15).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -1250,7 +1250,9 @@ def _parsear_desglose(texto):
         pass
     else:
         # Un JSONL de UNA sola pasada también es JSON válido.
-        if isinstance(doc, dict) and set(doc) == {"ts", "desglose"}:
+        # v3.21.15: `registrar` añade `ts_registro` a cada línea.
+        if isinstance(doc, dict) and set(doc) - {"ts_registro"} == {
+                "ts", "desglose"}:
             return {"pasadas": [doc["desglose"]], "lineas_ignoradas": []}
         return doc
     pasadas, malas = [], []
@@ -1916,6 +1918,12 @@ def cmd_registrar(ruta: str, registro: dict) -> dict:
     (exclusivo). Crea el fichero y su directorio si faltan (700/600:
     contiene metadatos de correo). Devuelve {"ok": True, "bytes": n,
     "ruta": ...} o {"ok": False, "error": ...}. NUNCA mueve correos.
+
+    v3.21.15: sella cada línea con `ts_registro` (UTC, segundos), la hora
+    real del append. El `ts` de un movimiento lo escribe el modelo, sin
+    zona fiable; el sello lo pone el script y pisa cualquier `ts_registro`
+    que traiga el registro, así que no se puede falsear. Aditivo: `ts` y el
+    resto de campos no cambian.
     """
     if not isinstance(registro, dict):
         return {"ok": False, "error": "el registro debe ser un objeto JSON"}
@@ -1923,17 +1931,26 @@ def cmd_registrar(ruta: str, registro: dict) -> dict:
     if invalido:
         return invalido
     try:
-        linea = json.dumps(registro, ensure_ascii=False, separators=(",", ":"))
+        json.dumps(registro, ensure_ascii=False)   # falla pronto, sin lock
     except (TypeError, ValueError) as e:
         return {"ok": False, "error": "registro no serializable: %s" % e}
-    linea = linea.replace("\r", " ").replace("\n", " ")   # una sola línea
+
+    def _linea_sellada():
+        # El sello se toma YA con el lock (justo antes del write): así el
+        # orden de los ts_registro es el orden real de las líneas aunque
+        # varios registrar compitan por el flock.
+        sellado = dict(registro)
+        sellado["ts_registro"] = datetime.now(timezone.utc).isoformat(
+            timespec="seconds")
+        linea = json.dumps(sellado, ensure_ascii=False, separators=(",", ":"))
+        linea = linea.replace("\r", " ").replace("\n", " ")   # una sola línea
+        return (linea + "\n").encode("utf-8")
     ruta = _expandir(ruta)
     directorio = os.path.dirname(ruta) or "."
     try:
         _asegurar_dir_privado(directorio)
     except OSError as e:
         return {"ok": False, "error": "no se pudo preparar %s: %s" % (ruta, e)}
-    datos = (linea + "\n").encode("utf-8")
     # Reabrir-y-reintentar si el fichero fue rotado por `compactar` (os.replace)
     # entre nuestro os.open y el flock (CM1, auditoría 2026-07-10). Sin esto, un
     # registrar que abrió el fd ANTES del replace adquiría el flock sobre el
@@ -1958,6 +1975,7 @@ def cmd_registrar(ruta: str, registro: dict) -> dict:
                 lock = None   # sin flock (no-Unix): O_APPEND ya es atómico
             if lock is not None and not _fd_apunta_a(fd, ruta):
                 continue      # rotado bajo el lock: el finally cierra y reintenta
+            datos = _linea_sellada()
             os.write(fd, datos)
             return {"ok": True, "bytes": len(datos), "ruta": ruta}
         except OSError as e:

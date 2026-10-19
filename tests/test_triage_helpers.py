@@ -2006,6 +2006,8 @@ class TestRegistrarRotacionCM1(unittest.TestCase):
         self.assertTrue(disparado["si"], "la rotación no llegó a dispararse")
         with open(self.ruta, encoding="utf-8") as fh:
             lineas = [json.loads(l) for l in fh.read().splitlines() if l]
+        for l in lineas:
+            l.pop("ts_registro", None)   # sello de v3.21.15, no es del test
         self.assertIn({"w": 42}, lineas, "el append se perdió pese a devolver ok")
 
     def test_rotacion_persistente_devuelve_error(self):

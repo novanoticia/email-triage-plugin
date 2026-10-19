@@ -42,6 +42,8 @@ AppleScript / MCP de Gmail.
   append-only), `cmd_compactar` (purga explícita y atómica de ese JSONL) y
   los volcados opt-in regenerables `calibrar --guardar` / `scoring
   --desglose` (snapshots atómicos, no-datos). Ningún subcomando mueve correos.
+  `registrar` sella cada línea con `ts_registro` (UTC; desde v3.21.15): la
+  única hora del log que no escribe el modelo.
 - Todo metadato controlado por el remitente se **sanea/escapa** antes de
   interpolarse en nada (S0 para cuerpo/asunto/remitente; `escapar-applescript`
   para message-ids). El *escapado* es mecánico y completo; la *detección* S0 es

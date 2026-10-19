@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.21.14
+# Email Triage Plugin v3.21.15
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,17 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.21.15
+
+- **El registro guarda su propia hora, fiable.** Cada línea que escribe
+  `registrar` lleva ahora `ts_registro`: la hora real en que se escribió,
+  en UTC, puesta por el script y no por el modelo. El `ts` que ya había lo
+  escribe el modelo y no indica zona horaria, por eso en la v3.21.14 no
+  sirvió para separar con precisión las sesiones anteriores al cierre.
+- Es solo un añadido: no cambia ningún campo existente ni el
+  comportamiento del triaje. Sirve para auditar cuándo pasó cada cosa y
+  para cualquier corte por fecha que haga falta en el futuro.
 
 ## Novedades en v3.21.14
 
