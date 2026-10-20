@@ -30,11 +30,16 @@ def plan():
                              "sin_herramientas", "misma_conexion")}}}
 
 
+PLAN_OK = {"ok": True, "modo": "hibrido", "delegar": True,
+           "modelo_solicitado": "economico-prueba", "proveedor": "anthropic",
+           "llamadas_restantes": 2, "tamano_lote": 25, "concurrencia": 1}
+
+
 def lote():
     cfg = yaml.safe_load((SKILL / "config.yaml").read_text())
     activos = m._criterios(cfg)
     vs = {k: next(iter(opciones)) for k, (opciones, _) in activos.items()}
-    return {"config": cfg, "esperados": [{"id": "1", "control": {
+    return {"plan": PLAN_OK, "config": cfg, "esperados": [{"id": "1", "control": {
         "hard_rules": [], "extra_points": 0, "forzar_reply_needed": False,
         "tier_maximo": None, "remitente_en_historial": False}}],
         "respuesta": {"evaluaciones": [{"id": "1", "verdicts": vs,
@@ -205,7 +210,8 @@ class TestValidar(unittest.TestCase):
 
 class TestComparar(unittest.TestCase):
     def test_desacuerdo_no_es_verdad_y_no_inventa_ahorro(self):
-        r = m.ejecutar("comparar", {"base": [{"id": "1", "tier": "REPLY_NEEDED", "score": 10}],
+        r = m.ejecutar("comparar", {"plan": PLAN_OK,
+                                  "base": [{"id": "1", "tier": "REPLY_NEEDED", "score": 10}],
                                   "propuesta": [{"id": "1", "tier": "ARCHIVE", "score": -2}]})
         self.assertEqual(r["reply_a_archive"], ["1"])
         self.assertEqual(r["diferencias"][0]["delta_score"], -12)
@@ -216,7 +222,83 @@ class TestComparar(unittest.TestCase):
         b = [{"id": "1", "score": 2, "tier": "READING_LATER"}]
         for a in ([], b * 2, [{"id": "2", "score": 2, "tier": "READING_LATER"}],
                   [{"id": "1", "score": float("nan"), "tier": "REVIEW"}]):
-            self.assertFalse(m.ejecutar("comparar", {"base": b, "propuesta": a})["ok"])
+            self.assertFalse(m.ejecutar("comparar", {"plan": PLAN_OK,
+                                                     "base": b, "propuesta": a})["ok"])
+
+    def test_sin_plan_que_autorice_no_compara(self):
+        b = [{"id": "1", "score": 2, "tier": "READING_LATER"}]
+        r = m.ejecutar("comparar", {"base": b, "propuesta": b})
+        self.assertEqual(r["motivo"], "delegacion_no_autorizada")
+        self.assertTrue(r["usar_principal"])
+
+
+class TestPlanAutorizaDelegacion(unittest.TestCase):
+    """Prueba real (2026-10-19): planificar dijo delegacion_nativa_no_
+    verificada, el modelo delegó igualmente y validar aceptó la respuesta."""
+
+    def test_validar_exige_el_plan(self):
+        p = lote()
+        del p["plan"]
+        self.assertEqual(m.ejecutar("validar", p)["motivo"],
+                         "delegacion_no_autorizada")
+
+    def test_un_plan_que_dijo_usar_principal_no_autoriza(self):
+        cerrado = plan()
+        cerrado["host"]["sin_herramientas"] = False
+        negativa = m.ejecutar("planificar", cerrado)
+        self.assertEqual(negativa["motivo"], "delegacion_nativa_no_verificada")
+        actual = m.ejecutar("planificar", {"config": {"modo": "actual"}})
+        for p_falso in (negativa, actual, {"ok": True, "delegar": True},
+                        {"ok": True, "delegar": "true", "modo": "hibrido"}, None):
+            p = lote()
+            p["plan"] = p_falso
+            r = m.ejecutar("validar", p)
+            self.assertFalse(r["ok"], p_falso)
+            self.assertEqual(r["motivo"], "delegacion_no_autorizada")
+
+    def test_un_plan_incompleto_o_de_otro_lote_no_autoriza(self):
+        # Revisión (Codex P1): basta con tres campos sueltos no debe valer, y
+        # un lote mayor que el autorizado tampoco.
+        p = lote()
+        p["plan"] = {"ok": True, "modo": "hibrido", "delegar": True}
+        self.assertEqual(m.ejecutar("validar", p)["motivo"],
+                         "delegacion_no_autorizada")
+        p = lote()
+        p["plan"] = dict(PLAN_OK, llamadas_restantes=0)
+        self.assertEqual(m.ejecutar("validar", p)["motivo"],
+                         "delegacion_no_autorizada")
+        for cambio in ({"proveedor": "jev"}, {"concurrencia": 2},
+                       {"concurrencia": True}, {"llamadas_restantes": 1.0}):
+            p = lote()
+            p["plan"] = dict(PLAN_OK, **cambio)
+            self.assertEqual(m.ejecutar("validar", p)["motivo"],
+                             "delegacion_no_autorizada", cambio)
+        p = lote()
+        p["plan"] = dict(PLAN_OK, tamano_lote=1)
+        p["esperados"] = p["esperados"] * 2
+        p["esperados"][1] = dict(p["esperados"][1], id="2")
+        self.assertEqual(m.ejecutar("validar", p)["motivo"],
+                         "lote_mayor_que_el_autorizado")
+
+    def test_comparar_admite_la_sesion_de_varios_lotes(self):
+        # Revisión (Codex P2): comparar agrega todas las llamadas de la
+        # sesión; el tope es tamano_lote × llamadas_restantes, no un lote.
+        def filas(n):
+            return [{"id": str(i), "score": 1, "tier": "REVIEW"} for i in range(n)]
+        plan_ = dict(PLAN_OK, modo="comparar", tamano_lote=2, llamadas_restantes=2)
+        r = m.ejecutar("comparar", {"plan": plan_, "base": filas(4),
+                                    "propuesta": filas(4)})
+        self.assertTrue(r["ok"], r)
+        self.assertEqual(r["total"], 4)
+        r = m.ejecutar("comparar", {"plan": plan_, "base": filas(5),
+                                    "propuesta": filas(5)})
+        self.assertEqual(r["motivo"], "lote_mayor_que_el_autorizado")
+
+    def test_el_plan_real_de_planificar_si_autoriza(self):
+        p = lote()
+        p["plan"] = m.ejecutar("planificar", plan())
+        self.assertTrue(p["plan"]["delegar"])
+        self.assertTrue(m.ejecutar("validar", p)["ok"])
 
 
 class TestCLIYPaquete(unittest.TestCase):

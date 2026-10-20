@@ -14,6 +14,9 @@ import sys
 import triage_helpers as th
 
 
+PROVEEDORES_NATIVOS = ("anthropic", "openai")
+
+
 def _error(motivo):
     return {"ok": False, "motivo": motivo, "usar_principal": True}
 
@@ -58,7 +61,7 @@ def planificar(p):
     if any(host.get(k) is not True for k in necesarias):
         return _error("delegacion_nativa_no_verificada")
     proveedor = host.get("proveedor")
-    if proveedor not in ("anthropic", "openai"):
+    if proveedor not in PROVEEDORES_NATIVOS:
         return _error("proveedor_no_admitido")
     modelo = cfg.get("modelo", "") or host.get("modelo_economico")
     if not _texto(modelo):
@@ -77,6 +80,43 @@ def planificar(p):
             "modelo_solicitado": modelo, "proveedor": proveedor,
             "llamadas_restantes": limite - usadas, "tamano_lote": lote,
             "concurrencia": 1}
+
+
+CLAVES_PLAN = {"ok", "modo", "delegar", "modelo_solicitado", "proveedor",
+               "llamadas_restantes", "tamano_lote", "concurrencia"}
+
+
+def _plan_autoriza(p):
+    """v3.21.17 (prueba real comparar, 2026-10-19): `planificar` devolvió
+    delegacion_nativa_no_verificada y el modelo delegó igualmente; validar
+    y comparar procesaron la respuesta sin preguntar. Ahora exigen el `plan`
+    literal de planificar con delegar: true. No impide llamar al
+    especialista (eso no lo controla ningún script), pero su respuesta ya no
+    tiene vía oficial para contar si el plan no la autorizó."""
+    plan = p.get("plan")
+    if (not isinstance(plan, dict) or plan.get("ok") is not True
+            or plan.get("delegar") is not True
+            or plan.get("modo") not in ("comparar", "hibrido")
+            or set(plan) != CLAVES_PLAN
+            or not _texto(plan.get("modelo_solicitado"))
+            or plan.get("proveedor") not in PROVEEDORES_NATIVOS
+            or not _entero(plan.get("concurrencia"), 1, 1)
+            or not _entero(plan.get("llamadas_restantes"), 1, 10)
+            or not _entero(plan.get("tamano_lote"), 1, 50)):
+        return _error("delegacion_no_autorizada")
+    # El lote no puede ser mayor que el que autorizó el plan. Reusar un plan
+    # viejo tras agotar max_llamadas no se puede impedir sin estado (este
+    # módulo no escribe): es una huella, no una prueba, como los otros frenos.
+    # `validar` va por lote; `comparar` agrega la sesión entera (varias
+    # llamadas), así que su tope es tamano_lote × llamadas_restantes del
+    # plan de la primera llamada (revisión Codex P2, PR #86).
+    topes = {"esperados": plan["tamano_lote"],
+             "base": plan["tamano_lote"] * plan["llamadas_restantes"]}
+    for clave, tope in topes.items():
+        filas = p.get(clave)
+        if isinstance(filas, list) and len(filas) > tope:
+            return _error("lote_mayor_que_el_autorizado")
+    return None
 
 
 def _indexar(filas):
@@ -148,6 +188,9 @@ def validar(p):
     El especialista solo aporta veredictos; nunca caps, boosts ni movimientos.
     La validez de evidencia textual sigue exigiendo revisión del principal.
     """
+    no_autorizada = _plan_autoriza(p)
+    if no_autorizada:
+        return no_autorizada
     cfg = p.get("config")
     if not isinstance(cfg, dict):
         return _error("config_invalida")
@@ -228,6 +271,18 @@ def _frenar_plantillas(salida):
 
 def comparar(p):
     """Compara propuestas, no verdad de referencia ni movimientos reales."""
+    no_autorizada = _plan_autoriza(p)
+    if no_autorizada:
+        return no_autorizada
+    return _comparar_filas(p)
+
+
+def _comparar_filas(p):
+    """Comparador puro, sin freno de delegación nativa.
+
+    Lo usa la capa externa Jev (`jev.py`), que no pasa por `planificar`:
+    su autorización es su propio opt-in (`config-jev.yaml`), no un plan.
+    """
     base, propuesta = _indexar(p.get("base")), _indexar(p.get("propuesta"))
     if set(base) != set(propuesta):
         return _error("muestras_no_equivalentes")

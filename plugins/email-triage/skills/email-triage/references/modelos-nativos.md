@@ -74,6 +74,10 @@ python3 "<ruta-del-skill>/scripts/modelos.py" planificar < ~/.email-triage/tmp/m
 `delegar: true` autoriza un intento dentro del presupuesto; vuelve a comprobarlo
 con el contador actualizado antes de cada llamada. `ok: false` o `delegar: false`:
 continuar en el principal, manteniendo la simulación si se pidió `comparar`.
+**Entonces no llames al especialista:** desde v3.21.17 `validar` y `comparar`
+exigen la salida literal de `planificar` en `plan` y rechazan cualquier respuesta
+sin un plan con `delegar: true` (`delegacion_no_autorizada`). Una capacidad que
+el host no confirma no se da por buena porque el fichero del agente la declare.
 El script comprueba las declaraciones, no descubre
 herramientas ni garantiza que el host vaya a cumplirlas. La llamada la hace el
 asistente con la herramienta nativa, **nunca Python ni una API nueva**.
@@ -147,6 +151,7 @@ Escribe `tmp/modelos-validar.json` con `esperados` del principal y `respuesta`
   `remitente_conteo_historial`. Su origen son 4.A, 4.C y S0 del principal. No
   rellenar campos ausentes con cero/falso para permitir una delegación.
 - `respuesta`: objeto JSON devuelto por el especialista.
+- `plan`: la salida literal de `planificar` que autorizó esta llamada.
 
 ```bash
 python3 "<ruta-del-skill>/scripts/modelos.py" validar --config ~/.email-triage/config.yaml < ~/.email-triage/tmp/modelos-validar.json
@@ -187,7 +192,9 @@ principal; mantén 4.E, 4.G, 4.I, 4.K, 5.V y deshacer sin excepciones.
   desacuerdo entre modelos. Solo una corrección humana usa el flujo normal de
   correcciones de simulación.
 
-En comparación, crea `tmp/modelos-comparar.json` con `base` y `propuesta`, cada
+En comparación, crea `tmp/modelos-comparar.json` con `plan` (el de la
+**primera** llamada de la sesión: admite hasta `tamano_lote` ×
+`llamadas_restantes` filas), `base` y `propuesta`, cada
 una una lista de `{id, score, tier}` para los **mismos IDs válidos**. Los fallos
 se reportan aparte con su número y motivo; no sustituyas un fallo por la salida
 del principal para aparentar acuerdo.

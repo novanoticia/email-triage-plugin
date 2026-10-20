@@ -322,7 +322,8 @@ agente `plugins/email-triage/agents/evaluador-criterios.md` es una extensión na
 de Claude con `tools: []`, fuera del frontmatter portable de la skill.
 
 Solo mismo proveedor Y conexión confirmados; nunca deducirlo del nombre del
-modelo. Jev usa exclusivamente la capa externa opt-in descrita en
+modelo. Desde v3.21.17 `validar` y `comparar` exigen el `plan` de
+`planificar` con `delegar: true`: sin él, la respuesta delegada no cuenta. Jev usa exclusivamente la capa externa opt-in descrita en
 `references/jev.md` y `scripts/jev.py`; no extender `modelos.py` con red. Comparar implica simulación
 y no alimenta aprendizaje con desacuerdos entre modelos. Los controles de scoring
 vienen del principal, nunca de la respuesta delegada. Las pruebas sintéticas

@@ -411,7 +411,7 @@ def _procesar(p, cfg, capa, transporte, modo):
         consumo["coste_estimado_usd"] = (None if consumo["coste_total_desconocido"]
                                          else consumo["coste_parcial_con_tarifa_usd"])
         if modo == "comparar":
-            salida["comparacion"] = (modelos.comparar({"base": bases, "propuesta": propuestas})
+            salida["comparacion"] = (modelos._comparar_filas({"base": bases, "propuesta": propuestas})
                                       if bases else {"total": 0, "diferencias": []})
         else:
             modelos._frenar_plantillas(salida)
