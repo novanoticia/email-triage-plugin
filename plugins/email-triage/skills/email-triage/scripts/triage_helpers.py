@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.21.22).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.21.23).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -122,6 +122,9 @@ Uso:
                             (PASO 5.B: JSON {"session_id","message_ids":{id:
                             mid}}; deriva del desglose del scoring una línea
                             por correo en vectors.jsonl, vía registrar)
+  python3 triage_helpers.py limpiar-tmp [--horas N] [--dry-run]
+                            (PASO 5.L: borra de <base>/tmp/ lo de más de N
+                            horas; 12 por defecto)
   python3 triage_helpers.py montar-mover [--datos JSON]
                             (SCRIPT 3 de mover con todo escapado; 3 destinos:
                             review, archive nativo o a carpeta, y reply_needed)
@@ -198,6 +201,9 @@ su clase (CM2, auditoría 2026-07-19):
                            metadatos tras sanearlos, solo dentro de <base>/tmp/
                            (es la invariante «los cuerpos crudos se borran tras
                            leerlos», ya no a cargo de la memoria del modelo).
+  7. 'limpiar-tmp' (v3.21.23): BORRA de <base>/tmp/ lo que tenga más de N
+                           horas (12 por defecto), sin seguir symlinks ni salir
+                           de tmp/; con --dry-run solo cuenta.
 Sin sus flags, 'calibrar', 'scoring' y 'sanitizar' no escriben nada. Ningún
 subcomando mueve correos.
 """
@@ -270,6 +276,105 @@ def _borrar_crudo(ruta) -> dict:
     except OSError as e:
         return {"ruta": ruta, "borrado": False, "motivo": str(e)}
     return {"ruta": ruta, "borrado": True}
+
+
+HORAS_LIMPIAR_TMP = 12
+
+
+def cmd_limpiar_tmp(horas=HORAS_LIMPIAR_TMP, dry_run=False) -> dict:
+    """Borra de <base>/tmp/ lo que tenga más de `horas` horas (v3.21.23).
+
+    Prueba real 2026-10-20: tmp/ había acumulado 998 entradas (7,1 MB) de
+    sesiones anteriores; `sanitizar --borrar-origen` solo borra los cuerpos
+    crudos. El margen de edad protege lo de la sesión en curso y lo de una
+    rutina en paralelo, también sus carpetas recién creadas. Recorre por
+    descriptores de carpeta abiertos sin seguir symlinks (O_NOFOLLOW) y borra
+    relativo a ellos: un symlink se borra como enlace, nunca se atraviesa, y
+    cambiar una carpeta por un enlace a mitad del recorrido no saca de tmp/
+    (revisión Codex, PR #92). Conserva tmp/; quita las subcarpetas antiguas
+    que queden vacías. Una carpeta ilegible va a `errores`. Con `dry_run`
+    solo cuenta. TOTAL: nunca lanza."""
+    if (isinstance(horas, bool) or not isinstance(horas, (int, float))
+            or not 0 <= horas <= 24 * 365):
+        return {"ok": False, "error": "horas debe ser un número entre 0 y "
+                "8760"}
+    raiz = os.path.join(base_estado(), "tmp")
+    out = {"ok": True, "tmp": raiz, "horas": horas, "dry_run": dry_run,
+           "borrados": 0, "bytes_liberados": 0, "recientes": 0, "errores": []}
+    flags_dir = (os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+                 | getattr(os, "O_NOFOLLOW", 0))
+    try:
+        fd = os.open(raiz, flags_dir)
+    except FileNotFoundError:
+        return dict(out, nota="no existe tmp/: nada que hacer")
+    except OSError as e:
+        return dict(out, nota="tmp/ no es una carpeta abrible sin seguir "
+                    "enlaces (%s): nada que hacer" % e)
+    corte = datetime.now(timezone.utc).timestamp() - horas * 3600
+    try:
+        _limpiar_dir(fd, raiz, corte, dry_run, flags_dir, out)
+    finally:
+        os.close(fd)
+    return out
+
+
+def _limpiar_dir(fd_dir, ruta, corte, dry_run, flags_dir, out):
+    """Limpia la carpeta abierta en `fd_dir`; True si queda vacía."""
+    import stat as stat_mod
+    try:
+        nombres = [e.name for e in os.scandir(fd_dir)]
+    except OSError as e:
+        out["errores"].append({"ruta": ruta, "error": str(e)})
+        return False
+    vacia = True
+    for nombre in nombres:
+        sub = os.path.join(ruta, nombre)
+        try:
+            st = os.stat(nombre, dir_fd=fd_dir, follow_symlinks=False)
+        except OSError as e:
+            out["errores"].append({"ruta": sub, "error": str(e)})
+            vacia = False
+            continue
+        if stat_mod.S_ISDIR(st.st_mode):
+            # La edad de la carpeta se toma ANTES de vaciarla (borrar su
+            # contenido la actualiza): una recién creada no se quita.
+            try:
+                fd = os.open(nombre, flags_dir, dir_fd=fd_dir)
+            except OSError as e:
+                out["errores"].append({"ruta": sub, "error": str(e)})
+                vacia = False
+                continue
+            try:
+                if os.fstat(fd).st_ino != st.st_ino:   # cambiada a mitad
+                    out["errores"].append({"ruta": sub,
+                                           "error": "cambió durante la limpieza"})
+                    vacia = False
+                    continue
+                sub_vacia = _limpiar_dir(fd, sub, corte, dry_run, flags_dir,
+                                         out)
+            finally:
+                os.close(fd)
+            if sub_vacia and st.st_mtime <= corte and not dry_run:
+                try:
+                    os.rmdir(nombre, dir_fd=fd_dir)
+                    continue
+                except OSError:
+                    pass
+            vacia = False
+            continue
+        if st.st_mtime > corte:
+            out["recientes"] += 1
+            vacia = False
+            continue
+        try:
+            if not dry_run:
+                os.unlink(nombre, dir_fd=fd_dir)
+            out["borrados"] += 1
+            out["bytes_liberados"] += st.st_size
+        except OSError as e:
+            out["errores"].append({"ruta": sub, "error": str(e)})
+            vacia = False
+    return vacia
 
 
 def base_estado_es_efimera() -> bool:
@@ -4602,6 +4707,12 @@ def _construir_parser():
     pcd.add_argument("--datos", default=None,
                      help='JSON {"session_id":..,"revertidos":[..],'
                           '"fallidos":[..]}; sin él, stdin')
+    plt = sub.add_parser("limpiar-tmp")
+    plt.add_argument("--horas", type=float, default=HORAS_LIMPIAR_TMP,
+                     help="borra lo que tenga más de N horas (por defecto %d)"
+                          % HORAS_LIMPIAR_TMP)
+    plt.add_argument("--dry-run", action="store_true",
+                     help="solo cuenta lo que borraría")
     pvc = sub.add_parser("vectores")
     pvc.add_argument("--ruta", default=RUTA_VECTORES,
                      help="vectors.jsonl (append vía registrar)")
@@ -4864,6 +4975,8 @@ def main():
             out = {"ok": False, "error": "JSON inválido: %s" % e}
         else:
             out = cmd_cerrar_deshacer(args.ruta, data)
+    elif args.cmd == "limpiar-tmp":
+        out = cmd_limpiar_tmp(args.horas, args.dry_run)
     elif args.cmd == "vectores":
         crudo = (args.datos if args.datos is not None
                  else sys.stdin.read(MAX_INGESTA_BYTES))
