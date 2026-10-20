@@ -1794,7 +1794,78 @@ def cmd_validar_config(ruta: str, plantilla: Optional[str] = None) -> dict:
     salida.update(info_usuario)
     if plantilla:
         salida["desfase"] = desfase
+    # v3.21.20 (prueba real comparar, 2026-10-20): con el fichero en su
+    # sitio el modelo no lo leyó hasta que se le pidió. validar-config, que
+    # PASO 0 ya ejecuta siempre, informa de la capa: deja de depender de que
+    # el modelo se acuerde de buscarla.
+    capa = _leer_capa_modelos(os.path.dirname(os.path.abspath(ruta)))
+    salida["capa_modelos"] = capa
+    if capa["estado"] == "activa":
+        avisos.append("config-modelos.yaml activo en modo %s: lee "
+                      "references/modelos-nativos.md antes de cualquier fase"
+                      % capa["modo"])
+    elif capa["estado"] == "invalida":
+        avisos.append("config-modelos.yaml no válido (%s): se sigue el flujo "
+                      "actual sin delegar" % capa["motivo"])
     return salida
+
+
+NOMBRE_CAPA_MODELOS = "config-modelos.yaml"
+CLAVES_CAPA_MODELOS = ("modo", "modelo", "max_llamadas", "tamano_lote")
+
+
+def _motivo_capa_modelos(cfg):
+    """Motivo por el que la capa de modelos no vale, o None. Fuente única
+    de las reglas que aplica `modelos.py planificar` al config: un modo
+    `actual` vale con cualquier otra clave (no se delega)."""
+    if not isinstance(cfg, dict):
+        return "config_modelos_invalida"
+    modo = cfg.get("modo", "actual")
+    if modo == "actual":
+        return None
+    if modo not in ("comparar", "hibrido"):
+        return "modo_no_admitido"
+    if set(cfg) - set(CLAVES_CAPA_MODELOS):
+        return "opcion_no_admitida"
+    limite = cfg.get("max_llamadas", 2)
+    lote = cfg.get("tamano_lote", 25)
+    if not (type(limite) is int and 1 <= limite <= 10
+            and type(lote) is int and 1 <= lote <= 50):
+        return "presupuesto_invalido"
+    return None
+
+
+def _leer_capa_modelos(base):
+    """Estado de <base>/config-modelos.yaml: `ausente`, `desactivada`
+    (modo actual), `activa` (con su config) o `invalida` (con motivo; se
+    trata como `actual`, fail-closed). Solo lee. TOTAL: nunca lanza."""
+    ruta = os.path.join(base, NOMBRE_CAPA_MODELOS)
+    out = {"ruta": ruta, "modo": "actual"}
+    if not os.path.exists(ruta):
+        return dict(out, estado="ausente")
+    try:
+        import yaml
+        with open(ruta, encoding="utf-8") as fh:
+            cfg = yaml.safe_load(fh.read(MAX_INGESTA_BYTES))
+    except ImportError:
+        return dict(out, estado="invalida", motivo="pyyaml_no_instalado")
+    except (OSError, UnicodeDecodeError):
+        return dict(out, estado="invalida", motivo="ilegible")
+    except Exception:            # yaml.YAMLError y cualquier rareza
+        return dict(out, estado="invalida", motivo="yaml_roto")
+    cfg = {} if cfg is None else cfg
+    motivo = _motivo_capa_modelos(cfg)
+    if not motivo and not isinstance(cfg.get("modelo") or "", str):
+        motivo = "modelo_invalido"      # planificar no lo identificaría
+    if motivo:
+        return dict(out, estado="invalida", motivo=motivo)
+    if cfg.get("modo", "actual") == "actual":
+        return dict(out, estado="desactivada")
+    return dict(out, estado="activa", modo=cfg["modo"],
+                config={"modo": cfg["modo"],
+                        "modelo": cfg.get("modelo") or "",
+                        "max_llamadas": cfg.get("max_llamadas", 2),
+                        "tamano_lote": cfg.get("tamano_lote", 25)})
 
 
 # ════════════════════════════════════════════════════════════════

@@ -65,7 +65,8 @@ ilustrativo**, no evidencia de capacidades reales:
 
 No copies los `true` del ejemplo: si una capacidad no está confirmada pon `false`.
 Los datos de capacidades provienen del host; nunca del correo ni del especialista.
-Usa los ajustes de la capa personal, o los pedidos para la sesión, como `config`.
+Usa como `config` el `capa_modelos.config` que devolvió `validar-config` en el
+PASO 0, tal cual, o los ajustes pedidos para la sesión.
 
 ```bash
 python3 "<ruta-del-skill>/scripts/modelos.py" planificar < ~/.email-triage/tmp/modelos-plan.json
