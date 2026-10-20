@@ -118,7 +118,7 @@ Uso:
                             correo es de la sesión y deshacible y añade vía
                             registrar UNA línea undo_batch_done)
   python3 triage_helpers.py vectores --desglose RUTA [--ruta RUTA] [--config RUTA]
-                            [--datos JSON]
+                            [--config-veloz RUTA] [--config-ensayo RUTA] [--datos JSON]
                             (PASO 5.B: JSON {"session_id","message_ids":{id:
                             mid}}; deriva del desglose del scoring una línea
                             por correo en vectors.jsonl, vía registrar)
@@ -2881,14 +2881,20 @@ def cmd_vectores(ruta, desglose, datos, cfg) -> dict:
                 "mapeo de claves"}
     crits = cfg.get("criterios_epistemicos")
     crits = crits if isinstance(crits, dict) else {}
-    activos = sorted(c for c, v in crits.items()
-                     if isinstance(v, dict) and v.get("activo", True))
+    # Revisión Codex (PR #88): una clave no cadena rompería el sorted/join.
+    activos = sorted(c for c, v in crits.items() if isinstance(c, str)
+                     and isinstance(v, dict) and v.get("activo", True))
     core = {c for c in activos if crits[c].get("core") is True}
     if not activos:
         return {"ok": False, "error": "el config no tiene criterios activos"}
     try:
         with open(_expandir(desglose), encoding="utf-8") as fh:
-            doc = _parsear_desglose(fh.read(MAX_INGESTA_BYTES))
+            texto = fh.read(MAX_INGESTA_BYTES + 1)
+        # Revisión Codex (PR #88): leído a medias, la última pasada de un id
+        # podría quedar fuera sin aviso.
+        if len(texto) > MAX_INGESTA_BYTES:
+            raise ValueError("supera %d bytes" % MAX_INGESTA_BYTES)
+        doc = _parsear_desglose(texto)
     except (OSError, ValueError) as e:
         return {"ok": False, "error": "no se pudo leer el desglose: %s" % e}
     ultimo = {}
@@ -3253,6 +3259,11 @@ def _escribir_texto_atomico(texto, ruta, prefijo) -> dict:
     """Temp en el MISMO directorio + fsync + os.replace; fichero 600 y
     directorios nuevos 700. Base común del snapshot JSON y del informe."""
     ruta = _expandir(str(ruta))
+    # Revisión Codex (PR #88): un snapshot sobre vectors.jsonl lo
+    # reemplazaría entero; ese fichero solo lo escribe `vectores`.
+    reservado = _valida_vector(ruta, False)
+    if reservado:
+        return reservado
     directorio = os.path.dirname(ruta) or "."
     try:
         _asegurar_dir_privado(directorio)
@@ -4454,6 +4465,10 @@ def _construir_parser():
                      help="fichero escrito por scoring --desglose")
     pvc.add_argument("--config",
                      default=_expandir("~/.email-triage/config.yaml"))
+    pvc.add_argument("--config-veloz", default=None,
+                     help="la misma capa veloz que se pasó a scoring")
+    pvc.add_argument("--config-ensayo", default=None,
+                     help="la misma capa del ensayo P3 que se pasó a scoring")
     pvc.add_argument("--datos", default=None,
                      help='JSON {"session_id":..,"message_ids":{id:mid}}; '
                           'sin él, stdin')
@@ -4710,7 +4725,11 @@ def main():
                  else sys.stdin.read(MAX_INGESTA_BYTES))
         try:
             data = json.loads(crudo or "{}")
-            cfg = _cargar_config(args.config)
+            # Revisión Codex (PR #88): las mismas capas que el scoring, o
+            # el ensayo P3 cambia los core y todo vector saldría incompleto.
+            cfg = _fusiona_config_ensayo(
+                _fusiona_config_veloz(_cargar_config(args.config),
+                                      args.config_veloz), args.config_ensayo)
         except json.JSONDecodeError as e:
             out = {"ok": False, "error": "JSON inválido: %s" % e}
         except ConfigError as e:

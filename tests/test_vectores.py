@@ -144,6 +144,62 @@ class TestVectores(unittest.TestCase):
         otro = os.path.join(self.d.name, "scores.jsonl")
         self.assertTrue(th.cmd_registrar(otro, {"session_id": SID})["ok"])
 
+    def test_desglose_demasiado_grande_es_error(self):
+        # Revisión Codex (PR #88): leído a medias perdería la última pasada.
+        self._puntuar({"id": 1, "verdicts": {"a": "si", "b": "si"}})
+        viejo = th.MAX_INGESTA_BYTES
+        th.MAX_INGESTA_BYTES = 10
+        try:
+            r = self._vectores({"1": "<m1>"})
+        finally:
+            th.MAX_INGESTA_BYTES = viejo
+        self.assertFalse(r["ok"])
+        self.assertEqual(self._lineas(), [])
+
+    def test_criterio_con_clave_no_cadena_no_revienta(self):
+        crits = dict(CFG["criterios_epistemicos"])
+        crits[1] = {"activo": True, "core": True}
+        cfg = {"criterios_epistemicos": crits}
+        self._puntuar({"id": 1, "verdicts": {"a": "si", "b": "si"}})
+        r = th.cmd_vectores(self.ruta, self.desglose,
+                            {"session_id": SID, "message_ids": {"1": "<m>"}},
+                            cfg)
+        self.assertTrue(r["ok"], r)
+        self.assertEqual(r["escritos"], 1)
+
+    def test_snapshot_no_pisa_vectors(self):
+        # Revisión Codex (PR #88): `scoring --desglose vectors.jsonl` o
+        # `calibrar --guardar` lo reemplazarían entero.
+        self._puntuar({"id": 1, "verdicts": {"a": "si", "b": "si"}})
+        self._vectores({"1": "<m1>"})
+        r = th._escribir_snapshot_json({"x": 1}, self.ruta, ".t-")
+        self.assertFalse(r["ok"])
+        self.assertEqual(len(self._lineas()), 1)
+
+    def test_cli_aplica_las_capas_del_scoring(self):
+        # Revisión Codex (PR #88): con el ensayo P3 cambian los core; sin
+        # la capa, todo vector saldría incompleto.
+        self._puntuar({"id": 1, "verdicts": {"a": "si", "c": "si"}})
+        d = self.d.name
+        cfg, capa = os.path.join(d, "config.yaml"), os.path.join(d, "e.yaml")
+        with open(cfg, "w", encoding="utf-8") as fh:
+            json.dump(CFG, fh)
+        with open(capa, "w", encoding="utf-8") as fh:
+            json.dump({"criterios_epistemicos": {
+                "b": {"activo": False}, "c": {"core": True}}}, fh)
+        datos = json.dumps({"session_id": SID, "message_ids": {"1": "<m1>"}})
+        base = [sys.executable, SCRIPT, "vectores", "--ruta", self.ruta,
+                "--desglose", self.desglose, "--config", cfg, "--datos", datos]
+        sin = json.loads(subprocess.run(base, capture_output=True, text=True,
+                                        timeout=30).stdout)
+        if "PyYAML" in json.dumps(sin, ensure_ascii=False):
+            self.skipTest("sin PyYAML")
+        self.assertEqual(sin["escritos"], 0)            # falta el core b
+        con = json.loads(subprocess.run(base + ["--config-ensayo", capa],
+                                        capture_output=True, text=True,
+                                        timeout=30).stdout)
+        self.assertEqual(con["escritos"], 1, con)
+
     def test_cli(self):
         self._puntuar({"id": 1, "verdicts": {"a": "si", "b": "si"}})
         cfg = os.path.join(self.d.name, "config.yaml")

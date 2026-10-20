@@ -44,6 +44,9 @@ python3 "<ruta-del-skill>/scripts/triage_helpers.py" vectores \
   --config ~/.email-triage/config.yaml < ~/.email-triage/tmp/vectores.json
 ```
 
+Si el scoring llevó `--config-veloz` o `--config-ensayo`, pásale a `vectores`
+las mismas capas: fijan qué criterios son core.
+
 Escribe una línea por correo (manda la última puntuación de cada id) con
 `criterios` (1 = evaluado con veredicto válido, 0 = no evaluado o no aplica)
 y `veredictos`. Omite, con motivo en `omitidos`, los ids sin desglose
