@@ -229,6 +229,11 @@ rompes la conformidad (gate #7) y el skill deja de cargar fuera de Claude.
   Desde v3.21.4 cada lote movido se cierra con `cerrar-lote` (escribe vía
   `registrar`, no es una escritura nueva): sin ese evento `move_batch_done`,
   `verificar-sesion` da `sin_cerrar` y el triaje no es válido.
+  Desde v3.21.18 el deshacer se cierra con `cerrar-deshacer` (también vía
+  `registrar`): comprueba contra el log que cada correo es de esa sesión y
+  deshacible y escribe UNA línea `undo_batch_done`; `registrar` rechaza
+  `undone`/`undo_failed` escritos a mano (prueba real 2: un `undone` en la
+  sesión equivocada).
   Desde v3.21.7 `scoring` marca `plantilla` (y `alerta_plantilla` en el
   lote) cuando 5+ correos traen veredictos idénticos, y `registrar` rechaza
   como triaje un movimiento con `plantilla: true`: el 2026-10-18 se movieron

@@ -57,16 +57,23 @@ Se activa cuando el usuario dice "deshaz el triaje", "undo", "revierte los movim
    `move` fallará limpiamente y cae en el punto 5.
 
 5. **Resultado parcial**: si algún correo no puede revertirse (ya fue movido
-   a otra carpeta manualmente, eliminado, etc.), informar cuáles fallaron y
-   añadir (append) por cada uno:
-   `{"event":"undo_failed","session_id":"...","message_id":"<id>","ts":"ISO8601"}`.
+   a otra carpeta manualmente, eliminado, etc.), informar cuáles fallaron.
    No abortar — revertir los que sí se pueda.
 
-6. **Registrar el resultado (append-only)**: por cada correo revertido con
-   éxito, añadir
-   `{"event":"undone","session_id":"...","message_id":"<id>","undone_at":"ISO8601"}`.
-   Una sesión cuyos movimientos tienen todos un evento `undone` deja de
-   ofrecerse en el listado del punto 2.
+6. **Registrar el resultado** (v3.21.18: con el script, no a mano). Al
+   terminar, una sola llamada con los message_id tal como los dio
+   `estado-log --session`:
+
+   ```bash
+   python3 <scripts>/triage_helpers.py cerrar-deshacer --datos \
+     '{"session_id":"<id>","revertidos":["<id1>",...],"fallidos":["<id2>",...]}'
+   ```
+
+   Añade `"incluir_sin_cerrar": true` solo si el punto 2 lo usó. El script
+   comprueba que cada correo es de esa sesión y deshacible; si uno no lo es
+   (`ajenos`, `no_deshacibles`) no escribe nada: dilo con su número, no lo
+   corrijas a mano. `registrar` rechaza `undone`/`undo_failed` escritos a
+   mano. Una sesión sin correos deshacibles deja de ofrecerse en el punto 2.
 
 ### Qué NO hace el undo
 

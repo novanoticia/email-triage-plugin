@@ -112,6 +112,11 @@ Uso:
                             (v3.21.4: JSON {"session_id","salida"} con el
                             return literal del SCRIPT 3; añade vía registrar
                             el evento move_batch_done con n_ok y fallidos)
+  python3 triage_helpers.py cerrar-deshacer [--ruta RUTA] [--datos JSON]
+                            (v3.21.18, PASO 6: JSON {"session_id",
+                            "revertidos","fallidos"}; comprueba que cada
+                            correo es de la sesión y deshacible y añade vía
+                            registrar UNA línea undo_batch_done)
   python3 triage_helpers.py montar-mover [--datos JSON]
                             (SCRIPT 3 de mover con todo escapado; 3 destinos:
                             review, archive nativo o a carpeta, y reply_needed)
@@ -167,6 +172,9 @@ su clase (CM2, auditoría 2026-07-19):
                            (correcciones.jsonl / session_log.jsonl, append-only);
                            'cerrar-lote' (v3.21.4) escribe A TRAVÉS de él: no
                            es una escritura nueva, solo arma el evento;
+                           'cerrar-deshacer' (v3.21.18) tampoco: arma el
+                           undo_batch_done y es la única vía de los eventos
+                           de deshacer (registrar los rechaza a mano);
   2. 'compactar':          mantenimiento explícito — REESCRIBE ese JSONL bajo
                            el mismo flock (temp + os.replace) truncándolo;
   3. 'calibrar --guardar': snapshot de CACHÉ regenerable (calibracion.json,
@@ -1911,7 +1919,26 @@ def _valida_cierre(registro):
     return None
 
 
-def cmd_registrar(ruta: str, registro: dict) -> dict:
+EVENTO_DESHACER = "undo_batch_done"
+EVENTOS_DESHACER = ("undone", "undo_failed", EVENTO_DESHACER)
+
+
+def _valida_deshacer(registro, desde_cerrar_deshacer):
+    """v3.21.18 (prueba real 2): el modelo anotó a mano un `undone` en la
+    sesión equivocada. Los eventos de deshacer ya solo los escribe
+    `cerrar-deshacer`, que comprueba contra el log que cada correo es de
+    esa sesión y deshacible. None si vale (o si no es de deshacer)."""
+    if registro.get("event") not in EVENTOS_DESHACER or desde_cerrar_deshacer:
+        return None
+    return {"ok": False,
+            "error": "los eventos de deshacer (%s) no se registran a mano"
+                     % ", ".join(EVENTOS_DESHACER),
+            "remedio": "usa `cerrar-deshacer` con session_id, revertidos y "
+                       "fallidos: comprueba que cada correo es de la sesión"}
+
+
+def cmd_registrar(ruta: str, registro: dict,
+                  _desde_cerrar_deshacer: bool = False) -> dict:
     """Append atómico de `registro` como una línea JSON en `ruta`.
 
     Serializa a JSON de una sola línea y lo añade bajo fcntl.flock
@@ -1927,7 +1954,8 @@ def cmd_registrar(ruta: str, registro: dict) -> dict:
     """
     if not isinstance(registro, dict):
         return {"ok": False, "error": "el registro debe ser un objeto JSON"}
-    invalido = _valida_movimiento(registro) or _valida_cierre(registro)
+    invalido = (_valida_movimiento(registro) or _valida_cierre(registro)
+                or _valida_deshacer(registro, _desde_cerrar_deshacer is True))
     if invalido:
         return invalido
     try:
@@ -2433,6 +2461,17 @@ def _estado_sesiones(registros):
                 s["cierres"].append(reg)
                 s["fallidos"].update(reg.get("fallidos", []))
             continue
+        if ev == EVENTO_DESHACER:
+            # v3.21.18: una línea de cerrar-deshacer equivale a un undone /
+            # undo_failed por correo, con la misma regla de terminalidad.
+            for lista, ev_mid in (("fallidos", "undo_failed"),
+                                  ("revertidos", "undone")):
+                for m in reg.get(lista) or ():
+                    if isinstance(m, str) and m in s["correos"] and (
+                            ev_mid == "undone"
+                            or s["correos"][m]["undo"] != "undone"):
+                        s["correos"][m]["undo"] = ev_mid
+            continue
         if ev in ("move_failed", "undone", "undo_failed"):
             if isinstance(mid, str):
                 if ev == "move_failed":
@@ -2649,6 +2688,81 @@ def cmd_estado_log(ruta=None, session=None, ultimas=ULTIMAS_SESIONES,
                                     "compacta el log"
                                     % (MAX_LINEAS_SESSION_LOG, total))
     return salida
+
+
+def _lista_mids(v):
+    """Lista de message_id no vacíos y sin repetir, o None si no lo es."""
+    if not isinstance(v, list) or not all(
+            isinstance(m, str) and m.strip() for m in v):
+        return None
+    mids = [m.strip() for m in v]
+    return mids if len(set(mids)) == len(mids) else None
+
+
+def cmd_cerrar_deshacer(ruta, datos) -> dict:
+    """Registra el resultado de un deshacer (v3.21.18, prueba real 2).
+
+    Entrada: {"session_id", "revertidos": [message_id], "fallidos":
+    [message_id], "incluir_sin_cerrar": bool opcional}. Lee la sesión con
+    `estado-log --session` y exige que CADA message_id sea de esa sesión y
+    deshacible; si uno no lo es, no escribe nada. Si todos valen, añade al
+    log, por el append de `registrar`, UNA línea {"event":
+    "undo_batch_done", "session_id", "ts", "revertidos", "fallidos",
+    "origen": "cerrar-deshacer"}: atómica, sin quedarse a medias. Nunca
+    mueve correos. TOTAL: nunca lanza."""
+    if not isinstance(datos, dict):
+        return {"ok": False, "error": "se esperaba un objeto JSON con "
+                "session_id, revertidos y fallidos"}
+    sid = datos.get("session_id")
+    if not isinstance(sid, str) or not sid.strip():
+        return {"ok": False, "error": "session_id ausente o no es una cadena"}
+    sid = sid.strip()
+    revertidos = _lista_mids(datos.get("revertidos", []))
+    fallidos = _lista_mids(datos.get("fallidos", []))
+    if revertidos is None or fallidos is None:
+        return {"ok": False, "error": "revertidos y fallidos deben ser listas "
+                "de message_id no vacíos y sin repetir"}
+    if not revertidos and not fallidos:
+        return {"ok": False, "error": "no hay nada que registrar: revertidos "
+                "y fallidos están vacíos"}
+    repetidos = sorted(set(revertidos) & set(fallidos))
+    if repetidos:
+        return {"ok": False, "error": "un correo no puede estar a la vez en "
+                "revertidos y fallidos", "repetidos": repetidos}
+    incluir = datos.get("incluir_sin_cerrar", False)
+    if not isinstance(incluir, bool):
+        return {"ok": False, "error": "incluir_sin_cerrar debe ser booleano"}
+    estado = cmd_estado_log(ruta, sid, incluir_sin_cerrar=incluir)
+    if not estado.get("ok"):
+        return {"ok": False, "session_id": sid,
+                "error": estado.get("error", "no se pudo leer la sesión")}
+    por_mid = {c["message_id"]: c for c in estado["correos"]}
+    ajenos = [m for m in revertidos + fallidos if m not in por_mid]
+    no_deshacibles = [m for m in revertidos + fallidos
+                      if m in por_mid and not por_mid[m]["deshacible"]]
+    if ajenos or no_deshacibles:
+        out = {"ok": False, "session_id": sid,
+               "error": "no se registra nada: hay correos que no son "
+                        "deshacibles en esta sesión"}
+        if ajenos:
+            out["ajenos"] = ajenos        # no son de esta sesión
+        if no_deshacibles:
+            out["no_deshacibles"] = [
+                {"message_id": m, "estado": por_mid[m]["estado"]}
+                for m in no_deshacibles]
+        return out
+    evento = {"event": EVENTO_DESHACER, "session_id": sid,
+              "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+              "revertidos": revertidos, "fallidos": fallidos,
+              "origen": "cerrar-deshacer"}
+    out = cmd_registrar(estado.get("ruta") or ruta, evento,
+                        _desde_cerrar_deshacer=True)
+    if out.get("ok"):
+        out = dict(out, session_id=sid, n_revertidos=len(revertidos),
+                   n_fallidos=len(fallidos),
+                   deshacibles_restantes=estado["deshacibles"]
+                   - len(revertidos))
+    return out
 
 
 # ════════════════════════════════════════════════════════════════
@@ -4155,6 +4269,12 @@ def _construir_parser():
                      help="session_log.jsonl (append vía registrar)")
     pcl.add_argument("--datos", default=None,
                      help='JSON {"session_id":..,"salida":".."}; sin él, stdin')
+    pcd = sub.add_parser("cerrar-deshacer")
+    pcd.add_argument("--ruta", default=RUTA_SESSION_LOG,
+                     help="session_log.jsonl (append vía registrar)")
+    pcd.add_argument("--datos", default=None,
+                     help='JSON {"session_id":..,"revertidos":[..],'
+                          '"fallidos":[..]}; sin él, stdin')
     pe = sub.add_parser("escapar-applescript")
     pe.add_argument("--valores", default=None,
                     help='JSON {"valores":[...]}; sin él se lee de stdin')
@@ -4394,6 +4514,15 @@ def main():
             out = {"ok": False, "error": "JSON inválido: %s" % e}
         else:
             out = cmd_cerrar_lote(args.ruta, data)
+    elif args.cmd == "cerrar-deshacer":
+        crudo = (args.datos if args.datos is not None
+                 else sys.stdin.read(MAX_INGESTA_BYTES))
+        try:
+            data = json.loads(crudo or "{}")
+        except json.JSONDecodeError as e:
+            out = {"ok": False, "error": "JSON inválido: %s" % e}
+        else:
+            out = cmd_cerrar_deshacer(args.ruta, data)
     elif args.cmd == "estado-log":
         out = cmd_estado_log(args.ruta, args.session, args.ultimas,
                              args.incluir_sin_cerrar)
