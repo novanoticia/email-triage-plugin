@@ -210,6 +210,7 @@ subcomando mueve correos.
 import argparse
 import html as html_mod
 import json
+import math
 import os
 import re
 import sys
@@ -4620,11 +4621,14 @@ def cmd_informe(datos: dict) -> dict:
         destino = _celda_md(u.get("destino"), 60)
         accion_txt = accion + (" → " + destino if destino else "")
         score = u.get("score")
-        numerico = isinstance(score, (int, float)) and not isinstance(score, bool)
+        # inf/nan (json.loads acepta 1e309, NaN, Infinity) no son un score.
+        numerico = (isinstance(score, (int, float)) and not isinstance(score, bool)
+                    and math.isfinite(score))
         score_txt = _celda_md(score, 8) if numerico else "—"
         if not (numerico and u.get("modo_scoring", modo_sesion)
                 == "determinista"):
             sin_determinista.append(n)
+            score_txt += " ⚠️"  # la fila se localiza aunque el aviso recorte
         por_tier[tier].append((n, "| %d | %s | %s | %s | %s |"
                                % (n, correo, score_txt, razones or "—", accion_txt)))
     lineas = ["# Informe de triaje · %s" % sid, "",
@@ -4636,7 +4640,8 @@ def cmd_informe(datos: dict) -> dict:
     if modo == "simulacion":
         lineas += ["> 🧪 Simulación: no se movió ningún correo.", ""]
     if sin_determinista:
-        lineas += ["> ⚠️ **Sin scoring determinista: %d de %d unidades** (%s). "
+        lineas += ["> ⚠️ **Sin scoring determinista: %d de %d unidades** (%s; "
+                   "marcadas ⚠️ en la columna Score). "
                    "Sus tiers son una propuesta del modelo: no pasaron los "
                    "frenos del script (suelo de prioritarios, plantilla, "
                    "caps) y no deben moverse como triaje."

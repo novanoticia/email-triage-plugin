@@ -71,11 +71,33 @@ class TestInformeSinScoring(unittest.TestCase):
         r, md = self._informe([_u(1), _u(2, modo_scoring="mental")],
                               modo_scoring="determinista")
         self.assertEqual(r["sin_scoring_determinista"], 1)
-        self.assertIn("(#2)", md)
+        self.assertIn("(#2;", md)
 
     def test_score_booleano_no_es_numerico(self):
         r, _ = self._informe([_u(1, score=True)], modo_scoring="determinista")
         self.assertEqual(r["sin_scoring_determinista"], 1)
+
+    def test_score_no_finito_no_es_numerico(self):
+        # json.loads convierte 1e309 en inf y acepta NaN/Infinity.
+        for score in (float("inf"), float("-inf"), float("nan")):
+            r, md = self._informe([_u(1, score=score)],
+                                  modo_scoring="determinista")
+            self.assertEqual(r["sin_scoring_determinista"], 1, score)
+            self.assertNotIn("inf", md.split("## ")[1])
+            self.assertNotIn("nan", md.split("## ")[1])
+
+    def test_cada_fila_afectada_queda_marcada(self):
+        # Más de 20: el aviso recorta la lista, pero cada fila lleva ⚠️.
+        unidades = [_u(i, modo_scoring="mental") for i in range(1, 26)]
+        unidades.append(_u(26))
+        r, md = self._informe(unidades, modo_scoring="determinista")
+        self.assertEqual(r["sin_scoring_determinista"], 25)
+        filas = [l for l in md.splitlines() if l.startswith("| ") and
+                 not l.startswith("| #")]
+        marcadas = [l for l in filas if "⚠️" in l]
+        self.assertEqual(len(marcadas), 25)
+        self.assertTrue(any(l.startswith("| 25 |") for l in marcadas))
+        self.assertFalse(any(l.startswith("| 26 |") for l in marcadas))
 
 
 if __name__ == "__main__":
