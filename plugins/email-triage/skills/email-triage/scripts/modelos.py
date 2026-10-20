@@ -269,6 +269,15 @@ def comparar(p):
     no_autorizada = _plan_autoriza(p)
     if no_autorizada:
         return no_autorizada
+    return _comparar_filas(p)
+
+
+def _comparar_filas(p):
+    """Comparador puro, sin freno de delegación nativa.
+
+    Lo usa la capa externa Jev (`jev.py`), que no pasa por `planificar`:
+    su autorización es su propio opt-in (`config-jev.yaml`), no un plan.
+    """
     base, propuesta = _indexar(p.get("base")), _indexar(p.get("propuesta"))
     if set(base) != set(propuesta):
         return _error("muestras_no_equivalentes")

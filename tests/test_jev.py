@@ -81,6 +81,15 @@ class TestJev(unittest.TestCase):
         self.assertTrue(row['usar_principal']); self.assertFalse(r['permitir_movimientos'])
         self.assertAlmostEqual(r['consumo']['coste_estimado_usd'], .0000042)
 
+    def test_comparacion_externa_no_exige_plan_nativo(self):
+        # Jev no pasa por `planificar`: el freno de v3.21.17 no debe vaciar
+        # su comparación (hallazgo de Codex en el PR #86).
+        r = self.comparar()
+        self.assertTrue(r['ok'], r)
+        self.assertEqual(r['comparacion'].get('total'), 1, r['comparacion'])
+        self.assertIn('diferencias', r['comparacion'])
+        self.assertIn('reply_a_archive', r['comparacion'])
+
     def test_payload_solo_datos_minimos_y_preguntas(self):
         t = Mock(side_effect=respuesta)
         self.comparar(t)
