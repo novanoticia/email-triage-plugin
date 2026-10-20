@@ -106,3 +106,36 @@ class TestSueloPrioritarios(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestSueloEnContratos(unittest.TestCase):
+    """Revisión Codex (PR #91): modelos.py y jev.py rechazaban `prioritario`
+    en el control, así que en híbrido el suelo no se aplicaba."""
+
+    def test_modelos_validar_aplica_el_suelo(self):
+        import modelos
+        from tests.test_modelos import lote
+        p = lote()
+        p["config"]["filtros"]["suelo_prioritarios"] = "REVIEW"
+        p["esperados"][0]["control"].update(prioritario=True,
+                                            extra_points=-1000)
+        r = modelos.ejecutar("validar", p)["resultados"][0]
+        self.assertEqual(r["resultado"]["tier"], "REVIEW", r)
+        self.assertIn("suelo_aplicado", r["resultado"])
+
+    def test_modelos_rechaza_prioritario_no_booleano(self):
+        import modelos
+        from tests.test_modelos import lote
+        p = lote()
+        p["esperados"][0]["control"]["prioritario"] = "si"
+        r = modelos.ejecutar("validar", p)["resultados"][0]
+        self.assertEqual(r["motivo"], "control_invalido")
+
+    def test_jev_acepta_prioritario_booleano(self):
+        import jev
+        base = {"hard_rules": [], "extra_points": 0,
+                "forzar_reply_needed": False, "tier_maximo": None,
+                "remitente_en_historial": False}
+        jev._validar_control(dict(base, prioritario=True))   # no lanza
+        with self.assertRaises(Exception):
+            jev._validar_control(dict(base, prioritario="si"))

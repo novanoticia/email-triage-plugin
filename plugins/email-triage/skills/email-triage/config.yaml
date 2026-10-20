@@ -148,7 +148,8 @@ interaccion:
 
     archivar_automaticamente: false
     # Si true, mueve a `carpetas.destino_archive` los correos con score
-    # ≤ tiers.archive (si destino_archive está vacío, archiva nativamente).
+    # ≤ tiers.archive y tier final ARCHIVE: el suelo de prioritarios lo
+    # impide (si destino_archive está vacío, archiva nativamente).
     # Mantener false hasta validar precisión.
 
     notificacion_macos: true

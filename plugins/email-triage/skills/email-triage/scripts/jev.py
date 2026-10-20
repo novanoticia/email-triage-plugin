@@ -143,9 +143,11 @@ def _validar_control(control):
     requeridos = {"hard_rules", "extra_points", "forzar_reply_needed",
                   "tier_maximo", "remitente_en_historial"}
     _exigir(isinstance(control, dict) and requeridos <= set(control)
-            and not set(control) - requeridos - {"remitente_conteo_historial"}, "control_invalido")
+            and not set(control) - requeridos
+            - {"remitente_conteo_historial", "prioritario"}, "control_invalido")
     _exigir(type(control["forzar_reply_needed"]) is bool
             and type(control["remitente_en_historial"]) is bool
+            and type(control.get("prioritario", False)) is bool
             and _numero(control["extra_points"], -100000, 100000)
             and (control["tier_maximo"] is None or control["tier_maximo"] == "REVIEW"),
             "control_invalido")

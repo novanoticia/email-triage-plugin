@@ -64,6 +64,10 @@ lo pide), se hace dry-run notificando los movimientos hipotéticos.
   el humano decida cuando abra la conversación.
 - **Dejar sin tocar**: el resto (incluido lo que normalmente iría a archive,
   salvo que `rutina.archivar_automaticamente: true`).
+- **Archivar automáticamente** solo si además el `tier` final del script es
+  `ARCHIVE`: un correo con `suelo_aplicado` (remitente prioritario con
+  `filtros.suelo_prioritarios`) **nunca** se archiva aunque su score quede
+  por debajo de `tiers.archive`.
 - **NO** preguntar nunca. Si surge una duda de implementación, decidir
   autónomamente y dejar nota breve en el resumen.
 - Registrar movimientos en `session_log.jsonl` y telemetría como cualquier
