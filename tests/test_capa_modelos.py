@@ -37,6 +37,12 @@ class TestCapaModelos(unittest.TestCase):
     def setUp(self):
         self.d = tempfile.TemporaryDirectory()
         self.addCleanup(self.d.cleanup)
+        # La capa se lee de la base de estado, no de junto al config.
+        viejo = os.environ.get(th.ENV_BASE_ESTADO)
+        os.environ[th.ENV_BASE_ESTADO] = self.d.name
+        self.addCleanup(lambda: os.environ.pop(th.ENV_BASE_ESTADO, None)
+                        if viejo is None
+                        else os.environ.__setitem__(th.ENV_BASE_ESTADO, viejo))
         self.config = os.path.join(self.d.name, "config.yaml")
         with open(PLANTILLA, encoding="utf-8") as fh, \
                 open(self.config, "w", encoding="utf-8") as out:
@@ -78,6 +84,8 @@ class TestCapaModelos(unittest.TestCase):
                  "modo: comparar\nmax_llamadas: 0\n": "presupuesto_invalido",
                  "modo: hibrido\ntamano_lote: 99\n": "presupuesto_invalido",
                  "modo: comparar\nmodelo: 3\n": "modelo_invalido",
+                 "modo: comparar\nmodelo: false\n": "modelo_invalido",
+                 "modo: comparar\nmodelo: []\n": "modelo_invalido",
                  "- una lista\n": "config_modelos_invalida",
                  "modo: [roto\n": "yaml_roto"}
         for texto, motivo in casos.items():
@@ -88,6 +96,22 @@ class TestCapaModelos(unittest.TestCase):
                                   capa["motivo"]),
                                  ("invalida", "actual", motivo))
                 self.assertTrue(any("no válido" in a for a in r["avisos"]))
+
+    def test_lee_la_base_de_estado_no_la_carpeta_del_config(self):
+        # Revisión Codex (PR #89): validar la plantilla del plugin no debe
+        # leer la capa de la plantilla (modo actual) en vez de la del usuario.
+        with open(os.path.join(self.d.name, "config-modelos.yaml"), "w",
+                  encoding="utf-8") as fh:
+            fh.write("modo: comparar\n")
+        r = th.cmd_validar_config(PLANTILLA)
+        self.assertEqual(r["capa_modelos"]["estado"], "activa")
+        self.assertEqual(r["capa_modelos"]["ruta"],
+                         os.path.join(self.d.name, "config-modelos.yaml"))
+
+    def test_modelo_sin_valor_es_el_economico(self):
+        capa = self._capa("modo: comparar\nmodelo:\n")["capa_modelos"]
+        self.assertEqual((capa["estado"], capa["config"]["modelo"]),
+                         ("activa", ""))
 
     def test_planificar_aplica_las_mismas_reglas(self):
         for cfg in ({"modo": "turbo"}, {"modo": "comparar", "extra": 1},
@@ -103,7 +127,8 @@ class TestCapaModelos(unittest.TestCase):
             fh.write("modo: comparar\n")
         r = subprocess.run([sys.executable, SCRIPT, "validar-config",
                             "--config", self.config],
-                           capture_output=True, text=True, timeout=30)
+                           capture_output=True, text=True, timeout=30,
+                           env=dict(os.environ))
         capa = json.loads(r.stdout)["capa_modelos"]
         self.assertEqual(capa["config"]["max_llamadas"], 2)   # por defecto
         self.assertEqual(capa["config"]["tamano_lote"], 25)

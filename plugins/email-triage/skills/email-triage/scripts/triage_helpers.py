@@ -1798,7 +1798,9 @@ def cmd_validar_config(ruta: str, plantilla: Optional[str] = None) -> dict:
     # sitio el modelo no lo leyó hasta que se le pidió. validar-config, que
     # PASO 0 ya ejecuta siempre, informa de la capa: deja de depender de que
     # el modelo se acuerde de buscarla.
-    capa = _leer_capa_modelos(os.path.dirname(os.path.abspath(ruta)))
+    # Revisión Codex (PR #89): la capa vive en la base de estado (PASO 0),
+    # no junto al config validado, que puede ser la plantilla del plugin.
+    capa = _leer_capa_modelos(base_estado())
     salida["capa_modelos"] = capa
     if capa["estado"] == "activa":
         avisos.append("config-modelos.yaml activo en modo %s: lee "
@@ -1836,7 +1838,8 @@ def _motivo_capa_modelos(cfg):
 
 
 def _leer_capa_modelos(base):
-    """Estado de <base>/config-modelos.yaml: `ausente`, `desactivada`
+    """Estado de <base>/config-modelos.yaml (base = base_estado(), la misma
+    del resto del estado): `ausente`, `desactivada`
     (modo actual), `activa` (con su config) o `invalida` (con motivo; se
     trata como `actual`, fail-closed). Solo lee. TOTAL: nunca lanza."""
     ruta = os.path.join(base, NOMBRE_CAPA_MODELOS)
@@ -1855,8 +1858,11 @@ def _leer_capa_modelos(base):
         return dict(out, estado="invalida", motivo="yaml_roto")
     cfg = {} if cfg is None else cfg
     motivo = _motivo_capa_modelos(cfg)
-    if not motivo and not isinstance(cfg.get("modelo") or "", str):
-        motivo = "modelo_invalido"      # planificar no lo identificaría
+    # Revisión Codex (PR #89): `false`, `0` o `[]` no son "vacío"; solo
+    # una cadena (o la clave sin valor) elige el modelo económico del host.
+    modelo = cfg.get("modelo", "") if not motivo else ""
+    if modelo is not None and not isinstance(modelo, str):
+        motivo = "modelo_invalido"
     if motivo:
         return dict(out, estado="invalida", motivo=motivo)
     if cfg.get("modo", "actual") == "actual":
