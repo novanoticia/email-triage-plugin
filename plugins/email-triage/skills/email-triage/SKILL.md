@@ -930,6 +930,9 @@ python3 "<ruta-del-skill>/scripts/triage_helpers.py" registrar --ruta ~/.email-t
 El mismo helper sirve para `correcciones.jsonl`. Devuelve `{"ok":true,...}` o
 `{"ok":false,"error":...}`; si falla, avisa al usuario y continúa el triaje.
 Si trae `bloquea_movimiento`, ese correo **no se mueve** (ni por el fallback).
+Si trae `aviso_ruta`, la línea se escribió fuera de la base de estado y nadie la
+leerá: dilo con la ruta, no muevas más y **no copies las líneas a mano** al log
+real; vuelve a registrar en la ruta correcta.
 
 **Fallback**: si no puedes ejecutar Python, usar Desktop Commander (`write_file`)
 para añadir la línea a `~/.email-triage/session_log.jsonl` (crear el directorio

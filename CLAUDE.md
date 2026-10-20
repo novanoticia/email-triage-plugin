@@ -215,6 +215,9 @@ rompes la conformidad (gate #7) y el skill deja de cargar fuera de Claude.
   Desde v3.21.15 `registrar` sella cada línea con `ts_registro` (UTC, la
   hora real del append) y pisa el que traiga: es la única hora del log que
   no escribe el modelo. Úsala para cualquier corte temporal futuro.
+  Desde v3.21.21 `registrar` añade `aviso_ruta` si la ruta (resuelta, con
+  symlinks) queda fuera de `base_estado()`: escribe igual (aditivo), pero
+  esa línea no la leerán `verificar-sesion` ni `estado-log` (prueba real 1).
 - **Un resultado correcto no prueba que el pipeline se haya ejecutado.** Un
   cliente capaz de lanzar `osascript` puede mover el correo bien saltándose
   este módulo: con su propio AppleScript, sin `sanitizar` y sin `registrar`.
