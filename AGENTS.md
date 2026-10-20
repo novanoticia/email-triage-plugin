@@ -45,7 +45,8 @@ AppleScript / MCP de Gmail.
   `registrar` sella cada línea con `ts_registro` (UTC; desde v3.21.15): la
   única hora del log que no escribe el modelo. Los eventos de deshacer solo
   los escribe `cerrar-deshacer` (desde v3.21.18), que los valida contra la
-  sesión; `registrar` los rechaza a mano.
+  sesión; `registrar` los rechaza a mano. `vectors.jsonl` solo lo escribe
+  `vectores` (desde v3.21.19), derivado del desglose del scoring.
 - Todo metadato controlado por el remitente se **sanea/escapa** antes de
   interpolarse en nada (S0 para cuerpo/asunto/remitente; `escapar-applescript`
   para message-ids). El *escapado* es mecánico y completo; la *detección* S0 es

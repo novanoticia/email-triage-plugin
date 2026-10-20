@@ -31,11 +31,31 @@ Una línea JSON por correo con el rationale completo:
 
 #### `guardar_vector: true` → `vectors.jsonl`
 
-Una línea JSON por correo con el vector binario de criterios activados
-(1 = criterio activo/aplicado, 0 = no aplica):
+**No lo escribas tú** (desde v3.21.19 `registrar` lo rechaza): lo deriva
+`vectores` del desglose del scoring de esta sesión, el de
+`desgloses/<session_id>.jsonl` o el de `tmp/desglose-<session_id>.jsonl`
+(ver PASO 4). Pásale el mapa `id` del scoring → message-id(s) por fichero:
+
+```bash
+# ~/.email-triage/tmp/vectores.json:
+#   {"session_id": "YYYYMMDD-HHMMSS", "message_ids": {"1": "<mid>", "2": ["<mid-a>", "<mid-b>"]}}
+python3 "<ruta-del-skill>/scripts/triage_helpers.py" vectores \
+  --desglose ~/.email-triage/tmp/desglose-<session_id>.jsonl \
+  --config ~/.email-triage/config.yaml < ~/.email-triage/tmp/vectores.json
+```
+
+Si el scoring llevó `--config-veloz` o `--config-ensayo`, pásale a `vectores`
+las mismas capas: fijan qué criterios son core.
+
+Escribe una línea por correo (manda la última puntuación de cada id) con
+`criterios` (1 = evaluado con veredicto válido, 0 = no evaluado o no aplica)
+y `veredictos`. Omite, con motivo en `omitidos`, los ids sin desglose
+determinista, de plantilla o sin todos los criterios core, y no duplica lo
+ya registrado. Di en el resumen cuántos escribió y cuántos omitió, con el
+número; borra después el desglose de `tmp/`.
 
 ```json
-{"session_id":"YYYYMMDD-HHMMSS","message_id":"<id>","tier":"REVIEW","score_final":7,"criterios":{"cambia_algo_concreto":1,"cambio_predicciones":1,"sorpresa_bayesiana":0,"evidencia_filtrada":1,"forward_backward_flow":0,"impacto_causal_real":1,"urgencia_real_vs_fabricada":0,"argument_screens_off_authority":1,"hug_the_query":1,"semantic_stopsigns":0,"entangled_truths":1,"absence_of_expected_evidence":0,"distancia_inferencial":0}}
+{"session_id":"YYYYMMDD-HHMMSS","message_id":"<id>","tier":"REVIEW","score_final":7,"criterios":{"cambia_algo_concreto":1,"sorpresa_bayesiana":0},"veredictos":{"cambia_algo_concreto":"si"},"origen":"vectores","ts_registro":"..."}
 ```
 
 #### `guardar_correccion: true` → `correcciones.jsonl`

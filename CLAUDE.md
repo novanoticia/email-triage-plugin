@@ -234,6 +234,10 @@ rompes la conformidad (gate #7) y el skill deja de cargar fuera de Claude.
   deshacible y escribe UNA línea `undo_batch_done`; `registrar` rechaza
   `undone`/`undo_failed` escritos a mano (prueba real 2: un `undone` en la
   sesión equivocada).
+  Desde v3.21.19 `vectors.jsonl` solo lo escribe `vectores` (vía
+  `registrar`), que deriva cada vector por criterio del desglose del
+  scoring y omite los incompletos; `registrar` rechaza escribir ese fichero
+  a mano (prueba real 1: un vector por eje, borrado después a mano).
   Desde v3.21.7 `scoring` marca `plantilla` (y `alerta_plantilla` en el
   lote) cuando 5+ correos traen veredictos idénticos, y `registrar` rechaza
   como triaje un movimiento con `plantilla: true`: el 2026-10-18 se movieron

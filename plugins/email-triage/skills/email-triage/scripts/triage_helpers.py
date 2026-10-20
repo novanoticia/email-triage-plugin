@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.21.18).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.21.19).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -117,6 +117,11 @@ Uso:
                             "revertidos","fallidos"}; comprueba que cada
                             correo es de la sesión y deshacible y añade vía
                             registrar UNA línea undo_batch_done)
+  python3 triage_helpers.py vectores --desglose RUTA [--ruta RUTA] [--config RUTA]
+                            [--config-veloz RUTA] [--config-ensayo RUTA] [--datos JSON]
+                            (PASO 5.B: JSON {"session_id","message_ids":{id:
+                            mid}}; deriva del desglose del scoring una línea
+                            por correo en vectors.jsonl, vía registrar)
   python3 triage_helpers.py montar-mover [--datos JSON]
                             (SCRIPT 3 de mover con todo escapado; 3 destinos:
                             review, archive nativo o a carpeta, y reply_needed)
@@ -175,6 +180,8 @@ su clase (CM2, auditoría 2026-07-19):
                            'cerrar-deshacer' (v3.21.18) tampoco: arma el
                            undo_batch_done y es la única vía de los eventos
                            de deshacer (registrar los rechaza a mano);
+                           'vectores' (v3.21.19) tampoco: deriva cada vector
+                           del desglose y es la única vía a vectors.jsonl;
   2. 'compactar':          mantenimiento explícito — REESCRIBE ese JSONL bajo
                            el mismo flock (temp + os.replace) truncándolo;
   3. 'calibrar --guardar': snapshot de CACHÉ regenerable (calibracion.json,
@@ -1920,6 +1927,8 @@ def _valida_cierre(registro):
 
 
 EVENTO_DESHACER = "undo_batch_done"
+NOMBRE_VECTORES = "vectors.jsonl"
+RUTA_VECTORES = "~/.email-triage/" + NOMBRE_VECTORES
 EVENTOS_DESHACER = ("undone", "undo_failed", EVENTO_DESHACER)
 
 
@@ -1937,8 +1946,23 @@ def _valida_deshacer(registro, desde_cerrar_deshacer):
                        "fallidos: comprueba que cada correo es de la sesión"}
 
 
+def _valida_vector(ruta, desde_vectores):
+    """B (prueba real 1): el modelo escribió en `vectors.jsonl` un vector
+    aproximado por eje y luego borró esas líneas a mano. Ese fichero ya solo
+    lo escribe `vectores`, que deriva cada vector del desglose del scoring.
+    None si vale (o si la ruta no es la de los vectores)."""
+    if (desde_vectores or not isinstance(ruta, str)
+            or os.path.basename(ruta) != NOMBRE_VECTORES):
+        return None
+    return {"ok": False,
+            "error": "%s no se escribe a mano" % NOMBRE_VECTORES,
+            "remedio": "usa `vectores` con el desglose del scoring "
+                       "(--desglose) y el mapa id -> message_id"}
+
+
 def cmd_registrar(ruta: str, registro: dict,
-                  _desde_cerrar_deshacer: bool = False) -> dict:
+                  _desde_cerrar_deshacer: bool = False,
+                  _desde_vectores: bool = False) -> dict:
     """Append atómico de `registro` como una línea JSON en `ruta`.
 
     Serializa a JSON de una sola línea y lo añade bajo fcntl.flock
@@ -1955,7 +1979,8 @@ def cmd_registrar(ruta: str, registro: dict,
     if not isinstance(registro, dict):
         return {"ok": False, "error": "el registro debe ser un objeto JSON"}
     invalido = (_valida_movimiento(registro) or _valida_cierre(registro)
-                or _valida_deshacer(registro, _desde_cerrar_deshacer is True))
+                or _valida_deshacer(registro, _desde_cerrar_deshacer is True)
+                or _valida_vector(ruta, _desde_vectores is True))
     if invalido:
         return invalido
     try:
@@ -2783,6 +2808,141 @@ def cmd_cerrar_deshacer(ruta, datos) -> dict:
     return out
 
 
+def _resultados_desglose(doc):
+    """Resultados de scoring de un desglose ya parseado, en orden de
+    escritura: una pasada es un lote {"resultados": [...]} o un resultado
+    suelto. Lo que no tenga forma de resultado se descarta."""
+    pasadas = doc.get("pasadas") if isinstance(doc, dict) else None
+    if not isinstance(pasadas, list):
+        pasadas = [doc]
+    res = []
+    for p in pasadas:
+        items = p.get("resultados") if isinstance(p, dict) else None
+        for r in (items if isinstance(items, list) else [p]):
+            if isinstance(r, dict) and "id" in r:
+                res.append(r)
+    return res
+
+
+def _vectores_ya_registrados(ruta):
+    """{(session_id, message_id)} ya presentes en vectors.jsonl (para no
+    duplicar al repetir la llamada). Una línea rota se ignora."""
+    vistos = set()
+    try:
+        with open(_expandir(ruta), encoding="utf-8") as fh:
+            for linea in fh:
+                try:
+                    reg = json.loads(linea)
+                except ValueError:
+                    continue
+                if isinstance(reg, dict):
+                    vistos.add((reg.get("session_id"), reg.get("message_id")))
+    except OSError:
+        pass
+    return vistos
+
+
+def cmd_vectores(ruta, desglose, datos, cfg) -> dict:
+    """Escribe vectors.jsonl a partir del desglose del scoring (B, prueba
+    real 1: el modelo redactó un vector por eje y luego lo borró a mano).
+
+    Entrada: `desglose`, la ruta de `scoring --desglose` (JSON o JSONL de
+    `--desglose-append`; manda la ÚLTIMA pasada de cada id, la repuntuada);
+    `datos`: {"session_id", "message_ids": {id: message_id | [message_id]}}
+    (un hilo da una línea por correo); `cfg`, el config ya cargado, que fija
+    los criterios activos. Cada línea: {"session_id", "message_id", "tier",
+    "score_final", "criterios": {criterio: 1|0}, "veredictos", "origen":
+    "vectores"}; 1 = evaluado con veredicto válido, 0 = no evaluado o no
+    aplica. Se omiten, con motivo, los ids sin desglose, en modo no
+    determinista, marcados `plantilla` o sin TODOS los criterios core
+    (el vector incompleto de `[solo metadatos]` contaminaría el dataset), y
+    los (session_id, message_id) ya registrados. Escribe A TRAVÉS de
+    `registrar` (única vía a vectors.jsonl). Nunca mueve correos. TOTAL."""
+    if not isinstance(datos, dict):
+        return {"ok": False, "error": "se esperaba un objeto JSON con "
+                "session_id y message_ids"}
+    sid = datos.get("session_id")
+    if not isinstance(sid, str) or not sid.strip():
+        return {"ok": False, "error": "session_id ausente o no es una cadena"}
+    sid = sid.strip()
+    mapa = datos.get("message_ids")
+    if not isinstance(mapa, dict) or not mapa:
+        return {"ok": False, "error": "message_ids debe ser un objeto no "
+                "vacío {id: message_id | [message_id]}"}
+    mids_por_id = {}
+    for k, v in mapa.items():
+        mids = _lista_mids([v] if isinstance(v, str) else v)
+        if not mids:
+            return {"ok": False, "error": "message_ids[%r] no es un "
+                    "message_id ni una lista de ellos" % k}
+        mids_por_id[str(k)] = mids
+    if not isinstance(cfg, dict):
+        return {"ok": False, "error": "config invalido: el YAML no es un "
+                "mapeo de claves"}
+    crits = cfg.get("criterios_epistemicos")
+    crits = crits if isinstance(crits, dict) else {}
+    # Revisión Codex (PR #88): una clave no cadena rompería el sorted/join.
+    activos = sorted(c for c, v in crits.items() if isinstance(c, str)
+                     and isinstance(v, dict) and v.get("activo", True))
+    core = {c for c in activos if crits[c].get("core") is True}
+    if not activos:
+        return {"ok": False, "error": "el config no tiene criterios activos"}
+    try:
+        with open(_expandir(desglose), encoding="utf-8") as fh:
+            texto = fh.read(MAX_INGESTA_BYTES + 1)
+        # Revisión Codex (PR #88): leído a medias, la última pasada de un id
+        # podría quedar fuera sin aviso.
+        if len(texto) > MAX_INGESTA_BYTES:
+            raise ValueError("supera %d bytes" % MAX_INGESTA_BYTES)
+        doc = _parsear_desglose(texto)
+    except (OSError, ValueError) as e:
+        return {"ok": False, "error": "no se pudo leer el desglose: %s" % e}
+    ultimo = {}
+    for r in _resultados_desglose(doc):
+        ultimo[str(r["id"])] = r          # la última pasada manda
+    ya = _vectores_ya_registrados(ruta)
+    escritos, omitidos, ya_registrados = 0, [], []
+    for id_, mids in mids_por_id.items():
+        r = ultimo.get(id_)
+        motivo = None
+        if r is None:
+            motivo = "sin desglose para este id"
+        elif "error" in r or r.get("modo") != "determinista":
+            motivo = "sin scoring determinista"
+        elif r.get("plantilla") is True:
+            motivo = "veredictos de plantilla"
+        vered = {}
+        if motivo is None:
+            filas = r.get("criterios")
+            for f in (filas if isinstance(filas, list) else []):
+                if isinstance(f, dict) and f.get("criterio") in activos:
+                    vered[f["criterio"]] = f.get("veredicto")
+            faltan = sorted(core - set(vered))
+            if faltan:
+                motivo = "faltan criterios core: %s" % ", ".join(faltan)
+        if motivo:
+            omitidos.append({"id": id_, "motivo": motivo})
+            continue
+        for mid in mids:
+            if (sid, mid) in ya:
+                ya_registrados.append(mid)
+                continue
+            res = cmd_registrar(ruta, {
+                "session_id": sid, "message_id": mid, "tier": r.get("tier"),
+                "score_final": r.get("score"),
+                "criterios": {c: int(c in vered) for c in activos},
+                "veredictos": vered, "origen": "vectores"},
+                _desde_vectores=True)
+            if not res.get("ok"):
+                return {"ok": False, "session_id": sid, "escritos": escritos,
+                        "error": res.get("error")}
+            escritos += 1
+            ya.add((sid, mid))
+    return {"ok": True, "session_id": sid, "ruta": _expandir(ruta),
+            "escritos": escritos, "omitidos": omitidos,
+            "ya_registrados": ya_registrados}
+
+
 # ════════════════════════════════════════════════════════════════
 # PASO 2 — calibración estadística mecanizada (CM2, auditoría 2026-07-19)
 # ════════════════════════════════════════════════════════════════
@@ -3099,6 +3259,11 @@ def _escribir_texto_atomico(texto, ruta, prefijo) -> dict:
     """Temp en el MISMO directorio + fsync + os.replace; fichero 600 y
     directorios nuevos 700. Base común del snapshot JSON y del informe."""
     ruta = _expandir(str(ruta))
+    # Revisión Codex (PR #88): un snapshot sobre vectors.jsonl lo
+    # reemplazaría entero; ese fichero solo lo escribe `vectores`.
+    reservado = _valida_vector(ruta, False)
+    if reservado:
+        return reservado
     directorio = os.path.dirname(ruta) or "."
     try:
         _asegurar_dir_privado(directorio)
@@ -4293,6 +4458,20 @@ def _construir_parser():
     pcd.add_argument("--datos", default=None,
                      help='JSON {"session_id":..,"revertidos":[..],'
                           '"fallidos":[..]}; sin él, stdin')
+    pvc = sub.add_parser("vectores")
+    pvc.add_argument("--ruta", default=RUTA_VECTORES,
+                     help="vectors.jsonl (append vía registrar)")
+    pvc.add_argument("--desglose", required=True, metavar="RUTA",
+                     help="fichero escrito por scoring --desglose")
+    pvc.add_argument("--config",
+                     default=_expandir("~/.email-triage/config.yaml"))
+    pvc.add_argument("--config-veloz", default=None,
+                     help="la misma capa veloz que se pasó a scoring")
+    pvc.add_argument("--config-ensayo", default=None,
+                     help="la misma capa del ensayo P3 que se pasó a scoring")
+    pvc.add_argument("--datos", default=None,
+                     help='JSON {"session_id":..,"message_ids":{id:mid}}; '
+                          'sin él, stdin')
     pe = sub.add_parser("escapar-applescript")
     pe.add_argument("--valores", default=None,
                     help='JSON {"valores":[...]}; sin él se lee de stdin')
@@ -4541,6 +4720,22 @@ def main():
             out = {"ok": False, "error": "JSON inválido: %s" % e}
         else:
             out = cmd_cerrar_deshacer(args.ruta, data)
+    elif args.cmd == "vectores":
+        crudo = (args.datos if args.datos is not None
+                 else sys.stdin.read(MAX_INGESTA_BYTES))
+        try:
+            data = json.loads(crudo or "{}")
+            # Revisión Codex (PR #88): las mismas capas que el scoring, o
+            # el ensayo P3 cambia los core y todo vector saldría incompleto.
+            cfg = _fusiona_config_ensayo(
+                _fusiona_config_veloz(_cargar_config(args.config),
+                                      args.config_veloz), args.config_ensayo)
+        except json.JSONDecodeError as e:
+            out = {"ok": False, "error": "JSON inválido: %s" % e}
+        except ConfigError as e:
+            out = e.payload
+        else:
+            out = cmd_vectores(args.ruta, args.desglose, data, cfg)
     elif args.cmd == "estado-log":
         out = cmd_estado_log(args.ruta, args.session, args.ultimas,
                              args.incluir_sin_cerrar)
