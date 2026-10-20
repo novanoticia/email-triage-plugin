@@ -243,16 +243,16 @@ class TestPlanAutorizaDelegacion(unittest.TestCase):
                          "delegacion_no_autorizada")
 
     def test_acciones_del_host_vigilan_las_herramientas(self):
-        # v3.21.25: tool_uses del host; la entrega cuenta 1.
-        for n in (0, 1):
+        # v3.21.25: tool_uses del host; una sola acción ya es una herramienta.
+        p = lote()
+        p["acciones_especialista"] = 0
+        self.assertTrue(m.ejecutar("validar", p)["ok"])
+        for n in (1, 2):
             p = lote()
             p["acciones_especialista"] = n
-            self.assertTrue(m.ejecutar("validar", p)["ok"], n)
-        p = lote()
-        p["acciones_especialista"] = 2
-        r = m.ejecutar("validar", p)
-        self.assertEqual(r["motivo"], "especialista_uso_herramientas")
-        self.assertTrue(r["usar_principal"])
+            r = m.ejecutar("validar", p)
+            self.assertEqual(r["motivo"], "especialista_uso_herramientas", n)
+            self.assertTrue(r["usar_principal"])
         for malo in (-1, True, 1.0, "1"):
             p = lote()
             p["acciones_especialista"] = malo

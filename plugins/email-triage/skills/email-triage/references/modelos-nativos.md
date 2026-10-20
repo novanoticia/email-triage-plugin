@@ -163,10 +163,11 @@ Escribe `tmp/modelos-validar.json` con `esperados` del principal y `respuesta`
 - `plan`: la salida literal de `planificar` que autorizó esta llamada.
 - `acciones_especialista` (Claude Code, v3.21.25): el `tool_uses` que el host
   informa en el resultado de la llamada al evaluador, copiado tal cual; nunca
-  lo que diga el especialista. La entrega cuenta 1. Si es mayor,
-  `validar` responde `especialista_uso_herramientas`: la respuesta no cuenta
+  lo que diga el especialista. Si es mayor que 0 (cualquier lectura, shell o
+  MCP), `validar` responde `especialista_uso_herramientas`: la respuesta no cuenta
   y **no vuelvas a delegar en esta sesión** (marca `sin_herramientas: false`
-  en el plan). Si el host no lo informa, omite el campo y dilo en el resumen.
+  en el plan). Un host que cuente la propia entrega como acción se queda sin
+  delegación: es lo seguro. Si no lo informa, omite el campo y dilo en el resumen.
 
 ```bash
 python3 "<ruta-del-skill>/scripts/modelos.py" validar --config ~/.email-triage/config.yaml < ~/.email-triage/tmp/modelos-validar.json

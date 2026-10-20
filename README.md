@@ -96,8 +96,8 @@ relue par un humain. / Traducción generada por una IA, sin revisión humana.
   fiel a su regla, se negaba a delegar. Una prueba real del 2026-10-20
   confirmó que con `tools: []` arranca sin herramientas: la etiqueta
   engaña. Ahora el protocolo lo admite para ese agente y lo vigila: tras
-  cada llamada pasa a `validar` cuántas acciones contó Claude Code; si son
-  más de una (la entrega), la respuesta no cuenta y no se vuelve a delegar.
+  cada llamada pasa a `validar` cuántas acciones contó Claude Code; con una
+  sola, la respuesta no cuenta y no se vuelve a delegar en la sesión.
 
 ## Novedades en v3.21.24
 
