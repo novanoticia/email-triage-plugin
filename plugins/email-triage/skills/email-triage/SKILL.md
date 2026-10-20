@@ -520,6 +520,9 @@ determinista se suman entre sí y se pasan como un único entero en
 `extra_points`; en modo mental se aplican con este mismo baremo.
 Los de `filtros` los calcula `coincidencias` (v3.21.8, ver
 `references/personalizacion.md`): no los cuentes a mano.
+Pasa además a `scoring` el `prioritario` de cada correo tal como sale de
+`coincidencias` (`"prioritario": true`): con `filtros.suelo_prioritarios`
+activo, el script no lo deja bajar de ese tier y lo marca en `suelo_aplicado`.
 
 | Fuente | Puntos | Condición |
 |--------|--------|-----------|

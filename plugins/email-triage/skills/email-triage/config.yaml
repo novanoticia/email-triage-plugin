@@ -298,6 +298,11 @@ filtros:
   # Direcciones que reciben +3 puntos automáticos. Dirección («ana@x.com»,
   # el +sufijo se ignora) o dominio («@x.com»); nunca el nombre visible.
 
+  suelo_prioritarios: null
+  # (v3.21.22, opt-in) Tier mínimo de un remitente prioritario:
+  # READING_LATER (nunca se archiva) o REVIEW. null = solo el +3 de arriba.
+  # El cap por inyección manda sobre el suelo; REPLY_NEEDED no es un suelo.
+
   remitentes_ignorar: []
   # Direcciones que se saltan completamente (-99).
 
