@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.21.20).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.21.21).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -2037,6 +2037,27 @@ def _valida_vector(ruta, desde_vectores):
                        "(--desglose) y el mapa id -> message_id"}
 
 
+def _aviso_ruta_fuera(ruta):
+    """C (prueba real 1): el modelo registró los movimientos en una ruta
+    equivocada y luego los copió a mano al log real. Aditivo: no rechaza
+    (los tests y usos legítimos escriben en otras rutas), pero avisa cuando
+    `ruta` queda fuera de base_estado(). None si está dentro."""
+    try:
+        base = os.path.realpath(base_estado())
+        real = os.path.realpath(ruta)
+    except (OSError, ValueError):
+        return None
+    try:
+        # Revisión Codex (PR #90): commonpath, no prefijo, para que una
+        # base `/` contenga todo (base + os.sep sería `//`).
+        if os.path.commonpath([base, real]) == base:
+            return None
+    except ValueError:            # rutas en unidades distintas (Windows)
+        pass
+    return ("%s está fuera de la base de estado (%s): verificar-sesion, "
+            "estado-log y la calibración no lo leerán" % (real, base))
+
+
 def cmd_registrar(ruta: str, registro: dict,
                   _desde_cerrar_deshacer: bool = False,
                   _desde_vectores: bool = False) -> dict:
@@ -2046,6 +2067,9 @@ def cmd_registrar(ruta: str, registro: dict,
     (exclusivo). Crea el fichero y su directorio si faltan (700/600:
     contiene metadatos de correo). Devuelve {"ok": True, "bytes": n,
     "ruta": ...} o {"ok": False, "error": ...}. NUNCA mueve correos.
+
+    v3.21.21: si `ruta` queda fuera de base_estado() escribe igual pero
+    añade `aviso_ruta` (ver _aviso_ruta_fuera).
 
     v3.21.15: sella cada línea con `ts_registro` (UTC, segundos), la hora
     real del append. El `ts` de un movimiento lo escribe el modelo, sin
@@ -2107,7 +2131,11 @@ def cmd_registrar(ruta: str, registro: dict,
                 continue      # rotado bajo el lock: el finally cierra y reintenta
             datos = _linea_sellada()
             os.write(fd, datos)
-            return {"ok": True, "bytes": len(datos), "ruta": ruta}
+            out = {"ok": True, "bytes": len(datos), "ruta": ruta}
+            aviso = _aviso_ruta_fuera(ruta)
+            if aviso:
+                out["aviso_ruta"] = aviso
+            return out
         except OSError as e:
             return {"ok": False, "error": "fallo al escribir %s: %s" % (ruta, e)}
         finally:
@@ -2979,6 +3007,7 @@ def cmd_vectores(ruta, desglose, datos, cfg) -> dict:
         ultimo[str(r["id"])] = r          # la última pasada manda
     ya = _vectores_ya_registrados(ruta)
     escritos, omitidos, ya_registrados = 0, [], []
+    aviso_ruta = None
     for id_, mids in mids_por_id.items():
         r = ultimo.get(id_)
         motivo = None
@@ -3015,9 +3044,13 @@ def cmd_vectores(ruta, desglose, datos, cfg) -> dict:
                         "error": res.get("error")}
             escritos += 1
             ya.add((sid, mid))
-    return {"ok": True, "session_id": sid, "ruta": _expandir(ruta),
-            "escritos": escritos, "omitidos": omitidos,
-            "ya_registrados": ya_registrados}
+            aviso_ruta = aviso_ruta or res.get("aviso_ruta")
+    out = {"ok": True, "session_id": sid, "ruta": _expandir(ruta),
+           "escritos": escritos, "omitidos": omitidos,
+           "ya_registrados": ya_registrados}
+    if aviso_ruta:                # Revisión Codex (PR #90): no perderlo
+        out["aviso_ruta"] = aviso_ruta
+    return out
 
 
 # ════════════════════════════════════════════════════════════════
