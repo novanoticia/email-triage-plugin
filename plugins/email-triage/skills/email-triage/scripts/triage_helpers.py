@@ -2047,8 +2047,13 @@ def _aviso_ruta_fuera(ruta):
         real = os.path.realpath(ruta)
     except (OSError, ValueError):
         return None
-    if real == base or real.startswith(base + os.sep):
-        return None
+    try:
+        # Revisión Codex (PR #90): commonpath, no prefijo, para que una
+        # base `/` contenga todo (base + os.sep sería `//`).
+        if os.path.commonpath([base, real]) == base:
+            return None
+    except ValueError:            # rutas en unidades distintas (Windows)
+        pass
     return ("%s está fuera de la base de estado (%s): verificar-sesion, "
             "estado-log y la calibración no lo leerán" % (real, base))
 
@@ -3002,6 +3007,7 @@ def cmd_vectores(ruta, desglose, datos, cfg) -> dict:
         ultimo[str(r["id"])] = r          # la última pasada manda
     ya = _vectores_ya_registrados(ruta)
     escritos, omitidos, ya_registrados = 0, [], []
+    aviso_ruta = None
     for id_, mids in mids_por_id.items():
         r = ultimo.get(id_)
         motivo = None
@@ -3038,9 +3044,13 @@ def cmd_vectores(ruta, desglose, datos, cfg) -> dict:
                         "error": res.get("error")}
             escritos += 1
             ya.add((sid, mid))
-    return {"ok": True, "session_id": sid, "ruta": _expandir(ruta),
-            "escritos": escritos, "omitidos": omitidos,
-            "ya_registrados": ya_registrados}
+            aviso_ruta = aviso_ruta or res.get("aviso_ruta")
+    out = {"ok": True, "session_id": sid, "ruta": _expandir(ruta),
+           "escritos": escritos, "omitidos": omitidos,
+           "ya_registrados": ya_registrados}
+    if aviso_ruta:                # Revisión Codex (PR #90): no perderlo
+        out["aviso_ruta"] = aviso_ruta
+    return out
 
 
 # ════════════════════════════════════════════════════════════════

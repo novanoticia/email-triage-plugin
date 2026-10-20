@@ -75,6 +75,27 @@ class TestAvisoRuta(unittest.TestCase):
         self.assertTrue(r["ok"], r)
         self.assertIn("aviso_ruta", r)
 
+    def test_base_en_la_raiz_contiene_todo(self):
+        # Revisión Codex (PR #90): con base `/`, base + os.sep era `//`.
+        os.environ[th.ENV_BASE_ESTADO] = os.sep
+        r = th.cmd_registrar(os.path.join(self.fuera, "log.jsonl"), REG)
+        self.assertNotIn("aviso_ruta", r)
+
+    def test_vectores_propaga_el_aviso(self):
+        # Revisión Codex (PR #90): vectores construía su propio resultado.
+        cfg = {"criterios_epistemicos": {
+                   "a": {"activo": True, "core": True,
+                         "eje": "valor_decisional", "si": 1, "no": 0}},
+               "scoring": {"ejes": {"valor_decisional": [-10, 10]}}}
+        desglose = os.path.join(self.base, "desglose.jsonl")
+        th.cmd_registrar(desglose, {"ts": "t", "desglose": th.cmd_scoring_dispatch(
+            {"emails": [{"id": 1, "verdicts": {"a": "si"}}]}, cfg)})
+        r = th.cmd_vectores(os.path.join(self.fuera, "vectors.jsonl"),
+                            desglose, {"session_id": REG["session_id"],
+                                       "message_ids": {"1": "<m1>"}}, cfg)
+        self.assertEqual(r["escritos"], 1, r)
+        self.assertIn("aviso_ruta", r)
+
     def test_cli(self):
         ruta = os.path.join(self.fuera, "x.jsonl")
         r = subprocess.run([sys.executable, SCRIPT, "registrar", "--ruta",
