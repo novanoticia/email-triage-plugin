@@ -4566,7 +4566,15 @@ def cmd_informe(datos: dict) -> dict:
     Entrada: {"session_id", "modo": real|simulacion|rutina, "fecha"?,
     "unidades": [{"n", "tier", "score", "asunto", "remitente", "fecha",
     "mids": [...], "razon_pos", "razon_neg", "accion", "destino"}]}.
-    El asunto y el remitente deben ser los EVALUABLES de `sanitizar`."""
+    El asunto y el remitente deben ser los EVALUABLES de `sanitizar`.
+
+    v3.21.24 (prueba real con Sonnet, 2026-10-20): la sesión clasificó «por
+    criterio propio», sin el scoring del script, y solo lo dijo en un
+    párrafo. `modo_scoring` (de la sesión o de cada unidad) dice si se
+    puntuó con el script; una unidad cuenta como determinista solo si lo
+    declara Y trae score numérico. Las demás se cuentan en
+    `sin_scoring_determinista` y el informe lo avisa arriba. Huella, no
+    prueba: el script no ve el scoring, pero un score ausente no se oculta."""
     if not isinstance(datos, dict):
         return {"ok": False, "error": "se esperaba un objeto JSON"}
     sid = str(datos.get("session_id") or "")
@@ -4581,7 +4589,8 @@ def cmd_informe(datos: dict) -> dict:
     if len(unidades) > _INFORME_MAX_UNIDADES:
         return {"ok": False, "error": "más de %d unidades" % _INFORME_MAX_UNIDADES}
     por_tier = {t: [] for t, _ in _INFORME_TIERS}
-    vistos, sin_enlace = set(), []
+    vistos, sin_enlace, sin_determinista = set(), [], []
+    modo_sesion = datos.get("modo_scoring")
     for u in unidades:
         if not isinstance(u, dict):
             return {"ok": False, "error": "cada unidad debe ser un objeto"}
@@ -4611,8 +4620,11 @@ def cmd_informe(datos: dict) -> dict:
         destino = _celda_md(u.get("destino"), 60)
         accion_txt = accion + (" → " + destino if destino else "")
         score = u.get("score")
-        score_txt = _celda_md(score, 8) if isinstance(score, (int, float)) \
-            and not isinstance(score, bool) else "—"
+        numerico = isinstance(score, (int, float)) and not isinstance(score, bool)
+        score_txt = _celda_md(score, 8) if numerico else "—"
+        if not (numerico and u.get("modo_scoring", modo_sesion)
+                == "determinista"):
+            sin_determinista.append(n)
         por_tier[tier].append((n, "| %d | %s | %s | %s | %s |"
                                % (n, correo, score_txt, razones or "—", accion_txt)))
     lineas = ["# Informe de triaje · %s" % sid, "",
@@ -4623,6 +4635,14 @@ def cmd_informe(datos: dict) -> dict:
                  len(unidades)), ""]
     if modo == "simulacion":
         lineas += ["> 🧪 Simulación: no se movió ningún correo.", ""]
+    if sin_determinista:
+        lineas += ["> ⚠️ **Sin scoring determinista: %d de %d unidades** (%s). "
+                   "Sus tiers son una propuesta del modelo: no pasaron los "
+                   "frenos del script (suelo de prioritarios, plantilla, "
+                   "caps) y no deben moverse como triaje."
+                   % (len(sin_determinista), len(unidades),
+                      ", ".join("#%d" % n for n in sorted(sin_determinista)[:20])
+                      + (" …" if len(sin_determinista) > 20 else "")), ""]
     for tier, icono in _INFORME_TIERS:
         filas = sorted(por_tier[tier])
         if not filas:
@@ -4638,7 +4658,9 @@ def cmd_informe(datos: dict) -> dict:
         return res
     return {"ok": True, "ruta": res["ruta"], "unidades": len(unidades),
             "por_tier": {t: len(v) for t, v in por_tier.items()},
-            "sin_enlace": sorted(sin_enlace), "efimero": base_estado_es_efimera()}
+            "sin_enlace": sorted(sin_enlace),
+            "sin_scoring_determinista": len(sin_determinista),
+            "efimero": base_estado_es_efimera()}
 
 
 def _construir_parser():
