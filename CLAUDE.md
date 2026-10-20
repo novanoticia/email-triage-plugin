@@ -332,7 +332,11 @@ de Claude con `tools: []`, fuera del frontmatter portable de la skill.
 
 Solo mismo proveedor Y conexión confirmados; nunca deducirlo del nombre del
 modelo. Desde v3.21.17 `validar` y `comparar` exigen el `plan` de
-`planificar` con `delegar: true`: sin él, la respuesta delegada no cuenta. Jev usa exclusivamente la capa externa opt-in descrita en
+`planificar` con `delegar: true`: sin él, la respuesta delegada no cuenta.
+Desde v3.21.20 `validar-config` lee la capa de la base de estado y la devuelve en
+`capa_modelos` (ausente/desactivada/activa/invalida, con el `config` del
+plan): el modelo no la busca a mano. Sus reglas (`_motivo_capa_modelos`) son
+las que aplica `planificar`; cámbialas en un solo sitio. Jev usa exclusivamente la capa externa opt-in descrita en
 `references/jev.md` y `scripts/jev.py`; no extender `modelos.py` con red. Comparar implica simulación
 y no alimenta aprendizaje con desacuerdos entre modelos. Los controles de scoring
 vienen del principal, nunca de la respuesta delegada. Las pruebas sintéticas

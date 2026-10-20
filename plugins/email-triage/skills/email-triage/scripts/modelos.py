@@ -36,20 +36,17 @@ def planificar(p):
     cliente pueda aislar el contexto y prohibir herramientas al especialista.
     """
     cfg = p.get("config", {})
-    if not isinstance(cfg, dict):
-        return _error("config_modelos_invalida")
+    # Las reglas del config son las de `validar-config` (capa_modelos).
+    motivo = th._motivo_capa_modelos(cfg)
+    if motivo:
+        return _error(motivo)
     modo = cfg.get("modo", "actual")
     if modo == "actual":
         return {"ok": True, "modo": "actual", "delegar": False}
-    if modo not in ("comparar", "hibrido"):
-        return _error("modo_no_admitido")
-    if set(cfg) - {"modo", "modelo", "max_llamadas", "tamano_lote"}:
-        return _error("opcion_no_admitida")
     limite = cfg.get("max_llamadas", 2)
     lote = cfg.get("tamano_lote", 25)
     usadas = p.get("llamadas_realizadas", 0)
-    if not (_entero(limite, 1, 10) and _entero(lote, 1, 50)
-            and _entero(usadas, 0, 1000)):
+    if not _entero(usadas, 0, 1000):
         return _error("presupuesto_invalido")
     if usadas >= limite:
         return _error("presupuesto_agotado")

@@ -16,7 +16,7 @@ compatibility: >
   Claude Code, Claude Cowork y ChatGPT.
 license: Apache-2.0
 metadata:
-  version: "3.21.19"
+  version: "3.21.20"
   author: novanoticia
 ---
 
@@ -115,10 +115,13 @@ rigiendo.
 ## PASO 0 — Leer configuración
 
 <!-- i18n:inicio -->
-**Modelos nativos opcionales.** Sin `~/.email-triage/config-modelos.yaml`, o con
-`modo: actual`, sigue el flujo habitual. Si la capa personal contiene `comparar`
-o `hibrido`, o el usuario pide esa opción para esta sesión, lee
-`references/modelos-nativos.md` antes de cualquier fase y comprueba capacidades.
+**Modelos nativos opcionales.** No busques tú `config-modelos.yaml`: lo lee
+`validar-config` (abajo) y lo devuelve en `capa_modelos`. Con `estado` `ausente`
+o `desactivada`, sigue el flujo habitual. Con `estado: activa`, o si el usuario
+pide `comparar`/`hibrido` para esta sesión, lee `references/modelos-nativos.md`
+antes de cualquier fase y comprueba capacidades; el `config` de su plan es el
+`capa_modelos.config` literal (o lo pedido en la sesión), sin cambiar valores.
+Con `estado: invalida`, di su `motivo` y sigue el flujo habitual.
 Solo permite modelos del mismo proveedor y conexión mediante delegación nativa;
 sin esa capacidad, usa el principal. `comparar` fuerza simulación sin movimientos.
 La capa solo controla modelos, nunca sobrescribe el config de scoring/correo.
