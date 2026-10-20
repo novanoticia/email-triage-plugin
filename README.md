@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.21.17
+# Email Triage Plugin v3.21.18
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,16 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.21.18
+
+- **Deshacer ya no se apunta a mano.** En una prueba real, el modelo anotó
+  un correo como «deshecho» en la sesión equivocada. Ahora, al terminar de
+  deshacer, el nuevo `cerrar-deshacer` registra el resultado. Antes comprueba
+  en el registro que cada correo es de esa sesión y que se podía deshacer;
+  si uno no cuadra, no escribe nada. `registrar` rechaza esos eventos
+  escritos a mano.
+- Los registros de deshacer anteriores se siguen leyendo igual.
 
 ## Novedades en v3.21.17
 
