@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.21.18
+# Email Triage Plugin v3.21.19
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,18 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.21.19
+
+- **Los vectores de criterios ya no los redacta el modelo.** En una prueba
+  real, el modelo escribió en `vectors.jsonl` un valor por eje en lugar de
+  uno por criterio, y luego borró esas líneas a mano. Ahora el nuevo
+  `vectores` los saca del desglose del scoring: una línea por correo, con
+  qué criterios se evaluaron y su veredicto. Se salta, diciendo por qué, los
+  correos sin puntuación determinista, con veredictos de plantilla o sin
+  todos los criterios principales, y no duplica líneas si se repite.
+  `registrar` rechaza escribir ese fichero a mano.
+- Cada línea añade `veredictos` y `origen`; `criterios` sigue siendo 1/0.
 
 ## Novedades en v3.21.18
 
