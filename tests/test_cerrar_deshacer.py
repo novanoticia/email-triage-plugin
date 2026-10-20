@@ -84,13 +84,46 @@ class TestCerrarDeshacer(unittest.TestCase):
         self.assertEqual(self._lineas(), antes)
 
     def test_no_deshacible_no_escribe_nada(self):
-        self.assertTrue(self._cerrar(revertidos=["a"])["ok"])
+        # d está en los `fallidos` del cierre: nunca se movió.
+        self._log(_mov(S1, "a"), _mov(S1, "d"), _cierre(S1, 1, ["d"]))
         antes = self._lineas()
-        r = self._cerrar(revertidos=["a"])           # ya deshecho
+        r = self._cerrar(revertidos=["a", "d"])
         self.assertFalse(r["ok"])
         self.assertEqual(r["no_deshacibles"],
-                         [{"message_id": "a", "estado": "deshecho"}])
+                         [{"message_id": "d", "estado": "fallido"}])
         self.assertEqual(self._lineas(), antes)
+
+    def test_ya_deshecho_es_idempotente(self):
+        self.assertTrue(self._cerrar(revertidos=["a"])["ok"])
+        antes = self._lineas()
+        r = self._cerrar(revertidos=["a"])
+        self.assertTrue(r["ok"], r)
+        self.assertFalse(r["escrito"])
+        self.assertEqual(r["ya_deshechos"], ["a"])
+        self.assertEqual(self._lineas(), antes)
+
+    def test_deshacer_solapados_conservan_sus_exitos(self):
+        # Revisión Codex (PR #87): A revierte a y falla b; B revierte b y
+        # falla a. B no debe perder su éxito en b.
+        self.assertTrue(self._cerrar(revertidos=["a"], fallidos=["b"])["ok"])
+        r = self._cerrar(revertidos=["b"], fallidos=["a"])
+        self.assertTrue(r["ok"], r)
+        self.assertEqual(r["ya_deshechos"], ["a"])
+        est = {c["message_id"]: c["estado"]
+               for c in th.cmd_estado_log(self.ruta, S1)["correos"]}
+        self.assertEqual((est["a"], est["b"]), ("deshecho", "deshecho"))
+
+    def test_linea_de_deshacer_mal_formada_se_ignora(self):
+        # Revisión Codex (PR #87): estado-log es total.
+        with open(self.ruta, "a", encoding="utf-8") as fh:
+            for malo in (1, "abc", {"a": 1}, None):
+                fh.write(json.dumps({"event": "undo_batch_done",
+                                     "session_id": S1, "revertidos": malo,
+                                     "fallidos": malo}) + "\n")
+        r = th.cmd_estado_log(self.ruta, S1)
+        self.assertTrue(r["ok"], r)
+        self.assertEqual(r["deshacibles"], 3)
+        self.assertTrue(self._cerrar(revertidos=["a"])["ok"])
 
     def test_sesion_sin_cerrar_exige_el_opt_in(self):
         s3 = "20261019-120000"

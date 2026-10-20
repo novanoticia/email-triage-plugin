@@ -2464,9 +2464,14 @@ def _estado_sesiones(registros):
         if ev == EVENTO_DESHACER:
             # v3.21.18: una línea de cerrar-deshacer equivale a un undone /
             # undo_failed por correo, con la misma regla de terminalidad.
+            # Una línea mal formada (no lista) se ignora: estado-log es total
+            # y una cadena iteraría sus caracteres como message_id.
             for lista, ev_mid in (("fallidos", "undo_failed"),
                                   ("revertidos", "undone")):
-                for m in reg.get(lista) or ():
+                mids = reg.get(lista)
+                if not isinstance(mids, list):
+                    continue
+                for m in mids:
                     if isinstance(m, str) and m in s["correos"] and (
                             ev_mid == "undone"
                             or s["correos"][m]["undo"] != "undone"):
@@ -2705,7 +2710,8 @@ def cmd_cerrar_deshacer(ruta, datos) -> dict:
     Entrada: {"session_id", "revertidos": [message_id], "fallidos":
     [message_id], "incluir_sin_cerrar": bool opcional}. Lee la sesión con
     `estado-log --session` y exige que CADA message_id sea de esa sesión y
-    deshacible; si uno no lo es, no escribe nada. Si todos valen, añade al
+    deshacible; si uno no lo es, no escribe nada (los ya `deshecho` por otro
+    deshacer se omiten como idempotentes). Si todos valen, añade al
     log, por el append de `registrar`, UNA línea {"event":
     "undo_batch_done", "session_id", "ts", "revertidos", "fallidos",
     "origen": "cerrar-deshacer"}: atómica, sin quedarse a medias. Nunca
@@ -2738,6 +2744,13 @@ def cmd_cerrar_deshacer(ruta, datos) -> dict:
                 "error": estado.get("error", "no se pudo leer la sesión")}
     por_mid = {c["message_id"]: c for c in estado["correos"]}
     ajenos = [m for m in revertidos + fallidos if m not in por_mid]
+    # Revisión Codex (PR #87): con dos deshacer solapados, un correo que el
+    # otro ya devolvió (`deshecho`, terminal) no debe tumbar el lote y
+    # perder sus éxitos: se omite como idempotente, sin reescribirlo.
+    ya_deshechos = [m for m in revertidos + fallidos
+                    if m in por_mid and por_mid[m]["estado"] == "deshecho"]
+    revertidos = [m for m in revertidos if m not in ya_deshechos]
+    fallidos = [m for m in fallidos if m not in ya_deshechos]
     no_deshacibles = [m for m in revertidos + fallidos
                       if m in por_mid and not por_mid[m]["deshacible"]]
     if ajenos or no_deshacibles:
@@ -2751,6 +2764,10 @@ def cmd_cerrar_deshacer(ruta, datos) -> dict:
                 {"message_id": m, "estado": por_mid[m]["estado"]}
                 for m in no_deshacibles]
         return out
+    if not revertidos and not fallidos:
+        return {"ok": True, "session_id": sid, "escrito": False,
+                "ya_deshechos": ya_deshechos, "n_revertidos": 0,
+                "n_fallidos": 0, "deshacibles_restantes": estado["deshacibles"]}
     evento = {"event": EVENTO_DESHACER, "session_id": sid,
               "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
               "revertidos": revertidos, "fallidos": fallidos,
@@ -2758,7 +2775,8 @@ def cmd_cerrar_deshacer(ruta, datos) -> dict:
     out = cmd_registrar(estado.get("ruta") or ruta, evento,
                         _desde_cerrar_deshacer=True)
     if out.get("ok"):
-        out = dict(out, session_id=sid, n_revertidos=len(revertidos),
+        out = dict(out, session_id=sid, escrito=True,
+                   ya_deshechos=ya_deshechos, n_revertidos=len(revertidos),
                    n_fallidos=len(fallidos),
                    deshacibles_restantes=estado["deshacibles"]
                    - len(revertidos))

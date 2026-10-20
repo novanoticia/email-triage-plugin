@@ -72,7 +72,8 @@ Se activa cuando el usuario dice "deshaz el triaje", "undo", "revierte los movim
    Añade `"incluir_sin_cerrar": true` solo si el punto 2 lo usó. El script
    comprueba que cada correo es de esa sesión y deshacible; si uno no lo es
    (`ajenos`, `no_deshacibles`) no escribe nada: dilo con su número, no lo
-   corrijas a mano. `registrar` rechaza `undone`/`undo_failed` escritos a
+   corrijas a mano. Los que otro deshacer ya devolvió se omiten
+   (`ya_deshechos`, sin error). `registrar` rechaza `undone`/`undo_failed` escritos a
    mano. Una sesión sin correos deshacibles deja de ofrecerse en el punto 2.
 
 ### Qué NO hace el undo
