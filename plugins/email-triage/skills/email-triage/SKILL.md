@@ -16,7 +16,7 @@ compatibility: >
   Claude Code, Claude Cowork y ChatGPT.
 license: Apache-2.0
 metadata:
-  version: "3.21.23"
+  version: "3.21.24"
   author: novanoticia
 ---
 

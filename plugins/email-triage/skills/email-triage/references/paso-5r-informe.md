@@ -23,6 +23,10 @@ Formato del JSON: `{"session_id", "modo": "real"|"simulacion"|"rutina", "unidade
   (vacíos si hubo inyección), nunca los crudos.
 - `accion`: `movido`, `dejado`, `excluido` o `fallido` en sesión real y rutina;
   `propuesto` en simulación.
+- `modo_scoring` (v3.21.24): `"determinista"` si el `score` salió de `scoring`;
+  va en la sesión o por unidad. Sin él, o sin score numérico, la unidad cuenta en
+  `sin_scoring_determinista`. Si es > 0, **dilo en la primera línea del resumen,
+  con el número**: esos tiers son tuyos, no del script.
 - El script valida, escapa cada celda y escribe `~/.email-triage/informes/<session_id>.md`
   (700/600). Si devuelve `efimero: true`, dilo; si falla, anótalo en el resumen y no
   abortes la sesión. Los informes no se purgan solos, como la telemetría.
