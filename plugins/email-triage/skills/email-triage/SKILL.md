@@ -667,6 +667,9 @@ Si `telemetria.guardar_desglose: true`, añade siempre `--desglose
 ~/.email-triage/desgloses/<session_id>.jsonl --desglose-append`, también en
 simulación: cada invocación añade una línea y `diagnostico-ejes` ve qué
 veredictos retocaste al repuntuar.
+Si `telemetria.guardar_vector: true` y no `guardar_desglose`, añade igual
+`--desglose ~/.email-triage/tmp/desglose-<session_id>.jsonl --desglose-append`
+(solo en ejecución real): de ahí saca `vectores` el vector en el PASO 5.B.
 
 **Contrato P2 (opt-in):** solo si `scoring.contrato_p2: true` y el modo es
 `determinista`, **lee `references/contrato-p2.md` AHORA**: veredictos
