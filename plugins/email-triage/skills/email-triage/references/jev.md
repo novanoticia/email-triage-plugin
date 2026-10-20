@@ -59,7 +59,8 @@ existente: para adoptar el alias cambia su campo a `modelo: jev-latest` o elimí
    criterios activos; `no_aplica` mapea criterios condicionales a motivos. Añade
    `control` con los valores habituales calculados por el principal:
    `hard_rules`, `extra_points`, `forzar_reply_needed`, `tier_maximo`,
-   `remitente_en_historial` y opcional `remitente_conteo_historial`. Conserva S0,
+   `remitente_en_historial` y opcionales `remitente_conteo_historial` y
+   `prioritario` (el de `coincidencias`). Conserva S0,
    ajuste y cap conforme al flujo actual; no delegues estos controles a Jev.
    Conserva `estado`, `huella`, `s0` e `id` intactos. La huella detecta cambios
    accidentales, no autentica al orquestador. No inventar una evaluación principal.

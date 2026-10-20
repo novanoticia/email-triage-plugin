@@ -204,9 +204,11 @@ def validar(p):
         fila = filas.get(ident)
         motivo = "respuesta_ausente" if fila is None else _validar_fila(fila, criterios)
         control = esperado.get("control")
+        # v3.21.22: `prioritario` (de coincidencias) activa el suelo; sin
+        # él, una propuesta delegada podría quedar por debajo del suelo.
         permitidos = {"hard_rules", "extra_points", "forzar_reply_needed",
                       "tier_maximo", "remitente_en_historial",
-                      "remitente_conteo_historial"}
+                      "remitente_conteo_historial", "prioritario"}
         if not isinstance(control, dict) or set(control) - permitidos:
             motivo = "control_invalido"
         elif not {"hard_rules", "extra_points", "forzar_reply_needed",
@@ -214,6 +216,7 @@ def validar(p):
             motivo = "control_incompleto"
         elif (type(control["forzar_reply_needed"]) is not bool
               or type(control["remitente_en_historial"]) is not bool
+              or type(control.get("prioritario", False)) is not bool
               or not isinstance(control["hard_rules"], list)
               or not all(isinstance(k, str) for k in control["hard_rules"])
               or len(set(control["hard_rules"])) != len(control["hard_rules"])

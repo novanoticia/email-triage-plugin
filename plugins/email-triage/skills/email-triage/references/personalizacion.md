@@ -6,6 +6,7 @@ un stub con la condición de entrada y apunta aquí. -->
 
 ### Filtros y keywords (heredados de v2.0)
 - `remitentes_prioritarios` — boost de calibración (+3): va en `extra_points`, no es clave de `hard_rules` (ver 4.A.2)
+- `suelo_prioritarios` — (v3.21.22, opt-in) `READING_LATER` o `REVIEW`: tier mínimo de un prioritario. Lo aplica `scoring` con el `prioritario` de `coincidencias`; el cap por inyección manda sobre él. `null` = solo el +3
 - `remitentes_ignorar` — skip total (-99)
 - `palabras_clave_boost` — con peso: `alto` (+3), `medio` (+2), `bajo` (+1)
 - `palabras_clave_penalizar` — reducen puntuación (-2)

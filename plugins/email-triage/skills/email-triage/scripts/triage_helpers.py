@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.21.21).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.21.22).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -304,6 +304,18 @@ def _expandir(ruta) -> str:
 
 
 TIER_ORDEN = {"ARCHIVE": 0, "READING_LATER": 1, "REVIEW": 2, "REPLY_NEEDED": 3}
+# v3.21.22 (prueba real 2026-10-20): 12 correos de remitentes prioritarios
+# acabaron en ARCHIVE porque el +3 no compensa sender_bulk y compañía.
+# `filtros.suelo_prioritarios` (opt-in) fija el tier mínimo; REPLY_NEEDED
+# nunca, porque exige una señal de acción explícita.
+SUELOS_PRIORITARIOS = ("READING_LATER", "REVIEW")
+
+
+def _suelo_prioritarios(cfg):
+    """Tier mínimo de un remitente prioritario según el config, o None."""
+    f = cfg.get("filtros") if isinstance(cfg, dict) else None
+    suelo = f.get("suelo_prioritarios") if isinstance(f, dict) else None
+    return suelo if suelo in SUELOS_PRIORITARIOS else None
 
 STOPWORDS = {
     "de", "la", "el", "los", "las", "un", "una", "y", "o", "en", "del",
@@ -869,6 +881,7 @@ def cmd_scoring(payload: dict, cfg: dict) -> dict:
               "extra_points": int, "forzar_reply_needed": bool,
               "tier_maximo": "REVIEW"|None,
               "remitente_en_historial": bool,   # corrección #2
+              "prioritario": bool,              # v3.21.22, de coincidencias
               "remitente_conteo_historial": int, # opcional: atenua sender_bulk
                                                  # de forma graduada por frecuencia
               "id": cualquier}                   # opcional, para lote
@@ -1001,6 +1014,16 @@ def cmd_scoring(payload: dict, cfg: dict) -> dict:
         cap_aplicado = "REPLY_NEEDED->REVIEW (sin señal de acción explícita)"
         tier = "REVIEW"
 
+    # Suelo de prioritarios (v3.21.22, opt-in): solo con `prioritario: true`
+    # literal (lo da `coincidencias`) y un suelo válido en el config. Va
+    # antes del cap por inyección, que siempre manda.
+    suelo = _suelo_prioritarios(cfg)
+    suelo_aplicado = None
+    if (payload.get("prioritario") is True and suelo
+            and TIER_ORDEN[tier] < TIER_ORDEN[suelo]):
+        suelo_aplicado = "%s->%s (remitente prioritario)" % (tier, suelo)
+        tier = suelo
+
     # Cap por inyección (v3.5): nunca por encima de tier_maximo.
     tmax = payload.get("tier_maximo")
     if tmax in TIER_ORDEN and TIER_ORDEN[tier] > TIER_ORDEN[tmax]:
@@ -1022,6 +1045,8 @@ def cmd_scoring(payload: dict, cfg: dict) -> dict:
     }
     if cap_aplicado:
         out["cap_aplicado"] = cap_aplicado
+    if suelo_aplicado:
+        out["suelo_aplicado"] = suelo_aplicado
     if contrato_p2:
         # Campos añadidos, nunca renombrados: no alteran score ni tier.
         cobertura = _p2_cobertura(criterios, desglose, no_evaluados)
@@ -1292,6 +1317,8 @@ def _brief(r):
     out = {"score": r["score"], "tier": r["tier"], "ejes": r["ejes"]}
     if r.get("cap_aplicado"):
         out["cap_aplicado"] = r["cap_aplicado"]
+    if r.get("suelo_aplicado"):
+        out["suelo_aplicado"] = r["suelo_aplicado"]
     if "confianza" in r:
         # Solo con contrato_p2 activo: lo accionable de P2.
         out["confianza"] = r["confianza"]
@@ -1463,6 +1490,12 @@ def _avisos_config_usuario(data):
                       "visible): %s" % (len(no_validas),
                                         ", ".join(map(str, no_validas[:8]))))
     info["remitentes_no_validos"] = [str(e) for e in no_validas]
+    suelo = f.get("suelo_prioritarios")
+    if suelo is not None and suelo not in SUELOS_PRIORITARIOS:
+        avisos.append("filtros.suelo_prioritarios=%r no es válido (usa %s o "
+                      "null): sin suelo, un prioritario puede caer a ARCHIVE"
+                      % (suelo, " o ".join(SUELOS_PRIORITARIOS)))
+    info["suelo_prioritarios_efectivo"] = _suelo_prioritarios(data)
     return avisos, info
 
 
@@ -3258,6 +3291,7 @@ def _coincidencias_nucleo(datos, cfg):
     sin_uso = [e for e in prioritarios if ("remitente", e) not in usados]
     no_validas = [e for e in prioritarios + ignorar if _tipo_entrada(e) is None]
     return {"ok": True, "resultados": resultados,
+            "suelo_prioritarios": _suelo_prioritarios(cfg),
             "prioritarios_sin_coincidencia": sin_uso,
             "entradas_no_validas": no_validas,
             "nota": "extra_points_filtros solo cubre filtros del config; los "
