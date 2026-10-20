@@ -242,6 +242,26 @@ class TestPlanAutorizaDelegacion(unittest.TestCase):
         self.assertEqual(m.ejecutar("validar", p)["motivo"],
                          "delegacion_no_autorizada")
 
+    def test_acciones_del_host_vigilan_las_herramientas(self):
+        # v3.21.25: tool_uses del host; la entrega cuenta 1.
+        for n in (0, 1):
+            p = lote()
+            p["acciones_especialista"] = n
+            self.assertTrue(m.ejecutar("validar", p)["ok"], n)
+        p = lote()
+        p["acciones_especialista"] = 2
+        r = m.ejecutar("validar", p)
+        self.assertEqual(r["motivo"], "especialista_uso_herramientas")
+        self.assertTrue(r["usar_principal"])
+        for malo in (-1, True, 1.0, "1"):
+            p = lote()
+            p["acciones_especialista"] = malo
+            self.assertEqual(m.ejecutar("validar", p)["motivo"],
+                             "acciones_especialista_invalidas", malo)
+
+    def test_sin_acciones_se_comporta_como_antes(self):
+        self.assertTrue(m.ejecutar("validar", lote())["ok"])
+
     def test_un_plan_que_dijo_usar_principal_no_autoriza(self):
         cerrado = plan()
         cerrado["host"]["sin_herramientas"] = False

@@ -342,7 +342,12 @@ modelo. Desde v3.21.17 `validar` y `comparar` exigen el `plan` de
 Desde v3.21.20 `validar-config` lee la capa de la base de estado y la devuelve en
 `capa_modelos` (ausente/desactivada/activa/invalida, con el `config` del
 plan): el modelo no la busca a mano. Sus reglas (`_motivo_capa_modelos`) son
-las que aplica `planificar`; cámbialas en un solo sitio. Jev usa exclusivamente la capa externa opt-in descrita en
+las que aplica `planificar`; cámbialas en un solo sitio.
+Desde v3.21.25: Claude Code lista ese agente como «All tools», pero con
+`tools: []` arranca sin herramientas (sondeo 2026-10-20); su documentación
+no describe el caso. `sin_herramientas` se toma entonces del frontmatter y
+se vigila con `acciones_especialista` (el `tool_uses` del host) en
+`validar`: más de 1 = usó herramientas y la respuesta no cuenta. Jev usa exclusivamente la capa externa opt-in descrita en
 `references/jev.md` y `scripts/jev.py`; no extender `modelos.py` con red. Comparar implica simulación
 y no alimenta aprendizaje con desacuerdos entre modelos. Los controles de scoring
 vienen del principal, nunca de la respuesta delegada. Las pruebas sintéticas

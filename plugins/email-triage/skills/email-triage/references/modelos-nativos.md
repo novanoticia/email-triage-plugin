@@ -38,6 +38,13 @@ sin anular restricciones superiores de la sesión.
    contexto explícitamente. Un contexto aislado no implica herramientas
    deshabilitadas: comprueba ambas condiciones. No cambies el selector principal,
    los ajustes globales ni crees chats para simular subagentes.
+   **Excepción de Claude Code (v3.21.25):** su listado de agentes muestra
+   `email-triage:evaluador-criterios` como «(Tools: All tools)», pero con
+   `tools: []` arranca sin herramientas (sondeo del 2026-10-20). Esa etiqueta
+   no prueba que tenga herramientas: con ese agente exacto y sin otra señal en
+   contra, `sin_herramientas: true` es válido. Es la única capacidad que se
+   toma del frontmatter, y por eso se vigila después de cada llamada (ver
+   `acciones_especialista` en «Validar y reintegrar»).
 5. Presupuesto por sesión: `max_llamadas` (por defecto 2), una activa a la vez,
    `tamano_lote` (25 por defecto). Cada intento consume una llamada; no hacer
    reintentos automáticos. El principal evalúa el resto. Respeta límites menores
@@ -154,6 +161,12 @@ Escribe `tmp/modelos-validar.json` con `esperados` del principal y `respuesta`
   rellenar campos ausentes con cero/falso para permitir una delegación.
 - `respuesta`: objeto JSON devuelto por el especialista.
 - `plan`: la salida literal de `planificar` que autorizó esta llamada.
+- `acciones_especialista` (Claude Code, v3.21.25): el `tool_uses` que el host
+  informa en el resultado de la llamada al evaluador, copiado tal cual; nunca
+  lo que diga el especialista. La entrega cuenta 1. Si es mayor,
+  `validar` responde `especialista_uso_herramientas`: la respuesta no cuenta
+  y **no vuelvas a delegar en esta sesión** (marca `sin_herramientas: false`
+  en el plan). Si el host no lo informa, omite el campo y dilo en el resumen.
 
 ```bash
 python3 "<ruta-del-skill>/scripts/modelos.py" validar --config ~/.email-triage/config.yaml < ~/.email-triage/tmp/modelos-validar.json
