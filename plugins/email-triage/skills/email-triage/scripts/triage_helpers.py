@@ -122,6 +122,9 @@ Uso:
                             (PASO 5.B: JSON {"session_id","message_ids":{id:
                             mid}}; deriva del desglose del scoring una línea
                             por correo en vectors.jsonl, vía registrar)
+  python3 triage_helpers.py limpiar-tmp [--horas N] [--dry-run]
+                            (PASO 5.L: borra de <base>/tmp/ lo de más de N
+                            horas; 12 por defecto)
   python3 triage_helpers.py montar-mover [--datos JSON]
                             (SCRIPT 3 de mover con todo escapado; 3 destinos:
                             review, archive nativo o a carpeta, y reply_needed)
@@ -198,6 +201,9 @@ su clase (CM2, auditoría 2026-07-19):
                            metadatos tras sanearlos, solo dentro de <base>/tmp/
                            (es la invariante «los cuerpos crudos se borran tras
                            leerlos», ya no a cargo de la memoria del modelo).
+  7. 'limpiar-tmp' (v3.21.23): BORRA de <base>/tmp/ lo que tenga más de N
+                           horas (12 por defecto), sin seguir symlinks ni salir
+                           de tmp/; con --dry-run solo cuenta.
 Sin sus flags, 'calibrar', 'scoring' y 'sanitizar' no escriben nada. Ningún
 subcomando mueve correos.
 """
@@ -270,6 +276,51 @@ def _borrar_crudo(ruta) -> dict:
     except OSError as e:
         return {"ruta": ruta, "borrado": False, "motivo": str(e)}
     return {"ruta": ruta, "borrado": True}
+
+
+HORAS_LIMPIAR_TMP = 12
+
+
+def cmd_limpiar_tmp(horas=HORAS_LIMPIAR_TMP, dry_run=False) -> dict:
+    """Borra de <base>/tmp/ lo que tenga más de `horas` horas (v3.21.23).
+
+    Prueba real 2026-10-20: tmp/ había acumulado 998 entradas (7,1 MB) de
+    sesiones anteriores; `sanitizar --borrar-origen` solo borra los cuerpos
+    crudos. El margen de edad protege lo de la sesión en curso y lo de una
+    rutina en paralelo. No sigue symlinks (borra el enlace, no su destino),
+    no sale de tmp/ y conserva tmp/ con permisos 700; las subcarpetas que
+    quedan vacías se quitan. Con `dry_run` solo cuenta. TOTAL: nunca lanza."""
+    if (isinstance(horas, bool) or not isinstance(horas, (int, float))
+            or not 0 <= horas <= 24 * 365):
+        return {"ok": False, "error": "horas debe ser un número entre 0 y "
+                "8760"}
+    raiz = os.path.join(base_estado(), "tmp")
+    out = {"ok": True, "tmp": raiz, "horas": horas, "dry_run": dry_run,
+           "borrados": 0, "bytes_liberados": 0, "recientes": 0, "errores": []}
+    if not os.path.isdir(raiz) or os.path.islink(raiz):
+        return dict(out, nota="no existe tmp/ (o es un enlace): nada que hacer")
+    corte = datetime.now(timezone.utc).timestamp() - horas * 3600
+    for actual, dirs, ficheros in os.walk(raiz, topdown=False):
+        for nombre in ficheros + [d for d in dirs
+                                  if os.path.islink(os.path.join(actual, d))]:
+            ruta = os.path.join(actual, nombre)
+            try:
+                st = os.lstat(ruta)
+                if st.st_mtime > corte:
+                    out["recientes"] += 1
+                    continue
+                if not dry_run:
+                    os.unlink(ruta)
+                out["borrados"] += 1
+                out["bytes_liberados"] += st.st_size
+            except OSError as e:
+                out["errores"].append({"ruta": ruta, "error": str(e)})
+        if actual != raiz and not dry_run:
+            try:
+                os.rmdir(actual)        # solo si quedó vacía
+            except OSError:
+                pass
+    return out
 
 
 def base_estado_es_efimera() -> bool:
@@ -4602,6 +4653,12 @@ def _construir_parser():
     pcd.add_argument("--datos", default=None,
                      help='JSON {"session_id":..,"revertidos":[..],'
                           '"fallidos":[..]}; sin él, stdin')
+    plt = sub.add_parser("limpiar-tmp")
+    plt.add_argument("--horas", type=float, default=HORAS_LIMPIAR_TMP,
+                     help="borra lo que tenga más de N horas (por defecto %d)"
+                          % HORAS_LIMPIAR_TMP)
+    plt.add_argument("--dry-run", action="store_true",
+                     help="solo cuenta lo que borraría")
     pvc = sub.add_parser("vectores")
     pvc.add_argument("--ruta", default=RUTA_VECTORES,
                      help="vectors.jsonl (append vía registrar)")
@@ -4864,6 +4921,8 @@ def main():
             out = {"ok": False, "error": "JSON inválido: %s" % e}
         else:
             out = cmd_cerrar_deshacer(args.ruta, data)
+    elif args.cmd == "limpiar-tmp":
+        out = cmd_limpiar_tmp(args.horas, args.dry_run)
     elif args.cmd == "vectores":
         crudo = (args.datos if args.datos is not None
                  else sys.stdin.read(MAX_INGESTA_BYTES))

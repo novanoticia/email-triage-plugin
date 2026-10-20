@@ -1069,6 +1069,12 @@ sesión: **lee `references/paso-5b-telemetria.md` AHORA** (ficheros, formato,
 escritura atómica, cuándo NO escribir y retención). La telemetría se escribe
 siempre bajo `~/.email-triage/`; un fallo de escritura se reporta en el
 resumen, nunca aborta la sesión.
+## PASO 5.L — LIMPIEZA DE TEMPORALES
+
+Al cerrar CUALQUIER sesión, tras 5.R y 5.B, ejecuta `triage_helpers.py
+limpiar-tmp`: borra de `tmp/` lo de más de 12 h. Nunca borres `tmp/` a mano
+ni con un glob. Di cuántos borró; un error no aborta la sesión.
+
 ## PASO 6 — DESHACER ÚLTIMA SESIÓN
 
 Se activa con "deshaz el triaje", "undo", "revierte los movimientos" o similar.
