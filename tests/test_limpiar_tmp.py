@@ -97,9 +97,48 @@ class TestLimpiarTmp(unittest.TestCase):
         self._fichero("lote1/a.json")
         self._fichero("lote2/b.json")
         self._fichero("lote2/c.json", antiguo=False)
+        for d in ("lote1", "lote2"):
+            os.utime(os.path.join(self.tmp, d), (VIEJO, VIEJO))
         th.cmd_limpiar_tmp()
         self.assertFalse(os.path.exists(os.path.join(self.tmp, "lote1")))
         self.assertTrue(os.path.exists(os.path.join(self.tmp, "lote2", "c.json")))
+
+    def test_carpeta_vacia_reciente_se_conserva(self):
+        # Revisión Codex (PR #92): una rutina en paralelo acaba de crearla.
+        os.makedirs(os.path.join(self.tmp, "rutina"))
+        th.cmd_limpiar_tmp()
+        self.assertTrue(os.path.isdir(os.path.join(self.tmp, "rutina")))
+
+    def test_carpeta_ilegible_va_a_errores(self):
+        # Revisión Codex (PR #92): os.walk la saltaba en silencio.
+        from unittest import mock
+        self._fichero("sub/a.json")
+        real = os.scandir
+        llamadas = []
+
+        def falla_en_sub(fd):
+            llamadas.append(fd)
+            if len(llamadas) > 1:
+                raise PermissionError("sin permiso")
+            return real(fd)
+        with mock.patch.object(th.os, "scandir", falla_en_sub):
+            r = th.cmd_limpiar_tmp()
+        self.assertTrue(r["ok"])
+        self.assertEqual(len(r["errores"]), 1, r)
+        self.assertTrue(r["errores"][0]["ruta"].endswith("sub"))
+
+    def test_tmp_como_enlace_no_se_recorre(self):
+        fuera = os.path.join(self.d.name, "fuera")
+        os.makedirs(fuera)
+        viejo_fuera = os.path.join(fuera, "x.txt")
+        with open(viejo_fuera, "w", encoding="utf-8") as fh:
+            fh.write("no borrar")
+        os.utime(viejo_fuera, (VIEJO, VIEJO))
+        os.rmdir(self.tmp)
+        os.symlink(fuera, self.tmp)
+        r = th.cmd_limpiar_tmp()
+        self.assertEqual(r["borrados"], 0, r)
+        self.assertTrue(os.path.exists(viejo_fuera))
 
     def test_horas_cero_borra_todo(self):
         self._fichero("a.json", antiguo=False)
