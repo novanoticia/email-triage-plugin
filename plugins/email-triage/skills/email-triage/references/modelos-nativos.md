@@ -192,8 +192,9 @@ principal; mantén 4.E, 4.G, 4.I, 4.K, 5.V y deshacer sin excepciones.
   desacuerdo entre modelos. Solo una corrección humana usa el flujo normal de
   correcciones de simulación.
 
-En comparación, crea `tmp/modelos-comparar.json` con `plan` (como en
-`validar`), `base` y `propuesta`, cada
+En comparación, crea `tmp/modelos-comparar.json` con `plan` (el de la
+**primera** llamada de la sesión: admite hasta `tamano_lote` ×
+`llamadas_restantes` filas), `base` y `propuesta`, cada
 una una lista de `{id, score, tier}` para los **mismos IDs válidos**. Los fallos
 se reportan aparte con su número y motivo; no sustituyas un fallo por la salida
 del principal para aparentar acuerdo.

@@ -107,9 +107,14 @@ def _plan_autoriza(p):
     # El lote no puede ser mayor que el que autorizó el plan. Reusar un plan
     # viejo tras agotar max_llamadas no se puede impedir sin estado (este
     # módulo no escribe): es una huella, no una prueba, como los otros frenos.
-    for clave in ("esperados", "base"):
+    # `validar` va por lote; `comparar` agrega la sesión entera (varias
+    # llamadas), así que su tope es tamano_lote × llamadas_restantes del
+    # plan de la primera llamada (revisión Codex P2, PR #86).
+    topes = {"esperados": plan["tamano_lote"],
+             "base": plan["tamano_lote"] * plan["llamadas_restantes"]}
+    for clave, tope in topes.items():
         filas = p.get(clave)
-        if isinstance(filas, list) and len(filas) > plan["tamano_lote"]:
+        if isinstance(filas, list) and len(filas) > tope:
             return _error("lote_mayor_que_el_autorizado")
     return None
 

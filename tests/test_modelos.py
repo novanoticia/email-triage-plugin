@@ -280,6 +280,20 @@ class TestPlanAutorizaDelegacion(unittest.TestCase):
         self.assertEqual(m.ejecutar("validar", p)["motivo"],
                          "lote_mayor_que_el_autorizado")
 
+    def test_comparar_admite_la_sesion_de_varios_lotes(self):
+        # Revisión (Codex P2): comparar agrega todas las llamadas de la
+        # sesión; el tope es tamano_lote × llamadas_restantes, no un lote.
+        def filas(n):
+            return [{"id": str(i), "score": 1, "tier": "REVIEW"} for i in range(n)]
+        plan_ = dict(PLAN_OK, modo="comparar", tamano_lote=2, llamadas_restantes=2)
+        r = m.ejecutar("comparar", {"plan": plan_, "base": filas(4),
+                                    "propuesta": filas(4)})
+        self.assertTrue(r["ok"], r)
+        self.assertEqual(r["total"], 4)
+        r = m.ejecutar("comparar", {"plan": plan_, "base": filas(5),
+                                    "propuesta": filas(5)})
+        self.assertEqual(r["motivo"], "lote_mayor_que_el_autorizado")
+
     def test_el_plan_real_de_planificar_si_autoriza(self):
         p = lote()
         p["plan"] = m.ejecutar("planificar", plan())
