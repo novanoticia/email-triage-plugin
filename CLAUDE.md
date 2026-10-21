@@ -362,7 +362,11 @@ recalcula sobre el `lote` enviado: `extracto_distinto` si el principal
 recortó el extracto del especialista (prueba real con Haiku).
 Desde v3.21.31 `modelos.py validar` y `jev.py` aceptan `--config-ensayo`
 (mismo orden que scoring: veloz, luego ensayo): sin él, con el ensayo P3
-activo, toda respuesta delegada salía `cobertura_incompleta`. Jev usa exclusivamente la capa externa opt-in descrita en
+activo, toda respuesta delegada salía `cobertura_incompleta`.
+Desde v3.21.34 `informe` comprueba la delegación: con `modo_modelos` de la
+sesión o, si falta, la capa leída por su cuenta en `comparar`/`hibrido`, y
+sin `delegacion: {"hecha": true}` → aviso arriba y `delegacion_pendiente`
+(prueba real: «si la quieres, la hago aparte»). Jev usa exclusivamente la capa externa opt-in descrita en
 `references/jev.md` y `scripts/jev.py`; no extender `modelos.py` con red. Comparar implica simulación
 y no alimenta aprendizaje con desacuerdos entre modelos. Los controles de scoring
 vienen del principal, nunca de la respuesta delegada. Las pruebas sintéticas
