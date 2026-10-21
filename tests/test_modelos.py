@@ -143,6 +143,31 @@ class TestValidar(unittest.TestCase):
         self.p["respuesta"]["evaluaciones"][0]["dudas"] = ["Falta contexto del hilo."]
         self.assertTrue(self.resultado()["usar_principal"])
 
+    def test_dudas_no_autorizan_pero_la_propuesta_se_compara(self):
+        # v3.21.26: Haiku anotó dudas en 5 de 5; ya no se pierde la propuesta.
+        self.p["respuesta"]["evaluaciones"][0]["dudas"] = ["Extracto parcial."]
+        r = self.resultado()
+        self.assertTrue(r["usar_principal"])
+        self.assertEqual(r["motivo"], "requiere_contexto_o_revision")
+        self.assertEqual(r["dudas"], ["Extracto parcial."])
+        self.assertIn("tier", r["resultado"])
+        self.assertTrue(r["revision_obligatoria"])
+
+    def test_sin_dudas_no_lleva_el_campo(self):
+        self.assertNotIn("dudas", self.resultado())
+
+    def test_dudas_invalidas_o_control_roto_siguen_sin_propuesta(self):
+        self.p["respuesta"]["evaluaciones"][0]["dudas"] = [""]
+        r = self.resultado()
+        self.assertEqual(r["motivo"], "dudas_invalidas")
+        self.assertNotIn("resultado", r)
+        self.p = lote()
+        self.p["respuesta"]["evaluaciones"][0]["dudas"] = ["Duda."]
+        self.p["esperados"][0]["control"]["tier_maximo"] = "REVIEW"
+        r = self.resultado()
+        self.assertEqual(r["motivo"], "cap_requiere_principal")
+        self.assertNotIn("resultado", r)
+
     def test_especialista_no_puede_inyectar_control_o_destinos(self):
         for k, v in (("tier_maximo", None), ("forzar_reply_needed", True),
                      ("score", 100), ("hard_rules", []), ("destino", "Archivo")):

@@ -171,8 +171,6 @@ def _validar_fila(fila, criterios):
     if not isinstance(fila["dudas"], list) or not all(
             _texto(v) for v in fila["dudas"]):
         return "dudas_invalidas"
-    if fila["dudas"]:
-        return "requiere_contexto_o_revision"
     if not _texto(fila["resumen"]):
         return "resumen_ausente"
     return None
@@ -254,11 +252,19 @@ def validar(p):
                      (("reply_needed", 10), ("review", 4), ("reading_later", 0))]
         cerca = any(abs(score["score"] - v) <= 1 for v in fronteras)
         reevaluar = score["tier"] in ("ARCHIVE", "REPLY_NEEDED") or cerca
-        resultados.append({"id": ident, "usar_principal": reevaluar,
-                           "motivo": "reevaluar_tier_o_umbral" if reevaluar else "propuesta_valida",
-                           "payload_scoring": entrada, "resultado": score,
-                           "evidencias": fila["evidencias"], "resumen": fila["resumen"],
-                           "revision_obligatoria": True})
+        motivo = "reevaluar_tier_o_umbral" if reevaluar else "propuesta_valida"
+        # v3.21.26 (prueba real: Haiku anotó dudas en 5 de 5 y no quedó nada
+        # que comparar): las dudas siguen sin autorizar nada (mismo motivo,
+        # usar_principal), pero la propuesta se puntúa y viaja con ellas.
+        if fila["dudas"]:
+            reevaluar, motivo = True, "requiere_contexto_o_revision"
+        fila_res = {"id": ident, "usar_principal": reevaluar, "motivo": motivo,
+                    "payload_scoring": entrada, "resultado": score,
+                    "evidencias": fila["evidencias"], "resumen": fila["resumen"],
+                    "revision_obligatoria": True}
+        if fila["dudas"]:
+            fila_res["dudas"] = fila["dudas"]
+        resultados.append(fila_res)
     salida = {"ok": True, "resultados": resultados}
     _frenar_plantillas(salida)
     return salida
