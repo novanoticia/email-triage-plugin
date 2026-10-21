@@ -4703,19 +4703,24 @@ def cmd_informe(datos: dict) -> dict:
         lineas += ["> 🧪 Simulación: no se movió ningún correo.", ""]
     # v3.21.34 (pruebas reales 2026-10-21: con config-modelos.yaml activo,
     # el modelo ofreció la comparación «aparte» y no la hizo): el script lee
-    # la capa por su cuenta; si está activa y la sesión no declara
-    # `comparacion: {"hecha": true}`, lo avisa arriba. Huella, no prueba.
+    # la capa por su cuenta; si la delegación toca (comparar o híbrido) y la
+    # sesión no declara `delegacion: {"hecha": true}`, lo avisa arriba.
+    # `modo_modelos` (el efectivo de la sesión) manda sobre el fichero: se
+    # puede pedir o anular solo para esta sesión (revisión Codex, PR #103).
+    # Huella, no prueba.
     capa = _leer_capa_modelos(base_estado())
-    comparacion_pendiente = None
-    if capa.get("estado") == "activa":
-        comp = datos.get("comparacion")
-        comparacion_pendiente = not (isinstance(comp, dict)
-                                     and comp.get("hecha") is True)
-        if comparacion_pendiente:
-            motivo = comp.get("motivo") if isinstance(comp, dict) else None
-            lineas += ["> ⚠️ **Comparación de modelos sin hacer**: "
-                       "`config-modelos.yaml` está en `%s` y esta sesión no "
-                       "la hizo (%s)." % (_celda_md(capa.get("modo"), 20),
+    modo_m = datos.get("modo_modelos")
+    if modo_m not in ("actual", "comparar", "hibrido"):
+        modo_m = capa.get("modo") if capa.get("estado") == "activa" else None
+    delegacion_pendiente = None
+    if modo_m in ("comparar", "hibrido"):
+        dele = datos.get("delegacion")
+        delegacion_pendiente = not (isinstance(dele, dict)
+                                    and dele.get("hecha") is True)
+        if delegacion_pendiente:
+            motivo = dele.get("motivo") if isinstance(dele, dict) else None
+            lineas += ["> ⚠️ **Delegación de modelos sin hacer**: la sesión "
+                       "está en `%s` y no delegó (%s)." % (modo_m,
                        "motivo: " + _celda_md(motivo, 120)
                        if isinstance(motivo, str) and motivo.strip()
                        else "sin motivo declarado"), ""]
@@ -4745,8 +4750,8 @@ def cmd_informe(datos: dict) -> dict:
             "por_tier": {t: len(v) for t, v in por_tier.items()},
             "sin_enlace": sorted(sin_enlace),
             "sin_scoring_determinista": len(sin_determinista),
-            **({} if comparacion_pendiente is None
-               else {"comparacion_pendiente": comparacion_pendiente}),
+            **({} if delegacion_pendiente is None
+               else {"delegacion_pendiente": delegacion_pendiente}),
             "efimero": base_estado_es_efimera()}
 
 

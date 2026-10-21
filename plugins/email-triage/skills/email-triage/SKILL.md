@@ -575,8 +575,8 @@ explícitamente:
 
 <!-- i18n:inicio -->
 Con `capa_modelos` activa, **delegar es un paso del triaje, no un extra que
-ofrecer al final**: hazlo aquí, sin preguntar, y pasa `comparacion` al informe
-(5.R). Aplica `references/modelos-nativos.md`: delega
+ofrecer al final**: hazlo aquí, sin preguntar, y pasa `delegacion` y
+`modo_modelos` al informe (5.R). Aplica `references/modelos-nativos.md`: delega
 solo los veredictos sobre texto sanitizado, valida con `scripts/modelos.py` y
 revisa la evidencia antes de reintegrar. Hard rules, señales de respuesta y caps
 permanecen bajo control del principal. Con Jev activo, aplica `references/jev.md`:

@@ -91,13 +91,13 @@ relue par un humain. / Traducción generada por una IA, sin revisión humana.
 
 ## Novedades en v3.21.34
 
-- **La comparación de modelos deja de ser «un extra».** En una prueba real,
+- **La delegación de modelos deja de ser «un extra».** En una prueba real,
   con `config-modelos.yaml` en `comparar`, el modelo cerró el triaje
   diciendo «si la quieres, la hago aparte». Ahora el SKILL dice que delegar
-  es un paso del triaje, no algo que ofrecer al final, y el script del
-  informe lee la capa por su cuenta: si está activa y la sesión no declara
-  que comparó, el informe lo avisa arriba con el motivo. No obliga al
-  modelo, pero la omisión ya no pasa desapercibida.
+  es un paso del triaje, no algo que ofrecer al final, y el informe lo
+  comprueba: si la sesión está en `comparar` o `hibrido` (por el fichero o
+  pedido solo para ella) y no declara que delegó, lo avisa arriba con el
+  motivo. No obliga al modelo, pero la omisión ya no pasa desapercibida.
 
 ## Novedades en v3.21.33
 

@@ -1,10 +1,11 @@
-"""El informe avisa de la comparación de modelos no hecha (v3.21.34).
+"""El informe avisa de la delegación de modelos no hecha (v3.21.34).
 
 Pruebas reales 2026-10-21: con `config-modelos.yaml` en `comparar`, el
 modelo cerró el dry-run diciendo «tampoco ejecuté la comparación; si la
 quieres, la hago aparte». `informe` lee la capa por su cuenta y, si está
-activa y la sesión no declara `comparacion: {"hecha": true}`, lo avisa
-arriba y devuelve `comparacion_pendiente`. Sin red; tempfiles.
+activa (comparar o híbrido) y la sesión no declara `delegacion: {"hecha":
+true}`, lo avisa arriba y devuelve `delegacion_pendiente`. `modo_modelos`
+(el efectivo de la sesión) manda sobre el fichero. Sin red; tempfiles.
 """
 import os
 import sys
@@ -49,46 +50,71 @@ class TestInformeComparacion(unittest.TestCase):
 
     def test_sin_capa_nada_cambia(self):
         r, md = self._informe()
-        self.assertNotIn("comparacion_pendiente", r)
-        self.assertNotIn("Comparación de modelos", md)
+        self.assertNotIn("delegacion_pendiente", r)
+        self.assertNotIn("Delegación de modelos", md)
 
     def test_capa_desactivada_nada_cambia(self):
         self._capa("modo: actual\n")
         r, md = self._informe()
-        self.assertNotIn("comparacion_pendiente", r)
+        self.assertNotIn("delegacion_pendiente", r)
 
     def test_el_caso_real_activa_y_no_hecha(self):
         self._capa("modo: comparar\n")
         r, md = self._informe()
-        self.assertTrue(r["comparacion_pendiente"])
-        self.assertIn("Comparación de modelos sin hacer", md)
+        self.assertTrue(r["delegacion_pendiente"])
+        self.assertIn("Delegación de modelos sin hacer", md)
         self.assertIn("`comparar`", md)
         self.assertIn("sin motivo declarado", md)
-        self.assertLess(md.index("Comparación de modelos"), md.index("## "))
+        self.assertLess(md.index("Delegación de modelos"), md.index("## "))
 
     def test_no_hecha_con_motivo(self):
         self._capa("modo: comparar\n")
-        _, md = self._informe(comparacion={"hecha": False,
+        _, md = self._informe(delegacion={"hecha": False,
                                            "motivo": "planificar: delegar false"})
         self.assertIn("motivo: planificar: delegar false", md)
 
     def test_hecha_no_avisa(self):
         self._capa("modo: comparar\n")
-        r, md = self._informe(comparacion={"hecha": True})
-        self.assertFalse(r["comparacion_pendiente"])
-        self.assertNotIn("Comparación de modelos sin hacer", md)
+        r, md = self._informe(delegacion={"hecha": True})
+        self.assertFalse(r["delegacion_pendiente"])
+        self.assertNotIn("Delegación de modelos sin hacer", md)
 
     def test_hecha_mal_formada_cuenta_como_no_hecha(self):
         self._capa("modo: comparar\n")
         for malo in ("si", {"hecha": "true"}, {"hecha": 1}, []):
-            r, _ = self._informe(comparacion=malo)
-            self.assertTrue(r["comparacion_pendiente"], malo)
+            r, _ = self._informe(delegacion=malo)
+            self.assertTrue(r["delegacion_pendiente"], malo)
 
     def test_el_motivo_se_neutraliza(self):
         self._capa("modo: comparar\n")
-        _, md = self._informe(comparacion={"hecha": False,
+        _, md = self._informe(delegacion={"hecha": False,
                                            "motivo": "x\n## inyectado [l](http://e)"})
         self.assertNotIn("\n## inyectado", md)
+
+
+    def test_hibrido_tambien_avisa_y_se_cumple_delegando(self):
+        # Revisión Codex (PR #103): en híbrido se delega sin comparar.
+        self._capa("modo: hibrido\n")
+        r, md = self._informe()
+        self.assertIn("`hibrido`", md)
+        r, _ = self._informe(delegacion={"hecha": True})
+        self.assertFalse(r["delegacion_pendiente"])
+
+    def test_la_sesion_manda_sobre_el_fichero(self):
+        # Revisión Codex (PR #103): pedida solo para esta sesión...
+        r, md = self._informe(modo_modelos="comparar")
+        self.assertTrue(r["delegacion_pendiente"])
+        # ...o anulada solo para esta sesión.
+        self._capa("modo: comparar\n")
+        r, md = self._informe(modo_modelos="actual")
+        self.assertNotIn("delegacion_pendiente", r)
+        self.assertNotIn("Delegación de modelos", md)
+
+    def test_modo_de_sesion_invalido_se_ignora(self):
+        self._capa("modo: comparar\n")
+        for malo in ("raro", 1, None, ["comparar"]):
+            r, _ = self._informe(modo_modelos=malo)
+            self.assertTrue(r["delegacion_pendiente"], malo)
 
 
 if __name__ == "__main__":
