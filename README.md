@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.21.32
+# Email Triage Plugin v3.21.33
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,17 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.21.33
+
+- **SKILL.md recupera margen.** Estaba a 72 bytes del techo de 60 000 que
+  vigila un test, y ese techo existe por una razón: el fichero entra entero
+  en cada sesión, y en contextos largos las instrucciones del medio son las
+  primeras que se pierden (lo que ha pasado en las pruebas con el informe y
+  la delegación). El detalle del registro de movimientos (PASO 4.I), que
+  solo hace falta al mover en real, pasa tal cual a
+  `references/paso-4i-registro.md`; SKILL.md conserva las reglas y dice
+  cuándo leerlo. Pasa de 59 928 a 56 851 bytes.
 
 ## Novedades en v3.21.32
 
