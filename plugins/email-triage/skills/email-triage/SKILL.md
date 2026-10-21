@@ -1003,6 +1003,8 @@ verdad (2026-08-07, ver `references/lecciones-produccion.md`).
 
 ## PASO 5 — RESUMEN DE SESIÓN
 
+Escribe antes el informe (PASO 5.R): el resumen cita su ruta, también en simulación.
+
 ### Resumen de sesión real
 
 ```

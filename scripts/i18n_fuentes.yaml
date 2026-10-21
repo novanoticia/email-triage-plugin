@@ -67,7 +67,7 @@ frases:
      patron: '"(No he movido nada: necesito un sí explícito o una corrección \(#N se queda, #N → otro tier\)\.)"'}
   # ── SKILL.md · PASO 5 resumen real ──
   - {clave: resumen.titulo, fichero: SKILL.md, patron: '^(RESUMEN DE TRIAJE)$'}
-  - {clave: resumen.informe, fichero: SKILL.md, patron: '^(📄 Informe: \[ruta del informe\])$'}
+  - {clave: resumen.informe, fichero: SKILL.md, tambien: [references/salidas-por-modo.md], patron: '^(📄 Informe: \[ruta del informe\])$'}
   - {clave: resumen.deshacer, fichero: SKILL.md, riesgo: alto,
      patron: '^(↩️ Para deshacer: «deshaz el triaje»)$'}
   - {clave: resumen.bandeja, fichero: SKILL.md, patron: '^(📥 Bandeja de entrada: X correos revisados)$'}
