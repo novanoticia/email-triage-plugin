@@ -16,7 +16,7 @@ compatibility: >
   Claude Code, Claude Cowork y ChatGPT.
 license: Apache-2.0
 metadata:
-  version: "3.21.31"
+  version: "3.21.32"
   author: novanoticia
 ---
 
@@ -1002,6 +1002,8 @@ verdad (2026-08-07, ver `references/lecciones-produccion.md`).
   veredicto `valido` de este paso.
 
 ## PASO 5 — RESUMEN DE SESIÓN
+
+Escribe antes el informe (PASO 5.R): el resumen cita su ruta, también en simulación.
 
 ### Resumen de sesión real
 

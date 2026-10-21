@@ -36,6 +36,7 @@ El encabezado y pie deben dejar claro que NADA se ha movido.
 🧠 Ajustes aprendidos que se habrían aplicado:
    [igual que en sesión real, si los hay]
 
+📄 Informe: [ruta del informe]
 💡 Para ejecutar este triaje en real: di "ejecuta el triaje" o
    cambia `modo` en config.yaml a `confirmacion`, `lote` o `silencioso`
 ───────────────────────────────────
@@ -79,6 +80,8 @@ RUTINA DE TRIAJE — [fecha YYYY-MM-DD]
 
 📝 Decisiones autónomas tomadas (si las hubo):
    - [nota breve sobre cualquier ambigüedad resuelta sin preguntar]
+
+📄 Informe: [ruta del informe]
 ───────────────────────────────────
 ```
 

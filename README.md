@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.21.31
+# Email Triage Plugin v3.21.32
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,16 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.21.32
+
+- **El informe de sesión ya no se queda por el camino.** En tres pruebas
+  reales seguidas no se generó. Había dos causas en el texto: el paso del
+  resumen iba antes que el del informe, así que el modelo daba la sesión
+  por cerrada al presentar el resumen; y el formato del resumen en
+  simulación ni siquiera tenía la línea `📄 Informe:`. Ahora el resumen
+  manda escribir antes el informe y los formatos de simulación y de rutina
+  citan su ruta.
 
 ## Novedades en v3.21.31
 
