@@ -27,6 +27,11 @@ Formato del JSON: `{"session_id", "modo": "real"|"simulacion"|"rutina", "unidade
   va en la sesión o por unidad. Sin él, o sin score numérico, la unidad cuenta en
   `sin_scoring_determinista`. Si es > 0, **dilo en la primera línea del resumen,
   con el número**: esos tiers son tuyos, no del script.
+- `comparacion` (v3.21.34): `{"hecha": true}` si delegaste y comparaste, o
+  `{"hecha": false, "motivo": "..."}` si no (qué capacidad o paso falló). El
+  script lee `config-modelos.yaml` por su cuenta: con la capa activa y sin
+  `"hecha": true`, el informe avisa arriba y devuelve `comparacion_pendiente`.
+  Si es `true`, dilo en el resumen con su motivo.
 - El script valida, escapa cada celda y escribe `~/.email-triage/informes/<session_id>.md`
   (700/600). Si devuelve `efimero: true`, dilo; si falla, anótalo en el resumen y no
   abortes la sesión. Los informes no se purgan solos, como la telemetría.

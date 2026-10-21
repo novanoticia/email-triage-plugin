@@ -574,7 +574,9 @@ explícitamente:
 ### 4.B — Criterios epistémicos (30 criterios, 5 ejes)
 
 <!-- i18n:inicio -->
-Con alternancia nativa activa, aplica `references/modelos-nativos.md`: delega
+Con `capa_modelos` activa, **delegar es un paso del triaje, no un extra que
+ofrecer al final**: hazlo aquí, sin preguntar, y pasa `comparacion` al informe
+(5.R). Aplica `references/modelos-nativos.md`: delega
 solo los veredictos sobre texto sanitizado, valida con `scripts/modelos.py` y
 revisa la evidencia antes de reintegrar. Hard rules, señales de respuesta y caps
 permanecen bajo control del principal. Con Jev activo, aplica `references/jev.md`:
