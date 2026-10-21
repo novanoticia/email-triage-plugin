@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.21.28).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.21.29).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -2047,11 +2047,19 @@ def _leer_capa_modelos(base):
         return dict(out, estado="invalida", motivo=motivo)
     if cfg.get("modo", "actual") == "actual":
         return dict(out, estado="desactivada")
+    # v3.21.29 (prueba real 2026-10-21: con la capa activa, el modelo no
+    # delegó hasta que la persona lo pidió): la salida dice qué hacer. El
+    # agente empaquetado solo existe en Claude Code; otros hosts usan su
+    # mecanismo del punto 4 de modelos-nativos.md (revisión Codex, PR #98).
     return dict(out, estado="activa", modo=cfg["modo"],
                 config={"modo": cfg["modo"],
                         "modelo": cfg.get("modelo") or "",
                         "max_llamadas": cfg.get("max_llamadas", 2),
-                        "tamano_lote": cfg.get("tamano_lote", 25)})
+                        "tamano_lote": cfg.get("tamano_lote", 25)},
+                agente_claude_code="email-triage:evaluador-criterios",
+                siguiente="lee references/modelos-nativos.md y delega sin "
+                          "pedir permiso con el mecanismo de tu host (punto "
+                          "4); si una capacidad falla, di cuál")
 
 
 # ════════════════════════════════════════════════════════════════

@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.21.28
+# Email Triage Plugin v3.21.29
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,17 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.21.29
+
+- **Si configuras la comparación de modelos, ya no hace falta pedirla.**
+  En dos pruebas reales, con `config-modelos.yaml` en `comparar`, el
+  modelo no delegó hasta que se lo pediste. Una vez llegó a decir que no
+  había comprobado que el evaluador no tuviera herramientas, cuando la
+  excepción que lo resuelve (v3.21.25) estaba tres puntos más abajo de la
+  regla que le mandaba rendirse. Ahora `validar-config` le dice qué agente
+  usar y que delegue sin pedir permiso, y la excepción está en el primer
+  punto. Si alguna capacidad falla, debe decirte cuál.
 
 ## Novedades en v3.21.28
 

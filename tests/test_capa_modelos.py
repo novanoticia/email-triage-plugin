@@ -78,6 +78,20 @@ class TestCapaModelos(unittest.TestCase):
                                           "tamano_lote": 10})
         self.assertTrue(any("modelos-nativos.md" in a for a in r["avisos"]))
 
+    def test_activa_dice_que_delegue_sin_pedir_permiso(self):
+        # v3.21.29: en dos pruebas reales la persona tuvo que pedirlo.
+        capa = self._capa('modo: comparar\n')["capa_modelos"]
+        # Revisión Codex (PR #98): el agente es solo de Claude Code.
+        self.assertEqual(capa["agente_claude_code"],
+                         "email-triage:evaluador-criterios")
+        self.assertNotIn("agente", capa)
+        self.assertIn("sin pedir permiso", capa["siguiente"])
+        self.assertIn("mecanismo de tu host", capa["siguiente"])
+        for texto in ("modo: actual\n", "modo: raro\n"):
+            capa = self._capa(texto)["capa_modelos"]
+            self.assertNotIn("agente_claude_code", capa, texto)
+            self.assertNotIn("siguiente", capa, texto)
+
     def test_invalida_se_trata_como_actual(self):
         casos = {"modo: turbo\n": "modo_no_admitido",
                  "modo: comparar\nextra: 1\n": "opcion_no_admitida",
