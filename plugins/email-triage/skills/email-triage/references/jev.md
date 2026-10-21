@@ -115,7 +115,8 @@ ficticios; no presentes las pruebas simuladas como validación del modelo real.
    fielmente lo leído, no delegues. S0 y caps tampoco salen a la red.
 3. Ejecuta `python3 scripts/jev.py evaluar --config RUTA_CONFIG_PERSONAL
    --config-jev RUTA_CAPA`, con el documento por stdin. `--config-veloz` aplica
-   únicamente si el usuario pidió también veloz. `evaluar` requiere configuración
+   únicamente si el usuario pidió también veloz, y `--config-ensayo RUTA` si el
+   scoring la lleva (v3.21.31). `evaluar` requiere configuración
    híbrida explícita; `comparar` nunca se convierte en ejecución real.
 4. Por correo, `usar_principal: true` obliga a completar la evaluación en el
    principal antes de continuar; no significa que exista ya una evaluación de
