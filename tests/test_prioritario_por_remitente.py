@@ -77,6 +77,20 @@ class TestPrioritarioPorRemitente(unittest.TestCase):
         self.assertEqual(r["tier"], "ARCHIVE")
         self.assertNotIn("prioritario_verificado", r)
 
+    def test_remitente_sin_direccion_no_pisa_el_flag(self):
+        # S0 puede vaciar el remitente; un nombre solo no es una dirección.
+        for vacio in ("", "Slavoj Žižek", "   "):
+            r = th.cmd_scoring(_p(remitente=vacio, prioritario=True), CFG)
+            self.assertEqual(r["tier"], "READING_LATER", vacio)
+            self.assertFalse(r["prioritario_verificado"], vacio)
+            self.assertNotIn("aviso_prioritario", r)
+
+    def test_sin_suelo_tampoco_hay_aviso(self):
+        cfg = copy.deepcopy(CFG)
+        del cfg["filtros"]["suelo_prioritarios"]
+        r = th.cmd_scoring(_p(remitente=ZIZEK, prioritario=False), cfg)
+        self.assertNotIn("aviso_prioritario", r)
+
     def test_remitente_no_texto_se_ignora(self):
         for malo in (None, 3, ["slavoj@substack.com"], {"a": 1}):
             r = th.cmd_scoring_dispatch(_p(remitente=malo), CFG)

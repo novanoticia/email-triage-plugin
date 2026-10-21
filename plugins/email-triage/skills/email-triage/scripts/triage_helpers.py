@@ -427,12 +427,16 @@ def _suelo_prioritarios(cfg):
 def _prioritario_por_remitente(remitente, cfg):
     """v3.21.27 (prueba real 2026-10-21: el modelo no pasó `prioritario` y
     aplicó el suelo a mano): si el payload trae `remitente`, el script decide
-    él mismo con las reglas de `coincidencias`. None si no hay remitente."""
+    él mismo con las reglas de `coincidencias`. None si no hay remitente o
+    no se le saca dirección (S0 lo vació, solo nombre visible): entonces
+    manda el flag, que es lo seguro (revisión Codex P1, PR #96)."""
     if not isinstance(remitente, str):
         return None
     f = cfg.get("filtros") if isinstance(cfg, dict) else None
     f = f if isinstance(f, dict) else {}
     addr, dominio = _direccion(remitente)
+    if not addr and not dominio:
+        return None
     return any(_casa_remitente(e, addr, dominio)
                for e in _lista_texto(f.get("remitentes_prioritarios")))
 
@@ -1144,7 +1148,7 @@ def cmd_scoring(payload: dict, cfg: dict) -> dict:
     prioritario = (payload.get("prioritario") is True if derivado is None
                    else derivado)
     aviso_prioritario = None
-    if derivado is not None and "prioritario" in payload \
+    if suelo and derivado is not None and "prioritario" in payload \
             and (payload["prioritario"] is True) != derivado:
         aviso_prioritario = ("el payload decía prioritario=%r; por el "
                              "remitente es %r (manda el remitente)"
