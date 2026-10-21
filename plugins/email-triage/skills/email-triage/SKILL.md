@@ -882,9 +882,18 @@ entradas simuladas contaminaría el log y haría el undo ambiguo.
 
 **Antes del primer movimiento real, lee `references/paso-4i-registro.md` AHORA**
 (formato, `registrar`, `bloquea_movimiento`, `aviso_ruta`, `cerrar-lote` y
-fallback). Al cerrar cualquier sesión, aplica también su retención. Un
-movimiento sin `score` solo vale como `"origen":"regla_manual"` pedido por la
-persona; `registrar` rechaza cualquier otro.
+fallback). Un movimiento sin `score` solo vale como
+`"origen":"regla_manual"` pedido por la persona; `registrar` rechaza cualquier otro.
+
+#### Retención
+
+**Retención (v3.5)**: la purga vive al FINAL del PASO 5 (tras escribir
+telemetría), nunca durante un undo — reescribir el log justo cuando se
+necesita íntegro para revertir era el peor momento posible. Al cerrar
+cada sesión: si el log contiene entradas con `ts` de hace más de 30
+días, reescribirlo conservando solo las recientes e informar cuántas se
+purgaron. El undo (PASO 6) solo LEE el log, jamás lo reescribe (sus
+registros son appends).
 
 ---
 

@@ -67,12 +67,5 @@ con `create_directory` la primera vez). El log es una red de seguridad, no un
 requisito para operar; su única regla es que sea **append-only** — con el
 helper, además, concurrente-seguro.
 
-### Retención
-
-**Retención (v3.5)**: la purga vive al FINAL del PASO 5 (tras escribir
-telemetría), nunca durante un undo — reescribir el log justo cuando se
-necesita íntegro para revertir era el peor momento posible. Al cerrar
-cada sesión: si el log contiene entradas con `ts` de hace más de 30
-días, reescribirlo conservando solo las recientes e informar cuántas se
-purgaron. El undo (PASO 6) solo LEE el log, jamás lo reescribe (sus
-registros son appends).
+La retención del log vive en el SKILL.md (PASO 4.I), porque se aplica al
+cerrar cualquier sesión, haya o no movimientos.
