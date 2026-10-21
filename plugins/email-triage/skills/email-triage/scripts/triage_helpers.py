@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.21.29).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.21.30).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -782,6 +782,17 @@ MAX_ENTRADA_SANITIZAR = 100_000
 MAX_INGESTA_BYTES = 10_000_000
 
 
+def huella_extracto(texto) -> str:
+    """Huella del extracto que devuelve `sanitizar` (16 hex de SHA-256).
+    v3.21.30 (prueba real 2026-10-21: el principal pasó a Haiku extractos
+    más cortos que los suyos): `modelos.py validar` la recalcula sobre el
+    lote enviado y marca `extracto_distinto` si no coincide. Huella, no
+    prueba: muestra el recorte, no garantiza qué vio el especialista."""
+    import hashlib
+    t = texto if isinstance(texto, str) else ""
+    return hashlib.sha256(t.encode("utf-8")).hexdigest()[:16]
+
+
 def cmd_sanitizar(texto: str, max_chars: int = 1500,
                   asunto: Optional[str] = None,
                   remitente: Optional[str] = None) -> dict:
@@ -863,9 +874,11 @@ def cmd_sanitizar(texto: str, max_chars: int = 1500,
         etiqueta = "[HTML detectado]"
     else:
         etiqueta = "[texto limpio]"
+    salida = texto + (" [truncado]" if truncado and texto else "")
     return {
         "etiqueta": etiqueta,
-        "texto": texto + (" [truncado]" if truncado and texto else ""),
+        "texto": salida,
+        "huella_extracto": huella_extracto(salida),
         "injection": injection,
         "injection_cuerpo": injection_cuerpo,
         "injection_asunto": injection_asunto if asunto is not None else None,

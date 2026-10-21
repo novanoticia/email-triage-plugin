@@ -120,6 +120,10 @@ Entrega únicamente al especialista:
 - Perfil y proyectos relevantes mínimos, nunca todo el historial de conversación.
 - IDs ordinales, asunto/remitente sanitizados, fecha y extracto **ya sanitizado**
   en `<email-body-data>`, y contexto verificado del hilo cuando sea necesario.
+  El extracto es **el mismo `texto` de `sanitizar` que evalúas tú, sin
+  recortar ni resumir** (v3.21.30): si no, la comparación mide extractos
+  distintos, no modelos. Escribe el lote enviado en `tmp/modelos-lote.json`
+  como `{"unidades": [{"id", "extracto"}]}` y pásalo a `validar`.
 - `criterios_epistemicos` activos de la configuración efectiva (con la capa
   veloz fusionada por el mecanismo existente si aplica), sus preguntas, opciones
   y la distinción `core`. No hace falta transmitir cuentas, carpetas, credenciales,
@@ -169,6 +173,12 @@ Escribe `tmp/modelos-validar.json` con `esperados` del principal y `respuesta`
   rellenar campos ausentes con cero/falso para permitir una delegación.
 - `respuesta`: objeto JSON devuelto por el especialista.
 - `plan`: la salida literal de `planificar` que autorizó esta llamada.
+- `lote` y `esperados[].huella_extracto` (v3.21.30): el lote enviado y la
+  `huella_extracto` que devolvió `sanitizar` para cada correo, copiada tal
+  cual. Si el extracto enviado no coincide, ese correo sale con
+  `extracto_distinto` y no cuenta. El lote debe traer exactamente las
+  unidades de `esperados` (si no, `lote_distinto_de_esperados`). Es una
+  huella, no una prueba.
 - `acciones_especialista` (Claude Code, v3.21.25): el `tool_uses` que el host
   informa en el resultado de la llamada al evaluador, copiado tal cual; nunca
   lo que diga el especialista. Si es mayor que 0 (cualquier lectura, shell o

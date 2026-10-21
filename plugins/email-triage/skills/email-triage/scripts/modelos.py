@@ -210,6 +210,21 @@ def validar(p):
     filas = _indexar(respuesta["evaluaciones"])
     if set(filas) - set(esperados):
         return _error("ids_inesperados")
+    # v3.21.30 (prueba real 2026-10-21: el principal recortó los extractos
+    # de Haiku): `lote` es lo enviado al especialista; con `huella_extracto`
+    # (de `sanitizar`) en un esperado, su extracto tiene que ser el mismo.
+    enviados, lote = None, p.get("lote")
+    if lote is not None:
+        try:
+            if not isinstance(lote, dict):
+                raise ValueError
+            enviados = _indexar(lote.get("unidades"))
+        except ValueError:
+            return _error("lote_invalido")
+        # Revisión Codex (PR #99): unidades de más esquivarían el tope del
+        # plan y cambiarían el contexto del especialista.
+        if set(enviados) != set(esperados):
+            return _error("lote_distinto_de_esperados")
     resultados = []
     for ident, esperado in esperados.items():
         fila = filas.get(ident)
@@ -238,6 +253,13 @@ def validar(p):
             motivo = "control_invalido"
         elif control["tier_maximo"] is not None:
             motivo = "cap_requiere_principal"
+        huella = esperado.get("huella_extracto")
+        if not motivo and huella is not None:
+            enviado = (enviados or {}).get(ident)
+            extracto = (enviado or {}).get("extracto")
+            if (not isinstance(huella, str) or not isinstance(extracto, str)
+                    or th.huella_extracto(extracto) != huella):
+                motivo = "extracto_distinto"
         if motivo:
             resultados.append({"id": ident, "usar_principal": True, "motivo": motivo})
             continue

@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.21.29
+# Email Triage Plugin v3.21.30
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,16 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.21.30
+
+- **El modelo delegado ve el mismo texto que el principal.** En una prueba
+  real de comparación, el modelo principal pasó a Haiku los extractos
+  «algo más cortos que los que usé yo», y la comparación salió sesgada sin
+  que nada lo marcara. Ahora `sanitizar` devuelve una huella de cada
+  extracto y `validar` la comprueba sobre el lote que se envió: si el
+  extracto no es el mismo, ese correo no cuenta para la comparación. Es
+  una huella, no una prueba, pero el recorte deja de ser invisible.
 
 ## Novedades en v3.21.29
 
