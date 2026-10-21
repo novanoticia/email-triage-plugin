@@ -219,7 +219,8 @@ def validar(p):
         # él, una propuesta delegada podría quedar por debajo del suelo.
         permitidos = {"hard_rules", "extra_points", "forzar_reply_needed",
                       "tier_maximo", "remitente_en_historial",
-                      "remitente_conteo_historial", "prioritario"}
+                      "remitente_conteo_historial", "prioritario",
+                      "remitente"}  # v3.21.27: el script decide prioritario
         if not isinstance(control, dict) or set(control) - permitidos:
             motivo = "control_invalido"
         elif not {"hard_rules", "extra_points", "forzar_reply_needed",
@@ -228,6 +229,7 @@ def validar(p):
         elif (type(control["forzar_reply_needed"]) is not bool
               or type(control["remitente_en_historial"]) is not bool
               or type(control.get("prioritario", False)) is not bool
+              or type(control.get("remitente", "")) is not str
               or not isinstance(control["hard_rules"], list)
               or not all(isinstance(k, str) for k in control["hard_rules"])
               or len(set(control["hard_rules"])) != len(control["hard_rules"])
