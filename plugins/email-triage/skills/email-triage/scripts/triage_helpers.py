@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.21.34).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.21.35).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -2057,7 +2057,13 @@ def _leer_capa_modelos(base):
     if modelo is not None and not isinstance(modelo, str):
         motivo = "modelo_invalido"
     if motivo:
-        return dict(out, estado="invalida", motivo=motivo)
+        # v3.21.35 (prueba real: con `max_llamadas: 30` el modelo delegó
+        # igual, con un tope elegido por él): la salida dice qué hacer.
+        return dict(out, estado="invalida", motivo=motivo,
+                    siguiente="no delegues: di a la persona el motivo y "
+                              "cómo corregirlo (max_llamadas 1-10, "
+                              "tamano_lote 1-50, claves: %s)"
+                              % ", ".join(CLAVES_CAPA_MODELOS))
     if cfg.get("modo", "actual") == "actual":
         return dict(out, estado="desactivada")
     # v3.21.29 (prueba real 2026-10-21: con la capa activa, el modelo no

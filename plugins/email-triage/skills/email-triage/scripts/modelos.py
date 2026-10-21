@@ -112,7 +112,26 @@ def _plan_autoriza(p):
     for clave, tope in topes.items():
         filas = p.get(clave)
         if isinstance(filas, list) and len(filas) > tope:
-            return _error("lote_mayor_que_el_autorizado")
+            error = _error("lote_mayor_que_el_autorizado")
+            if clave == "base":
+                error["pista"] = "comparar usa el plan de la primera llamada"
+            return error
+    # v3.21.35 (prueba real 2026-10-21: con `max_llamadas: 30` la capa era
+    # inválida, pero el modelo delegó con un tope de 10 elegido por él y
+    # comparó con «un plan en memoria con lote de 50»). El plan es un JSON
+    # que el modelo puede escribir a mano; la capa en disco no. Si el
+    # fichero existe, manda: inválida = no hay delegación; activa = el plan
+    # no puede pasar de sus límites. Ausente o en `actual`, la activación
+    # solo para esta sesión (modelos-nativos.md) sigue valiendo.
+    capa = th._leer_capa_modelos(th.base_estado())
+    if capa.get("estado") == "invalida":
+        return dict(_error("capa_modelos_invalida"),
+                    motivo_capa=capa.get("motivo"))
+    if capa.get("estado") == "activa":
+        c = capa["config"]
+        if (plan["tamano_lote"] > c["tamano_lote"]
+                or plan["llamadas_restantes"] > c["max_llamadas"]):
+            return _error("plan_no_coincide_con_capa")
     return None
 
 

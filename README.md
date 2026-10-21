@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.21.34
+# Email Triage Plugin v3.21.35
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,19 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.21.35
+
+- **El fichero de la capa de modelos manda sobre el plan.** En una prueba
+  real, `config-modelos.yaml` traía `max_llamadas: 30` (el rango es 1-10),
+  así que la capa era inválida y no debía delegarse. El modelo delegó igual,
+  con un tope de 10 elegido por él, y para comparar se construyó «un plan en
+  memoria con lote de 50». Ahora `validar` y `comparar` leen el fichero: si
+  es inválido devuelven `capa_modelos_invalida` (con el motivo), y si está
+  activo rechazan un plan que pase de sus límites
+  (`plan_no_coincide_con_capa`). `validar-config` dice además qué hacer con
+  una capa inválida: no delegar y explicar cómo corregirla. Sin fichero, la
+  activación solo para la sesión sigue valiendo.
 
 ## Novedades en v3.21.34
 
