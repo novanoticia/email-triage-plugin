@@ -221,6 +221,10 @@ def validar(p):
             enviados = _indexar(lote.get("unidades"))
         except ValueError:
             return _error("lote_invalido")
+        # Revisión Codex (PR #99): unidades de más esquivarían el tope del
+        # plan y cambiarían el contexto del especialista.
+        if set(enviados) != set(esperados):
+            return _error("lote_distinto_de_esperados")
     resultados = []
     for ident, esperado in esperados.items():
         fila = filas.get(ident)
@@ -252,8 +256,9 @@ def validar(p):
         huella = esperado.get("huella_extracto")
         if not motivo and huella is not None:
             enviado = (enviados or {}).get(ident)
-            if (not isinstance(huella, str) or enviado is None
-                    or th.huella_extracto(enviado.get("extracto")) != huella):
+            extracto = (enviado or {}).get("extracto")
+            if (not isinstance(huella, str) or not isinstance(extracto, str)
+                    or th.huella_extracto(extracto) != huella):
                 motivo = "extracto_distinto"
         if motivo:
             resultados.append({"id": ident, "usar_principal": True, "motivo": motivo})

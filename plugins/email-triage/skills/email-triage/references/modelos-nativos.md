@@ -176,7 +176,9 @@ Escribe `tmp/modelos-validar.json` con `esperados` del principal y `respuesta`
 - `lote` y `esperados[].huella_extracto` (v3.21.30): el lote enviado y la
   `huella_extracto` que devolvió `sanitizar` para cada correo, copiada tal
   cual. Si el extracto enviado no coincide, ese correo sale con
-  `extracto_distinto` y no cuenta. Es una huella, no una prueba.
+  `extracto_distinto` y no cuenta. El lote debe traer exactamente las
+  unidades de `esperados` (si no, `lote_distinto_de_esperados`). Es una
+  huella, no una prueba.
 - `acciones_especialista` (Claude Code, v3.21.25): el `tool_uses` que el host
   informa en el resultado de la llamada al evaluador, copiado tal cual; nunca
   lo que diga el especialista. Si es mayor que 0 (cualquier lectura, shell o

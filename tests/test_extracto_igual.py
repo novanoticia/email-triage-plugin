@@ -62,10 +62,25 @@ class TestValidarExtracto(unittest.TestCase):
         r = m.ejecutar("validar", self.p)
         self.assertEqual(r["resultados"][0]["motivo"], "extracto_distinto")
 
-    def test_unidad_ausente_del_lote_no_cuenta(self):
-        self.p["lote"] = {"unidades": [{"id": "9", "extracto": self.extracto}]}
-        r = m.ejecutar("validar", self.p)
-        self.assertEqual(r["resultados"][0]["motivo"], "extracto_distinto")
+    def test_lote_con_otras_unidades_se_rechaza(self):
+        # Revisión Codex (PR #99): ni de más ni distintas.
+        for unidades in ([{"id": "9", "extracto": self.extracto}],
+                         [{"id": "1", "extracto": self.extracto},
+                          {"id": "2", "extracto": "otro"}]):
+            self.p["lote"] = {"unidades": unidades}
+            self.assertEqual(m.ejecutar("validar", self.p)["motivo"],
+                             "lote_distinto_de_esperados")
+
+    def test_extracto_ausente_no_pasa_aunque_el_texto_sea_vacio(self):
+        # Revisión Codex (PR #99): huella("") == huella(None) normalizado.
+        self.p["esperados"][0]["huella_extracto"] = th.huella_extracto("")
+        for unidad in ({"id": "1"}, {"id": "1", "extracto": None}):
+            self.p["lote"] = {"unidades": [unidad]}
+            r = m.ejecutar("validar", self.p)
+            self.assertEqual(r["resultados"][0]["motivo"],
+                             "extracto_distinto", unidad)
+        r = self._con_lote("")
+        self.assertIn("resultado", r["resultados"][0])
 
     def test_huella_no_texto_no_cuenta(self):
         self.p["esperados"][0]["huella_extracto"] = 123
