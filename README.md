@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.21.27
+# Email Triage Plugin v3.21.28
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,17 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.21.28
+
+- **Sin leer los cuerpos no hay triaje.** En dos pruebas reales (60 y 96
+  correos) el modelo clasificó la carpeta solo por remitente y asunto y
+  presentó tiers «provisionales» antes de leer nada. Se apoyaba en una
+  sugerencia pensada para carpetas de más de 200 correos. Ahora el pase
+  rápido solo se permite con más de 200 y si tú lo aceptas; con menos,
+  nunca, y un pase sin cuerpos no da tiers. Es una instrucción al modelo,
+  no un freno mecánico: el informe de sesión sigue marcando las unidades
+  sin scoring determinista.
 
 ## Novedades en v3.21.27
 
