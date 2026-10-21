@@ -188,6 +188,19 @@ def validar(p):
     no_autorizada = _plan_autoriza(p)
     if no_autorizada:
         return no_autorizada
+    # v3.21.25: Claude Code lista el evaluador con `tools: []` como «All
+    # tools», pero arranca sin herramientas (sondeo 2026-10-20). El plan se
+    # fía del frontmatter; esto lo vigila: `acciones_especialista` es el
+    # `tool_uses` que el HOST informa de la llamada. Cualquier acción cuenta
+    # como herramienta (revisión Codex P1, PR #94: en Claude Code la entrega
+    # no suma; un host que sí la sume queda sin delegación, fail-closed).
+    # Opcional.
+    acciones = p.get("acciones_especialista")
+    if acciones is not None:
+        if type(acciones) is not int or acciones < 0:
+            return _error("acciones_especialista_invalidas")
+        if acciones > 0:
+            return _error("especialista_uso_herramientas")
     cfg = p.get("config")
     if not isinstance(cfg, dict):
         return _error("config_invalida")
