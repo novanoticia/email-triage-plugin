@@ -157,8 +157,9 @@ Escribe `tmp/modelos-validar.json` con `esperados` del principal y `respuesta`
 - `esperados`: lista de `{id, control}` para las unidades enviadas; `control`
   se fija **antes de delegar** con `hard_rules`, `extra_points`,
   `forzar_reply_needed`, `tier_maximo`, `remitente_en_historial` y opcionalmente
-  `remitente_conteo_historial` y `prioritario` (el de `coincidencias`, para el
-  suelo de prioritarios). Su origen son 4.A, 4.C y S0 del principal. No
+  `remitente_conteo_historial`, `prioritario` (el de `coincidencias`, para el
+  suelo de prioritarios) y `remitente` (v3.21.27: con él, el script decide
+  `prioritario`). Su origen son 4.A, 4.C y S0 del principal. No
   rellenar campos ausentes con cero/falso para permitir una delegación.
 - `respuesta`: objeto JSON devuelto por el especialista.
 - `plan`: la salida literal de `planificar` que autorizó esta llamada.

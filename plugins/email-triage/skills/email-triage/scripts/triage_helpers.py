@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.21.26).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.21.27).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -422,6 +422,23 @@ def _suelo_prioritarios(cfg):
     f = cfg.get("filtros") if isinstance(cfg, dict) else None
     suelo = f.get("suelo_prioritarios") if isinstance(f, dict) else None
     return suelo if suelo in SUELOS_PRIORITARIOS else None
+
+
+def _prioritario_por_remitente(remitente, cfg):
+    """v3.21.27 (prueba real 2026-10-21: el modelo no pasó `prioritario` y
+    aplicó el suelo a mano): si el payload trae `remitente`, el script decide
+    él mismo con las reglas de `coincidencias`. None si no hay remitente o
+    no se le saca dirección (S0 lo vació, solo nombre visible): entonces
+    manda el flag, que es lo seguro (revisión Codex P1, PR #96)."""
+    if not isinstance(remitente, str):
+        return None
+    f = cfg.get("filtros") if isinstance(cfg, dict) else None
+    f = f if isinstance(f, dict) else {}
+    addr, dominio = _direccion(remitente)
+    if not addr and not dominio:
+        return None
+    return any(_casa_remitente(e, addr, dominio)
+               for e in _lista_texto(f.get("remitentes_prioritarios")))
 
 STOPWORDS = {
     "de", "la", "el", "los", "las", "un", "una", "y", "o", "en", "del",
@@ -988,6 +1005,8 @@ def cmd_scoring(payload: dict, cfg: dict) -> dict:
               "tier_maximo": "REVIEW"|None,
               "remitente_en_historial": bool,   # corrección #2
               "prioritario": bool,              # v3.21.22, de coincidencias
+              "remitente": str,                 # v3.21.27: el script decide
+                                                # `prioritario` (manda sobre él)
               "remitente_conteo_historial": int, # opcional: atenua sender_bulk
                                                  # de forma graduada por frecuencia
               "id": cualquier}                   # opcional, para lote
@@ -1125,7 +1144,16 @@ def cmd_scoring(payload: dict, cfg: dict) -> dict:
     # antes del cap por inyección, que siempre manda.
     suelo = _suelo_prioritarios(cfg)
     suelo_aplicado = None
-    if (payload.get("prioritario") is True and suelo
+    derivado = _prioritario_por_remitente(payload.get("remitente"), cfg)
+    prioritario = (payload.get("prioritario") is True if derivado is None
+                   else derivado)
+    aviso_prioritario = None
+    if suelo and derivado is not None and "prioritario" in payload \
+            and (payload["prioritario"] is True) != derivado:
+        aviso_prioritario = ("el payload decía prioritario=%r; por el "
+                             "remitente es %r (manda el remitente)"
+                             % (payload["prioritario"], derivado))
+    if (prioritario and suelo
             and TIER_ORDEN[tier] < TIER_ORDEN[suelo]):
         suelo_aplicado = "%s->%s (remitente prioritario)" % (tier, suelo)
         tier = suelo
@@ -1153,6 +1181,11 @@ def cmd_scoring(payload: dict, cfg: dict) -> dict:
         out["cap_aplicado"] = cap_aplicado
     if suelo_aplicado:
         out["suelo_aplicado"] = suelo_aplicado
+    if suelo:
+        # Sin `remitente`, el suelo depende de que el modelo pase el flag.
+        out["prioritario_verificado"] = derivado is not None
+    if aviso_prioritario:
+        out["aviso_prioritario"] = aviso_prioritario
     if contrato_p2:
         # Campos añadidos, nunca renombrados: no alteran score ni tier.
         cobertura = _p2_cobertura(criterios, desglose, no_evaluados)
@@ -1425,6 +1458,9 @@ def _brief(r):
         out["cap_aplicado"] = r["cap_aplicado"]
     if r.get("suelo_aplicado"):
         out["suelo_aplicado"] = r["suelo_aplicado"]
+    for k in ("prioritario_verificado", "aviso_prioritario"):
+        if k in r:
+            out[k] = r[k]
     if "confianza" in r:
         # Solo con contrato_p2 activo: lo accionable de P2.
         out["confianza"] = r["confianza"]
@@ -1514,6 +1550,11 @@ def cmd_scoring_dispatch(payload: dict, cfg: dict, brief: bool = False) -> dict:
                 continue
             res.append(_brief(r) if brief else r)
         salida = {"resultados": res}
+        sin_verificar = sum(1 for r in res
+                            if r.get("prioritario_verificado") is False)
+        if sin_verificar:
+            # v3.21.27: con suelo activo, cuántos no trajeron `remitente`.
+            salida["prioritario_sin_verificar"] = sin_verificar
         alerta = _alerta_plantilla(payload["emails"], res)
         if alerta:
             salida["alerta_plantilla"] = alerta

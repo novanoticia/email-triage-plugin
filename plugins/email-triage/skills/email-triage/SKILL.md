@@ -16,7 +16,7 @@ compatibility: >
   Claude Code, Claude Cowork y ChatGPT.
 license: Apache-2.0
 metadata:
-  version: "3.21.26"
+  version: "3.21.27"
   author: novanoticia
 ---
 
@@ -520,9 +520,9 @@ determinista se suman entre sí y se pasan como un único entero en
 `extra_points`; en modo mental se aplican con este mismo baremo.
 Los de `filtros` los calcula `coincidencias` (v3.21.8, ver
 `references/personalizacion.md`): no los cuentes a mano.
-Pasa además a `scoring` el `prioritario` de cada correo tal como sale de
-`coincidencias` (`"prioritario": true`): con `filtros.suelo_prioritarios`
-activo, el script no lo deja bajar de ese tier y lo marca en `suelo_aplicado`.
+Pasa además a `scoring` el `remitente` (dirección) y el `prioritario` de
+`coincidencias`: con `filtros.suelo_prioritarios` activo, el script no lo
+deja bajar de ese tier (`suelo_aplicado`). Nunca apliques el suelo a mano.
 
 | Fuente | Puntos | Condición |
 |--------|--------|-----------|

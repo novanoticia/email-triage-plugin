@@ -153,6 +153,14 @@ class TestValidar(unittest.TestCase):
         self.assertIn("tier", r["resultado"])
         self.assertTrue(r["revision_obligatoria"])
 
+    def test_control_admite_remitente_texto(self):
+        # v3.21.27: con remitente, el scoring decide prioritario.
+        self.p["esperados"][0]["control"]["remitente"] = "a@x.com"
+        self.assertIn("resultado", self.resultado())
+        self.p = lote()
+        self.p["esperados"][0]["control"]["remitente"] = 7
+        self.assertEqual(self.resultado()["motivo"], "control_invalido")
+
     def test_sin_dudas_no_lleva_el_campo(self):
         self.assertNotIn("dudas", self.resultado())
 

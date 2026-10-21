@@ -350,7 +350,10 @@ se vigila con `acciones_especialista` (el `tool_uses` del host) en
 `validar`: cualquier acción (> 0) = usó herramientas y la respuesta no cuenta.
 Desde v3.21.26 una fila con `dudas` se puntúa igual (sigue `usar_principal`,
 motivo `requiere_contexto_o_revision`, con las dudas en la fila): así llega
-al comparador en vez de perderse (prueba real: Haiku, dudas en 5 de 5). Jev usa exclusivamente la capa externa opt-in descrita en
+al comparador en vez de perderse (prueba real: Haiku, dudas en 5 de 5).
+Desde v3.21.27 `scoring` decide `prioritario` si el payload trae `remitente`
+(mismas reglas que `coincidencias`; manda sobre el flag): prueba real, el
+modelo no pasó el flag y aplicó el suelo a mano. Jev usa exclusivamente la capa externa opt-in descrita en
 `references/jev.md` y `scripts/jev.py`; no extender `modelos.py` con red. Comparar implica simulación
 y no alimenta aprendizaje con desacuerdos entre modelos. Los controles de scoring
 vienen del principal, nunca de la respuesta delegada. Las pruebas sintéticas

@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.21.26
+# Email Triage Plugin v3.21.27
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,17 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.21.27
+
+- **El suelo de tus remitentes prioritarios ya no depende de la memoria
+  del modelo.** En una prueba real, tres correos de un remitente
+  prioritario salieron en ARCHIVE porque el modelo no avisó al script de
+  que lo eran, y después los subió «a mano». Ahora, si el modelo pasa la
+  dirección del remitente, el script comprueba él mismo la lista (por
+  dirección o dominio, nunca por el nombre visible) y aplica el suelo.
+  Si el modelo dice otra cosa, manda el script y lo avisa; y el lote
+  cuenta cuántos correos llegaron sin remitente para comprobar.
 
 ## Novedades en v3.21.26
 
