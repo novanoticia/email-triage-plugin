@@ -367,17 +367,23 @@ def main():
     val = sub.add_parser("validar")
     val.add_argument("--config", help="Config YAML canónico; prevalece sobre el JSON")
     val.add_argument("--config-veloz", help="Capa veloz, solo con --config")
+    # v3.21.31 (prueba real 2026-10-21: con ensayo_p3 activo, validar
+    # comprobaba contra los criterios sin la capa y rechazaba a Haiku con
+    # cobertura_incompleta). Mismo orden que scoring: veloz, luego ensayo.
+    val.add_argument("--config-ensayo", help="Capa del ensayo P3, solo con --config")
     sub.add_parser("comparar")
     args = parser.parse_args()
     try:
         entrada = json.load(sys.stdin)
         if args.comando == "validar" and isinstance(entrada, dict):
-            if args.config_veloz and not args.config:
+            if (args.config_veloz or args.config_ensayo) and not args.config:
                 raise ValueError("config_base_requerida")
             if args.config:
                 # Reutiliza exactamente la carga/fusión del scoring existente.
-                entrada["config"] = th._fusiona_config_veloz(
-                    th._cargar_config(args.config), args.config_veloz)
+                entrada["config"] = th._fusiona_config_ensayo(
+                    th._fusiona_config_veloz(th._cargar_config(args.config),
+                                             args.config_veloz),
+                    args.config_ensayo)
         salida = ejecutar(args.comando, entrada)
     except (ValueError, UnicodeError, OSError, th.ConfigError, SystemExit):
         salida = _error("entrada_o_config_invalida")

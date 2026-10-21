@@ -359,7 +359,10 @@ sin pedir permiso), y `modelos-nativos.md` adelanta al punto 1 la excepción
 de Claude Code: en dos pruebas reales la persona tuvo que pedir la delegación.
 Desde v3.21.30 `sanitizar` devuelve `huella_extracto` y `validar` la
 recalcula sobre el `lote` enviado: `extracto_distinto` si el principal
-recortó el extracto del especialista (prueba real con Haiku). Jev usa exclusivamente la capa externa opt-in descrita en
+recortó el extracto del especialista (prueba real con Haiku).
+Desde v3.21.31 `modelos.py validar` y `jev.py` aceptan `--config-ensayo`
+(mismo orden que scoring: veloz, luego ensayo): sin él, con el ensayo P3
+activo, toda respuesta delegada salía `cobertura_incompleta`. Jev usa exclusivamente la capa externa opt-in descrita en
 `references/jev.md` y `scripts/jev.py`; no extender `modelos.py` con red. Comparar implica simulación
 y no alimenta aprendizaje con desacuerdos entre modelos. Los controles de scoring
 vienen del principal, nunca de la respuesta delegada. Las pruebas sintéticas

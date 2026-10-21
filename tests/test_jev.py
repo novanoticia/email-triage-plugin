@@ -189,6 +189,13 @@ class TestJev(unittest.TestCase):
             self.assertEqual(out['ok'], ok); self.assertFalse(out['permitir_movimientos'])
             self.assertNotIn('clave-ficticia', r.stdout + r.stderr)
 
+    def test_cli_acepta_config_ensayo(self):
+        # v3.21.31: misma capa que scoring; antes argparse la rechazaba.
+        r = subprocess.run([sys.executable, str(SKILL/'scripts/jev.py'), 'comparar',
+            '--config', '/no-existe', '--config-jev', '/no-existe',
+            '--config-ensayo', '/no-existe'], input='{}', text=True, capture_output=True)
+        self.assertTrue(json.loads(r.stdout)['ok'], r.stderr)
+
     def test_no_aplica_condicional_y_veloz(self):
         def t(body, *_):
             r = respuesta(body)
