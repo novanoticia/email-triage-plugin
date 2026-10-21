@@ -29,8 +29,14 @@ class TestPaseSinCuerpos(unittest.TestCase):
         self.assertIn(">200 correos y si la persona acepta", self.h)
         self.assertIn("Con ≤200, nunca.", self.h)
 
-    def test_sin_cuerpos_no_hay_tiers(self):
-        self.assertIn("Sin cuerpos no hay triaje: no des tiers.", self.h)
+    def test_el_pase_rapido_no_da_tiers(self):
+        self.assertIn("Ese pase no da tiers", self.h)
+
+    def test_no_anula_la_via_de_solo_metadatos(self):
+        # Revisión Codex P2, PR #97: cuerpos ilegibles e ignorados siguen
+        # evaluándose por metadatos (tabla de PASO 1.B, gate-cuerpo).
+        self.assertIn("ilegibles e ignorados: su vía de solo metadatos", self.h)
+        self.assertIn("[solo metadatos]", self.texto)
 
     def test_ya_no_se_sugiere_por_iniciativa_propia(self):
         self.assertNotIn("sugerir un primer pase rápido", self.texto)

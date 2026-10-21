@@ -868,8 +868,8 @@ presenta y cómo se mueve el hilo entero) está en
 - **Capturar referencias a objetos antes de mover** (ver PASO 1) — no
   confiar en índices, ni siquiera en orden descendente (índice shifting)
 - Solo con >200 correos y si la persona acepta: pase rápido por
-  remitente/asunto para descartar ruido evidente y luego cuerpos de los
-  supervivientes. Con ≤200, nunca. Sin cuerpos no hay triaje: no des tiers.
+  remitente/asunto y luego cuerpos de los supervivientes. Con ≤200, nunca.
+  Ese pase no da tiers (ilegibles e ignorados: su vía de solo metadatos).
 
 ### 4.I — Registro de sesión (session log)
 
