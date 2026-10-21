@@ -2047,11 +2047,16 @@ def _leer_capa_modelos(base):
         return dict(out, estado="invalida", motivo=motivo)
     if cfg.get("modo", "actual") == "actual":
         return dict(out, estado="desactivada")
+    # v3.21.29 (prueba real 2026-10-21: con la capa activa, el modelo no
+    # delegó hasta que la persona lo pidió): la salida dice qué hacer.
     return dict(out, estado="activa", modo=cfg["modo"],
                 config={"modo": cfg["modo"],
                         "modelo": cfg.get("modelo") or "",
                         "max_llamadas": cfg.get("max_llamadas", 2),
-                        "tamano_lote": cfg.get("tamano_lote", 25)})
+                        "tamano_lote": cfg.get("tamano_lote", 25)},
+                agente="email-triage:evaluador-criterios",
+                siguiente="lee references/modelos-nativos.md y delega sin "
+                          "pedir permiso; si una capacidad falla, di cuál")
 
 
 # ════════════════════════════════════════════════════════════════

@@ -15,12 +15,18 @@ delegación nativa verificada, con el principal como orquestador. No necesita es
 plugin instalado. Este protocolo autoriza la delegación acotada al activarlo,
 sin anular restricciones superiores de la sesión.
 
+**Con `capa_modelos.estado: activa` no pidas permiso para delegar** (v3.21.29;
+prueba real: la persona tuvo que pedirlo dos veces). Es lo que su config ya
+decide: compruébalo y delega, o di en una línea qué capacidad falló.
+
 1. Inspecciona las herramientas reales de la sesión, no la marca de la app.
    Comprueba delegación con selección de modelo, contexto aislado, posibilidad
    de **deshabilitar todas las herramientas** del especialista y la misma
    conexión/cuenta/ruta de procesamiento que ya usa el principal. Un agente con
    acceso heredado al buzón o la shell no cumple el contrato. Si no puedes
-   comprobar cualquiera de esas capacidades, usa el principal.
+   comprobar cualquiera de esas capacidades, usa el principal. **En Claude
+   Code, «(Tools: All tools)» junto a `email-triage:evaluador-criterios` no
+   cuenta como herramientas:** ver la excepción del punto 4.
 2. Proveedor de IA admitido: `anthropic` u `openai`, siempre el del principal.
    No confundirlo con `correo.proveedor` (iCloud/Gmail). No basta con que el nombre
    del modelo parezca de ese proveedor: la asociación debe venir del host.
