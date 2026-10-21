@@ -163,7 +163,10 @@ Escribe `tmp/modelos-validar.json` con `esperados` del principal y `respuesta`
 - La configuración se carga directamente mediante `--config` (no reconstruir
   el YAML en JSON). Si hay modo veloz, añadir `--config-veloz` con su ruta: el
   script usa la misma fusión que scoring y exige solo los criterios core cuando
-  `comportamiento_veloz.solo_criterios_core` está activo.
+  `comportamiento_veloz.solo_criterios_core` está activo. **Pasa las mismas
+  capas que al scoring**: con el ensayo P3 activo, añade `--config-ensayo` con
+  su ruta (v3.21.31); sin ella, los criterios no coinciden y toda respuesta
+  sale `cobertura_incompleta_o_desconocida`.
 - `esperados`: lista de `{id, control}` para las unidades enviadas; `control`
   se fija **antes de delegar** con `hard_rules`, `extra_points`,
   `forzar_reply_needed`, `tier_maximo`, `remitente_en_historial` y opcionalmente

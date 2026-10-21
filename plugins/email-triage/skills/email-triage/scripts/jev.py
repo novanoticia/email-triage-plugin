@@ -453,6 +453,7 @@ def main():
         comp = sub.add_parser(nombre)
         comp.add_argument("--config", required=True)
         comp.add_argument("--config-veloz")
+        comp.add_argument("--config-ensayo")  # v3.21.31, como scoring
         comp.add_argument("--config-jev", default=str(Path(th.base_estado()) / "config-jev.yaml"))
     args = parser.parse_args()
     try:
@@ -467,6 +468,8 @@ def main():
             cfg = _yaml(args.config) if c["activo"] else {}
             if c["activo"] and args.config_veloz:
                 cfg = th._merge_config(cfg, _yaml(args.config_veloz))
+            if c["activo"]:
+                cfg = th._fusiona_config_ensayo(cfg, args.config_ensayo)
             out = (evaluar if args.cmd == "evaluar" else comparar)(p, cfg, capa)
     except Exception:
         # Fallos de fichero/YAML/JSON: no imprimir paths, entrada o credencial.
