@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.21.25
+# Email Triage Plugin v3.21.26
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,16 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.21.26
+
+- **Las dudas del modelo delegado ya no anulan la comparación.** En la
+  primera prueba real con delegación funcionando, Haiku anotó alguna duda
+  en los 5 correos y el script los descartó sin puntuar: no quedó nada que
+  comparar. Ahora se puntúan igual y la propuesta llega al comparador con
+  sus dudas a la vista, pero sigue sin autorizar nada (manda el modelo
+  principal). Además, el evaluador ya no cuenta como duda que el extracto
+  venga recortado, porque siempre lo está.
 
 ## Novedades en v3.21.25
 

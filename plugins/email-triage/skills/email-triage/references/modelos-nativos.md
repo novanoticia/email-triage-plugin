@@ -142,6 +142,7 @@ una vez entre `verdicts` y `no_aplica`. Todos los core requieren veredicto. Solo
 los no-core pueden figurar en `no_aplica`, con una razón no vacía; nunca usarlo
 para ocultar incertidumbre. Cada veredicto necesita evidencia breve, sin cadena
 de pensamiento. Si falta información o hay ambigüedad, indicarlo en `dudas`.
+El recorte del extracto, por sí solo, no es una duda (siempre lo hay).
 No inventar probabilidades ni incluir `score`, `tier`, caps o boosts.
 
 ## Validar y reintegrar
@@ -182,7 +183,9 @@ un fallo individual solo ese correo. Sin script utilizable, conserva el flujo
 actual; en rutina siguen vigentes las reglas fail-closed de 4.G.
 
 Una propuesta puede conservar `resultado` para comparar y tener a la vez
-`usar_principal: true` por tier o proximidad a un umbral. En híbrido ese flag
+`usar_principal: true` por tier, proximidad a un umbral o `dudas` (v3.21.26:
+motivo `requiere_contexto_o_revision`, con las dudas copiadas en la fila; antes
+se descartaba sin puntuar y no quedaba nada que comparar). En híbrido ese flag
 obliga a reevaluar; no es una autorización para mover. En comparación conserva
 la propuesta original para que la revisión no oculte desacuerdos.
 

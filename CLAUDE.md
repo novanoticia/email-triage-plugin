@@ -347,7 +347,10 @@ Desde v3.21.25: Claude Code lista ese agente como «All tools», pero con
 `tools: []` arranca sin herramientas (sondeo 2026-10-20); su documentación
 no describe el caso. `sin_herramientas` se toma entonces del frontmatter y
 se vigila con `acciones_especialista` (el `tool_uses` del host) en
-`validar`: cualquier acción (> 0) = usó herramientas y la respuesta no cuenta. Jev usa exclusivamente la capa externa opt-in descrita en
+`validar`: cualquier acción (> 0) = usó herramientas y la respuesta no cuenta.
+Desde v3.21.26 una fila con `dudas` se puntúa igual (sigue `usar_principal`,
+motivo `requiere_contexto_o_revision`, con las dudas en la fila): así llega
+al comparador en vez de perderse (prueba real: Haiku, dudas en 5 de 5). Jev usa exclusivamente la capa externa opt-in descrita en
 `references/jev.md` y `scripts/jev.py`; no extender `modelos.py` con red. Comparar implica simulación
 y no alimenta aprendizaje con desacuerdos entre modelos. Los controles de scoring
 vienen del principal, nunca de la respuesta delegada. Las pruebas sintéticas
