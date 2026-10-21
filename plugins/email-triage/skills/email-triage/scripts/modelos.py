@@ -73,6 +73,9 @@ def planificar(p):
         return _error("modelo_principal_desconocido")
     if modelo == host["modelo_principal"]:
         return _error("modelo_ya_es_el_principal")
+    contra_capa = _contra_capa(modo, modelo, lote, limite)
+    if contra_capa:
+        return contra_capa
     return {"ok": True, "modo": modo, "delegar": True,
             "modelo_solicitado": modelo, "proveedor": proveedor,
             "llamadas_restantes": limite - usadas, "tamano_lote": lote,
@@ -81,6 +84,29 @@ def planificar(p):
 
 CLAVES_PLAN = {"ok", "modo", "delegar", "modelo_solicitado", "proveedor",
                "llamadas_restantes", "tamano_lote", "concurrencia"}
+
+
+def _contra_capa(modo, modelo, lote, llamadas):
+    """v3.21.35 (prueba real 2026-10-21: con `max_llamadas: 30` la capa era
+    inválida, pero el modelo delegó con un tope de 10 elegido por él y
+    comparó con «un plan en memoria con lote de 50»). El config y el plan
+    son JSON que el modelo puede escribir a mano; la capa en disco no. Si
+    el fichero existe, manda: inválida = no hay delegación; activa = mismo
+    modo, mismo modelo si lo fija, y sin pasar de sus límites. Ausente o en
+    `actual`, la activación solo para esta sesión sigue valiendo. Lo aplican
+    `planificar` (antes de gastar llamadas) y `validar`/`comparar`
+    (revisión Codex, PR #104)."""
+    capa = th._leer_capa_modelos(th.base_estado())
+    if capa.get("estado") == "invalida":
+        return dict(_error("capa_modelos_invalida"),
+                    motivo_capa=capa.get("motivo"),
+                    siguiente=capa.get("siguiente"))
+    if capa.get("estado") == "activa":
+        c = capa["config"]
+        if (modo != c["modo"] or (c["modelo"] and modelo != c["modelo"])
+                or lote > c["tamano_lote"] or llamadas > c["max_llamadas"]):
+            return _error("plan_no_coincide_con_capa")
+    return None
 
 
 def _plan_autoriza(p):
@@ -112,8 +138,12 @@ def _plan_autoriza(p):
     for clave, tope in topes.items():
         filas = p.get(clave)
         if isinstance(filas, list) and len(filas) > tope:
-            return _error("lote_mayor_que_el_autorizado")
-    return None
+            error = _error("lote_mayor_que_el_autorizado")
+            if clave == "base":
+                error["pista"] = "comparar usa el plan de la primera llamada"
+            return error
+    return _contra_capa(plan["modo"], plan["modelo_solicitado"],
+                        plan["tamano_lote"], plan["llamadas_restantes"])
 
 
 def _indexar(filas):

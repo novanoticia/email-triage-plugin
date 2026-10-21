@@ -90,7 +90,14 @@ class TestCapaModelos(unittest.TestCase):
         for texto in ("modo: actual\n", "modo: raro\n"):
             capa = self._capa(texto)["capa_modelos"]
             self.assertNotIn("agente_claude_code", capa, texto)
-            self.assertNotIn("siguiente", capa, texto)
+        self.assertNotIn("siguiente", self._capa("modo: actual\n")["capa_modelos"])
+        # v3.21.35: la inválida dice que NO delegue y cómo corregirla.
+        capa = self._capa("modo: comparar\nmax_llamadas: 30\n")["capa_modelos"]
+        self.assertEqual(capa["motivo"], "presupuesto_invalido")
+        self.assertTrue(capa["siguiente"].startswith("no delegues"))
+        self.assertIn("max_llamadas va de 1 a 10", capa["siguiente"])
+        capa = self._capa("modo: turbo\n")["capa_modelos"]
+        self.assertIn("actual, comparar o hibrido", capa["siguiente"])
 
     def test_invalida_se_trata_como_actual(self):
         casos = {"modo: turbo\n": "modo_no_admitido",
