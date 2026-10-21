@@ -16,7 +16,7 @@ compatibility: >
   Claude Code, Claude Cowork y ChatGPT.
 license: Apache-2.0
 metadata:
-  version: "3.21.27"
+  version: "3.21.28"
   author: novanoticia
 ---
 
@@ -867,9 +867,9 @@ presenta y cómo se mueve el hilo entero) está en
 - Si hay más de 50: informar volumen, procesar por lotes, priorizar recientes
 - **Capturar referencias a objetos antes de mover** (ver PASO 1) — no
   confiar en índices, ni siquiera en orden descendente (índice shifting)
-- Si la carpeta tiene >200 correos: sugerir un primer pase rápido solo por
-  remitente/asunto (sin leer cuerpos) para descartar el ruido evidente,
-  seguido de un segundo pase con lectura de cuerpo para los supervivientes
+- Solo con >200 correos y si la persona acepta: pase rápido por
+  remitente/asunto y luego cuerpos de los supervivientes. Con ≤200, nunca.
+  Ese pase no da tiers (ilegibles e ignorados: su vía de solo metadatos).
 
 ### 4.I — Registro de sesión (session log)
 
