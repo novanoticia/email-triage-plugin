@@ -867,9 +867,9 @@ presenta y cómo se mueve el hilo entero) está en
 - Si hay más de 50: informar volumen, procesar por lotes, priorizar recientes
 - **Capturar referencias a objetos antes de mover** (ver PASO 1) — no
   confiar en índices, ni siquiera en orden descendente (índice shifting)
-- Si la carpeta tiene >200 correos: sugerir un primer pase rápido solo por
-  remitente/asunto (sin leer cuerpos) para descartar el ruido evidente,
-  seguido de un segundo pase con lectura de cuerpo para los supervivientes
+- Solo con >200 correos y si la persona acepta: pase rápido por
+  remitente/asunto para descartar ruido evidente y luego cuerpos de los
+  supervivientes. Con ≤200, nunca. Sin cuerpos no hay triaje: no des tiers.
 
 ### 4.I — Registro de sesión (session log)
 
