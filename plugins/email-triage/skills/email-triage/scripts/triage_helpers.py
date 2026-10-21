@@ -2030,6 +2030,19 @@ def _motivo_capa_modelos(cfg):
     return None
 
 
+_CORREGIR_CAPA = {
+    "pyyaml_no_instalado": "instale PyYAML (python3 -m pip install pyyaml)",
+    "ilegible": "revise los permisos del fichero (600) y que sea UTF-8",
+    "yaml_roto": "corrija la sintaxis YAML del fichero",
+    "config_modelos_invalida": "el fichero debe ser un mapa YAML de claves",
+    "modo_no_admitido": "modo debe ser actual, comparar o hibrido",
+    "opcion_no_admitida": "solo admite las claves " + ", ".join(CLAVES_CAPA_MODELOS),
+    "presupuesto_invalido": "max_llamadas va de 1 a 10 y tamano_lote de 1 a 50 "
+                            "(enteros)",
+    "modelo_invalido": 'modelo debe ser texto ("" = el económico del host)',
+}
+
+
 def _leer_capa_modelos(base):
     """Estado de <base>/config-modelos.yaml (base = base_estado(), la misma
     del resto del estado): `ausente`, `desactivada`
@@ -2058,12 +2071,11 @@ def _leer_capa_modelos(base):
         motivo = "modelo_invalido"
     if motivo:
         # v3.21.35 (prueba real: con `max_llamadas: 30` el modelo delegó
-        # igual, con un tope elegido por él): la salida dice qué hacer.
+        # igual, con un tope elegido por él): la salida dice qué hacer, y
+        # cómo corregirlo según el motivo (revisión Codex, PR #104).
         return dict(out, estado="invalida", motivo=motivo,
-                    siguiente="no delegues: di a la persona el motivo y "
-                              "cómo corregirlo (max_llamadas 1-10, "
-                              "tamano_lote 1-50, claves: %s)"
-                              % ", ".join(CLAVES_CAPA_MODELOS))
+                    siguiente="no delegues: di a la persona que %s"
+                    % _CORREGIR_CAPA.get(motivo, "revise el fichero"))
     if cfg.get("modo", "actual") == "actual":
         return dict(out, estado="desactivada")
     # v3.21.29 (prueba real 2026-10-21: con la capa activa, el modelo no

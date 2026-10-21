@@ -9,8 +9,9 @@ El usuario puede pedir la activación para esta sesión; usa esos ajustes solo e
 memoria. No cambies su configuración persistente sin que lo pida.
 Si el fichero existe, **manda** (v3.21.35): con `capa_modelos.estado: invalida`
 no delegues y di el motivo y cómo corregirlo (su `siguiente`); con `activa`, el
-plan no puede superar su `tamano_lote` ni su `max_llamadas`. No construyas un
-plan propio para sortear un límite: `validar` y `comparar` lo rechazan
+plan lleva su mismo `modo`, su `modelo` si lo fija, y no supera su `tamano_lote`
+ni su `max_llamadas`. No construyas un config ni un plan propios para sortear un
+límite: `planificar`, `validar` y `comparar` los rechazan
 (`capa_modelos_invalida`, `plan_no_coincide_con_capa`).
 
 ## Capacidades y presupuesto (PASO 0)

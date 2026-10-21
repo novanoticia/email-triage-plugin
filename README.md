@@ -95,11 +95,12 @@ relue par un humain. / Traducción generada por una IA, sin revisión humana.
   real, `config-modelos.yaml` traía `max_llamadas: 30` (el rango es 1-10),
   así que la capa era inválida y no debía delegarse. El modelo delegó igual,
   con un tope de 10 elegido por él, y para comparar se construyó «un plan en
-  memoria con lote de 50». Ahora `validar` y `comparar` leen el fichero: si
-  es inválido devuelven `capa_modelos_invalida` (con el motivo), y si está
-  activo rechazan un plan que pase de sus límites
+  memoria con lote de 50». Ahora `planificar` (antes de gastar llamadas),
+  `validar` y `comparar` leen el fichero: si es inválido devuelven
+  `capa_modelos_invalida` (con el motivo), y si está activo rechazan un plan
+  con otro modo, otro modelo (si el fichero lo fija) o más lote o llamadas
   (`plan_no_coincide_con_capa`). `validar-config` dice además qué hacer con
-  una capa inválida: no delegar y explicar cómo corregirla. Sin fichero, la
+  una capa inválida: no delegar y cómo corregirla según el motivo. Sin fichero, la
   activación solo para la sesión sigue valiendo.
 
 ## Novedades en v3.21.34

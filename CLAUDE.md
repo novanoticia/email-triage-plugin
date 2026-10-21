@@ -367,9 +367,10 @@ Desde v3.21.34 `informe` comprueba la delegación: con `modo_modelos` de la
 sesión o, si falta, la capa leída por su cuenta en `comparar`/`hibrido`, y
 sin `delegacion: {"hecha": true}` → aviso arriba y `delegacion_pendiente`
 (prueba real: «si la quieres, la hago aparte»).
-Desde v3.21.35 `validar` y `comparar` leen la capa en disco: inválida →
-`capa_modelos_invalida`; activa → el plan no pasa de su `tamano_lote` ni de
-su `max_llamadas` (`plan_no_coincide_con_capa`). Prueba real: con
+Desde v3.21.35 `planificar`, `validar` y `comparar` leen la capa en disco
+(`_contra_capa`): inválida → `capa_modelos_invalida`; activa → mismo modo,
+mismo modelo si lo fija, y sin pasar de su `tamano_lote` ni de su
+`max_llamadas` (`plan_no_coincide_con_capa`). Prueba real: con
 `max_llamadas: 30` el modelo delegó con un tope propio y un plan «en memoria». Jev usa exclusivamente la capa externa opt-in descrita en
 `references/jev.md` y `scripts/jev.py`; no extender `modelos.py` con red. Comparar implica simulación
 y no alimenta aprendizaje con desacuerdos entre modelos. Los controles de scoring
