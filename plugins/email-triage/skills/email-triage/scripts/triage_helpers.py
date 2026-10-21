@@ -2048,15 +2048,18 @@ def _leer_capa_modelos(base):
     if cfg.get("modo", "actual") == "actual":
         return dict(out, estado="desactivada")
     # v3.21.29 (prueba real 2026-10-21: con la capa activa, el modelo no
-    # delegó hasta que la persona lo pidió): la salida dice qué hacer.
+    # delegó hasta que la persona lo pidió): la salida dice qué hacer. El
+    # agente empaquetado solo existe en Claude Code; otros hosts usan su
+    # mecanismo del punto 4 de modelos-nativos.md (revisión Codex, PR #98).
     return dict(out, estado="activa", modo=cfg["modo"],
                 config={"modo": cfg["modo"],
                         "modelo": cfg.get("modelo") or "",
                         "max_llamadas": cfg.get("max_llamadas", 2),
                         "tamano_lote": cfg.get("tamano_lote", 25)},
-                agente="email-triage:evaluador-criterios",
+                agente_claude_code="email-triage:evaluador-criterios",
                 siguiente="lee references/modelos-nativos.md y delega sin "
-                          "pedir permiso; si una capacidad falla, di cuál")
+                          "pedir permiso con el mecanismo de tu host (punto "
+                          "4); si una capacidad falla, di cuál")
 
 
 # ════════════════════════════════════════════════════════════════
