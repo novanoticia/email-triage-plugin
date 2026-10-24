@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.21.35).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.21.36).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -793,6 +793,53 @@ def huella_extracto(texto) -> str:
     return hashlib.sha256(t.encode("utf-8")).hexdigest()[:16]
 
 
+def _palabras_ancla(texto) -> list:
+    """Palabras comparables de un extracto o de su eco: NFKC y minúsculas.
+    El eco lo reescribe un modelo, que no conserva espacios duros ni
+    mayúsculas con fiabilidad."""
+    t = unicodedata.normalize("NFKC", texto if isinstance(texto, str) else "")
+    return t.casefold().split()
+
+
+def _sin_marca(palabras) -> list:
+    return [w for w in palabras if w != "[truncado]"]
+
+
+def ancla_extracto(texto, n=6) -> dict:
+    """Primeras y últimas `n` palabras del extracto de `sanitizar`.
+    v3.21.36 (prueba real 2026-10-24: el principal copió a mano los
+    extractos para Haiku; en uno se coló texto ajeno, otro llegó cortado y
+    en otro faltó una línea). La huella solo compara el lote que el
+    principal DICE haber enviado. El especialista devuelve un `eco` de lo
+    que RECIBIÓ y `modelos.py validar` lo compara con este ancla: detecta
+    textos cambiados, cortados o con añadidos al final; no, un hueco en
+    medio. Huella, no prueba."""
+    palabras = _palabras_ancla(texto)
+    return {"inicio": " ".join(palabras[:n]), "fin": " ".join(palabras[-n:])}
+
+
+def eco_coincide(eco, ancla) -> bool:
+    """True si el `eco` del especialista coincide con `ancla_extracto`.
+    TOTAL: cualquier forma rara es False (no cuenta)."""
+    if not (isinstance(eco, dict) and isinstance(ancla, dict)):
+        return False
+    # El ancla son las palabras literales del extracto, con « [truncado]»
+    # si lo lleva: así un eco copiado al pie de la letra coincide. La marca
+    # se ignora al comparar, y en `fin` basta que el ancla sea el final del
+    # eco: un especialista que la omita y dé seis palabras del cuerpo
+    # también vale (revisión Codex, PR #105). Más corto que el ancla, no.
+    for clave in ("inicio", "fin"):
+        a, e = ancla.get(clave), eco.get(clave)
+        if not (isinstance(a, str) and isinstance(e, str)):
+            return False
+        pa, pe = _sin_marca(_palabras_ancla(a)), _sin_marca(_palabras_ancla(e))
+        if clave == "inicio" and pe != pa:
+            return False
+        if clave == "fin" and (len(pe) < len(pa) or pe[len(pe) - len(pa):] != pa):
+            return False
+    return True
+
+
 def cmd_sanitizar(texto: str, max_chars: int = 1500,
                   asunto: Optional[str] = None,
                   remitente: Optional[str] = None) -> dict:
@@ -879,6 +926,7 @@ def cmd_sanitizar(texto: str, max_chars: int = 1500,
         "etiqueta": etiqueta,
         "texto": salida,
         "huella_extracto": huella_extracto(salida),
+        "ancla_extracto": ancla_extracto(salida),
         "injection": injection,
         "injection_cuerpo": injection_cuerpo,
         "injection_asunto": injection_asunto if asunto is not None else None,

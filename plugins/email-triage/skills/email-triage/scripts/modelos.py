@@ -183,7 +183,9 @@ def _criterios(cfg):
 
 def _validar_fila(fila, criterios):
     campos = {"id", "verdicts", "no_aplica", "evidencias", "dudas", "resumen"}
-    if set(fila) != campos:
+    # v3.21.36: `eco` (lo que el especialista recibió) es opcional aquí; lo
+    # exige `validar` si el esperado trae `ancla_extracto`.
+    if set(fila) - {"eco"} != campos:
         return "campos_incorrectos"
     vs, na, ev = (fila[k] for k in ("verdicts", "no_aplica", "evidencias"))
     if not all(isinstance(v, dict) for v in (vs, na, ev)):
@@ -290,6 +292,13 @@ def validar(p):
             if (not isinstance(huella, str) or not isinstance(extracto, str)
                     or th.huella_extracto(extracto) != huella):
                 motivo = "extracto_distinto"
+        # v3.21.36 (prueba real 2026-10-24: extractos copiados a mano, con
+        # texto ajeno, cortados o sin una línea): la huella mira el lote que
+        # el principal declara; el eco, lo que el especialista recibió.
+        ancla = esperado.get("ancla_extracto")
+        if not motivo and ancla is not None:
+            if not th.eco_coincide(fila.get("eco"), ancla):
+                motivo = "eco_distinto"
         if motivo:
             resultados.append({"id": ident, "usar_principal": True, "motivo": motivo})
             continue
