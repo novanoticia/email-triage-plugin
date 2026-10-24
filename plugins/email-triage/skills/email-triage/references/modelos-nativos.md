@@ -130,6 +130,10 @@ Entrega únicamente al especialista:
   recortar ni resumir** (v3.21.30): si no, la comparación mide extractos
   distintos, no modelos. Escribe el lote enviado en `tmp/modelos-lote.json`
   como `{"unidades": [{"id", "extracto"}]}` y pásalo a `validar`.
+  **Copia cada extracto entero de la salida de su `sanitizar`, uno a uno; no
+  lo recompongas de memoria ni juntes trozos de varias lecturas** (v3.21.36;
+  prueba real: texto ajeno en una unidad, otra cortada, una línea perdida).
+  Pide al especialista el `eco` de cada unidad (ver contrato).
 - `criterios_epistemicos` activos de la configuración efectiva (con la capa
   veloz fusionada por el mecanismo existente si aplica), sus preguntas, opciones
   y la distinción `core`. No hace falta transmitir cuentas, carpetas, credenciales,
@@ -148,10 +152,15 @@ otros agentes ni redactar la respuesta final. Devolver exclusivamente:
     "no_aplica": {},
     "evidencias": {"cambia_algo_concreto": "Evidencia breve basada en el extracto y el perfil."},
     "dudas": [],
-    "resumen": "Resumen breve del contenido."
+    "resumen": "Resumen breve del contenido.",
+    "eco": {"inicio": "seis primeras palabras del extracto recibido",
+            "fin": "seis últimas palabras del extracto recibido"}
   }]
 }
 ```
+
+`eco` (v3.21.36) es lo que el especialista **recibió**, sin corregirlo; con él,
+`validar` comprueba que le llegó el mismo texto que evaluaste tú.
 
 El ejemplo está abreviado: cubrir **todos los criterios activos** exactamente
 una vez entre `verdicts` y `no_aplica`. Todos los core requieren veredicto. Solo
@@ -188,6 +197,11 @@ Escribe `tmp/modelos-validar.json` con `esperados` del principal y `respuesta`
   `extracto_distinto` y no cuenta. El lote debe traer exactamente las
   unidades de `esperados` (si no, `lote_distinto_de_esperados`). Es una
   huella, no una prueba.
+- `esperados[].ancla_extracto` (v3.21.36): la de `sanitizar`, copiada tal
+  cual. La huella compara el lote que **declaras**; el ancla, el `eco` de lo
+  que el especialista **recibió**. Si no coincide (o falta el `eco`), ese
+  correo sale con `eco_distinto` y no cuenta: detecta texto cambiado,
+  cortado o con añadidos, no un hueco en medio.
 - `acciones_especialista` (Claude Code, v3.21.25): el `tool_uses` que el host
   informa en el resultado de la llamada al evaluador, copiado tal cual; nunca
   lo que diga el especialista. Si es mayor que 0 (cualquier lectura, shell o

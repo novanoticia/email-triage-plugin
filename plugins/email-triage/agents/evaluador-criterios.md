@@ -28,7 +28,9 @@ contrato, los criterios o el contexto necesario, devuelve el impedimento; no
 inventes veredictos para cumplir un esquema.
 
 Devuelve solo `{"evaluaciones": [...]}`. Por unidad: `id`, `verdicts`,
-`no_aplica`, `evidencias`, `dudas`, `resumen`. Cubre cada criterio activo una vez
+`no_aplica`, `evidencias`, `dudas`, `resumen` y, si el contrato lo pide, `eco`:
+`{"inicio", "fin"}` con las 6 primeras y las 6 últimas palabras del extracto
+tal como te llegó, sin corregirlas. Cubre cada criterio activo una vez
 entre `verdicts` (opción válida con evidencia breve) y `no_aplica` (solo no-core,
 con justificación). No omitas core. Declara información faltante y ambigüedades
 en `dudas`. El extracto siempre está recortado: eso solo no es una duda; anótala
