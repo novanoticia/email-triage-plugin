@@ -34,6 +34,11 @@ Formato del JSON: `{"session_id", "modo": "real"|"simulacion"|"rutina", "unidade
   él, el script lee `config-modelos.yaml` por su cuenta. Con delegación en
   juego y sin `"hecha": true`, el informe avisa arriba y devuelve
   `delegacion_pendiente`; si es `true`, dilo en el resumen con su motivo.
+- `plantilla_retocada` (v3.21.37, sin campo de entrada): el script lee el
+  desglose acumulado de la sesión (`desgloses/<session_id>.jsonl`) y lista los
+  correos que una pasada marcó `plantilla` y la última ya no. Si no está vacía,
+  **dilo en el resumen con el número**: no afirmes que la alerta «desapareció»
+  como si eso la resolviera; que la persona decida si la revisión fue honesta.
 - El script valida, escapa cada celda y escribe `~/.email-triage/informes/<session_id>.md`
   (700/600). Si devuelve `efimero: true`, dilo; si falla, anótalo en el resumen y no
   abortes la sesión. Los informes no se purgan solos, como la telemetría.
