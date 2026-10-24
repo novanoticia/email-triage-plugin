@@ -375,7 +375,10 @@ mismo modelo si lo fija, y sin pasar de su `tamano_lote` ni de su
 Desde v3.21.36 `sanitizar` devuelve `ancla_extracto` y el especialista un
 `eco` de lo que recibió; con el ancla en `esperados`, `validar` marca
 `eco_distinto` si no coinciden (prueba real: extractos copiados a mano, uno
-con texto ajeno, otro cortado). Jev usa exclusivamente la capa externa opt-in descrita en
+con texto ajeno, otro cortado).
+Desde v3.21.37 `informe` lee `desgloses/<session_id>.jsonl` y devuelve
+`plantilla_retocada` (aviso arriba) con los correos que una pasada marcó
+`plantilla` y la última ya no (prueba real: «la alerta desapareció tras eso»). Jev usa exclusivamente la capa externa opt-in descrita en
 `references/jev.md` y `scripts/jev.py`; no extender `modelos.py` con red. Comparar implica simulación
 y no alimenta aprendizaje con desacuerdos entre modelos. Los controles de scoring
 vienen del principal, nunca de la respuesta delegada. Las pruebas sintéticas

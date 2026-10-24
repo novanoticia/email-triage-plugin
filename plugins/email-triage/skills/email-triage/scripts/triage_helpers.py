@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.21.36).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.21.37).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -4689,6 +4689,42 @@ def _enlace_mail(mid):
     return "message://%3C" + urllib.parse.quote(m, safe="") + "%3E"
 
 
+def _plantilla_retocada(ruta):
+    """v3.21.37 (prueba real 2026-10-24: «6 promos salieron con veredictos
+    idénticos; los reexaminé uno a uno y la alerta desapareció tras eso»).
+    Lee el desglose acumulado de la sesión (`scoring --desglose-append`) y
+    devuelve los ids que alguna pasada marcó `plantilla` y la última ya no,
+    con qué veredictos cambiaron; [] si no hay ninguno, None si no hay
+    desglose que leer. Puede ser una revisión honesta: no se juzga, se
+    muestra. TOTAL: cualquier fichero raro es None."""
+    try:
+        with open(ruta, encoding="utf-8") as fh:
+            pasadas = _parsear_desglose(fh.read(MAX_INGESTA_BYTES))["pasadas"]
+    except (OSError, ValueError, UnicodeDecodeError, KeyError, TypeError):
+        return None
+    marcado, ultimo = {}, {}
+    for p in pasadas:
+        rs = (p.get("resultados") if isinstance(p, dict) else None)
+        for r in rs if isinstance(rs, list) else []:
+            rid = r.get("id") if isinstance(r, dict) else None
+            if rid is None or isinstance(rid, (dict, list)):
+                continue
+            k = json.dumps(rid)
+            if r.get("plantilla") is True:
+                marcado[k] = r
+            ultimo[k] = r
+    retocados = []
+    for k, antes in marcado.items():
+        despues = ultimo[k]
+        if despues.get("plantilla") is True:
+            continue
+        va, vb = _veredictos(antes), _veredictos(despues)
+        retocados.append({"id": despues.get("id"), "veredictos_cambiados":
+                          sorted(str(c) for c in set(va) | set(vb)
+                                 if va.get(c) != vb.get(c))})
+    return retocados
+
+
 def cmd_informe(datos: dict) -> dict:
     """Escribe <base_estado>/informes/<session_id>.md y devuelve su ruta.
 
@@ -4790,6 +4826,17 @@ def cmd_informe(datos: dict) -> dict:
                        "motivo: " + _celda_md(motivo, 120)
                        if isinstance(motivo, str) and motivo.strip()
                        else "sin motivo declarado"), ""]
+    # v3.21.37: una alerta de plantilla que se apaga al repuntuar se ve.
+    retocada = _plantilla_retocada(
+        os.path.join(base_estado(), "desgloses", sid + ".jsonl"))
+    if retocada:
+        lineas += ["> ⚠️ **Alerta de plantilla retocada: %d correos** (%s): "
+                   "salieron con veredictos idénticos en bloque y, al "
+                   "repuntuar, dejaron de estarlo. Puede ser una revisión "
+                   "honesta o un retoque para callar la alerta: revísalos."
+                   % (len(retocada), ", ".join(
+                       "#%s" % _celda_md(r["id"], 12) for r in retocada[:20])
+                      + (" …" if len(retocada) > 20 else "")), ""]
     if sin_determinista:
         lineas += ["> ⚠️ **Sin scoring determinista: %d de %d unidades** (%s; "
                    "marcadas ⚠️ en la columna Score). "
@@ -4818,6 +4865,8 @@ def cmd_informe(datos: dict) -> dict:
             "sin_scoring_determinista": len(sin_determinista),
             **({} if delegacion_pendiente is None
                else {"delegacion_pendiente": delegacion_pendiente}),
+            **({} if retocada is None
+               else {"plantilla_retocada": retocada}),
             "efimero": base_estado_es_efimera()}
 
 
