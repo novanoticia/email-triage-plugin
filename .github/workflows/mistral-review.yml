@@ -1,0 +1,150 @@
+name: Mistral PR Review
+
+on:
+  pull_request:
+    types: [ready_for_review, opened, synchronize]
+
+jobs:
+  mistral-review:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Get PR details and diff
+        id: pr-data
+        uses: actions/github-script@v7
+        with:
+          # El `return` de github-script solo llega como `outputs.result`; cada
+          # campo se publica con core.setOutput para que el paso siguiente lo
+          # lea. El diff va a un fichero: puede ser grande para una variable.
+          script: |
+            const n = context.payload.pull_request.number;
+            const q = { owner: context.repo.owner, repo: context.repo.repo, pull_number: n };
+            const { data: pr } = await github.rest.pulls.get(q);
+            const { data: diff } = await github.rest.pulls.get({ ...q, mediaType: { format: 'diff' } });
+            const { data: files } = await github.rest.pulls.listFiles({ ...q, per_page: 100 });
+            require('fs').writeFileSync('pr.diff', diff);
+            core.setOutput('pr_number', String(pr.number));
+            core.setOutput('title', pr.title);
+            core.setOutput('description', pr.body || '');
+            core.setOutput('files_changed', String(files.length));
+            core.setOutput('files_list', files.map(f => f.filename).join('\n'));
+
+      - name: Mistral AI Review
+        env:
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.pr-data.outputs.pr_number }}
+          PR_TITLE: ${{ steps.pr-data.outputs.title }}
+          PR_DESCRIPTION: ${{ steps.pr-data.outputs.description }}
+          FILES_CHANGED: ${{ steps.pr-data.outputs.files_changed }}
+          FILES_LIST: ${{ steps.pr-data.outputs.files_list }}
+        run: |
+          python3 << 'PYTHON_EOF'
+          import os
+          import requests
+          import json
+
+          # Diff del PR: lo escribió el paso anterior en pr.diff
+          try:
+              with open('pr.diff', encoding='utf-8') as fh:
+                  diff = fh.read()
+          except OSError:
+              diff = ''
+          pr_title = os.environ.get('PR_TITLE', 'PR')
+          pr_description = os.environ.get('PR_DESCRIPTION', '')
+          files_changed = os.environ.get('FILES_CHANGED', '0')
+          files_list = os.environ.get('FILES_LIST', '')
+
+          # Preparar el prompt optimizado para resumen
+          system_prompt = """Eres un senior software engineer haciendo code review.
+          Analiza EL RESUMEN del PR (título, descripción y archivos cambiados) y el diff de Git.
+
+          PROPORCIONA UN RESUMEN EJECUTIVO con estas secciones:
+
+          ## 📋 Resumen del PR
+          - Título y propósito
+          - Archivos modificados ({files_changed} archivos)
+
+          ## ✅ Lo que va bien
+          - Patrones de código positivos
+          - Buenas prácticas aplicadas
+
+          ## ⚠️ Posibles problemas
+          - Bugs potenciales
+          - Vulnerabilidades de seguridad
+          - Código duplicado o confuso
+
+          ## 💡 Recomendaciones
+          - Sugerencias de mejora
+          - Optimizaciones posibles
+
+          Sé CONCISO pero COMPLETO. Máximo 20 líneas por sección.
+          Usa markdown. Si no encuentras problemas, dilo explícitamente."""
+          system_prompt = system_prompt.replace('{files_changed}', files_changed)
+
+          user_prompt = f"""**Título:** {pr_title}
+
+          **Descripción:**
+          {pr_description[:1000] if pr_description else "Sin descripción"}
+
+          **Archivos cambiados ({files_changed}):**
+          {files_list}
+
+          **Diff:**
+          ```
+          {diff[:12000]}
+          ```
+          """
+
+          # Llamar a Mistral API
+          headers = {
+              "Content-Type": "application/json",
+              "Authorization": f"Bearer {os.environ['MISTRAL_API_KEY']}"
+          }
+
+          payload = {
+              "model": "codestral-latest",  # Modelo especializado en código
+              "messages": [
+                  {"role": "system", "content": system_prompt},
+                  {"role": "user", "content": user_prompt}
+              ],
+              "temperature": 0.2,
+              "max_tokens": 3000
+          }
+
+          response = requests.post(
+              "https://api.mistral.ai/v1/chat/completions",
+              headers=headers,
+              json=payload,
+              timeout=60
+          )
+
+          if response.status_code != 200:
+              print(f"Error: {response.status_code}")
+              print(response.text)
+              exit(1)
+
+          comment = response.json()['choices'][0]['message']['content']
+
+          # Publicar comentario en el PR
+          import subprocess
+          pr_number = os.environ.get('PR_NUMBER')
+          subprocess.run([
+              "gh", "pr", "comment", str(pr_number),
+              "--body", comment
+          ], check=True)
+          PYTHON_EOF
+
