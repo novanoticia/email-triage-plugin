@@ -794,11 +794,15 @@ def huella_extracto(texto) -> str:
 
 
 def _palabras_ancla(texto) -> list:
-    """Palabras comparables de un extracto o de su eco: NFKC, minúsculas,
-    sin la marca « [truncado]». El eco lo reescribe un modelo, que no
-    conserva espacios duros ni mayúsculas con fiabilidad."""
+    """Palabras comparables de un extracto o de su eco: NFKC y minúsculas.
+    El eco lo reescribe un modelo, que no conserva espacios duros ni
+    mayúsculas con fiabilidad."""
     t = unicodedata.normalize("NFKC", texto if isinstance(texto, str) else "")
-    return [w for w in t.casefold().split() if w != "[truncado]"]
+    return t.casefold().split()
+
+
+def _sin_marca(palabras) -> list:
+    return [w for w in palabras if w != "[truncado]"]
 
 
 def ancla_extracto(texto, n=6) -> dict:
@@ -819,11 +823,19 @@ def eco_coincide(eco, ancla) -> bool:
     TOTAL: cualquier forma rara es False (no cuenta)."""
     if not (isinstance(eco, dict) and isinstance(ancla, dict)):
         return False
+    # El ancla son las palabras literales del extracto, con « [truncado]»
+    # si lo lleva: así un eco copiado al pie de la letra coincide. La marca
+    # se ignora al comparar, y en `fin` basta que el ancla sea el final del
+    # eco: un especialista que la omita y dé seis palabras del cuerpo
+    # también vale (revisión Codex, PR #105). Más corto que el ancla, no.
     for clave in ("inicio", "fin"):
         a, e = ancla.get(clave), eco.get(clave)
         if not (isinstance(a, str) and isinstance(e, str)):
             return False
-        if _palabras_ancla(e) != _palabras_ancla(a):
+        pa, pe = _sin_marca(_palabras_ancla(a)), _sin_marca(_palabras_ancla(e))
+        if clave == "inicio" and pe != pa:
+            return False
+        if clave == "fin" and (len(pe) < len(pa) or pe[len(pe) - len(pa):] != pa):
             return False
     return True
 

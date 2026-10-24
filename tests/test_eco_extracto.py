@@ -24,7 +24,21 @@ class TestAncla(unittest.TestCase):
         self.assertEqual(r["ancla_extracto"], th.ancla_extracto(r["texto"]))
         self.assertEqual(r["ancla_extracto"]["inicio"],
                          "la reunión del comité se adelanta")
-        self.assertNotIn("[truncado]", r["ancla_extracto"]["fin"])
+        # El ancla es literal: con la marca, si el extracto la lleva.
+        self.assertTrue(r["ancla_extracto"]["fin"].endswith("[truncado]"))
+
+    def test_eco_literal_del_texto_truncado_coincide(self):
+        # Revisión Codex (PR #105): el especialista copia las seis últimas
+        # palabras tal como le llegaron, «[truncado]» incluido.
+        texto = th.cmd_sanitizar(CUERPO, max_chars=300)["texto"]
+        w = texto.split()
+        ancla = th.ancla_extracto(texto)
+        literal = {"inicio": " ".join(w[:6]), "fin": " ".join(w[-6:])}
+        self.assertTrue(th.eco_coincide(literal, ancla))
+        sin_marca = {"inicio": " ".join(w[:6]), "fin": " ".join(w[-7:-1])}
+        self.assertTrue(th.eco_coincide(sin_marca, ancla))
+        corto = {"inicio": " ".join(w[:6]), "fin": " ".join(w[-3:])}
+        self.assertFalse(th.eco_coincide(corto, ancla))
 
     def test_el_eco_tolera_lo_que_un_modelo_no_conserva(self):
         ancla = th.ancla_extracto("Hola mundo, ¿qué TAL estás hoy aquí?")
@@ -52,7 +66,9 @@ class TestValidarEco(unittest.TestCase):
         if recibido is None:
             fila.pop("eco", None)
         else:
-            fila["eco"] = th.ancla_extracto(recibido)
+            # El eco literal que pide el contrato, no el de ancla_extracto.
+            w = recibido.split()
+            fila["eco"] = {"inicio": " ".join(w[:6]), "fin": " ".join(w[-6:])}
         return m.ejecutar("validar", self.p)["resultados"][0]
 
     def test_mismo_texto_cuenta(self):
