@@ -20,23 +20,29 @@ independiente de una suscripción de ChatGPT: pagar ChatGPT Plus no da acceso a 
 
 ## 2. Guárdala en el Llavero
 
-Escribe esto, **sin pegar la clave en el comando**:
+**No la pegues en el aviso de contraseña** (`password data for new item`): ese aviso
+recorta lo pegado a 128 caracteres, y una clave `sk-proj-` tiene más (164 en una
+prueba real). La clave quedaría guardada a medias y OpenAI respondería
+`invalid_api_key`. Guárdala desde el portapapeles:
 
-```bash
-security add-generic-password -a "$USER" -s OPENAI_API_KEY -w
-```
+1. Copia la clave con el **botón de copiar** de platform.openai.com.
+2. Comprueba que el portapapeles la tiene entera (debe salir **más de 128**):
 
-Te pedirá la contraseña (`password data for new item`): pega ahí la clave y pulsa
-Enter. Si te la pide otra vez (`retype password`), vuelve a pegarla. Al pegar no se
-ve nada en pantalla; es normal.
+   ```bash
+   pbpaste | wc -c
+   ```
 
-Si ya tenías una guardada y quieres sustituirla, usa este otro comando: `-U`
-tiene que ir **antes** de `-w`, porque `-w` debe quedar el último para que te
-pida la clave.
+3. Guárdala (`-U` sustituye la anterior si ya había una) y vacía el portapapeles:
 
-```bash
-security add-generic-password -U -a "$USER" -s OPENAI_API_KEY -w
-```
+   ```bash
+   security add-generic-password -U -a "$USER" -s OPENAI_API_KEY -w "$(pbpaste)"
+   pbcopy < /dev/null
+   ```
+
+En el historial de Terminal queda `$(pbpaste)` escrito así, nunca la clave. El
+único coste es que, durante el instante que tarda el comando, la clave aparece en
+sus argumentos y otro proceso de tu mismo usuario podría verla: un riesgo muy bajo
+en un Mac personal.
 
 ## 3. Haz que Terminal la cargue sola
 
@@ -56,7 +62,18 @@ pulsa **Permitir siempre** para que no vuelva a preguntar.
 [ -n "$OPENAI_API_KEY" ] && echo "clave cargada" || echo "no hay clave"
 ```
 
-Debe responder **«clave cargada»**.
+Debe responder **«clave cargada»**. Para comprobar además que OpenAI la acepta
+(no cuesta nada):
+
+```bash
+echo ${#OPENAI_API_KEY}
+curl -s -o /dev/null -w "%{http_code}\n" https://api.openai.com/v1/models -H "Authorization: Bearer $OPENAI_API_KEY"
+```
+
+La longitud debe coincidir con la del paso 2 y la respuesta debe ser **`200`**. Si
+sale `401` con una longitud de 128 exactos, la clave se guardó recortada: repite el
+paso 2. Si cambias la clave con Terminal abierto, ejecuta antes `source ~/.zshrc`
+(o abre una ventana nueva): la variable solo se lee al abrir Terminal.
 
 ## Importante
 
