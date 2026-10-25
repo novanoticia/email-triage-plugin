@@ -4854,15 +4854,24 @@ def _cobertura_desglose(ruta):
             pasadas = _parsear_desglose(fh.read(MAX_INGESTA_BYTES))["pasadas"]
     except (OSError, ValueError, UnicodeDecodeError, KeyError, TypeError):
         return None
-    ultimo = {}
+    ultimo, sin_id = {}, []
     for p in pasadas:
-        rs = p.get("resultados") if isinstance(p, dict) else None
-        for r in rs if isinstance(rs, list) else []:
-            rid = r.get("id") if isinstance(r, dict) else None
-            if rid is not None and not isinstance(rid, (dict, list)):
-                ultimo[json.dumps(rid)] = r
+        # Una pasada de lote trae `resultados`; una individual ES el
+        # resultado, como en _ultima_pasada (revisión Codex, PR #111).
+        if not isinstance(p, dict):
+            continue
+        rs = p["resultados"] if isinstance(p.get("resultados"), list) else [p]
+        for r in rs:
+            if not isinstance(r, dict):
+                continue
+            rid = r.get("id")
+            if rid is None or isinstance(rid, (dict, list)):
+                if r.get("criterios_sin_evaluar"):
+                    sin_id.append("?")  # sin id no se puede deduplicar
+                continue
+            ultimo[json.dumps(rid)] = r
     return [r.get("id") for r in ultimo.values()
-            if r.get("criterios_sin_evaluar")]
+            if r.get("criterios_sin_evaluar")] + sin_id
 
 
 def cmd_informe(datos: dict) -> dict:

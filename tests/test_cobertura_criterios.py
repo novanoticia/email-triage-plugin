@@ -114,6 +114,33 @@ class TestCoberturaFrenos(unittest.TestCase):
         with open(r["ruta"], encoding="utf-8") as fh:
             self.assertIn("Criterios sin evaluar en 1 correos", fh.read())
 
+    def _informe(self):
+        return th.cmd_informe({"session_id": SID, "modo": "simulacion",
+                               "modo_scoring": "determinista", "unidades": [
+                                   {"n": 1, "tier": "REVIEW", "score": 4,
+                                    "asunto": "A", "mids": ["<m>"]}]})
+
+    def test_pasadas_individuales_tambien_cuentan(self):
+        # Revisión Codex (PR #111): una pasada individual no trae
+        # `resultados`; es el resultado mismo.
+        ruta = os.path.join(self.d.name, "desgloses", SID + ".jsonl")
+        uno = th.cmd_scoring_dispatch({"id": 7, "verdicts": SOLO_CORE}, CFG)
+        th.cmd_registrar(ruta, {"ts": "x", "desglose": uno})
+        self.assertEqual(self._informe()["criterios_sin_evaluar"], 1)
+        # Completarlo después, también individualmente, quita el aviso.
+        dos = th.cmd_scoring_dispatch({"id": 7, "verdicts": TODOS}, CFG)
+        th.cmd_registrar(ruta, {"ts": "y", "desglose": dos})
+        self.assertEqual(self._informe()["criterios_sin_evaluar"], 0)
+
+    def test_lote_completado_despues_individualmente(self):
+        ruta = os.path.join(self.d.name, "desgloses", SID + ".jsonl")
+        lote = th.cmd_scoring_dispatch(
+            {"emails": [{"id": 3, "verdicts": SOLO_CORE}]}, CFG)
+        th.cmd_registrar(ruta, {"ts": "x", "desglose": lote})
+        uno = th.cmd_scoring_dispatch({"id": 3, "verdicts": TODOS}, CFG)
+        th.cmd_registrar(ruta, {"ts": "y", "desglose": uno})
+        self.assertEqual(self._informe()["criterios_sin_evaluar"], 0)
+
     def test_sin_desglose_el_informe_no_cambia(self):
         r = th.cmd_informe({"session_id": SID, "modo": "simulacion",
                             "modo_scoring": "determinista", "unidades": [
