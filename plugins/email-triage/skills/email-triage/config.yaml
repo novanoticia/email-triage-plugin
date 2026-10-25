@@ -307,6 +307,12 @@ filtros:
   remitentes_ignorar: []
   # Direcciones que se saltan completamente (-99).
 
+  remitentes_sin_penalizacion_masiva: []
+  # (v3.21.38) Remitentes automáticos que NO llevan sender_bulk_penalizacion
+  # aunque sean envíos masivos: avisos sobre tu propio trabajo, como
+  # «notifications@github.com» (revisiones de Codex en tus PR). Dirección o
+  # dominio, como arriba. Lo aplica el script; el modelo no exime a nadie.
+
   palabras_clave_boost:
   # Formato con peso:
   #   - palabra: "Claude"

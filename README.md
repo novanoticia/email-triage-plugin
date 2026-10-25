@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.21.37
+# Email Triage Plugin v3.21.38
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,18 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.21.38
+
+- **Quién se libra de la penalización por envío masivo lo decides tú.** En
+  dos pruebas reales, el modelo dejó sin `sender_bulk_penalizacion` las
+  notificaciones de Codex sobre tus PR («es una decisión mía; el script no
+  lo exige»). Ahora hay una lista en el config,
+  `filtros.remitentes_sin_penalizacion_masiva` (dirección o dominio, como
+  los prioritarios), y el script quita la penalización a esos remitentes
+  por el `remitente` del payload; el SKILL pide al modelo no eximir a nadie
+  por su cuenta. Para las revisiones de Codex, añade
+  `"notifications@github.com"`. Con la lista vacía, nada cambia.
 
 ## Novedades en v3.21.37
 

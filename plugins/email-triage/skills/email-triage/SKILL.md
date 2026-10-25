@@ -16,7 +16,7 @@ compatibility: >
   Claude Code, Claude Cowork y ChatGPT.
 license: Apache-2.0
 metadata:
-  version: "3.21.37"
+  version: "3.21.38"
   author: novanoticia
 ---
 
@@ -508,7 +508,7 @@ pierde en silencio.
 | `deadline_explicito_boost` | +4 | Fecha/hora límite verificable |
 | `mencion_directa_boost` | +3 | Nombra al usuario por nombre |
 | `hilo_esperando_respuesta_boost` | +5 / +2 | +5 con `usuario_es_ultimo_en_responder: false` CONFIRMADO; +2 si `desconocido`; 0 si `true` |
-| `sender_bulk_penalizacion` | -4 | Header unsubscribe o sender masivo. Atenuación (v3.7): si el remitente aparece en el historial conservado pasa de -4 a -1 — NO es una clave aparte, pásalo como `remitente_en_historial: true` en el payload. Un remitente que el usuario guarda a mano no merece el castigo completo de "masivo" |
+| `sender_bulk_penalizacion` | -4 | Header unsubscribe o sender masivo. Atenuación (v3.7): si el remitente aparece en el historial conservado pasa de -4 a -1 — NO es una clave aparte, pásalo como `remitente_en_historial: true` en el payload. Un remitente que el usuario guarda a mano no merece el castigo completo de "masivo". Exención (v3.21.38): solo la de `filtros.remitentes_sin_penalizacion_masiva`; pásala igual con `remitente` y el script la quita. No eximas a nadie por tu cuenta |
 | `sin_accion_sin_info_penalizacion` | -5 | No pide nada y no aporta novedad |
 
 #### 4.A.2 — Boosts de calibración y keywords → `extra_points`
