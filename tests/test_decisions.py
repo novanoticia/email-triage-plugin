@@ -415,7 +415,7 @@ class TestDecisions(unittest.TestCase):
 
 
 class TestNoAplicaCore(unittest.TestCase):
-    """Prueba real (v3.22.1): con el contrato P2 el principal declara no_aplica
+    """Prueba real (v3.22.2): con el contrato P2 el principal declara no_aplica
     en criterios core; antes eso tumbaba el lote entero de la comparación."""
 
     def lote_con_core_no_aplica(self):
