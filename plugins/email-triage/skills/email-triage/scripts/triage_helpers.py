@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.22.2).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.22.3).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -958,7 +958,10 @@ def cmd_sanitizar(texto: str, max_chars: int = 1500,
 
     truncado = False                                              # S5
     if len(texto) > max_chars:
-        texto, truncado = texto[:max_chars], True
+        # rstrip: si el corte cae tras un espacio, « [truncado]» dejaba dos
+        # seguidos y re-sanitizar (comparar, _estado) ya no daba el mismo texto
+        # (prueba real v3.22.2: 3 de 43 correos, extracto_no_sanitizado).
+        texto, truncado = texto[:max_chars].rstrip(), True
     # Defensa en profundidad (revisión Codex, PR #110): S0 también sobre el
     # texto que verá el modelo. Si S1-S5 reconstruyen un patrón que el
     # crudo escondía, cuenta como inyección igual.
