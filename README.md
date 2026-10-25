@@ -96,7 +96,14 @@ relue par un humain. / Traducción generada por una IA, sin revisión humana.
   guardar `OPENAI_API_KEY` en el Llavero de macOS y que Terminal la cargue sola,
   sin dejarla escrita en ningún archivo, comprobar que está cargada sin mostrarla,
   borrarla y poner un límite de gasto. Enlazada desde `references/decisions.md` y
-  los README. Solo documentación: el código no cambia.
+  los README.
+- **Un `no_aplica` en un criterio core ya no tumba la comparación entera.** Con
+  el contrato P2, el principal puede declarar «no evaluable» un criterio core
+  (notificaciones, resúmenes). `comparar` de Jev y de Decisions rechazaba por
+  eso el lote completo, y en una prueba real el modelo cambió la muestra y dejó
+  fuera justo los casos dudosos. Ahora se excluye solo ese correo, con motivo
+  `principal_no_comparable`, sin salir a la red. Un `no_aplica` sin motivo
+  sigue rechazando el lote.
 
 ## Novedades en v3.22.0
 
