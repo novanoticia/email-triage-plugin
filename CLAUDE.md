@@ -392,7 +392,11 @@ Desde v3.21.40 `scoring` devuelve `criterios_sin_evaluar` (activos del config
 sin veredicto válido; solo core con `comportamiento_veloz.solo_criterios_core`),
 el lote `alerta_cobertura`, `registrar` lo rechaza como triaje y el informe lo
 avisa (prueba real: «evalué solo los 13 core, así que no delegué»). Jev usa exclusivamente la capa externa opt-in descrita en
-`references/jev.md` y `scripts/jev.py`; no extender `modelos.py` con red. Comparar implica simulación
+`references/jev.md` y `scripts/jev.py`; no extender `modelos.py` con red.
+Desde v3.22.0 OpenAI Decisions (`scripts/decisions.py`, `references/decisions.md`)
+es un segundo adaptador con las mismas garantías: lo neutro (preguntas,
+validación, transporte, frenos de `procesar`) vive solo en `scripts/clasificadores.py`;
+un freno nuevo va ahí, nunca en un adaptador. No combinar proveedores en una sesión. Comparar implica simulación
 y no alimenta aprendizaje con desacuerdos entre modelos. Los controles de scoring
 vienen del principal, nunca de la respuesta delegada. Las pruebas sintéticas
 validan mecanismos, no la calidad de los modelos ni compatibilidad real del host.

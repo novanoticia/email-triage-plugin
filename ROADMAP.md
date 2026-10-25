@@ -177,6 +177,9 @@ No propongas trabajo en estas líneas salvo petición expresa del mantenedor:
 - Excepción autorizada el 2026-10-16: Jev puede ofrecer modo híbrido opt-in
   para triaje real, con revisión principal y las autorizaciones de movimiento
   existentes. No autoriza movimientos directos desde el proveedor.
+- Excepción autorizada el 2026-10-25 (v3.22.0): OpenAI Decisions, con las
+  mismas garantías, modos y límites que Jev, sobre el núcleo común
+  `clasificadores.py`. Tampoco autoriza movimientos directos.
 - Cambios de licencia, distribución o marketplace.
 - Rediseños de la interfaz de revisión que no respondan a P1 o P2.
 
