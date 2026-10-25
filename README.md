@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.22.0
+# Email Triage Plugin v3.22.1
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,15 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.22.1
+
+- **Guía para guardar la clave de OpenAI en el Mac.** Nuevo
+  [`docs/clave-openai-macos.md`](docs/clave-openai-macos.md): cuatro pasos para
+  guardar `OPENAI_API_KEY` en el Llavero de macOS y que Terminal la cargue sola,
+  sin dejarla escrita en ningún archivo, comprobar que está cargada sin mostrarla,
+  borrarla y poner un límite de gasto. Enlazada desde `references/decisions.md` y
+  los README. Solo documentación: el código no cambia.
 
 ## Novedades en v3.22.0
 
@@ -1553,7 +1562,8 @@ y las autorizaciones existentes.
 La capa de **OpenAI Decisions** funciona igual (mismo núcleo común, modos y frenos),
 también desactivada por defecto, con `OPENAI_API_KEY` propia y facturación aparte
 en OpenAI; no se combina con Jev ni con la delegación nativa en la misma sesión.
-[Guía de Decisions](plugins/email-triage/skills/email-triage/references/decisions.md).
+[Guía de Decisions](plugins/email-triage/skills/email-triage/references/decisions.md) ·
+[Cómo guardar la clave de OpenAI en el Mac](docs/clave-openai-macos.md).
 
 Contrato completo y límites:
 [`references/modelos-nativos.md`](plugins/email-triage/skills/email-triage/references/modelos-nativos.md).

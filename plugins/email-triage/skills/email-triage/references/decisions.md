@@ -31,7 +31,10 @@ secretos del cliente. No pedir pegarla en el chat, guardarla en YAML/git, pasarl
 por argumentos, imprimirla ni registrar el entorno. **Es una credencial distinta**
 de la delegación nativa (que no usa claves propias del plugin) y de
 `TYPESAFE_API_KEY` (Jev): ninguna sustituye a otra, y una suscripción de ChatGPT
-no es una clave de API. El host necesita Python con PyYAML y HTTPS a
+no es una clave de API. En macOS, la guía paso a paso para guardarla en el
+Llavero y cargarla en Terminal está en `docs/clave-openai-macos.md` del repositorio;
+si la persona pregunta cómo configurarla, remítela ahí, sin pedirle la clave.
+El host necesita Python con PyYAML y HTTPS a
 `api.openai.com`. Si no puede, informa de la limitación y conserva el principal;
 no simular una llamada real mediante otro modelo.
 
