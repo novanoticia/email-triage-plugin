@@ -88,7 +88,7 @@ consentimiento para enviar extractos sanitizados y perfil mínimo a OpenAI y
 `OPENAI_API_KEY` propia (distinta de la de Jev); genera consumo adicional. No se
 combina con Jev ni con la delegación nativa en la misma sesión.
 [Activación, privacidad, costes y pruebas](skills/email-triage/references/decisions.md) ·
-[Cómo guardar la clave de OpenAI en el Mac](../../docs/clave-openai-macos.md).
+[Cómo guardar la clave de OpenAI en el Mac](https://github.com/novanoticia/email-triage-plugin/blob/main/docs/clave-openai-macos.md).
 
 El cliente puede crear contexto adicional de subagente bajo sus condiciones
 actuales de privacidad; el plugin no modifica esos controles. No se ha medido

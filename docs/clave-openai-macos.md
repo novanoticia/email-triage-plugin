@@ -30,7 +30,13 @@ Te pedirá la contraseña (`password data for new item`): pega ahí la clave y p
 Enter. Si te la pide otra vez (`retype password`), vuelve a pegarla. Al pegar no se
 ve nada en pantalla; es normal.
 
-Si ya tenías una guardada y quieres sustituirla, añade `-U` al final del comando.
+Si ya tenías una guardada y quieres sustituirla, usa este otro comando: `-U`
+tiene que ir **antes** de `-w`, porque `-w` debe quedar el último para que te
+pida la clave.
+
+```bash
+security add-generic-password -U -a "$USER" -s OPENAI_API_KEY -w
+```
 
 ## 3. Haz que Terminal la cargue sola
 
