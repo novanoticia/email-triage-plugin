@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.21.38).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.21.39).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -722,6 +722,22 @@ def _quitar_invisibles(texto):
     )
 
 
+def _limpiar_visible(texto):
+    """v3.21.39 (pruebas reales 2026-10-25: el eco descartó 16 de 17 y 7 de
+    10 respuestas de Haiku). El texto que ve el modelo conservaba invisibles
+    (Cf: ancho cero, BOM...), el hueco de imagen de Mail (U+FFFC «￼») y
+    espacios raros (U+00A0, U+2009...): ningún modelo los copia igual, así
+    que la huella y el eco no coincidían nunca. Se quitan del texto saneado,
+    DESPUÉS de S0 (que mira el crudo y sus vistas): no cambia la detección."""
+    fuera = []
+    for ch in texto:
+        if ch == "\ufffc" or ch in _COMBINANTES_IGNORABLES \
+                or unicodedata.category(ch) == "Cf":
+            continue
+        fuera.append(" " if unicodedata.category(ch) == "Zs" else ch)
+    return "".join(fuera)
+
+
 def _vista_decodificada(texto):
     """Vista solo-para-detección: entidades HTML decodificadas y tags
     eliminados. Caza payloads ofuscados (&#105;gnore, ig<b>nore</b>)."""
@@ -808,8 +824,26 @@ def _palabras_ancla(texto) -> list:
     return t.casefold().split()
 
 
-def _sin_marca(palabras) -> list:
-    return [w for w in palabras if w != "[truncado]"]
+def _tokens_eco(texto) -> list:
+    """Solo letras y números (v3.21.39): la puntuación, los guiones, las
+    comillas y los símbolos sueltos los reescribe cada modelo a su manera."""
+    t = unicodedata.normalize("NFKC", texto if isinstance(texto, str) else "")
+    tokens = re.findall(r"\w+", t.casefold())
+    if tokens and tokens[-1] == "truncado":
+        tokens = tokens[:-1]  # la marca « [truncado]»
+    return tokens
+
+
+def _subsecuencia(a, b) -> int:
+    """Longitud de la subsecuencia común más larga (listas cortas)."""
+    fila = [0] * (len(b) + 1)
+    for x in a:
+        previo = 0
+        for j, y in enumerate(b, 1):
+            actual = fila[j]
+            fila[j] = previo + 1 if x == y else max(fila[j], fila[j - 1])
+            previo = actual
+    return fila[-1]
 
 
 def ancla_extracto(texto, n=6) -> dict:
@@ -827,22 +861,33 @@ def ancla_extracto(texto, n=6) -> dict:
 
 def eco_coincide(eco, ancla) -> bool:
     """True si el `eco` del especialista coincide con `ancla_extracto`.
-    TOTAL: cualquier forma rara es False (no cuenta)."""
+    TOTAL: cualquier forma rara es False (no cuenta).
+
+    v3.21.39 (pruebas reales 2026-10-25: 16 de 17 y 7 de 10 ecos
+    descartados). La igualdad palabra a palabra era frágil: un modelo
+    reescribe puntuación y símbolos. Ahora se comparan solo letras y
+    números, y basta con que coincidan, en orden, 4 de las 6 palabras de
+    cada extremo (todas si el ancla tiene menos de 4). El eco no puede ser
+    mucho más largo que el ancla: así no basta con devolver medio correo.
+    Sigue cazando lo que importa: texto ajeno al final, texto cortado y el
+    extracto de otro correo."""
     if not (isinstance(eco, dict) and isinstance(ancla, dict)):
         return False
-    # El ancla son las palabras literales del extracto, con « [truncado]»
-    # si lo lleva: así un eco copiado al pie de la letra coincide. La marca
-    # se ignora al comparar, y en `fin` basta que el ancla sea el final del
-    # eco: un especialista que la omita y dé seis palabras del cuerpo
-    # también vale (revisión Codex, PR #105). Más corto que el ancla, no.
     for clave in ("inicio", "fin"):
         a, e = ancla.get(clave), eco.get(clave)
         if not (isinstance(a, str) and isinstance(e, str)):
             return False
-        pa, pe = _sin_marca(_palabras_ancla(a)), _sin_marca(_palabras_ancla(e))
-        if clave == "inicio" and pe != pa:
+        ta, te = _tokens_eco(a), _tokens_eco(e)
+        if not ta:
+            if te:
+                return False
+            continue
+        if len(te) > len(ta) + 4:
             return False
-        if clave == "fin" and (len(pe) < len(pa) or pe[len(pe) - len(pa):] != pa):
+        # En `fin` se mira el final del eco: un especialista que omite la
+        # marca y añade una palabra de más del cuerpo también vale.
+        tramo = te if clave == "inicio" else te[-(len(ta) + 2):]
+        if _subsecuencia(ta, tramo) < min(4, len(ta)):
             return False
     return True
 
@@ -904,6 +949,7 @@ def cmd_sanitizar(texto: str, max_chars: int = 1500,
         texto = re.sub(r"<[^>]+>", " ", texto)
         texto = html_mod.unescape(texto)
     texto = _primer_corte(texto, S4_CORTES)                       # S4
+    texto = _limpiar_visible(texto)
     texto = re.sub(r"[ \t]+", " ", texto)
     texto = re.sub(r"\n\s*\n+", "\n", texto).strip()
 
