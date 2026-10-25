@@ -22,7 +22,7 @@ SKILL = "plugins/email-triage/skills/email-triage"
 RUTA_BASE = os.path.join(RAIZ, "tests", "i18n", "linea_base.json")
 INI = "<!-- i18n:inicio -->"
 FIN = "<!-- i18n:fin -->"
-COMMIT_BASE = "93da4e7"   # plantilla retocada; antes c552949, f384851, 89112cc, f8f19cf, a799da8, f861ab0, 34a86e6, 3a16e06, 8dab63f, 078a1de, de73dbe, 2db78b4, 3a2827b, 852907a, 3c6d451, ba54fde, 4323ac3, 7fb4742, 7661973, 3916df3, e95ac7b, b8e2a73, cb5ecad, 045b6c8, 05c9ac6, 3dd4e3f, bbe076d, 6cf9b8a, 971fb8c, fd0a9da, b166c93, fb9e1aa, fba1149, 06696e6, caf7ae6, 86966cd, fec6bd2, 62d5565, 9705f20, fd037bc, 55c5df3, 119247d, 5b2e619, 66592e4, 91d8893, 85c7aa0, 7233e8a, 059a169, c081ba1, a40f4b7, 4a9bebc, ff69610, 9110876, 350ab1f, 15bcbae, 0cce6ef, 44e7ae1, 0612492, ab67be2, 0c37cba, 3be8426, a311ff7, da82e9f, c9fc0f0
+COMMIT_BASE = "55fdf44"   # exención sender_bulk; antes 93da4e7, c552949, f384851, 89112cc, f8f19cf, a799da8, f861ab0, 34a86e6, 3a16e06, 8dab63f, 078a1de, de73dbe, 2db78b4, 3a2827b, 852907a, 3c6d451, ba54fde, 4323ac3, 7fb4742, 7661973, 3916df3, e95ac7b, b8e2a73, cb5ecad, 045b6c8, 05c9ac6, 3dd4e3f, bbe076d, 6cf9b8a, 971fb8c, fd0a9da, b166c93, fb9e1aa, fba1149, 06696e6, caf7ae6, 86966cd, fec6bd2, 62d5565, 9705f20, fd037bc, 55c5df3, 119247d, 5b2e619, 66592e4, 91d8893, 85c7aa0, 7233e8a, 059a169, c081ba1, a40f4b7, 4a9bebc, ff69610, 9110876, 350ab1f, 15bcbae, 0cce6ef, 44e7ae1, 0612492, ab67be2, 0c37cba, 3be8426, a311ff7, da82e9f, c9fc0f0
 # Lookarounds en vez de \b: «v3.13» no tiene límite de palabra entre «v» y «3».
 # Cualquier parche (3.14.N) se normaliza: enumerar parches ([05], [015]…) rompía la
 # línea base en cada bump. El menor se acota a dos cifras, 3.10–3.99, a propósito:
