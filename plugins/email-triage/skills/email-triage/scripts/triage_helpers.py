@@ -706,6 +706,7 @@ def _primer_corte(texto, patrones):
 _COMBINANTES_IGNORABLES = frozenset(
     "\u034f"                                          # COMBINING GRAPHEME JOINER
     "\u180e"                                          # MONGOLIAN VOWEL SEPARATOR
+    "\ufffc"                                          # OBJECT REPLACEMENT (v3.21.39)
     + "".join(chr(c) for c in range(0xFE00, 0xFE10))   # VARIATION SELECTOR-1..16
 )
 
@@ -731,8 +732,10 @@ def _limpiar_visible(texto):
     DESPUÉS de S0 (que mira el crudo y sus vistas): no cambia la detección."""
     fuera = []
     for ch in texto:
-        if ch == "\ufffc" or ch in _COMBINANTES_IGNORABLES \
-                or unicodedata.category(ch) == "Cf":
+        # Mismo conjunto que _quitar_invisibles (la vista de S0): quitar aquí
+        # algo que S0 no quitase reconstruiría una palabra-gatillo que S0 no
+        # vio, p. ej. «ig￼nore» (revisión Codex, PR #110).
+        if ch in _COMBINANTES_IGNORABLES or unicodedata.category(ch) == "Cf":
             continue
         fuera.append(" " if unicodedata.category(ch) == "Zs" else ch)
     return "".join(fuera)
@@ -956,6 +959,14 @@ def cmd_sanitizar(texto: str, max_chars: int = 1500,
     truncado = False                                              # S5
     if len(texto) > max_chars:
         texto, truncado = texto[:max_chars], True
+    # Defensa en profundidad (revisión Codex, PR #110): S0 también sobre el
+    # texto que verá el modelo. Si S1-S5 reconstruyen un patrón que el
+    # crudo escondía, cuenta como inyección igual.
+    for f in _detectar_s0(texto):
+        if f not in flags:
+            flags.append(f)
+    if flags and not injection_cuerpo:
+        injection_cuerpo = injection = True
     utiles = len(texto.strip())
     especiales = sum(1 for c in texto if not (c.isalnum() or c.isspace()))
     ratio = (especiales / len(texto)) if texto else 0.0
