@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.21.40
+# Email Triage Plugin v3.22.0
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,27 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.22.0
+
+- **OpenAI Decisions como segundo clasificador externo opcional.** Nueva
+  capa `config-decisions.yaml` (plantilla junto a `config-jev.yaml`) y script
+  `decisions.py` con los mismos subcomandos, modos y frenos que Jev: opt-in
+  doble desactivado por defecto, `comparar` con simulación forzada, `hibrido`
+  solo explícito, `usar_principal: true` y `permitir_movimientos: false`
+  siempre, clave solo en `OPENAI_API_KEY`, sin reintentos ni redirecciones, y
+  S0 y caps que nunca salen a la red. Usa `gpt-6-luna`, una petición por
+  correo y una pregunta `choice` por criterio. Cualquier `refusal` devuelve
+  el correo entero al principal. El coste (0,10 USD por millón de tokens de
+  entrada, tarifa del 2026-10-25) se presenta como cota superior. Guía en
+  `references/decisions.md`; no se combina con Jev ni con la delegación nativa
+  en la misma sesión.
+- **Núcleo común `clasificadores.py`.** Lo neutro de `jev.py` (preguntas,
+  validación de respuestas, transporte y flujo con todos sus frenos) vive
+  ahora en un solo módulo, y Jev y Decisions son adaptadores finos. Jev se
+  comporta igual que antes: sus tests no cambian y su salida es idéntica en
+  252 escenarios. Un test de equivalencia comprueba que la misma respuesta en
+  formato Jev y en formato Decisions da el mismo scoring.
 
 ## Novedades en v3.21.40
 
