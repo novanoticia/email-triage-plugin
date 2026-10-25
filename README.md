@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.22.1
+# Email Triage Plugin v3.22.2
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,16 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.22.2
+
+- **Un `no_aplica` en un criterio core ya no tumba la comparación entera.** Con
+  el contrato P2, el principal puede declarar «no evaluable» un criterio core
+  (notificaciones, resúmenes). `comparar` de Jev y de Decisions rechazaba por
+  eso el lote completo, y en una prueba real el modelo cambió la muestra y dejó
+  fuera justo los casos dudosos. Ahora se excluye solo ese correo, con motivo
+  `principal_no_comparable`, sin salir a la red. Un `no_aplica` sin motivo
+  sigue rechazando el lote.
 
 ## Novedades en v3.22.1
 

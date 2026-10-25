@@ -414,6 +414,51 @@ class TestDecisions(unittest.TestCase):
         self.assertEqual(out["resultados"][0]["motivo"], "credencial_ausente_o_invalida")
 
 
+class TestNoAplicaCore(unittest.TestCase):
+    """Prueba real (v3.22.2): con el contrato P2 el principal declara no_aplica
+    en criterios core; antes eso tumbaba el lote entero de la comparación."""
+
+    def lote_con_core_no_aplica(self):
+        p, cfg = lote(3)
+        activos = nc._opciones(cfg)
+        core = next(k for k, (_, es_core) in activos.items() if es_core)
+        pr = p["emails"][1]["principal"]
+        del pr["verdicts"][core]
+        pr["no_aplica"][core] = "Notificación automática: no evaluable."
+        return p, cfg
+
+    def test_solo_se_excluye_el_correo_afectado(self):
+        for nombre, modulo, trans, clave in (
+                ("decisions", d, respuesta, "OPENAI_API_KEY"),
+                ("jev", j, respuesta_jev, "TYPESAFE_API_KEY")):
+            with self.subTest(proveedor=nombre):
+                p, cfg = self.lote_con_core_no_aplica()
+                t = Mock(side_effect=trans)
+                with patch.dict(os.environ, {clave: "ficticia"}):
+                    r = modulo.comparar(p, cfg, ACTIVO, t)
+                self.assertTrue(r["ok"], r)
+                self.assertEqual(t.call_count, 2)  # el excluido no sale a la red
+                motivos = [x["motivo"] for x in r["resultados"]]
+                self.assertEqual(motivos, ["solo_comparacion", "principal_no_comparable",
+                                           "solo_comparacion"])
+                fila = r["resultados"][1]
+                self.assertNotIn("propuesta", fila)
+                self.assertIsNone(fila["principal"])
+                self.assertTrue(fila["usar_principal"])
+                self.assertEqual(r["cobertura"], {"correos_total": 3, "propuestas_comparadas": 2})
+                self.assertEqual(r["comparacion"]["total"], 2)
+
+    def test_no_aplica_sin_motivo_sigue_rechazando_el_lote(self):
+        p, cfg = self.lote_con_core_no_aplica()
+        k = next(iter(p["emails"][1]["principal"]["no_aplica"]))
+        p["emails"][1]["principal"]["no_aplica"][k] = "  "
+        t = Mock()
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "ficticia"}):
+            r = d.comparar(p, cfg, ACTIVO, t)
+        self.assertFalse(r["ok"]); t.assert_not_called()
+        self.assertEqual(r["motivo"], "no_aplica_principal_invalido")
+
+
 class TestDecisionsHibrido(unittest.TestCase):
     def setUp(self):
         self.env = patch.dict(os.environ, {"OPENAI_API_KEY": CLAVE})

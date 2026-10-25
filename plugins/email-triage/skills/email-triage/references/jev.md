@@ -56,7 +56,9 @@ existente: para adoptar el alias cambia su campo a `modelo: jev-latest` o elimí
    crudo no se incluye en el prompt ni en archivos nuevos persistentes.
 3. El principal evalúa `estado` devuelto por preparar y añade a cada fila
    `principal: {verdicts: {...}, no_aplica: {...}}` con cobertura exacta de los
-   criterios activos; `no_aplica` mapea criterios condicionales a motivos. Añade
+   criterios activos; `no_aplica` mapea criterios a motivos (desde v3.22.2, si
+   incluye un criterio core, ese correo queda fuera de la comparación con
+   `principal_no_comparable` y no sale a la red; el resto del lote sigue). Añade
    `control` con los valores habituales calculados por el principal:
    `hard_rules`, `extra_points`, `forzar_reply_needed`, `tier_maximo`,
    `remitente_en_historial` y opcionales `remitente_conteo_historial`,

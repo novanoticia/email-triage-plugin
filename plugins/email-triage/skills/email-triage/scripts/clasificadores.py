@@ -173,8 +173,14 @@ def _principal(e, cfg, activos):
     for k, v in vs.items():
         _exigir(isinstance(v, str) and v in activos[k][0], "veredicto_principal_invalido")
     for k, razon in na.items():
-        _exigir(not activos[k][1] and isinstance(razon, str) and bool(razon.strip()),
-                "no_aplica_principal_invalido")
+        _exigir(isinstance(razon, str) and bool(razon.strip()), "no_aplica_principal_invalido")
+    # Contrato P2: el principal puede declarar «no evaluable» un criterio core
+    # (notificaciones, resúmenes). Ese correo no es comparable, porque al
+    # proveedor no se le ofrece __no_aplica__ en core; se excluye solo él en vez
+    # de rechazar el lote entero (prueba real: el modelo cambiaba la muestra y
+    # dejaba fuera justo los casos dudosos). Devuelve None = no comparable.
+    if any(activos[k][1] for k in na):
+        return None
     return _scoring(e["id"], control, vs, cfg)
 
 
@@ -337,6 +343,8 @@ def procesar(p, cfg, capa, transporte, modo, prov):
             _validar_control(e.get("control"))
             base = _principal(e, cfg, activos) if modo == "comparar" else None
             bloqueo = _estado(e, p["perfil_minimo"])
+            if modo == "comparar" and base is None:
+                bloqueo = bloqueo or "principal_no_comparable"
             if modo == "hibrido":
                 _exigir(type(e["contexto_suficiente"]) is bool, "contexto_invalido")
                 if not e["contexto_suficiente"]:
