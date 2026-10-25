@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.21.37).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.21.38).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -430,6 +430,13 @@ def _prioritario_por_remitente(remitente, cfg):
     él mismo con las reglas de `coincidencias`. None si no hay remitente o
     no se le saca dirección (S0 lo vació, solo nombre visible): entonces
     manda el flag, que es lo seguro (revisión Codex P1, PR #96)."""
+    return _remitente_en_filtro(remitente, cfg, "remitentes_prioritarios")
+
+
+def _remitente_en_filtro(remitente, cfg, clave):
+    """¿Casa `remitente` con la lista `filtros.<clave>`? Mismas reglas que
+    `coincidencias` (dirección o dominio, nunca el nombre visible). None si
+    no hay remitente o no se le saca dirección."""
     if not isinstance(remitente, str):
         return None
     f = cfg.get("filtros") if isinstance(cfg, dict) else None
@@ -438,7 +445,7 @@ def _prioritario_por_remitente(remitente, cfg):
     if not addr and not dominio:
         return None
     return any(_casa_remitente(e, addr, dominio)
-               for e in _lista_texto(f.get("remitentes_prioritarios")))
+               for e in _lista_texto(f.get(clave)))
 
 STOPWORDS = {
     "de", "la", "el", "los", "las", "un", "una", "y", "o", "en", "del",
@@ -1171,8 +1178,18 @@ def cmd_scoring(payload: dict, cfg: dict) -> dict:
         ignorados.append({"campo": "remitente_conteo_historial",
                           "motivo": "valor no entero (%r); se ignora" % (conteo_hist,)})
         conteo_hist = None
+    # v3.21.38 (pruebas reales 2026-10-24: «las Codex de tu propio repo no
+    # llevan penalización de sender masivo; es una decisión mía, el script no
+    # lo exige»). Quién se libra de `sender_bulk_penalizacion` lo decide la
+    # persona en `filtros.remitentes_sin_penalizacion_masiva`, y el script
+    # lo aplica por el `remitente` del payload; el modelo no exime a nadie.
+    reglas = payload.get("hard_rules")
+    exento = _remitente_en_filtro(payload.get("remitente"), cfg,
+                                  "remitentes_sin_penalizacion_masiva")
+    if exento and isinstance(reglas, list):
+        reglas = [k for k in reglas if k != "sender_bulk_penalizacion"]
     hard_puntos, hard_desglose = _aplica_hard_rules(
-        payload.get("hard_rules"), hard_cfg, en_historial, bulk_atenuado_a,
+        reglas, hard_cfg, en_historial, bulk_atenuado_a,
         ignorados, conteo_hist)
 
     extra = payload.get("extra_points", 0) or 0
@@ -1245,6 +1262,10 @@ def cmd_scoring(payload: dict, cfg: dict) -> dict:
     if suelo:
         # Sin `remitente`, el suelo depende de que el modelo pase el flag.
         out["prioritario_verificado"] = derivado is not None
+    f_cfg = cfg.get("filtros") if isinstance(cfg.get("filtros"), dict) else {}
+    if _lista_texto(f_cfg.get("remitentes_sin_penalizacion_masiva")):
+        # Solo con la lista configurada (aditivo): None = sin remitente útil.
+        out["sender_bulk_exento"] = exento
     if aviso_prioritario:
         out["aviso_prioritario"] = aviso_prioritario
     if contrato_p2:
@@ -1519,7 +1540,8 @@ def _brief(r):
         out["cap_aplicado"] = r["cap_aplicado"]
     if r.get("suelo_aplicado"):
         out["suelo_aplicado"] = r["suelo_aplicado"]
-    for k in ("prioritario_verificado", "aviso_prioritario"):
+    for k in ("prioritario_verificado", "aviso_prioritario",
+              "sender_bulk_exento"):
         if k in r:
             out[k] = r[k]
     if "confianza" in r:
@@ -1682,7 +1704,8 @@ def _avisos_config_usuario(data):
     info["guardar_desglose_efectivo"] = gd is True
     f = data.get("filtros") if isinstance(data.get("filtros"), dict) else {}
     no_validas = []
-    for lista in ("remitentes_prioritarios", "remitentes_ignorar"):
+    for lista in ("remitentes_prioritarios", "remitentes_ignorar",
+                  "remitentes_sin_penalizacion_masiva"):
         v = f.get(lista)
         if v is None:
             continue
