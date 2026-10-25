@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.21.39).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.21.40).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -1122,6 +1122,21 @@ def _aplica_hard_rules(hard_rules, hard_cfg, en_historial, atenuado_a, ignorados
     return hard_puntos, hard_desglose
 
 
+def _criterios_sin_evaluar(cfg, vistos):
+    """Criterios activos del config (solo los core con
+    `comportamiento_veloz.solo_criterios_core: true`) que no están en
+    `vistos`. TOTAL: un config raro da [] (no inventa faltas)."""
+    crits = cfg.get("criterios_epistemicos") if isinstance(cfg, dict) else None
+    if not isinstance(crits, dict):
+        return []
+    veloz = cfg.get("comportamiento_veloz")
+    solo_core = isinstance(veloz, dict) and veloz.get("solo_criterios_core") is True
+    return sorted(str(k) for k, c in crits.items()
+                  if isinstance(c, dict) and c.get("activo", True)
+                  and (not solo_core or c.get("core") is True)
+                  and k not in vistos)
+
+
 def cmd_scoring(payload: dict, cfg: dict) -> dict:
     """Agrega veredictos del modelo en un score+tier deterministas.
 
@@ -1208,6 +1223,13 @@ def cmd_scoring(payload: dict, cfg: dict) -> dict:
         ejes[eje] += pts
         desglose.append({"criterio": crit, "veredicto": verdict,
                          "eje": eje, "puntos": pts})
+
+    # v3.21.40 (prueba real 2026-10-24: «evalué solo los 13 core, así que no
+    # delegué»): con el config pidiendo 30, el script mira cuántos llegaron.
+    # Esperados: los activos; solo los core si la capa veloz lo dice.
+    sin_evaluar = _criterios_sin_evaluar(
+        cfg, {d["criterio"] for d in desglose}
+        | {n["criterio"] for n in no_evaluados})
 
     ejes_clamp = {}
     for nombre, val in ejes.items():
@@ -1325,6 +1347,9 @@ def cmd_scoring(payload: dict, cfg: dict) -> dict:
         out["sender_bulk_exento"] = exento
     if aviso_prioritario:
         out["aviso_prioritario"] = aviso_prioritario
+    if sin_evaluar:
+        # Aditivo: solo aparece si falta alguno. No cambia score ni tier.
+        out["criterios_sin_evaluar"] = sin_evaluar
     if contrato_p2:
         # Campos añadidos, nunca renombrados: no alteran score ni tier.
         cobertura = _p2_cobertura(criterios, desglose, no_evaluados)
@@ -1598,7 +1623,7 @@ def _brief(r):
     if r.get("suelo_aplicado"):
         out["suelo_aplicado"] = r["suelo_aplicado"]
     for k in ("prioritario_verificado", "aviso_prioritario",
-              "sender_bulk_exento"):
+              "sender_bulk_exento", "criterios_sin_evaluar"):
         if k in r:
             out[k] = r[k]
     if "confianza" in r:
@@ -1698,6 +1723,14 @@ def cmd_scoring_dispatch(payload: dict, cfg: dict, brief: bool = False) -> dict:
         alerta = _alerta_plantilla(payload["emails"], res)
         if alerta:
             salida["alerta_plantilla"] = alerta
+        incompletos = [r.get("id", i) for i, r in enumerate(res)
+                       if r.get("criterios_sin_evaluar")]
+        if incompletos:
+            salida["alerta_cobertura"] = {
+                "correos": len(incompletos), "ids": incompletos,
+                "aviso": "faltan criterios activos del config: evalúalos "
+                         "todos (o usa el modo veloz si la persona lo pide); "
+                         "así no se mueven como triaje"}
         return salida
     try:
         r = cmd_scoring(payload, cfg)
@@ -2303,6 +2336,14 @@ def _negativa_movimiento(registro):
                            "la persona decide moverlo igualmente, registra con "
                            "\"origen\": \"regla_manual\" y \"regla\": "
                            "\"plantilla=...\""}
+    if registro.get("criterios_sin_evaluar"):
+        # v3.21.40: mismo freno que la plantilla, para la cobertura.
+        return {"ok": False,
+                "error": "movimiento con `criterios_sin_evaluar` (lo marcó "
+                         "scoring): no puede registrarse como triaje",
+                "remedio": "evalúa todos los criterios activos del config y "
+                           "repuntúa, o usa el modo veloz si la persona lo "
+                           "pidió"}
     if (not (isinstance(score, bool) or not isinstance(score, (int, float)))
             and registro.get("modo_scoring") != "determinista"):
         # v3.21.12 (prueba real 11): en modo `mental` el score lo calcula el
@@ -4805,6 +4846,34 @@ def _plantilla_retocada(ruta):
     return retocados
 
 
+def _cobertura_desglose(ruta):
+    """v3.21.40: ids que, en su ÚLTIMA pasada del desglose acumulado de la
+    sesión, traen `criterios_sin_evaluar`; None sin desglose. TOTAL."""
+    try:
+        with open(ruta, encoding="utf-8") as fh:
+            pasadas = _parsear_desglose(fh.read(MAX_INGESTA_BYTES))["pasadas"]
+    except (OSError, ValueError, UnicodeDecodeError, KeyError, TypeError):
+        return None
+    ultimo, sin_id = {}, []
+    for p in pasadas:
+        # Una pasada de lote trae `resultados`; una individual ES el
+        # resultado, como en _ultima_pasada (revisión Codex, PR #111).
+        if not isinstance(p, dict):
+            continue
+        rs = p["resultados"] if isinstance(p.get("resultados"), list) else [p]
+        for r in rs:
+            if not isinstance(r, dict):
+                continue
+            rid = r.get("id")
+            if rid is None or isinstance(rid, (dict, list)):
+                if r.get("criterios_sin_evaluar"):
+                    sin_id.append("?")  # sin id no se puede deduplicar
+                continue
+            ultimo[json.dumps(rid)] = r
+    return [r.get("id") for r in ultimo.values()
+            if r.get("criterios_sin_evaluar")] + sin_id
+
+
 def cmd_informe(datos: dict) -> dict:
     """Escribe <base_estado>/informes/<session_id>.md y devuelve su ruta.
 
@@ -4917,6 +4986,15 @@ def cmd_informe(datos: dict) -> dict:
                    % (len(retocada), ", ".join(
                        "#%s" % _celda_md(r["id"], 12) for r in retocada[:20])
                       + (" …" if len(retocada) > 20 else "")), ""]
+    incompletos = _cobertura_desglose(
+        os.path.join(base_estado(), "desgloses", sid + ".jsonl"))
+    if incompletos:
+        lineas += ["> ⚠️ **Criterios sin evaluar en %d correos** (%s): se "
+                   "puntuaron con menos criterios de los que pide el config; "
+                   "sus tiers no deben moverse como triaje."
+                   % (len(incompletos), ", ".join(
+                       "#%s" % _celda_md(i, 12) for i in incompletos[:20])
+                      + (" …" if len(incompletos) > 20 else "")), ""]
     if sin_determinista:
         lineas += ["> ⚠️ **Sin scoring determinista: %d de %d unidades** (%s; "
                    "marcadas ⚠️ en la columna Score). "
@@ -4947,6 +5025,8 @@ def cmd_informe(datos: dict) -> dict:
                else {"delegacion_pendiente": delegacion_pendiente}),
             **({} if retocada is None
                else {"plantilla_retocada": retocada}),
+            **({} if incompletos is None
+               else {"criterios_sin_evaluar": len(incompletos)}),
             "efimero": base_estado_es_efimera()}
 
 

@@ -16,7 +16,7 @@ compatibility: >
   Claude Code, Claude Cowork y ChatGPT.
 license: Apache-2.0
 metadata:
-  version: "3.21.39"
+  version: "3.21.40"
   author: novanoticia
 ---
 
@@ -940,6 +940,9 @@ verdad (2026-08-07, ver `references/lecciones-produccion.md`).
   como triaje**. Dilo con el número; evalúalos por separado o, si la persona
   lo decide, muévelos como `regla_manual`. Copia `plantilla` al registro:
   `registrar` lo rechaza como triaje.
+- Evalúa **todos** los criterios activos; solo los core si la persona pidió
+  el modo veloz (v3.21.40). Si `scoring` devuelve `alerta_cobertura`, completa
+  y repuntúa; no los muevas así. Copia `criterios_sin_evaluar` al registro.
 - Todo movimiento se registra con `registrar` (PASO 4.I) **antes** de
   informarlo como hecho.
 - Nunca digas «N/N movidos» sin la salida del comando que los movió y el
