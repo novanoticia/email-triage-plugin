@@ -91,7 +91,9 @@ Verificado en la documentación oficial el **25 de octubre de 2026**:
 <https://developers.openai.com/api/reference/resources/decisions/methods/create>.
 
 `POST https://api.openai.com/v1/decisions`, Bearer en Authorization, JSON con
-`model`, `input` y `questions`. Una petición por correo: `input` es un texto con
+`model`, `input`, `questions` y `prompt_cache_options: {"mode": "explicit"}` sin
+breakpoints, que según la referencia **desactiva la caché**: sin escrituras (más
+caras que la entrada normal) ni extractos retenidos en ella. Una petición por correo: `input` es un texto con
 `perfil_minimo` y el extracto sanitizado (`correo`), compartido por todas las
 preguntas. No se usan imágenes, `input_json` ni historial de conversación. Cada
 criterio activo es una pregunta `choice` con `name` igual al criterio,
@@ -119,9 +121,11 @@ llamadas restantes y se reducen a su código numérico, sin cuerpo HTTP.
 Tarifa publicada para `gpt-6-luna` en `/v1/decisions`: **0,10 USD por millón de
 tokens de entrada sin caché; salida sin coste** (consulta del 2026-10-25).
 100 000 tokens de entrada serían 0,01 USD, aparte del coste del principal.
-`usage.input_tokens` incluye lecturas de caché (más baratas) y la tarifa no recoge
-recargos de procesamiento regional ni multiplicadores de contexto largo: el coste
-calculado es una **cota superior aproximada** (`coste_es_cota_superior: true`).
+Con la caché desactivada todo el input se cobra a esa tarifa; si la respuesta
+informa tokens de caché pese a ello, el coste pasa a desconocido. La estimación
+**no incluye** el recargo de procesamiento regional (+10 % según la página de
+precios) ni multiplicadores de contexto largo (`coste_excluye_recargos: true`):
+puede quedarse corta, no es una cota superior.
 Un timeout o error puede haber consumido tokens: `coste_total_desconocido` y
 `coste_estimado_usd: null`. Un modelo sin tarifa guardada cuenta tokens sin
 extrapolar precio. No sustituye la factura.

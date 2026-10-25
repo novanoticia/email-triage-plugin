@@ -21,8 +21,9 @@ from clasificadores import _exigir, preparar, MAX_JSON  # noqa: F401
 ENDPOINT = "https://api.openai.com/v1/decisions"
 MODELO_POR_DEFECTO = "gpt-6-luna"  # único admitido por /v1/decisions a 2026-10-25
 # USD por millón de tokens de entrada sin caché; salida sin coste. Consulta 2026-10-25.
-# `usage.input_tokens` incluye lecturas de caché (más baratas) y no recoge
-# recargos regionales: el coste calculado es una cota superior aproximada.
+# La caché se desactiva en cada petición (ver `_cuerpo`), así que todo el input
+# se cobra a esta tarifa. No recoge recargos regionales (+10 %) ni de contexto
+# largo: la cifra es una estimación que puede quedarse corta, no una cota.
 PRECIOS_MTOK = {"gpt-6-luna": 0.10}
 TARIFA_FECHA = "2026-10-25"
 DEFAULT = {"activo": False, "acepta_envio_datos": False, "modo": "comparar",
@@ -63,7 +64,24 @@ def _cuerpo(modelo, perfil, estado, preguntas):
     # Entrada compartida en texto: sin imágenes, input_json ni historial.
     entrada = json.dumps({"perfil_minimo": perfil, "correo": estado},
                          ensure_ascii=False, sort_keys=True)
-    return {"model": modelo, "input": entrada, "questions": preguntas}
+    # Modo explícito sin breakpoints = sin caché (referencia de create): sin
+    # escrituras de caché más caras ni extractos retenidos en la caché.
+    return {"model": modelo, "input": entrada, "questions": preguntas,
+            "prompt_cache_options": {"mode": "explicit"}}
+
+
+def _uso(respuesta):
+    """Tokens observados; si la API informa caché pese a desactivarla, coste desconocido."""
+    usage = respuesta.get("usage")
+    tokens = nc.uso_tokens(usage, ("input_tokens", "output_tokens"))
+    detalles = usage.get("input_tokens_details") if isinstance(usage, dict) else None
+    if tokens is None or detalles is None:
+        return tokens
+    if not (isinstance(detalles, dict) and all(
+            detalles.get(k, 0) == 0 and type(detalles.get(k, 0)) is int
+            for k in ("cached_tokens", "cache_write_tokens"))):
+        return None
+    return tokens
 
 
 def _modelo_efectivo(respuesta, solicitado):
@@ -126,14 +144,14 @@ PROVEEDOR = nc.Proveedor(
     tarifas=PRECIOS_MTOK, tarifa_fecha=TARIFA_FECHA,
     config=lambda capa: _config(capa), preguntas=_preguntas, cuerpo=_cuerpo,
     modelo_efectivo=lambda r, s: _modelo_efectivo(r, s),
-    uso=lambda r: nc.uso_tokens(r.get("usage"), ("input_tokens", "output_tokens")),
+    uso=lambda r: _uso(r),
     validar=lambda r, q, m: validar_respuesta(r, q, m),
     # Resolución tardía: un patch de decisions.solicitar sigue surtiendo efecto.
     transporte=lambda body, key, timeout: solicitar(body, key, timeout))
 
 
 def _anotar(salida):
-    salida["consumo"]["coste_es_cota_superior"] = True
+    salida["consumo"]["coste_excluye_recargos"] = True  # regional y contexto largo
     return salida
 
 

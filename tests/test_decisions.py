@@ -111,7 +111,10 @@ class TestDecisions(unittest.TestCase):
         self.comparar(t)
         body, key, timeout = t.call_args.args
         self.assertEqual(key, CLAVE); self.assertEqual(timeout, 15)
-        self.assertEqual(set(body), {"model", "input", "questions"})
+        self.assertEqual(set(body), {"model", "input", "questions", "prompt_cache_options"})
+        # Sin breakpoints explícitos la petición no usa caché (ni escrituras más caras).
+        self.assertEqual(body["prompt_cache_options"], {"mode": "explicit"})
+        self.assertNotIn("prompt_cache_breakpoint", json.dumps(body))
         self.assertEqual(body["model"], "gpt-6-luna")
         self.assertIsInstance(body["input"], str)
         self.assertEqual(set(json.loads(body["input"])), {"perfil_minimo", "correo"})
@@ -318,7 +321,27 @@ class TestDecisions(unittest.TestCase):
         self.assertEqual(c["input_tokens_observados"], 2000)
         self.assertAlmostEqual(c["coste_estimado_usd"], 2000 * 0.10 / 1_000_000)
         self.assertFalse(c["coste_total_desconocido"])
-        self.assertTrue(c["coste_es_cota_superior"])
+        self.assertTrue(c["coste_excluye_recargos"])
+        self.assertNotIn("coste_es_cota_superior", c)
+
+    def test_cache_informada_deja_coste_desconocido(self):
+        # Revisión Codex (PR #112): una escritura de caché cuesta más que la
+        # tarifa guardada. Si la API la informa pese a desactivarla, no se estima.
+        for detalles in ({"cached_tokens": 0, "cache_write_tokens": 1500},
+                         {"cached_tokens": 800, "cache_write_tokens": 0},
+                         {"cached_tokens": True, "cache_write_tokens": 0}, "x"):
+            with self.subTest(detalles=detalles):
+                def con_cache(r, detalles=detalles):
+                    r["usage"]["input_tokens_details"] = detalles
+                r = self.comparar(self.con_respuesta(con_cache))
+                self.assertEqual(r["resultados"][0]["motivo"], "usage_invalido")
+                self.assertTrue(r["consumo"]["coste_total_desconocido"])
+                self.assertIsNone(r["consumo"]["coste_estimado_usd"])
+        # Sin detalles (campo ausente) se acepta: no hay caché informada.
+        def sin_detalles(r):
+            del r["usage"]["input_tokens_details"]
+        self.assertEqual(self.comparar(self.con_respuesta(sin_detalles))["resultados"][0]["motivo"],
+                         "solo_comparacion")
 
     def test_modelo_sin_tarifa_no_extrapola(self):
         r = self.comparar(capa=dict(ACTIVO, modelo="gpt-6-luna-preview"))

@@ -100,7 +100,8 @@ relue par un humain. / Traducción generada por una IA, sin revisión humana.
   S0 y caps que nunca salen a la red. Usa `gpt-6-luna`, una petición por
   correo y una pregunta `choice` por criterio. Cualquier `refusal` devuelve
   el correo entero al principal. El coste (0,10 USD por millón de tokens de
-  entrada, tarifa del 2026-10-25) se presenta como cota superior. Guía en
+  entrada, tarifa del 2026-10-25) se estima con la caché desactivada y sin
+  incluir recargos regionales. Guía en
   `references/decisions.md`; no se combina con Jev ni con la delegación nativa
   en la misma sesión.
 - **Núcleo común `clasificadores.py`.** Lo neutro de `jev.py` (preguntas,
