@@ -449,7 +449,10 @@ class TestScoringDeterminista(unittest.TestCase):
         self.assertEqual(full["resultados"][0]["id"], "a")
         brief = th.cmd_scoring_dispatch(payload, cfg, brief=True)
         r0 = brief["resultados"][0]
-        self.assertEqual(set(r0) - {"cap_aplicado", "ignorados"},
+        # Campos condicionales: cap, ignorados y (v3.21.40) los criterios
+        # que faltan, aquí todos menos uno.
+        self.assertEqual(set(r0) - {"cap_aplicado", "ignorados",
+                                    "criterios_sin_evaluar"},
                          {"score", "tier", "ejes", "id"})
 
     def test_clamp_por_eje(self):
