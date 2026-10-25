@@ -132,6 +132,11 @@ lee `references/jev.md` antes de cualquier fase. `comparar` fuerza simulación;
 `hibrido` explícito permite veredictos revisados en el flujo real, sin nuevos
 permisos de movimiento. Desactivado por defecto; requiere consentimiento de envío
 a TypeSafe y clave propia. Simulación solicitada siempre prevalece.
+**Decisions opcional.** Si se pide OpenAI Decisions o está activo
+`config-decisions.yaml` en esa base, lee `references/decisions.md` antes de
+cualquier fase: mismos modos y frenos que Jev, con `OPENAI_API_KEY` propia y
+consentimiento de envío a OpenAI. Nunca combines Decisions, Jev y el evaluador
+nativo en la misma sesión; con varias capas activas, pregunta cuál usar.
 <!-- i18n:fin -->
 
 Lee la configuración antes de cualquier fase. Contiene perfil, carpetas y pesos.
@@ -580,7 +585,8 @@ ofrecer al final**: hazlo aquí, sin preguntar, y pasa `delegacion` y
 solo los veredictos sobre texto sanitizado, valida con `scripts/modelos.py` y
 revisa la evidencia antes de reintegrar. Hard rules, señales de respuesta y caps
 permanecen bajo control del principal. Con Jev activo, aplica `references/jev.md`:
-`evaluar` en híbrido, `comparar` en simulación. Sin delegación, sigue este paso.
+`evaluar` en híbrido, `comparar` en simulación; con Decisions activo, lo mismo
+con `references/decisions.md`. Sin delegación, sigue este paso.
 <!-- i18n:fin -->
 
 El modelo evalúa cada correo contra los criterios epistémicos definidos en

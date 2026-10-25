@@ -1528,6 +1528,10 @@ por defecto: requiere consentimiento y clave propia, añade consumo en TypeSafe
 y admite comparación sin movimientos o híbrido explícito con revisión del principal
 y las autorizaciones existentes.
 [Guía de Jev](plugins/email-triage/skills/email-triage/references/jev.md).
+La capa de **OpenAI Decisions** funciona igual (mismo núcleo común, modos y frenos),
+también desactivada por defecto, con `OPENAI_API_KEY` propia y facturación aparte
+en OpenAI; no se combina con Jev ni con la delegación nativa en la misma sesión.
+[Guía de Decisions](plugins/email-triage/skills/email-triage/references/decisions.md).
 
 Contrato completo y límites:
 [`references/modelos-nativos.md`](plugins/email-triage/skills/email-triage/references/modelos-nativos.md).

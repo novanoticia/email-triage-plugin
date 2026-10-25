@@ -98,6 +98,19 @@ independiente. Sin registros persistentes nuevos ni propuestas en aprendizaje.
 
 [Configuración, límites, costes y contrato verificado el 2026-10-16](plugins/email-triage/skills/email-triage/references/jev.md).
 
+## OpenAI Decisions opcional
+
+Mismas condiciones que Jev: desactivado por defecto, comparación sin movimientos
+como modo inicial e híbrido solo explícito. Requiere `activo: true`,
+`acepta_envio_datos: true` y una clave `OPENAI_API_KEY` propia. Envía a OpenAI
+asunto, remitente y extracto sanitizados, perfil mínimo y preguntas; sanitización
+no significa anonimización. Zero Data Retention y procesamiento regional en Europa
+existen solo para clientes elegibles de la API y **no se presuponen**: dependen de
+la cuenta de quien configure la capa. Facturación independiente. Sin registros
+persistentes nuevos ni propuestas en aprendizaje.
+
+[Configuración, límites, costes y contrato verificado el 2026-10-25](plugins/email-triage/skills/email-triage/references/decisions.md).
+
 ## Changes and contact
 
 Changes to this policy are published in this file and recorded in the
