@@ -382,7 +382,12 @@ Desde v3.21.37 `informe` lee `desgloses/<session_id>.jsonl` y devuelve
 Desde v3.21.38 la exención de `sender_bulk_penalizacion` sale de
 `filtros.remitentes_sin_penalizacion_masiva` (por `remitente`, como
 prioritario) y `scoring` devuelve `sender_bulk_exento`; el modelo no exime
-(prueba real: «es una decisión mía; el script no lo exige»). Jev usa exclusivamente la capa externa opt-in descrita en
+(prueba real: «es una decisión mía; el script no lo exige»).
+Desde v3.21.39 `sanitizar` quita del texto saneado (tras S0) los Cf, el
+U+FFFC y los espacios Zs raros, y `eco_coincide` compara solo letras y
+números con 4 de 6 palabras en orden (prueba real: 16 de 17 ecos fallaban).
+Lo que quite esa limpieza lo quita también la vista S0 (`_COMBINANTES_IGNORABLES`),
+y S0 se aplica además al texto final: «ig￼nore» se escapaba (revisión Codex, PR #110). Jev usa exclusivamente la capa externa opt-in descrita en
 `references/jev.md` y `scripts/jev.py`; no extender `modelos.py` con red. Comparar implica simulación
 y no alimenta aprendizaje con desacuerdos entre modelos. Los controles de scoring
 vienen del principal, nunca de la respuesta delegada. Las pruebas sintéticas
