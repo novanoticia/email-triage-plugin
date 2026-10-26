@@ -35,32 +35,35 @@ en una prueba real); la de TypeSafe puede tenerlos o no, así que usa el mismo m
 siempre. Una clave guardada a medias hace que el proveedor responda que no es válida
 (`invalid_api_key` en OpenAI). Guárdala desde el portapapeles:
 
-**Una clave cada vez.** El portapapeles solo guarda una cosa, y cada orden
-`security` toma lo que haya en él en ese momento. Si ejecutas las órdenes de las dos
-claves seguidas, las dos quedan guardadas con **la misma** clave (prueba real). Haz
-el bloque completo de una clave y, después, el de la otra.
+**Una clave cada vez, y en este orden.** El portapapeles solo guarda una cosa, y la
+orden `security` guarda lo que haya en él **en el momento de pulsar Enter**. Copiar el
+comando desde esta guía también usa el portapapeles: si lo ejecutas sin más, se
+guardaría el texto del comando en vez de la clave. Y si ejecutas las órdenes de las
+dos claves seguidas, ambas quedan con la misma clave (las dos cosas pasaron en
+pruebas reales). Por eso, para cada clave:
 
-**OpenAI (Decisions).** Copia la clave con el **botón de copiar** de
-platform.openai.com y ejecuta (la primera línea muestra la longitud: apúntala, la
-usarás en el paso 4; debe salir más de 128):
+1. **Copia la línea de comando** de abajo (es una sola línea) y **pégala en
+   Terminal sin pulsar Enter**.
+2. **Copia la clave** en la web del proveedor, con su botón de copiar.
+3. **Vuelve a Terminal y pulsa Enter.** Primero verás la longitud de lo copiado:
+   apúntala para el paso 4 (si sale un número pequeño, de unas decenas, lo que había
+   en el portapapeles era otra cosa: repite desde el punto 1).
 
-```bash
-pbpaste | wc -c
-security add-generic-password -U -a "$USER" -s OPENAI_API_KEY -w "$(pbpaste)"
-pbcopy < /dev/null
-```
-
-**TypeSafe (Jev).** Solo después de terminar la anterior, copia la clave de
-console.typesafe.ai con su botón de copiar y ejecuta:
+**OpenAI (Decisions)**, clave de platform.openai.com (debe salir más de 128):
 
 ```bash
-pbpaste | wc -c
-security add-generic-password -U -a "$USER" -s TYPESAFE_API_KEY -w "$(pbpaste)"
-pbcopy < /dev/null
+pbpaste | wc -c; security add-generic-password -U -a "$USER" -s OPENAI_API_KEY -w "$(pbpaste)"; pbcopy < /dev/null
 ```
 
-`-U` sustituye la clave anterior si ya había una con ese nombre; la última línea
-vacía el portapapeles.
+**TypeSafe (Jev)**, solo después de terminar la anterior, clave de
+console.typesafe.ai:
+
+```bash
+pbpaste | wc -c; security add-generic-password -U -a "$USER" -s TYPESAFE_API_KEY -w "$(pbpaste)"; pbcopy < /dev/null
+```
+
+`-U` sustituye la clave anterior si ya había una con ese nombre; lo último
+(`pbcopy < /dev/null`) vacía el portapapeles.
 
 En el historial de Terminal queda `$(pbpaste)` escrito así, nunca la clave. El
 único coste es que, durante el instante que tarda el comando, la clave aparece en
