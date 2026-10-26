@@ -103,19 +103,24 @@ clave no está cargada). Si usas las dos, comprueba además que no son la misma:
  Si cambias una clave con Terminal abierto, ejecuta antes
 `source ~/.zshrc`: la variable solo se lee al abrir Terminal.
 
-**OpenAI** permite comprobar además que acepta la clave, sin coste:
+Comprueba además que cada proveedor acepta su clave. Las dos consultas solo piden
+la lista de modelos de tu cuenta: no envían texto, así que no consumen tokens de
+entrada, que es lo que cobran ambos.
 
 ```bash
+# OpenAI (Decisions)
 curl -s -o /dev/null -w "%{http_code}\n" https://api.openai.com/v1/models -H "Authorization: Bearer $OPENAI_API_KEY"
+# TypeSafe (Jev)
+curl -s -o /dev/null -w "%{http_code}\n" https://api.typesafe.ai/v1/models -H "Authorization: Bearer $TYPESAFE_API_KEY"
 ```
 
-Debe responder **`200`**. Si sale `401` con una longitud de 128 exactos, la clave se
-guardó recortada: repite el paso 2.
-
-Para **TypeSafe** esta guía no da una prueba equivalente: no está verificado qué
-endpoint gratuito ofrece. La comprobación es la primera comparación con correos
-ficticios (ver abajo): si la clave falla, `jev.py` devuelve un código `http_…`
-(previsiblemente `http_401`, sin verificar) y el triaje sigue con el principal.
+Cada una debe responder **`200`**. Un **`401`** significa clave ausente o no válida
+(lo documenta [TypeSafe](https://docs.typesafe.ai/api/errors.md); en OpenAI se
+comprobó en una prueba real, con `invalid_api_key`). Si sale `401` con una
+longitud de 128 exactos, la clave se guardó recortada: repite el paso 2. Con la
+clave correcta pero mal cargada, `jev.py` o `decisions.py` responden
+`credencial_ausente_o_invalida`; con una clave que el proveedor rechaza, `http_401`.
+En ambos casos el triaje sigue con el principal.
 
 ## Importante
 
