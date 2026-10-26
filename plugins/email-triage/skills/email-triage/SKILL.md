@@ -16,7 +16,7 @@ compatibility: >
   Claude Code, Claude Cowork y ChatGPT.
 license: Apache-2.0
 metadata:
-  version: "3.22.7"
+  version: "3.22.8"
   author: novanoticia
 ---
 
@@ -899,8 +899,17 @@ fallback). Un movimiento sin `score` solo vale como
 telemetría), nunca durante un undo — reescribir el log justo cuando se
 necesita íntegro para revertir era el peor momento posible. Al cerrar
 cada sesión: si el log contiene entradas con `ts` de hace más de 30
-días, reescribirlo conservando solo las recientes e informar cuántas se
-purgaron. El undo (PASO 6) solo LEE el log, jamás lo reescribe (sus
+días, purgarlas **solo** con `compactar --dias 30` (v3.22.8) e informar
+cuántas se purgaron. Nunca con un script propio: `compactar` es la única
+reescritura permitida del log (atómica, bajo `flock`, conserva lo que no
+sabe fechar). Primero `--dry-run`, y pide confirmación: lo purgado ya no
+se puede deshacer.
+
+```bash
+python3 "<ruta-del-skill>/scripts/triage_helpers.py" compactar --archivo ~/.email-triage/session_log.jsonl --dias 30 --dry-run
+```
+
+El undo (PASO 6) solo LEE el log, jamás lo reescribe (sus
 registros son appends).
 
 ---
