@@ -8,6 +8,6 @@ activo: false
 acepta_envio_datos: false
 modo: comparar                 # defecto sin movimientos; hibrido integra veredictos revisados
 modelo: gpt-6-luna             # único modelo admitido por /v1/decisions (doc. 2026-10-25)
-max_llamadas: 5                 # por invocación, una por correo/hilo, sin reintentos
+max_llamadas: 5                 # 1–50, por invocación, una por correo/hilo, sin reintentos
 timeout_segundos: 15
 confianza_minima: 0.8           # experimental; no equivale a probabilidad de acierto

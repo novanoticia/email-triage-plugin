@@ -28,7 +28,7 @@ Si no puede, informa de la limitación y conserva el principal en el modo de ses
 simular una llamada real mediante otro modelo.
 
 La configuración admite `modo: comparar` (defecto) o `modo: hibrido`, el alias `jev-latest` (estable, por defecto),
-`jev-preview` (opcional) o una versión fijada `jev-X.Y.Z`, máximo de llamadas por ejecución 1–20 (defecto 5), timeout 1–60 s
+`jev-preview` (opcional) o una versión fijada `jev-X.Y.Z`, máximo de llamadas por ejecución 1–50 (defecto 5; hasta v3.22.3 el tope era 20), timeout 1–60 s
 (defecto 15) y confianza mínima 0–1 (defecto 0,8). No admite endpoints alternativos.
 Desactivar o retirar el archivo revierte la integración sin cambiar el scoring.
 

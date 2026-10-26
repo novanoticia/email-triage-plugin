@@ -175,6 +175,27 @@ class TestDecisions(unittest.TestCase):
         self.assertEqual([x["motivo"] for x in r["resultados"]],
                          ["solo_comparacion", "limite_llamadas", "limite_llamadas"])
 
+    def test_max_llamadas_hasta_50(self):
+        # v3.22.4: el tope sube de 20 a 50 (el tamaño máximo de lote). Prueba
+        # real: con 5, solo se comparaban 5 de 51 correos.
+        for nombre, modulo, trans, clave in (
+                ("decisions", d, respuesta, "OPENAI_API_KEY"),
+                ("jev", j, respuesta_jev, "TYPESAFE_API_KEY")):
+            with self.subTest(proveedor=nombre):
+                p, cfg = lote(50)
+                t = Mock(side_effect=trans)
+                with patch.dict(os.environ, {clave: "ficticia"}):
+                    r = modulo.comparar(p, cfg, dict(ACTIVO, max_llamadas=50), t)
+                self.assertTrue(r["ok"], r)
+                self.assertEqual(t.call_count, 50)
+                self.assertEqual(r["cobertura"]["propuestas_comparadas"], 50)
+                for fuera in (51, 0):
+                    t = Mock()
+                    r = modulo.comparar(p, cfg, dict(ACTIVO, max_llamadas=fuera), t)
+                    self.assertEqual(r["motivo"], "limites_invalidos"); t.assert_not_called()
+        self.assertEqual(d.DEFAULT["max_llamadas"], 5)
+        self.assertEqual(j.DEFAULT["max_llamadas"], 5)
+
     def test_error_http_detiene_proveedor(self):
         self.p, self.cfg = lote(2)
         t = Mock(side_effect=d.ErrorDecisions("http_429"))
