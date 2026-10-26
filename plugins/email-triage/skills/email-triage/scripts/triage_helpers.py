@@ -2572,12 +2572,15 @@ def _contar_y_ultimas(ruta, n):
 
 
 def _contar_y_recientes(ruta, dias, ahora):
-    """(total, líneas cuyo `ts` —o `ts_registro`— tiene <= `dias` días).
+    """(total, líneas cuyo `ts_registro` —o, sin él, `ts`— tiene <= `dias` días).
 
     v3.22.8: retención por fecha del session log (PASO 4.I). Las líneas sin
     fecha legible, no JSON o con fecha futura se CONSERVAN: purgar solo lo
     que se sabe antiguo (prueba real 2026-10-26: sin este modo, el modelo
-    reescribió el log con un script propio)."""
+    reescribió el log con un script propio). Manda `ts_registro`, la hora
+    real del append que pone `registrar`: un `ts` del modelo antiguo o
+    erróneo no puede purgar una línea recién escrita (revisión Codex P1,
+    PR #125)."""
     total, recientes = 0, []
     corte = ahora - timedelta(days=dias)
     with open(ruta, encoding="utf-8", errors="replace") as fh:
@@ -2589,7 +2592,7 @@ def _contar_y_recientes(ruta, dias, ahora):
                 doc = None
             ts = None
             if isinstance(doc, dict):
-                ts = _parse_ts(doc.get("ts")) or _parse_ts(doc.get("ts_registro"))
+                ts = _parse_ts(doc.get("ts_registro")) or _parse_ts(doc.get("ts"))
             if ts is None or ts >= corte:
                 recientes.append(ln)
     return total, recientes

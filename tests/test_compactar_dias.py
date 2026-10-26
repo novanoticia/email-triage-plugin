@@ -66,6 +66,22 @@ class TestCompactarDias(unittest.TestCase):
         out = th.cmd_compactar(self.ruta, dias=30, ahora=AHORA)
         self.assertEqual(out["eliminadas"], 1, out)
 
+    def test_manda_ts_registro_sobre_ts(self):
+        # Revisión Codex P1 (PR #125): un `ts` del modelo antiguo o erróneo
+        # no puede purgar una línea recién registrada, y al revés.
+        reciente_con_ts_viejo = {"ts": "1999-01-01T00:00:00",
+                                 "ts_registro": AHORA.isoformat(), "n": 1}
+        vieja_con_ts_nuevo = dict(iso(40, "ts_registro"), ts=AHORA.isoformat(), n=2)
+        self.escribir([reciente_con_ts_viejo, vieja_con_ts_nuevo])
+        out = th.cmd_compactar(self.ruta, dias=30, ahora=AHORA)
+        self.assertEqual(out["eliminadas"], 1, out)
+        self.assertEqual([json.loads(ln)["n"] for ln in self.leer()], [1])
+
+    def test_ts_registro_ilegible_cae_a_ts(self):
+        self.escribir([dict(iso(40), ts_registro="basura"), dict(iso(1), ts_registro="basura")])
+        out = th.cmd_compactar(self.ruta, dias=30, ahora=AHORA)
+        self.assertEqual(out["eliminadas"], 1, out)
+
     def test_dias_ignora_el_tope_de_lineas(self):
         self.escribir([dict(iso(1), n=i) for i in range(50)])
         out = th.cmd_compactar(self.ruta, max_lineas=5, dias=30, ahora=AHORA)

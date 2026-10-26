@@ -899,7 +899,8 @@ fallback). Un movimiento sin `score` solo vale como
 telemetría), nunca durante un undo — reescribir el log justo cuando se
 necesita íntegro para revertir era el peor momento posible. Al cerrar
 cada sesión: si el log contiene entradas con `ts` de hace más de 30
-días, purgarlas **solo** con `compactar --dias 30` (v3.22.8) e informar
+días (por `ts_registro`, la hora real del append; `ts` solo si falta),
+purgarlas **solo** con `compactar --dias 30` (v3.22.8) e informar
 cuántas se purgaron. Nunca con un script propio: `compactar` es la única
 reescritura permitida del log (atómica, bajo `flock`, conserva lo que no
 sabe fechar). Primero `--dry-run`, y pide confirmación: lo purgado ya no
