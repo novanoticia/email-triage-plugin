@@ -13,6 +13,11 @@ Forma interna de una respuesta, antes de validar:
                 "probabilities": {opcion: float}, "confidence": float}}
 Salida de `validar_forma`: verdicts, no_aplica, inciertos, confianzas,
 confianzas_declaradas, probabilidades, discrepancias_confianza.
+
+Diagnóstico (v3.22.5, solo informativo): en `comparar` cada fila con respuesta
+válida lleva `por_criterio` (coincidencias con el principal criterio a criterio,
+aunque el correo se descarte) y la salida `comparacion_por_criterio`; un
+rechazo de forma lleva `motivo_detalle` (criterio y causa, nunca contenido).
 """
 import hashlib
 import http.client
@@ -37,12 +42,20 @@ MAX_LOTE = 50  # correos por invocación (`_filas`) y tope de `max_llamadas`
 
 
 class ErrorClasificador(Exception):
-    """Solo códigos locales, nunca cuerpo HTTP ni credenciales."""
+    """Solo códigos locales, nunca cuerpo HTTP ni credenciales.
+
+    `detalle` (opcional) es un dict de diagnóstico con nombres de criterio,
+    causas fijas y números; `str(exc)` sigue siendo solo el código.
+    """
+
+    def __init__(self, codigo, detalle=None):
+        super().__init__(codigo)
+        self.detalle = detalle
 
 
-def _exigir(condicion, codigo):
+def _exigir(condicion, codigo, detalle=None):
     if not condicion:
-        raise ErrorClasificador(codigo)
+        raise ErrorClasificador(codigo, detalle)
 
 
 def _numero(v, minimo, maximo):
@@ -185,6 +198,46 @@ def _principal(e, cfg, activos):
     return _scoring(e["id"], control, vs, cfg)
 
 
+def _por_criterio(principal, v):
+    """Veredicto externo frente al principal, criterio a criterio (informativo)."""
+    ext = dict(v["verdicts"], **{k: NO_APLICA for k in v["no_aplica"]},
+               **{k: INCIERTO for k in v["inciertos"]})
+    pri = dict(principal["verdicts"], **{k: NO_APLICA for k in principal["no_aplica"]})
+    difieren = {k: {"principal": pri[k], "externo": ext[k]} for k in sorted(ext)
+                if ext[k] != INCIERTO and ext[k] != pri.get(k)}
+    return {"criterios": len(ext), "coinciden": sum(ext[k] == pri.get(k) for k in ext),
+            "difieren": difieren, "inciertos": sorted(v["inciertos"])}
+
+
+def _agregar_por_criterio(filas):
+    """Resumen de `por_criterio` de las filas con respuesta válida."""
+    total = {"correos_evaluados": 0, "criterios_comparados": 0, "coinciden": 0,
+             "inciertos": 0, "tasa_coincidencia": None, "por_criterio": {}}
+    for r in filas:
+        pc = r.get("por_criterio")
+        if pc is None:
+            continue
+        total["correos_evaluados"] += 1
+        total["criterios_comparados"] += pc["criterios"]
+        total["coinciden"] += pc["coinciden"]
+        total["inciertos"] += len(pc["inciertos"])
+        for k in r["confianzas"]:
+            c = total["por_criterio"].setdefault(
+                k, {"coinciden": 0, "difieren": 0, "inciertos": 0, "confianza_baja": 0})
+            if k in pc["inciertos"]:
+                c["inciertos"] += 1
+            elif k in pc["difieren"]:
+                c["difieren"] += 1
+            else:
+                c["coinciden"] += 1
+            c["confianza_baja"] += k in r["criterios_confianza_baja"]
+    if total["criterios_comparados"]:
+        # Los inciertos cuentan como no coincidentes: tasa conservadora.
+        total["tasa_coincidencia"] = round(total["coinciden"] / total["criterios_comparados"], 4)
+    total["por_criterio"] = dict(sorted(total["por_criterio"].items()))
+    return total
+
+
 def _scoring(ident, control, vs, cfg):
     r = th.cmd_scoring_dispatch(dict(control, id=ident, verdicts=vs), cfg)
     _exigir(r.get("ok") is not False and not r.get("ignorados")
@@ -227,10 +280,17 @@ def validar_forma(answers, opciones_por_criterio, etiqueta):
         choice = a.get("choice")
         _exigir(isinstance(choice, str) and choice in opciones,
                 "opcion_%s_invalida" % etiqueta)
-        _exigir(isinstance(ps, dict) and set(ps) == set(opciones)
-                and all(_numero(p, 0, 1) for p in ps.values())
-                and abs(sum(ps.values()) - 1) <= 1e-5, "probabilidades_invalidas")
-        _exigir(ps[choice] >= max(ps.values()) - 1e-6, "opcion_no_maxima")
+        # Tres comprobaciones separadas para que `motivo_detalle` diga cuál
+        # falla (prueba real: 14 de 48 rechazos de Jev sin saber la causa).
+        _exigir(isinstance(ps, dict) and set(ps) == set(opciones), "probabilidades_invalidas",
+                {"criterio": k, "causa": "opciones"})
+        _exigir(all(_numero(p, 0, 1) for p in ps.values()), "probabilidades_invalidas",
+                {"criterio": k, "causa": "rango"})
+        desvio = abs(sum(ps.values()) - 1)
+        _exigir(desvio <= 1e-5, "probabilidades_invalidas",
+                {"criterio": k, "causa": "suma", "desviacion": round(desvio, 8)})
+        _exigir(ps[choice] >= max(ps.values()) - 1e-6, "opcion_no_maxima",
+                {"criterio": k, "diferencia": round(max(ps.values()) - ps[choice], 8)})
         conf = a.get("confidence")
         n = len(ps)
         esperada = (max(ps.values()) - 1 / n) / (1 - 1 / n)
@@ -400,6 +460,9 @@ def procesar(p, cfg, capa, transporte, modo, prov):
                           "evaluacion_" + prov.etiqueta: v,
                           "criterios_confianza_baja": [k for k, valor
                               in v["confianzas"].items() if valor < c["confianza_minima"]]})
+                if modo == "comparar":
+                    # Antes de los frenos: así consta aunque el correo se descarte.
+                    r["por_criterio"] = _por_criterio(e["principal"], v)
                 _exigir(not v["inciertos"], prov.etiqueta + "_incierto")
                 _exigir(min(v["confianzas"].values()) >= c["confianza_minima"], "confianza_baja")
                 propuesta = _scoring(e["id"], e["control"], v["verdicts"], cfg)
@@ -422,6 +485,8 @@ def procesar(p, cfg, capa, transporte, modo, prov):
                 propuestas.append(propuesta)
             except ErrorClasificador as exc:
                 r["motivo"] = str(exc)
+                if exc.detalle is not None:
+                    r["motivo_detalle"] = exc.detalle
                 if str(exc).startswith(("http_", "fallo_red", "redireccion", "respuesta_")):
                     detenido = "proveedor_detenido"
             finally:
@@ -435,6 +500,7 @@ def procesar(p, cfg, capa, transporte, modo, prov):
         if modo == "comparar":
             salida["comparacion"] = (modelos._comparar_filas({"base": bases, "propuesta": propuestas})
                                       if bases else {"total": 0, "diferencias": []})
+            salida["comparacion_por_criterio"] = _agregar_por_criterio(salida["resultados"])
         else:
             modelos._frenar_plantillas(salida)
             salida["usar_principal"] = any(r["usar_principal"] for r in salida["resultados"])

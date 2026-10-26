@@ -71,6 +71,9 @@ la capa:
 6. Presenta discrepancias, exclusiones, llamadas, duración HTTP y consumo. El
    principal es referencia, no verdad etiquetada. Decisions no devuelve
    evidencias narrativas: no inventarlas.
+7. Mismo diagnóstico por criterio que Jev (punto 7 de `references/jev.md`,
+   v3.22.5): `por_criterio` por fila, `comparacion_por_criterio` en la salida y
+   `motivo_detalle` en los rechazos de forma, solo en `comparar` e informativo.
 
 ## Triaje real: modo híbrido explícito
 

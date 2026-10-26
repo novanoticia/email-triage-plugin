@@ -110,12 +110,13 @@ def a_forma_interna(r, preguntas):
                 and set(a) == {"type", "name", "choice", "probabilities", "confidence"},
                 "tipo_respuesta")
         ps = a["probabilities"]
-        _exigir(isinstance(ps, list), "probabilidades_invalidas")
+        forma_mal = {"criterio": a["name"], "causa": "forma"}
+        _exigir(isinstance(ps, list), "probabilidades_invalidas", forma_mal)
         dist = {}
         for item in ps:
             _exigir(nc._objeto(item, ("value", "probability"))
                     and type(item["value"]) is str and item["value"] not in dist,
-                    "probabilidades_invalidas")
+                    "probabilidades_invalidas", forma_mal)
             dist[item["value"]] = item["probability"]
         _exigir(type(a["choice"]) is str, "opcion_decisions_invalida")
         forma[a["name"]] = {"type": "choice", "choice": a["choice"],

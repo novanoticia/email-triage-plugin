@@ -86,6 +86,20 @@ existente: para adoptar el alias cambia su campo a `modelo: jev-latest` o elimí
    interpretar el acuerdo del subconjunto aceptado como precisión del lote completo.
    No afirmar ahorro, precisión o latencia global medidos sin datos equivalentes:
    aquí se ejecutan ambos evaluadores y la comparación añade coste.
+7. Diagnóstico por criterio (v3.22.5, solo informativo). Un solo criterio
+   `__incierto__` o con confianza baja descarta el correo entero, y con 13–30
+   criterios por correo eso dejaba la comparación sin datos (prueba real: 0 de 48
+   correos útiles). Por eso cada fila con respuesta válida lleva `por_criterio`
+   aunque se descarte: `criterios`, `coinciden`, `difieren`
+   (`{criterio: {principal, externo}}`) e `inciertos`. La salida añade
+   `comparacion_por_criterio`: totales del lote, `tasa_coincidencia` (los
+   inciertos cuentan como no coincidentes) y, por criterio, cuántas veces
+   coincide, difiere, sale incierto o tiene confianza baja. Un rechazo de forma
+   lleva `motivo_detalle` con el criterio y la causa (`opciones`, `rango`, `suma`
+   con su `desviacion`, `forma` en Decisions; `diferencia` en
+   `opcion_no_maxima`), nunca contenido del correo. Nada de esto crea propuestas,
+   cambia `usar_principal` ni existe en `hibrido`. Preséntalo como acuerdo con el
+   principal, no como precisión: el principal no es verdad etiquetada.
 
 ## Triaje real: modo híbrido explícito
 
