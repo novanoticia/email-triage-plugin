@@ -225,7 +225,10 @@ Escribe `tmp/modelos-validar.json` con `esperados` del principal y `respuesta`
   en lo que el especialista **recibió**, sin contar espacios ni la marca final
   `[truncado]`. Una palabra cambiada, añadida o perdida en cualquier punto deja
   ese correo en `entrega_distinta` (prueba real: 4 de 41 extractos alterados al
-  copiarlos, y ni la huella ni el `eco` lo vieron). Un fichero sin el formato
+  copiarlos, y ni la huella ni el `eco` lo vieron). Pon el id de cada unidad
+  **antes** de su extracto (`--- ID 8 ---` o `{"id": "8", "extracto": …}`): el
+  extracto tiene que estar bajo su propio id, o sale `entrega_distinta` (así
+  dos extractos intercambiados entre correos no pasan). Un fichero sin el formato
   esperado es `transcript_no_reconocido`, nunca un «todo bien». Pásalo siempre
   que el host tenga transcript; si no lo encuentras, omítelo y dilo en el
   resumen (la salida trae `entrega_verificada: false`). El formato del

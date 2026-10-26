@@ -309,7 +309,8 @@ def validar(p):
                     or th.huella_extracto(extracto) != huella):
                 motivo = "extracto_distinto"
         if not motivo and recibido is not None:
-            if not _entregado((enviados.get(ident) or {}).get("extracto"), recibido):
+            if not _entregado((enviados.get(ident) or {}).get("extracto"), recibido,
+                              ident, set(enviados)):
                 motivo = "entrega_distinta"
         # v3.21.36 (prueba real 2026-10-24: extractos copiados a mano, con
         # texto ajeno, cortados o sin una línea): la huella mira el lote que
@@ -396,23 +397,55 @@ def _texto_recibido(ruta):
                                   and b.get("type") == "text" and isinstance(b.get("text"), str))
     except OSError:
         return None, "transcript_ilegible"
-    texto = _sin_espacios(" ".join(partes))
-    if not texto:
+    crudo = " ".join(partes)
+    if not _sin_espacios(crudo):
         return None, "transcript_no_reconocido"
-    return texto, None
+    # Dos lecturas: tal cual y con los escapes JSON resueltos, porque el
+    # principal puede pegar el lote como JSON (revisión Codex P2, PR #126:
+    # un `\n` escapado no es un espacio hasta desescaparlo).
+    return (_sin_espacios(crudo), _sin_espacios(_desescapar_json(crudo))), None
 
 
-def _entregado(extracto, recibido):
-    """True si el extracto completo aparece en lo recibido, salvo espacios.
-    Admite que el principal lo pegara como texto o escapado en JSON, y que
-    omitiera la marca final « [truncado]»."""
-    if not isinstance(extracto, str):
+_ESCAPE_JSON = re.compile(r'\\(u[0-9a-fA-F]{4}|["\\/bfnrt])')
+_SIMPLES = {'"': '"', "\\": "\\", "/": "/", "b": "\b", "f": "\f",
+            "n": "\n", "r": "\r", "t": "\t"}
+
+
+def _desescapar_json(texto):
+    def uno(m):
+        c = m.group(1)
+        return chr(int(c[1:], 16)) if c[0] == "u" else _SIMPLES[c]
+    return _ESCAPE_JSON.sub(uno, texto)
+
+
+def _marca_id(ids):
+    """Marca de unidad antes del extracto: `ID 8`, `--- ID 8 ---`,
+    `"id": "8"`… Solo cuenta si lo marcado es un id del lote."""
+    alternativas = "|".join(re.escape(i) for i in sorted(ids, key=len, reverse=True))
+    return re.compile(r'(?i)\bid\W{0,4}(%s)(?!\w)' % alternativas)
+
+
+def _entregado(extracto, recibido, ident, ids):
+    """True si el extracto completo aparece en lo recibido, salvo espacios,
+    y la última marca de unidad anterior es la suya. Admite texto o JSON
+    escapado y que se omitiera la marca final « [truncado]».
+
+    Revisión Codex P2 (PR #126): sin la marca, dos extractos intercambiados
+    entre unidades pasaban, y los veredictos se atribuirían al correo
+    equivocado. Por eso el id tiene que ir ANTES de su extracto; si no va,
+    la unidad sale `entrega_distinta` (lo seguro)."""
+    if not isinstance(extracto, str) or not _texto(ident):
         return False
-    base = _MARCA_TRUNCADO.sub("", extracto)
-    variantes = {_sin_espacios(base)}
-    for ascii_ in (False, True):
-        variantes.add(_sin_espacios(json.dumps(base, ensure_ascii=ascii_)[1:-1]))
-    return any(v in recibido for v in variantes)
+    base = _sin_espacios(_MARCA_TRUNCADO.sub("", extracto))
+    marca = _marca_id(ids)
+    for texto in recibido:
+        inicio = texto.find(base)
+        while inicio != -1:
+            previas = list(marca.finditer(texto, 0, inicio))
+            if previas and previas[-1].group(1) == ident:
+                return True
+            inicio = texto.find(base, inicio + 1)
+    return False
 
 
 def _herramientas_especialista(p):

@@ -7,6 +7,7 @@ declara y el eco solo el principio y el final: ninguno lo vio. `validar`
 con `transcript_especialista` busca cada extracto completo en lo que el
 especialista recibió de verdad. Transcripts sintéticos en tempfiles.
 """
+import copy
 import json
 import os
 import shutil
@@ -73,6 +74,51 @@ class TestVerificarEntrega(unittest.TestCase):
         prompt = json.dumps({"unidades": [{"id": "1", "extracto": self.extracto}]})
         r = self.validar(self.transcript(prompt))
         self.assertIn("resultado", r["resultados"][0])
+
+    def test_json_con_saltos_escapados_cuenta(self):
+        # Revisión Codex P2 (PR #126): reflujado y serializado como JSON, los
+        # `\\n` escapados no son espacios hasta desescaparlos.
+        reflujado = self.extracto.replace(". ", ".\n   \t")
+        prompt = json.dumps({"unidades": [{"id": "1", "extracto": reflujado}]})
+        r = self.validar(self.transcript(prompt))
+        self.assertIn("resultado", r["resultados"][0], r["resultados"][0])
+
+    def dos_unidades(self):
+        otro = th.cmd_sanitizar(CUERPO.replace("jueves", "viernes"), max_chars=300)["texto"]
+        segundo = copy.deepcopy(self.p["esperados"][0])
+        segundo.update(id="2", huella_extracto=th.huella_extracto(otro))
+        self.p["esperados"].append(segundo)
+        fila = copy.deepcopy(self.p["respuesta"]["evaluaciones"][0])
+        fila["id"] = "2"
+        self.p["respuesta"]["evaluaciones"].append(fila)
+        self.p["lote"]["unidades"].append({"id": "2", "extracto": otro})
+        return otro
+
+    def test_extractos_intercambiados_entre_unidades_no_cuentan(self):
+        # Revisión Codex P2 (PR #126): ambos textos están, pero cada uno bajo
+        # el id del otro; los veredictos irían al correo equivocado.
+        otro = self.dos_unidades()
+        for prompt in ("--- ID 1 ---\n%s\n--- ID 2 ---\n%s" % (otro, self.extracto),
+                       json.dumps({"unidades": [{"id": "1", "extracto": otro},
+                                                {"id": "2", "extracto": self.extracto}]})):
+            with self.subTest(prompt=prompt[:15]):
+                r = self.validar(self.transcript(prompt))
+                self.assertEqual([f["motivo"] for f in r["resultados"]],
+                                 ["entrega_distinta", "entrega_distinta"])
+
+    def test_cada_extracto_bajo_su_id_cuenta(self):
+        otro = self.dos_unidades()
+        prompt = "--- ID 1 ---\n%s\n--- ID 2 ---\n%s" % (self.extracto, otro)
+        r = self.validar(self.transcript(prompt))
+        self.assertTrue(all("resultado" in f for f in r["resultados"]), r["resultados"])
+
+    def test_sin_id_antes_del_extracto_no_cuenta(self):
+        r = self.validar(self.transcript("Evalúa esto:\n" + self.extracto + "\n(ID 1)"))
+        self.assertEqual(r["resultados"][0]["motivo"], "entrega_distinta")
+
+    def test_id_1_no_es_id_10(self):
+        r = self.validar(self.transcript("--- ID 10 ---\n" + self.extracto))
+        self.assertEqual(r["resultados"][0]["motivo"], "entrega_distinta")
 
     def test_los_casos_reales_de_corrupcion_en_medio(self):
         palabras = self.extracto.split()

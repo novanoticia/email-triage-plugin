@@ -104,6 +104,9 @@ relue par un humain. / Traducción generada por una IA, sin revisión humana.
     espacios.
   - **Resultado:** cualquier cambio, en cualquier punto del extracto, deja ese
     correo en `entrega_distinta`, y su evaluación delegada no cuenta.
+  - **Cada extracto, bajo su ID:** el ID de la unidad tiene que ir antes de su
+    extracto. Así, si dos extractos se intercambian entre correos, tampoco
+    pasan la comprobación.
   - **Límites:** el formato del registro no está documentado por Claude Code,
     y fuera de Claude Code no existe. Si no hay registro, la salida lo indica
     con `entrega_verificada: false`.
