@@ -224,13 +224,14 @@ def validar(p):
     # `tool_uses` que el HOST informa de la llamada. Cualquier acción cuenta
     # como herramienta (revisión Codex P1, PR #94: en Claude Code la entrega
     # no suma; un host que sí la sume queda sin delegación, fail-closed).
-    # Opcional.
-    acciones = p.get("acciones_especialista")
-    if acciones is not None:
-        if type(acciones) is not int or acciones < 0:
-            return _error("acciones_especialista_invalidas")
-        if acciones > 0:
-            return _error("especialista_uso_herramientas")
+    # v3.22.7 (prueba real 2026-10-26): Claude Code 2.1.310 cuenta la entrega
+    # (`SubagentHandback`) como 1 acción y el principal omitió el campo para
+    # que la respuesta contara: la omisión dejaba el freno abierto. Ahora es
+    # obligatorio; `herramientas_especialista` (nombres del host) exime solo
+    # la entrega, y un host que no lo informe se declara con "no_informado".
+    verificadas, motivo = _herramientas_especialista(p)
+    if motivo:
+        return _error(motivo)
     cfg = p.get("config")
     if not isinstance(cfg, dict):
         return _error("config_invalida")
@@ -328,9 +329,44 @@ def validar(p):
         if fila["dudas"]:
             fila_res["dudas"] = fila["dudas"]
         resultados.append(fila_res)
-    salida = {"ok": True, "resultados": resultados}
+    salida = {"ok": True, "resultados": resultados,
+              "herramientas_verificadas": verificadas}
     _frenar_plantillas(salida)
     return salida
+
+
+ENTREGA_ESPECIALISTA = "SubagentHandback"
+
+
+def _herramientas_especialista(p):
+    """(verificadas, motivo de error | None) a partir de lo que informa el host.
+
+    `acciones_especialista`: el `tool_uses` del host (int >= 0) o
+    "no_informado" si el host no lo da. `herramientas_especialista`
+    (opcional, solo con int): los nombres, tantos como acciones. Solo una
+    `SubagentHandback` se descuenta; cualquier otra acción es herramienta.
+    """
+    if "acciones_especialista" not in p:
+        return False, "acciones_especialista_ausente"
+    acciones = p["acciones_especialista"]
+    nombres = p.get("herramientas_especialista")
+    if acciones == "no_informado":
+        if "herramientas_especialista" in p:
+            return False, "herramientas_especialista_invalidas"
+        return False, None
+    if type(acciones) is not int or acciones < 0:
+        return False, "acciones_especialista_invalidas"
+    entregas = 0
+    if "herramientas_especialista" in p:
+        if (not isinstance(nombres, list) or len(nombres) != acciones
+                or not all(_texto(n) for n in nombres)):
+            return False, "herramientas_especialista_invalidas"
+        if any(n != ENTREGA_ESPECIALISTA for n in nombres) or len(nombres) > 1:
+            return False, "especialista_uso_herramientas"
+        entregas = len(nombres)
+    if acciones - entregas > 0:
+        return False, "especialista_uso_herramientas"
+    return True, None
 
 
 def _frenar_plantillas(salida):

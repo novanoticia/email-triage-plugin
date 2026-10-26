@@ -25,7 +25,8 @@ ENSAYO = os.path.join(SKILL, "config-ensayo-p3.yaml")
 def _payload(cfg):
     activos = m._criterios(cfg)
     vs = {k: next(iter(opciones)) for k, (opciones, _) in activos.items()}
-    return {"plan": copy.deepcopy(PLAN_OK), "esperados": [{"id": "1", "control": {
+    return {"plan": copy.deepcopy(PLAN_OK), "acciones_especialista": 0,
+            "esperados": [{"id": "1", "control": {
         "hard_rules": [], "extra_points": 0, "forzar_reply_needed": False,
         "tier_maximo": None, "remitente_en_historial": False}}],
         "respuesta": {"evaluaciones": [{"id": "1", "verdicts": vs,

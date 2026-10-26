@@ -39,7 +39,10 @@ def lote():
     cfg = yaml.safe_load((SKILL / "config.yaml").read_text())
     activos = m._criterios(cfg)
     vs = {k: next(iter(opciones)) for k, (opciones, _) in activos.items()}
-    return {"plan": PLAN_OK, "config": cfg, "esperados": [{"id": "1", "control": {
+    # v3.22.7: `acciones_especialista` es obligatorio; 0 = el host no
+    # informó ninguna acción del especialista.
+    return {"plan": PLAN_OK, "config": cfg, "acciones_especialista": 0,
+        "esperados": [{"id": "1", "control": {
         "hard_rules": [], "extra_points": 0, "forzar_reply_needed": False,
         "tier_maximo": None, "remitente_en_historial": False}}],
         "respuesta": {"evaluaciones": [{"id": "1", "verdicts": vs,
@@ -292,8 +295,44 @@ class TestPlanAutorizaDelegacion(unittest.TestCase):
             self.assertEqual(m.ejecutar("validar", p)["motivo"],
                              "acciones_especialista_invalidas", malo)
 
-    def test_sin_acciones_se_comporta_como_antes(self):
-        self.assertTrue(m.ejecutar("validar", lote())["ok"])
+    def test_sin_acciones_ya_no_valida(self):
+        # v3.22.7 (prueba real): omitir el campo dejaba el freno abierto.
+        p = lote()
+        del p["acciones_especialista"]
+        r = m.ejecutar("validar", p)
+        self.assertEqual(r["motivo"], "acciones_especialista_ausente")
+        self.assertTrue(r["usar_principal"])
+
+    def test_entrega_del_host_se_descuenta_solo_con_su_nombre(self):
+        # Claude Code 2.1.310 cuenta `SubagentHandback` como 1 acción.
+        p = lote()
+        p.update(acciones_especialista=1, herramientas_especialista=["SubagentHandback"])
+        r = m.ejecutar("validar", p)
+        self.assertTrue(r["ok"], r)
+        self.assertTrue(r["herramientas_verificadas"])
+        for nombres, acciones in ((["Bash"], 1), (["SubagentHandback", "Read"], 2),
+                                  (["SubagentHandback", "SubagentHandback"], 2)):
+            p = lote()
+            p.update(acciones_especialista=acciones, herramientas_especialista=nombres)
+            self.assertEqual(m.ejecutar("validar", p)["motivo"],
+                             "especialista_uso_herramientas", nombres)
+
+    def test_nombres_incoherentes_con_las_acciones(self):
+        for nombres, acciones in ((["SubagentHandback"], 2), ([], 1), ("SubagentHandback", 1),
+                                  ([""], 1), (["SubagentHandback"], "no_informado")):
+            p = lote()
+            p.update(acciones_especialista=acciones, herramientas_especialista=nombres)
+            self.assertEqual(m.ejecutar("validar", p)["motivo"],
+                             "herramientas_especialista_invalidas", (nombres, acciones))
+
+    def test_host_que_no_informa_se_declara_y_queda_marcado(self):
+        p = lote()
+        p["acciones_especialista"] = "no_informado"
+        r = m.ejecutar("validar", p)
+        self.assertTrue(r["ok"], r)
+        self.assertFalse(r["herramientas_verificadas"])
+        p = lote()
+        self.assertTrue(m.ejecutar("validar", p)["herramientas_verificadas"])
 
     def test_un_plan_que_dijo_usar_principal_no_autoriza(self):
         cerrado = plan()

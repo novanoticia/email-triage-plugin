@@ -348,6 +348,10 @@ Desde v3.21.25: Claude Code lista ese agente como «All tools», pero con
 no describe el caso. `sin_herramientas` se toma entonces del frontmatter y
 se vigila con `acciones_especialista` (el `tool_uses` del host) en
 `validar`: cualquier acción (> 0) = usó herramientas y la respuesta no cuenta.
+Desde v3.22.7 ese campo es obligatorio (omitirlo abría el freno: prueba real
+con Claude Code 2.1.310, que cuenta la entrega `SubagentHandback`); solo esa
+entrega se descuenta, nombrada en `herramientas_especialista`, y un host sin
+dato se declara `"no_informado"` (`herramientas_verificadas: false`).
 Desde v3.21.26 una fila con `dudas` se puntúa igual (sigue `usar_principal`,
 motivo `requiere_contexto_o_revision`, con las dudas en la fila): así llega
 al comparador en vez de perderse (prueba real: Haiku, dudas en 5 de 5).
