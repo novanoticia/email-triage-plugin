@@ -200,9 +200,15 @@ class TestVerificarEntrega(unittest.TestCase):
         self.assertEqual(self.validar(ruta)["resultados"][0]["motivo"], "entrega_distinta")
 
     def test_resultados_de_herramientas_no_cuentan(self):
+        # El texto de un `tool_result` (aquí, el de la entrega permitida) no es
+        # lo que el especialista recibió del principal.
+        self.p.update(acciones_especialista=1, herramientas_especialista=["SubagentHandback"])
         ruta = self.transcript("Evalúa la unidad 1.", extra=[
+            {"type": "assistant", "message": {"role": "assistant", "content": [
+                {"type": "tool_use", "id": "h1", "name": "SubagentHandback"}]}},
             {"type": "user", "message": {"role": "user", "content": [
-                {"type": "tool_result", "content": self.extracto}]}}])
+                {"type": "tool_result", "tool_use_id": "h1",
+                 "content": '<email-body-data id="1">%s</email-body-data>' % self.extracto}]}}])
         self.assertEqual(self.validar(ruta)["resultados"][0]["motivo"], "entrega_distinta")
 
     def test_transcript_irreconocible_o_ausente_no_da_por_bueno(self):
@@ -281,12 +287,31 @@ class TestVerificarEntrega(unittest.TestCase):
         r = self.validar(self.con_herramientas("Read"))
         self.assertEqual(r["motivo"], "especialista_uso_herramientas")
 
-    def test_herramientas_del_usuario_no_cuentan(self):
-        # Un `tool_use` en una entrada `user` no es algo que hiciera el especialista.
+    def test_tool_use_en_entrada_user_tambien_cuenta(self):
+        # Revisión Mistral (PR #127): fail-closed, venga en la entrada que venga.
         ruta = self.transcript(self.prompt(self.extracto), extra=[
             {"type": "user", "message": {"role": "user", "content": [
                 {"type": "tool_use", "id": "x", "name": "Bash"}]}}])
-        self.assertTrue(self.validar(ruta)["ok"])
+        self.assertEqual(self.validar(ruta)["motivo"], "especialista_uso_herramientas")
+
+    def test_tool_result_sin_su_tool_use_cuenta(self):
+        # Si se perdió la llamada, el resultado prueba que corrió una herramienta.
+        ruta = self.transcript(self.prompt(self.extracto), extra=[
+            {"type": "user", "message": {"role": "user", "content": [
+                {"type": "tool_result", "tool_use_id": "perdido", "content": "salida"}]}}])
+        r = self.validar(ruta)
+        self.assertEqual(r["motivo"], "especialista_uso_herramientas")
+
+    def test_tool_result_de_la_entrega_no_cuenta_dos_veces(self):
+        self.p.update(acciones_especialista=1, herramientas_especialista=["SubagentHandback"])
+        ruta = self.transcript(self.prompt(self.extracto), extra=[
+            {"type": "assistant", "message": {"role": "assistant", "content": [
+                {"type": "tool_use", "id": "h1", "name": "SubagentHandback"}]}},
+            {"type": "user", "message": {"role": "user", "content": [
+                {"type": "tool_result", "tool_use_id": "h1", "content": "ok"}]}}])
+        r = self.validar(ruta)
+        self.assertTrue(r["ok"], r)
+        self.assertEqual(r["herramientas_en_transcript"], ["SubagentHandback"])
 
     def test_sin_transcript_se_comporta_como_antes(self):
         r = m.ejecutar("validar", self.p)

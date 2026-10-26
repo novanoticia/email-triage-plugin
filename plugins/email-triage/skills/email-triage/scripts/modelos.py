@@ -381,8 +381,9 @@ def _texto_recibido(ruta):
     Lee el transcript JSONL del host (formato de Claude Code: entradas
     `type: user` con `message.content` en texto o en bloques `text`) y une
     lo que recibió el especialista (ver `_entregas`). De las entradas
-    `type: assistant` toma los bloques `*tool_use` (sus nombres, una vez
-    por id): lo que el especialista hizo, no lo que el principal copia.
+    `type: assistant` (y `user`) toma los bloques `*tool_use` (sus nombres,
+    una vez por id) y cuenta como «desconocida» cada `tool_result` sin su
+    `tool_use`: lo que el especialista hizo, no lo que el principal copia.
     Solo lee. Un fichero sin ese texto es
     `transcript_no_reconocido`: nunca un «todo bien» por defecto."""
     if not _texto(ruta):
@@ -391,7 +392,7 @@ def _texto_recibido(ruta):
     try:
         if not os.path.isfile(ruta) or os.path.getsize(ruta) > MAX_TRANSCRIPT:
             return None, "transcript_ilegible"
-        partes, usadas, ids_uso = [], [], set()
+        partes, usadas, ids_uso, ids_resultado = [], [], set(), set()
         with open(ruta, encoding="utf-8", errors="replace") as fh:
             for ln in fh:
                 try:
@@ -402,22 +403,31 @@ def _texto_recibido(ruta):
                     continue
                 mensaje = doc.get("message")
                 contenido = mensaje.get("content") if isinstance(mensaje, dict) else None
+                # Revisión Mistral (PR #127): cualquier entrada, no solo
+                # `assistant`; y un `tool_result` sin su `tool_use` también
+                # prueba que corrió una herramienta (fail-closed).
+                for b in contenido if isinstance(contenido, list) else ():
+                    tipo = b.get("type") if isinstance(b, dict) else None
+                    if not isinstance(tipo, str):
+                        continue
+                    if tipo.endswith("tool_use"):
+                        ident = b.get("id")
+                        if isinstance(ident, str) and ident in ids_uso:
+                            continue
+                        ids_uso.add(ident)
+                        usadas.append(b["name"] if _texto(b.get("name")) else "desconocida")
+                    elif tipo.endswith("tool_result"):
+                        ids_resultado.add(b.get("tool_use_id"))
                 if doc["type"] == "assistant":
-                    for b in contenido if isinstance(contenido, list) else ():
-                        if (isinstance(b, dict) and isinstance(b.get("type"), str)
-                                and b["type"].endswith("tool_use")):
-                            ident = b.get("id")
-                            if isinstance(ident, str) and ident in ids_uso:
-                                continue
-                            ids_uso.add(ident)
-                            usadas.append(b["name"] if _texto(b.get("name")) else "desconocida")
-                elif isinstance(contenido, str):
+                    continue
+                if isinstance(contenido, str):
                     partes.append(contenido)
                 elif isinstance(contenido, list):
                     partes.extend(b["text"] for b in contenido if isinstance(b, dict)
                                   and b.get("type") == "text" and isinstance(b.get("text"), str))
     except OSError:
         return None, "transcript_ilegible"
+    usadas += ["desconocida"] * len(ids_resultado - ids_uso)
     crudo = "\n".join(partes)
     if not _sin_espacios(crudo):
         return None, "transcript_no_reconocido"
