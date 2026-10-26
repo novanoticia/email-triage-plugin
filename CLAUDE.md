@@ -357,7 +357,11 @@ dato se declara `"no_informado"` (`herramientas_verificadas: false`).
 Desde v3.22.9 `validar` acepta `transcript_especialista` (con `lote`): lee
 el transcript del host y exige que el especialista recibiera cada extracto
 entero bajo su id, en `<email-body-data id>` o JSON (`entrega_distinta`;
-prueba real: 4 de 41 alterados al copiar). Es la única lectura de fichero de `modelos.py`; sigue sin escribir.
+prueba real: 4 de 41 alterados al copiar).
+Desde v3.22.10 ese transcript también da las herramientas (bloques `tool_use`
+del especialista) y manda sobre `acciones_especialista`: otra que no sea una
+`SubagentHandback` → `especialista_uso_herramientas`; declarar menos →
+`acciones_no_coinciden`. El freno ya no depende de lo que copia el principal. Es la única lectura de fichero de `modelos.py`; sigue sin escribir.
 Desde v3.21.26 una fila con `dudas` se puntúa igual (sigue `usar_principal`,
 motivo `requiere_contexto_o_revision`, con las dudas en la fila): así llega
 al comparador en vez de perderse (prueba real: Haiku, dudas en 5 de 5).

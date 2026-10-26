@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.22.9
+# Email Triage Plugin v3.22.10
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,27 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.22.10
+
+- **El freno de herramientas se comprueba en el transcript.** Desde v3.22.7
+  el principal tiene que declarar cuántas acciones hizo el subagente
+  (`acciones_especialista`), pero ese dato lo copia él: en una prueba real
+  omitió el campo para que la respuesta contara.
+  - **Qué cambia:** cuando `validar` recibe `transcript_especialista`, lee
+    también las herramientas que el subagente usó de verdad (los bloques
+    `tool_use` del registro). Eso manda sobre lo declarado.
+  - **Resultado:** cualquier herramienta que no sea la entrega
+    `SubagentHandback` deja la respuesta sin contar
+    (`especialista_uso_herramientas`), aunque el principal declare 0. Si
+    declara menos acciones de las que muestra el registro, sale
+    `acciones_no_coinciden`.
+  - **Aditivo:** sin transcript, todo sigue como antes. Con él, la salida
+    añade `herramientas_en_transcript` y `herramientas_verificadas` es `true`
+    aunque el host no informe acciones.
+  - **Límites:** el formato del registro no lo documenta Claude Code; es una
+    comprobación contra errores u omisiones al copiar, no contra un
+    principal que señale otro fichero.
 
 ## Novedades en v3.22.9
 

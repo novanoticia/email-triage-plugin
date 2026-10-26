@@ -200,9 +200,15 @@ class TestVerificarEntrega(unittest.TestCase):
         self.assertEqual(self.validar(ruta)["resultados"][0]["motivo"], "entrega_distinta")
 
     def test_resultados_de_herramientas_no_cuentan(self):
+        # El texto de un `tool_result` (aquí, el de la entrega permitida) no es
+        # lo que el especialista recibió del principal.
+        self.p.update(acciones_especialista=1, herramientas_especialista=["SubagentHandback"])
         ruta = self.transcript("Evalúa la unidad 1.", extra=[
+            {"type": "assistant", "message": {"role": "assistant", "content": [
+                {"type": "tool_use", "id": "h1", "name": "SubagentHandback"}]}},
             {"type": "user", "message": {"role": "user", "content": [
-                {"type": "tool_result", "content": self.extracto}]}}])
+                {"type": "tool_result", "tool_use_id": "h1",
+                 "content": '<email-body-data id="1">%s</email-body-data>' % self.extracto}]}}])
         self.assertEqual(self.validar(ruta)["resultados"][0]["motivo"], "entrega_distinta")
 
     def test_transcript_irreconocible_o_ausente_no_da_por_bueno(self):
@@ -224,10 +230,94 @@ class TestVerificarEntrega(unittest.TestCase):
         r = self.validar(self.transcript(self.prompt(self.extracto)))
         self.assertEqual(r["motivo"], "transcript_sin_lote")
 
+    # --- v3.22.10: herramientas leídas del transcript, no copiadas ---
+
+    def con_herramientas(self, *nombres, repetir_id=False):
+        bloques = [{"type": "tool_use", "id": "toolu_%d" % (0 if repetir_id else i),
+                    "name": n, "input": {}} for i, n in enumerate(nombres)]
+        # Claude Code guarda cada bloque en su propia entrada `assistant`.
+        extra = [{"type": "assistant", "message": {"role": "assistant", "content": [b]}}
+                 for b in bloques]
+        return self.transcript(self.prompt(self.extracto), extra=extra)
+
+    def test_herramienta_en_transcript_frena_aunque_se_declaren_cero(self):
+        # Prueba real (v3.22.7): el principal declaró lo que convenía; ahora
+        # el transcript manda.
+        for nombres in (["Bash"], ["Read", "Grep"], ["mcp__gmail__search"],
+                        ["SubagentHandback", "Read"], ["SubagentHandback", "SubagentHandback"]):
+            with self.subTest(nombres=nombres):
+                r = self.validar(self.con_herramientas(*nombres))
+                self.assertFalse(r["ok"])
+                self.assertEqual(r["motivo"], "especialista_uso_herramientas")
+                self.assertTrue(r["usar_principal"])
+
+    def test_server_tool_use_y_sin_nombre_tambien_cuentan(self):
+        bloques = [{"type": "server_tool_use", "id": "s1", "name": "web_search"},
+                   {"type": "tool_use", "id": "t1"}]
+        for b in bloques:
+            with self.subTest(tipo=b["type"]):
+                ruta = self.transcript(self.prompt(self.extracto), extra=[
+                    {"type": "assistant", "message": {"role": "assistant", "content": [b]}}])
+                self.assertEqual(self.validar(ruta)["motivo"], "especialista_uso_herramientas")
+
+    def test_solo_la_entrega_cuenta_si_se_declara(self):
+        self.p.update(acciones_especialista=1, herramientas_especialista=["SubagentHandback"])
+        r = self.validar(self.con_herramientas("SubagentHandback"))
+        self.assertTrue(r["ok"], r)
+        self.assertEqual(r["herramientas_en_transcript"], ["SubagentHandback"])
+        self.assertTrue(r["herramientas_verificadas"])
+
+    def test_declarar_menos_acciones_que_el_transcript_no_cuenta(self):
+        r = self.validar(self.con_herramientas("SubagentHandback"))  # declaradas: 0
+        self.assertEqual(r["motivo"], "acciones_no_coinciden")
+        self.assertTrue(r["usar_principal"])
+
+    def test_mismo_id_repetido_cuenta_una_vez(self):
+        self.p.update(acciones_especialista=1, herramientas_especialista=["SubagentHandback"])
+        r = self.validar(self.con_herramientas("SubagentHandback", "SubagentHandback",
+                                               repetir_id=True))
+        self.assertTrue(r["ok"], r)
+
+    def test_transcript_verifica_si_el_host_no_informa(self):
+        self.p["acciones_especialista"] = "no_informado"
+        r = self.validar(self.transcript(self.prompt(self.extracto)))
+        self.assertTrue(r["ok"], r)
+        self.assertTrue(r["herramientas_verificadas"])
+        self.assertEqual(r["herramientas_en_transcript"], [])
+        r = self.validar(self.con_herramientas("Read"))
+        self.assertEqual(r["motivo"], "especialista_uso_herramientas")
+
+    def test_tool_use_en_entrada_user_tambien_cuenta(self):
+        # Revisión Mistral (PR #127): fail-closed, venga en la entrada que venga.
+        ruta = self.transcript(self.prompt(self.extracto), extra=[
+            {"type": "user", "message": {"role": "user", "content": [
+                {"type": "tool_use", "id": "x", "name": "Bash"}]}}])
+        self.assertEqual(self.validar(ruta)["motivo"], "especialista_uso_herramientas")
+
+    def test_tool_result_sin_su_tool_use_cuenta(self):
+        # Si se perdió la llamada, el resultado prueba que corrió una herramienta.
+        ruta = self.transcript(self.prompt(self.extracto), extra=[
+            {"type": "user", "message": {"role": "user", "content": [
+                {"type": "tool_result", "tool_use_id": "perdido", "content": "salida"}]}}])
+        r = self.validar(ruta)
+        self.assertEqual(r["motivo"], "especialista_uso_herramientas")
+
+    def test_tool_result_de_la_entrega_no_cuenta_dos_veces(self):
+        self.p.update(acciones_especialista=1, herramientas_especialista=["SubagentHandback"])
+        ruta = self.transcript(self.prompt(self.extracto), extra=[
+            {"type": "assistant", "message": {"role": "assistant", "content": [
+                {"type": "tool_use", "id": "h1", "name": "SubagentHandback"}]}},
+            {"type": "user", "message": {"role": "user", "content": [
+                {"type": "tool_result", "tool_use_id": "h1", "content": "ok"}]}}])
+        r = self.validar(ruta)
+        self.assertTrue(r["ok"], r)
+        self.assertEqual(r["herramientas_en_transcript"], ["SubagentHandback"])
+
     def test_sin_transcript_se_comporta_como_antes(self):
         r = m.ejecutar("validar", self.p)
         self.assertTrue(r["ok"])
         self.assertFalse(r["entrega_verificada"])
+        self.assertNotIn("herramientas_en_transcript", r)
         self.assertIn("resultado", r["resultados"][0])
 
 
