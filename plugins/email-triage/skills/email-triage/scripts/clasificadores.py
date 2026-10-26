@@ -12,7 +12,8 @@ Forma interna de una respuesta, antes de validar:
     {criterio: {"type": "choice", "choice": str,
                 "probabilities": {opcion: float}, "confidence": float}}
 Salida de `validar_forma`: verdicts, no_aplica, inciertos, confianzas,
-confianzas_declaradas, probabilidades, discrepancias_confianza.
+confianzas_declaradas, probabilidades, discrepancias_confianza,
+probabilidades_redondeadas.
 
 Diagnóstico (v3.22.5, solo informativo): en `comparar` cada fila con respuesta
 válida lleva `por_criterio` (coincidencias con el principal criterio a criterio,
@@ -39,6 +40,9 @@ DESC_NO_APLICA = "Este criterio condicional no se aplica al correo."
 MAX_JSON = 1_048_576
 MAX_PETICION = 65_536
 MAX_LOTE = 50  # correos por invocación (`_filas`) y tope de `max_llamadas`
+# Desviación de la suma admitida por opción: probabilidades redondeadas a dos
+# decimales (prueba real v3.22.5: 20 de 48 respuestas de Jev con suma 0,99).
+REDONDEO_POR_OPCION = 0.005
 
 
 class ErrorClasificador(Exception):
@@ -272,7 +276,7 @@ def validar_forma(answers, opciones_por_criterio, etiqueta):
     `etiqueta` solo compone códigos de error estables por proveedor.
     """
     vs, na, confianzas, inciertos = {}, [], {}, []
-    distribuciones, declaradas, discrepancias = {}, {}, []
+    distribuciones, declaradas, discrepancias, redondeadas = {}, {}, [], []
     for k, opciones in opciones_por_criterio.items():
         a = answers[k]
         _exigir(isinstance(a, dict) and a.get("type") == "choice", "tipo_respuesta")
@@ -286,14 +290,20 @@ def validar_forma(answers, opciones_por_criterio, etiqueta):
                 {"criterio": k, "causa": "opciones"})
         _exigir(all(_numero(p, 0, 1) for p in ps.values()), "probabilidades_invalidas",
                 {"criterio": k, "causa": "rango"})
-        desvio = abs(sum(ps.values()) - 1)
-        _exigir(desvio <= 1e-5, "probabilidades_invalidas",
+        suma = sum(ps.values())
+        desvio = abs(suma - 1)
+        # + 1e-9: en el límite exacto la coma flotante da 0.020000000000000018 > 0.02
+        # (revisión Codex, PR #123: [0.93, 0.03, 0.03, 0.03] es un redondeo válido).
+        _exigir(desvio <= max(1e-5, REDONDEO_POR_OPCION * len(ps)) + 1e-9, "probabilidades_invalidas",
                 {"criterio": k, "causa": "suma", "desviacion": round(desvio, 8)})
+        if desvio > 1e-5:
+            redondeadas.append(k)
         _exigir(ps[choice] >= max(ps.values()) - 1e-6, "opcion_no_maxima",
                 {"criterio": k, "diferencia": round(max(ps.values()) - ps[choice], 8)})
         conf = a.get("confidence")
         n = len(ps)
-        esperada = (max(ps.values()) - 1 / n) / (1 - 1 / n)
+        # Con suma > 1 se normaliza; con suma < 1 no: la confianza nunca sube.
+        esperada = (max(ps.values()) / max(1.0, suma) - 1 / n) / (1 - 1 / n)
         _exigir(_numero(conf, 0, 1), "confianza_invalida")
         # Los ejemplos publicados redondean y a veces discrepan de la fórmula.
         # Conservar ambos valores y usar el menor: nunca aumentar confianza.
@@ -311,7 +321,8 @@ def validar_forma(answers, opciones_por_criterio, etiqueta):
             vs[k] = choice
     return {"verdicts": vs, "no_aplica": na, "inciertos": inciertos,
             "confianzas": confianzas, "confianzas_declaradas": declaradas,
-            "probabilidades": distribuciones, "discrepancias_confianza": discrepancias}
+            "probabilidades": distribuciones, "discrepancias_confianza": discrepancias,
+            "probabilidades_redondeadas": redondeadas}
 
 
 class _SinRedireccion(urllib.request.HTTPRedirectHandler):
@@ -476,7 +487,8 @@ def procesar(p, cfg, capa, transporte, modo, prov):
                     _exigir(all(_numero(x, -1e9, 1e9) for x in fronteras), "umbrales_invalidos")
                     reevaluar = (propuesta["tier"] in ("ARCHIVE", "REPLY_NEEDED")
                                  or any(abs(propuesta["score"] - x) <= 1 for x in fronteras)
-                                 or bool(v["discrepancias_confianza"]))
+                                 or bool(v["discrepancias_confianza"])
+                                 or bool(v["probabilidades_redondeadas"]))
                     r.update(usar_principal=reevaluar, revision_obligatoria=True,
                              motivo="reevaluar_tier_umbral_o_confianza" if reevaluar else "propuesta_validada",
                              payload_scoring=dict(e["control"], id=e["id"], verdicts=v["verdicts"]))

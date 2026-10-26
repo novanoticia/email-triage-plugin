@@ -135,7 +135,7 @@ class TestMotivoDetalle(unittest.TestCase):
     def test_causas_de_probabilidades_invalidas(self):
         def suma(a):
             k = sorted(a)[0]
-            a[k]["probabilities"][a[k]["choice"]] = 0.999
+            a[k]["probabilities"][a[k]["choice"]] = 0.9  # fuera de la tolerancia de redondeo
 
         def rango(a):
             k = sorted(a)[0]
@@ -157,7 +157,7 @@ class TestMotivoDetalle(unittest.TestCase):
                     self.assertEqual(det["causa"], causa)
                     self.assertEqual(det["criterio"], sorted(nc._opciones(lote()[1]))[0])
                     if causa == "suma":
-                        self.assertAlmostEqual(det["desviacion"], 0.001, places=6)
+                        self.assertAlmostEqual(det["desviacion"], 0.1, places=6)
                     self.assertNotIn("por_criterio", fila)
                     # Solo criterio, causa y números: nada del correo.
                     texto = json.dumps(det)
@@ -191,6 +191,94 @@ class TestMotivoDetalle(unittest.TestCase):
         self.assertEqual(str(exc), "probabilidades_invalidas")
         self.assertIsNone(nc.ErrorClasificador("http_500").detalle)
         self.assertIs(j.ErrorJev, nc.ErrorClasificador)
+
+
+def redondear(answers, elegida_p=0.99, otra_p=0.0):
+    """Probabilidades a dos decimales: la elegida `elegida_p` y una segunda `otra_p`."""
+    for a in answers.values():
+        ops = list(a["probabilities"])
+        otra = next(o for o in ops if o != a["choice"])
+        a["probabilities"] = {o: 0.0 for o in ops}
+        a["probabilities"][a["choice"]] = elegida_p
+        a["probabilities"][otra] = otra_p
+
+
+class TestRedondeo(unittest.TestCase):
+    """v3.22.6: Jev redondea a dos decimales (prueba real: 20 de 48 con suma 0,99)."""
+
+    def comparar(self, nombre, modulo, resp, clave, mutar):
+        envolver = mutar_jev if nombre == "jev" else mutar_decisions
+        p, cfg = lote()
+        with patch.dict(os.environ, {clave: "ficticia"}):
+            return modulo.comparar(p, cfg, ACTIVO, envolver(resp, mutar))
+
+    def test_suma_099_se_acepta_y_se_marca(self):
+        for nombre, modulo, resp, clave in PROVEEDORES:
+            with self.subTest(proveedor=nombre):
+                r = self.comparar(nombre, modulo, resp, clave, redondear)
+                fila = r["resultados"][0]
+                self.assertEqual(fila["motivo"], "solo_comparacion", fila.get("motivo_detalle"))
+                ev = fila["evaluacion_" + ("jev" if nombre == "jev" else "decisions")]
+                self.assertEqual(sorted(ev["probabilidades_redondeadas"]), sorted(ev["confianzas"]))
+                self.assertTrue(fila["usar_principal"]); self.assertFalse(r["permitir_movimientos"])
+
+    def test_suma_mayor_que_1_no_infla_confianza(self):
+        r = self.comparar("jev", j, respuesta_jev, "TYPESAFE_API_KEY",
+                          lambda a: redondear(a, 0.99, 0.02))
+        ev = r["resultados"][0]["evaluacion_jev"]
+        for k, ps in ev["probabilidades"].items():
+            n = len(ps)
+            sin_normalizar = (0.99 - 1 / n) / (1 - 1 / n)
+            self.assertLess(ev["confianzas"][k], sin_normalizar)
+
+    def test_desviacion_grande_sigue_rechazada(self):
+        r = self.comparar("jev", j, respuesta_jev, "TYPESAFE_API_KEY",
+                          lambda a: redondear(a, 0.90, 0.0))
+        fila = r["resultados"][0]
+        self.assertEqual(fila["motivo"], "probabilidades_invalidas")
+        self.assertEqual(fila["motivo_detalle"]["causa"], "suma")
+
+    def test_limite_exacto_de_redondeo_se_acepta(self):
+        # Revisión Codex (PR #123): con 4 opciones el límite es 0,02 y la coma
+        # flotante calcula 0.020000000000000018 para [0.93, 0.03, 0.03, 0.03].
+        ps = {"a": 0.93, "b": 0.03, "c": 0.03, "d": 0.03}
+        v = nc.validar_forma({"k": {"type": "choice", "choice": "a", "probabilities": ps,
+                                    "confidence": 0.9}}, {"k": set(ps)}, "jev")
+        self.assertEqual(v["verdicts"], {"k": "a"})
+        self.assertEqual(v["probabilidades_redondeadas"], ["k"])
+        fuera = dict(ps, a=0.88)  # suma 0,97: desviación 0,03 > 0,02
+        with self.assertRaises(nc.ErrorClasificador):
+            nc.validar_forma({"k": {"type": "choice", "choice": "a", "probabilities": fuera,
+                                    "confidence": 0.9}}, {"k": set(ps)}, "jev")
+
+    def test_sin_redondeo_lista_vacia(self):
+        p, cfg = lote()
+        with patch.dict(os.environ, {"TYPESAFE_API_KEY": "ficticia"}):
+            r = j.comparar(p, cfg, ACTIVO, respuesta_jev)
+        self.assertEqual(r["resultados"][0]["evaluacion_jev"]["probabilidades_redondeadas"], [])
+
+    def test_hibrido_con_redondeo_vuelve_al_principal(self):
+        def redondear_coherente(answers):
+            # Confianza declarada = calculada: solo el redondeo puede forzar la revisión.
+            redondear(answers)
+            for a in answers.values():
+                n = len(a["probabilities"])
+                a["confidence"] = (0.99 - 1 / n) / (1 - 1 / n)
+
+        def evaluar(transporte):
+            p, cfg = lote()
+            for e in p["emails"]:
+                del e["principal"]; e["contexto_suficiente"] = True
+                e["control"]["extra_points"] = 9  # score 6: REVIEW, lejos de los umbrales
+            with patch.dict(os.environ, {"OPENAI_API_KEY": "ficticia"}):
+                return d.evaluar(p, cfg, dict(ACTIVO, modo="hibrido"), transporte)["resultados"][0]
+
+        control = evaluar(respuesta_decisions)
+        self.assertEqual(control["motivo"], "propuesta_validada", control["propuesta"])
+        fila = evaluar(mutar_decisions(respuesta_decisions, redondear_coherente))
+        self.assertFalse(fila["evaluacion_decisions"]["discrepancias_confianza"])
+        self.assertTrue(fila["usar_principal"])
+        self.assertEqual(fila["motivo"], "reevaluar_tier_umbral_o_confianza")
 
 
 if __name__ == "__main__":
