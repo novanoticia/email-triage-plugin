@@ -208,7 +208,16 @@ Escribe `tmp/modelos-validar.json` con `esperados` del principal y `respuesta`
   MCP), `validar` responde `especialista_uso_herramientas`: la respuesta no cuenta
   y **no vuelvas a delegar en esta sesión** (marca `sin_herramientas: false`
   en el plan). Un host que cuente la propia entrega como acción se queda sin
-  delegación: es lo seguro. Si no lo informa, omite el campo y dilo en el resumen.
+  delegación: es lo seguro. Desde v3.22.7 el campo es **obligatorio**: sin él,
+  `validar` responde `acciones_especialista_ausente` (prueba real: Claude Code
+  2.1.310 cuenta la entrega `SubagentHandback` como 1 acción y el principal
+  omitió el campo para que la respuesta contara). Copia también
+  `herramientas_especialista`: los nombres de las herramientas que muestra el
+  transcript del host, tantos como acciones. Solo una `SubagentHandback` se
+  descuenta; cualquier otro nombre es `especialista_uso_herramientas`. Si el host
+  no informa acciones, escribe `"acciones_especialista": "no_informado"` (sin
+  nombres) y dilo en el resumen: la salida trae `herramientas_verificadas: false`.
+  Nunca omitas el campo ni escribas 0 si el host informó otra cosa.
 
 ```bash
 python3 "<ruta-del-skill>/scripts/modelos.py" validar --config ~/.email-triage/config.yaml < ~/.email-triage/tmp/modelos-validar.json
