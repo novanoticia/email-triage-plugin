@@ -176,7 +176,9 @@ rompes la conformidad (gate #7) y el skill deja de cargar fuera de Claude.
   docstring del módulo): en la ruta de DATOS **solo `cmd_registrar`
   escribe** (append atómico bajo `flock` a los JSONL, append-only);
   **`cmd_compactar`** es mantenimiento explícito que **reescribe** ese JSONL
-  bajo el mismo `flock` (temp + `os.replace`) truncándolo a N líneas; y
+  bajo el mismo `flock` (temp + `os.replace`) truncándolo a N líneas o,
+  desde v3.22.8, con `--dias N` a las de los últimos N días (retención del
+  session log: antes el modelo la hacía con un script propio); y
   desde CM2 (auditoría 2026-07-19) los volcados opt-in **regenerables** —
   `calibrar --guardar` (snapshot de la caché de calibración,
   `calibracion.json`) y `scoring --desglose RUTA` (desglose completo para

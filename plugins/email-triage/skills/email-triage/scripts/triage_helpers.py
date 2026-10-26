@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.22.7).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.22.8).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -95,7 +95,8 @@ Uso:
   python3 triage_helpers.py escapar-applescript [--valores JSON]
                             (JSON {"valores":[...]}; sin él lee de stdin)
   python3 triage_helpers.py compactar [--archivo RUTA] [--max-lineas N]
-                            [--dry-run]   (recorta correcciones.jsonl a N líneas)
+                            [--dias N] [--dry-run]   (recorta un JSONL a N
+                            líneas o, con --dias, a los últimos N días)
   python3 triage_helpers.py verificar-sesion [--datos JSON]
                             (PASO 5.V: cuenta los movimientos que la sesión
                             registró de verdad en session_log.jsonl y los
@@ -186,7 +187,8 @@ su clase (CM2, auditoría 2026-07-19):
                            'vectores' (v3.21.19) tampoco: deriva cada vector
                            del desglose y es la única vía a vectors.jsonl;
   2. 'compactar':          mantenimiento explícito — REESCRIBE ese JSONL bajo
-                           el mismo flock (temp + os.replace) truncándolo;
+                           el mismo flock (temp + os.replace) truncándolo
+                           a N líneas o, con --dias (v3.22.8), por fecha;
   3. 'calibrar --guardar': snapshot de CACHÉ regenerable (calibracion.json,
                            temp + os.replace): borrarlo solo cuesta recalcular;
   4. 'scoring --desglose': volcado opt-in del desglose completo a RUTA (mismo
@@ -218,7 +220,7 @@ import tempfile
 import unicodedata
 import urllib.parse
 from collections import defaultdict, deque
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 # ════════════════════════════════════════════════════════════════
@@ -2569,27 +2571,68 @@ def _contar_y_ultimas(ruta, n):
     return total, ultimas
 
 
+def _contar_y_recientes(ruta, dias, ahora):
+    """(total, líneas cuyo `ts_registro` —o, sin él, `ts`— tiene <= `dias` días).
+
+    v3.22.8: retención por fecha del session log (PASO 4.I). Las líneas sin
+    fecha legible, no JSON o con fecha futura se CONSERVAN: purgar solo lo
+    que se sabe antiguo (prueba real 2026-10-26: sin este modo, el modelo
+    reescribió el log con un script propio). Manda `ts_registro`, la hora
+    real del append que pone `registrar`: un `ts` del modelo antiguo o
+    erróneo no puede purgar una línea recién escrita (revisión Codex P1,
+    PR #125)."""
+    total, recientes = 0, []
+    corte = ahora - timedelta(days=dias)
+    with open(ruta, encoding="utf-8", errors="replace") as fh:
+        for ln in fh:
+            total += 1
+            try:
+                doc = json.loads(ln)
+            except ValueError:
+                doc = None
+            ts = None
+            if isinstance(doc, dict):
+                ts = _parse_ts(doc.get("ts_registro")) or _parse_ts(doc.get("ts"))
+            if ts is None or ts >= corte:
+                recientes.append(ln)
+    return total, recientes
+
+
 def cmd_compactar(ruta: str, max_lineas: int = MAX_CORRECCIONES,
-                  dry_run: bool = False) -> dict:
+                  dry_run: bool = False, dias=None, ahora=None) -> dict:
+    """Recorta un JSONL a sus últimas `max_lineas` o, con `dias`, a las
+    líneas de los últimos `dias` días (sin tope de líneas)."""
     ruta = _expandir(ruta)
     if not isinstance(max_lineas, int) or isinstance(max_lineas, bool) \
             or max_lineas <= 0:
         max_lineas = MAX_CORRECCIONES
+    if dias is not None and (not isinstance(dias, int) or isinstance(dias, bool)
+                             or dias <= 0):
+        return {"ok": False, "error": "--dias debe ser un entero positivo"}
+    ahora = ahora or datetime.now(timezone.utc)
+
+    def seleccionar():
+        if dias is None:
+            total, ultimas = _contar_y_ultimas(ruta, max_lineas)
+            return total, list(ultimas), max_lineas
+        total, recientes = _contar_y_recientes(ruta, dias, ahora)
+        return total, recientes, len(recientes)
     if not os.path.exists(ruta):
         return {"ok": True, "ruta": ruta, "lineas_antes": 0,
                 "lineas_despues": 0, "eliminadas": 0, "cambio": False,
                 "nota": "el fichero no existe todavía"}
     try:
-        antes, ultimas = _contar_y_ultimas(ruta, max_lineas)
+        antes, conservadas, tope = seleccionar()
     except OSError as e:
         return {"ok": False, "error": "no se pudo leer %s: %s" % (ruta, e)}
 
-    if antes <= max_lineas:
+    if antes <= tope:
+        nota = ("nada más antiguo de %d días" % dias if dias is not None
+                else "por debajo del tope (%d); nada que compactar" % max_lineas)
         return {"ok": True, "ruta": ruta, "lineas_antes": antes,
                 "lineas_despues": antes, "eliminadas": 0, "cambio": False,
-                "nota": "por debajo del tope (%d); nada que compactar" % max_lineas}
+                "nota": nota}
 
-    conservadas = list(ultimas)
     eliminadas = antes - len(conservadas)
     if dry_run:
         return {"ok": True, "ruta": ruta, "lineas_antes": antes,
@@ -2657,14 +2700,13 @@ def cmd_compactar(ruta: str, max_lineas: int = MAX_CORRECCIONES,
         # esos appends (TOCTOU con pérdida de correcciones). Releer aquí y
         # recomputar garantiza que ninguna escritura concurrente se pierda.
         try:
-            antes, ultimas = _contar_y_ultimas(ruta, max_lineas)
+            antes, conservadas, tope = seleccionar()
         except OSError as e:
             return {"ok": False, "error": "no se pudo releer %s: %s" % (ruta, e)}
-        if antes <= max_lineas:
+        if antes <= tope:
             return {"ok": True, "ruta": ruta, "lineas_antes": antes,
                     "lineas_despues": antes, "eliminadas": 0, "cambio": False,
                     "nota": "por debajo del tope al releer bajo lock"}
-        conservadas = list(ultimas)
         eliminadas = antes - len(conservadas)
         import tempfile
         fd, tmp = tempfile.mkstemp(dir=directorio, prefix=".compactar-")
@@ -5142,6 +5184,9 @@ def _construir_parser():
                     help="líneas a conservar (por defecto %d)" % MAX_CORRECCIONES)
     pc.add_argument("--dry-run", action="store_true",
                     help="reporta qué haría sin escribir")
+    pc.add_argument("--dias", type=int, default=None,
+                    help="conserva solo las líneas de los últimos N días "
+                         "(retención del session log); ignora --max-lineas")
     pdx = sub.add_parser("diagnostico-ejes")
     pdx.add_argument("--desglose", nargs="+", required=True, metavar="RUTA",
                      help="uno o más ficheros escritos por scoring --desglose")
@@ -5273,7 +5318,8 @@ def main():
             valores = data.get("valores") if isinstance(data, dict) else data
             out = cmd_escapar_applescript(valores)
     elif args.cmd == "compactar":
-        out = cmd_compactar(args.archivo, args.max_lineas, dry_run=args.dry_run)
+        out = cmd_compactar(args.archivo, args.max_lineas, dry_run=args.dry_run,
+                            dias=args.dias)
     elif args.cmd == "diagnostico-ejes":
         # P1, Fase 1: SOLO LEE desgloses; no escribe nada ni cambia scores.
         docs, fallos = [], []

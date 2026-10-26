@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.22.7
+# Email Triage Plugin v3.22.8
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,21 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.22.8
+
+- **Purga del log por fecha con `compactar --dias 30`.** El plugin pide
+  purgar del `session_log.jsonl` las entradas de más de 30 días, pero
+  `compactar` solo sabía recortar por número de líneas. En una prueba real, el
+  modelo reescribió el log con un script propio, que es justo lo que el plugin
+  prohíbe.
+  - **Cómo funciona ahora:** `compactar --dias N` conserva solo las líneas de
+    los últimos N días. Usa el mismo método que el recorte por líneas: copia
+    temporal y sustitución atómica, con el fichero bloqueado y permisos 600.
+  - **Qué no borra:** las líneas sin fecha legible o con fecha futura se
+    conservan. Solo se purga lo que se sabe antiguo.
+  - **Qué hace el modelo:** el SKILL.md le manda usar este comando, primero
+    con `--dry-run`, y pedirte confirmación antes de purgar.
 
 ## Novedades en v3.22.7
 
