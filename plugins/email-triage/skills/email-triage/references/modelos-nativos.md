@@ -125,7 +125,7 @@ Entrega únicamente al especialista:
 - El contrato completo de esta sección, las restricciones aplicables y el idioma.
 - Perfil y proyectos relevantes mínimos, nunca todo el historial de conversación.
 - IDs ordinales, asunto/remitente sanitizados, fecha y extracto **ya sanitizado**
-  en `<email-body-data>`, y contexto verificado del hilo cuando sea necesario.
+  en `<email-body-data id="N">` (con el id de la unidad, v3.22.9), y contexto verificado del hilo cuando sea necesario.
   El extracto es **el mismo `texto` de `sanitizar` que evalúas tú, sin
   recortar ni resumir** (v3.21.30): si no, la comparación mide extractos
   distintos, no modelos. Escribe el lote enviado en `tmp/modelos-lote.json`
@@ -221,14 +221,16 @@ Escribe `tmp/modelos-validar.json` con `esperados` del principal y `respuesta`
 - `transcript_especialista` (v3.22.9, con `lote`): la ruta del transcript que
   el host guarda de la llamada al evaluador. En Claude Code es el `.jsonl` del
   agente, bajo `~/.claude/projects/`, con el id que devuelve la herramienta.
-  `validar` lo lee (no escribe nada) y busca cada extracto del `lote` completo
-  en lo que el especialista **recibió**, sin contar espacios ni la marca final
-  `[truncado]`. Una palabra cambiada, añadida o perdida en cualquier punto deja
-  ese correo en `entrega_distinta` (prueba real: 4 de 41 extractos alterados al
-  copiarlos, y ni la huella ni el `eco` lo vieron). Pon el id de cada unidad
-  **antes** de su extracto (`--- ID 8 ---` o `{"id": "8", "extracto": …}`): el
-  extracto tiene que estar bajo su propio id, o sale `entrega_distinta` (así
-  dos extractos intercambiados entre correos no pasan). Un fichero sin el formato
+  `validar` lo lee (no escribe nada) y compara cada extracto del `lote`, entero,
+  con el que el especialista **recibió** bajo ese id, sin contar espacios ni la
+  marca final `[truncado]`. Una palabra cambiada, añadida o perdida en
+  cualquier punto, también al principio o al final, deja ese correo en
+  `entrega_distinta` (prueba real: 4 de 41 extractos alterados al copiarlos, y
+  ni la huella ni el `eco` lo vieron). Entrega cada extracto **con estructura**:
+  `<email-body-data id="8">…</email-body-data>` o el JSON del lote
+  (`{"id": "8", "extracto": …}`). En texto libre no se sabe dónde acaba el
+  extracto ni de qué unidad es, así que sale `entrega_distinta` (así tampoco
+  pasan dos extractos intercambiados entre correos). Un fichero sin el formato
   esperado es `transcript_no_reconocido`, nunca un «todo bien». Pásalo siempre
   que el host tenga transcript; si no lo encuentras, omítelo y dilo en el
   resumen (la salida trae `entrega_verificada: false`). El formato del

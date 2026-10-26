@@ -49,13 +49,16 @@ class TestVerificarEntrega(unittest.TestCase):
         self.p["transcript_especialista"] = ruta
         return m.ejecutar("validar", self.p)
 
-    def prompt(self, extracto):
-        return "Evalúa estas unidades.\n--- ID 1 ---\nAsunto: Comité\n" + extracto + "\nFin."
+    def prompt(self, extracto, ident="1"):
+        return ("Evalúa estas unidades.\nID %s\nAsunto: Comité\n"
+                '<email-body-data id="%s">\n%s\n</email-body-data>\nFin.' % (ident, ident, extracto))
 
     def test_entrega_identica_cuenta(self):
-        for forma in ("texto", "bloques"):
-            with self.subTest(forma=forma):
-                r = self.validar(self.transcript(self.prompt(self.extracto), forma))
+        como_json = "Lote:\n" + json.dumps(self.p["lote"], ensure_ascii=False)
+        for forma, prompt in (("texto", self.prompt(self.extracto)),
+                              ("bloques", self.prompt(self.extracto)), ("texto", como_json)):
+            with self.subTest(forma=forma, prompt=prompt[:12]):
+                r = self.validar(self.transcript(prompt, forma))
                 self.assertTrue(r["ok"], r)
                 self.assertTrue(r["entrega_verificada"])
                 self.assertIn("resultado", r["resultados"][0])
@@ -98,7 +101,7 @@ class TestVerificarEntrega(unittest.TestCase):
         # Revisión Codex P2 (PR #126): ambos textos están, pero cada uno bajo
         # el id del otro; los veredictos irían al correo equivocado.
         otro = self.dos_unidades()
-        for prompt in ("--- ID 1 ---\n%s\n--- ID 2 ---\n%s" % (otro, self.extracto),
+        for prompt in (self.prompt(otro, "1") + self.prompt(self.extracto, "2"),
                        json.dumps({"unidades": [{"id": "1", "extracto": otro},
                                                 {"id": "2", "extracto": self.extracto}]})):
             with self.subTest(prompt=prompt[:15]):
@@ -108,17 +111,57 @@ class TestVerificarEntrega(unittest.TestCase):
 
     def test_cada_extracto_bajo_su_id_cuenta(self):
         otro = self.dos_unidades()
-        prompt = "--- ID 1 ---\n%s\n--- ID 2 ---\n%s" % (self.extracto, otro)
+        prompt = self.prompt(self.extracto, "1") + self.prompt(otro, "2")
         r = self.validar(self.transcript(prompt))
         self.assertTrue(all("resultado" in f for f in r["resultados"]), r["resultados"])
 
-    def test_sin_id_antes_del_extracto_no_cuenta(self):
-        r = self.validar(self.transcript("Evalúa esto:\n" + self.extracto + "\n(ID 1)"))
-        self.assertEqual(r["resultados"][0]["motivo"], "entrega_distinta")
+    def test_texto_libre_sin_estructura_no_cuenta(self):
+        # Sin etiqueta ni JSON no hay forma de saber dónde acaba el extracto.
+        for prompt in ("--- ID 1 ---\n" + self.extracto, "Evalúa esto:\n" + self.extracto):
+            with self.subTest(prompt=prompt[:10]):
+                r = self.validar(self.transcript(prompt))
+                self.assertEqual(r["resultados"][0]["motivo"], "entrega_distinta")
 
     def test_id_1_no_es_id_10(self):
-        r = self.validar(self.transcript("--- ID 10 ---\n" + self.extracto))
+        r = self.validar(self.transcript(self.prompt(self.extracto, "10")))
         self.assertEqual(r["resultados"][0]["motivo"], "entrega_distinta")
+
+    def test_anadido_antes_o_despues_no_cuenta(self):
+        # Revisión Codex P2 (PR #126): el extracto más « Urgente.» contenía
+        # el original como subcadena y pasaba.
+        for alterado in (self.extracto + " Urgente.", "Urgente. " + self.extracto):
+            for prompt in (self.prompt(alterado),
+                           json.dumps({"unidades": [{"id": "1", "extracto": alterado}]})):
+                with self.subTest(prompt=prompt[:12], alterado=alterado[:8]):
+                    r = self.validar(self.transcript(prompt))
+                    self.assertEqual(r["resultados"][0]["motivo"], "entrega_distinta")
+
+    def test_mismo_id_con_otro_texto_en_otra_parte_no_cuenta(self):
+        prompt = self.prompt(self.extracto) + self.prompt(self.extracto + " Urgente.")
+        r = self.validar(self.transcript(prompt))
+        self.assertEqual(r["resultados"][0]["motivo"], "entrega_distinta")
+
+    def test_pares_sustitutos_en_json_ascii_cuentan(self):
+        # Revisión Codex P2 (PR #126): `ensure_ascii=True` escribe 📊 como
+        # dos escapes; desescaparlos por separado no daba el carácter.
+        extracto = th.cmd_sanitizar("Resumen 📊 trimestral. " + CUERPO, max_chars=300)["texto"]
+        self.assertIn("📊", extracto)
+        self.p["esperados"][0]["huella_extracto"] = th.huella_extracto(extracto)
+        self.p["lote"]["unidades"][0]["extracto"] = extracto
+        prompt = json.dumps(self.p["lote"], ensure_ascii=True)
+        self.assertIn("\\ud83d", prompt)
+        r = self.validar(self.transcript(prompt))
+        self.assertIn("resultado", r["resultados"][0], r["resultados"][0])
+
+    def test_id_de_otra_unidad_en_el_asunto_no_estorba(self):
+        # Revisión Codex P2 (PR #126): «Asunto: … solicitud ID 2» entre la
+        # cabecera y el extracto de la unidad 1 se tomaba por marca de unidad.
+        otro = self.dos_unidades()
+        prompt = json.dumps({"unidades": [
+            {"id": "1", "asunto": "Seguimiento de la solicitud ID 2", "extracto": self.extracto},
+            {"id": "2", "asunto": "Comité", "extracto": otro}]}, ensure_ascii=False)
+        r = self.validar(self.transcript(prompt))
+        self.assertTrue(all("resultado" in f for f in r["resultados"]), r["resultados"])
 
     def test_los_casos_reales_de_corrupcion_en_medio(self):
         palabras = self.extracto.split()

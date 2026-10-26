@@ -310,7 +310,7 @@ def validar(p):
                 motivo = "extracto_distinto"
         if not motivo and recibido is not None:
             if not _entregado((enviados.get(ident) or {}).get("extracto"), recibido,
-                              ident, set(enviados)):
+                              ident):
                 motivo = "entrega_distinta"
         # v3.21.36 (prueba real 2026-10-24: extractos copiados a mano, con
         # texto ajeno, cortados o sin una línea): la huella mira el lote que
@@ -367,11 +367,11 @@ def _sin_espacios(texto):
 
 
 def _texto_recibido(ruta):
-    """(texto que el especialista recibió, motivo de error | None).
+    """({id: extractos recibidos}, motivo de error | None).
 
     Lee el transcript JSONL del host (formato de Claude Code: entradas
     `type: user` con `message.content` en texto o en bloques `text`) y une
-    lo que recibió el especialista. Solo lee. Un fichero sin ese texto es
+    lo que recibió el especialista (ver `_entregas`). Solo lee. Un fichero sin ese texto es
     `transcript_no_reconocido`: nunca un «todo bien» por defecto."""
     if not _texto(ruta):
         return None, "transcript_invalido"
@@ -397,55 +397,71 @@ def _texto_recibido(ruta):
                                   and b.get("type") == "text" and isinstance(b.get("text"), str))
     except OSError:
         return None, "transcript_ilegible"
-    crudo = " ".join(partes)
+    crudo = "\n".join(partes)
     if not _sin_espacios(crudo):
         return None, "transcript_no_reconocido"
-    # Dos lecturas: tal cual y con los escapes JSON resueltos, porque el
-    # principal puede pegar el lote como JSON (revisión Codex P2, PR #126:
-    # un `\n` escapado no es un espacio hasta desescaparlo).
-    return (_sin_espacios(crudo), _sin_espacios(_desescapar_json(crudo))), None
+    return _entregas(crudo), None
 
 
-_ESCAPE_JSON = re.compile(r'\\(u[0-9a-fA-F]{4}|["\\/bfnrt])')
-_SIMPLES = {'"': '"', "\\": "\\", "/": "/", "b": "\b", "f": "\f",
-            "n": "\n", "r": "\r", "t": "\t"}
+_ETIQUETA = re.compile(r'<email-body-data\s+id\s*=\s*"([^"<>]*)"\s*>(.*?)</email-body-data>',
+                       re.DOTALL)
 
 
-def _desescapar_json(texto):
-    def uno(m):
-        c = m.group(1)
-        return chr(int(c[1:], 16)) if c[0] == "u" else _SIMPLES[c]
-    return _ESCAPE_JSON.sub(uno, texto)
+def _entregas(crudo):
+    """{id: [extractos recibidos, normalizados]} de las dos formas con
+    estructura: `<email-body-data id="8">…</email-body-data>` o un JSON con
+    `{"id": "8", "extracto": …}` (p. ej. el lote tal cual).
+
+    Revisión Codex P2 ×3 (PR #126): buscar el extracto como subcadena del
+    texto libre aceptaba añadidos antes o después («… Urgente.»), tomaba un
+    «ID 2» del asunto por una marca de unidad y no unía los pares
+    sustitutos de `\\ud83d\\udcca`. Ahora el id es un campo y el extracto se
+    compara entero; el JSON lo descodifica `json`, no una regex."""
+    vistos = {}
+
+    def anotar(ident, extracto):
+        if type(ident) is int:
+            ident = str(ident)
+        if isinstance(ident, str) and isinstance(extracto, str):
+            vistos.setdefault(ident, []).append(_normalizar_extracto(extracto))
+
+    for m in _ETIQUETA.finditer(crudo):
+        anotar(m.group(1), m.group(2))
+    decodificador = json.JSONDecoder()
+    i = crudo.find("{")
+    while i != -1:
+        try:
+            valor, fin = decodificador.raw_decode(crudo, i)
+        except ValueError:
+            i = crudo.find("{", i + 1)
+            continue
+        pendientes = [valor]
+        while pendientes:
+            v = pendientes.pop()
+            if isinstance(v, dict):
+                if "id" in v and "extracto" in v:
+                    anotar(v["id"], v["extracto"])
+                pendientes.extend(v.values())
+            elif isinstance(v, list):
+                pendientes.extend(v)
+        i = crudo.find("{", fin)
+    return vistos
 
 
-def _marca_id(ids):
-    """Marca de unidad antes del extracto: `ID 8`, `--- ID 8 ---`,
-    `"id": "8"`… Solo cuenta si lo marcado es un id del lote."""
-    alternativas = "|".join(re.escape(i) for i in sorted(ids, key=len, reverse=True))
-    return re.compile(r'(?i)\bid\W{0,4}(%s)(?!\w)' % alternativas)
+def _normalizar_extracto(texto):
+    return _sin_espacios(_MARCA_TRUNCADO.sub("", texto))
 
 
-def _entregado(extracto, recibido, ident, ids):
-    """True si el extracto completo aparece en lo recibido, salvo espacios,
-    y la última marca de unidad anterior es la suya. Admite texto o JSON
-    escapado y que se omitiera la marca final « [truncado]».
-
-    Revisión Codex P2 (PR #126): sin la marca, dos extractos intercambiados
-    entre unidades pasaban, y los veredictos se atribuirían al correo
-    equivocado. Por eso el id tiene que ir ANTES de su extracto; si no va,
-    la unidad sale `entrega_distinta` (lo seguro)."""
+def _entregado(extracto, entregas, ident):
+    """True si el especialista recibió bajo `ident` el extracto entero (salvo
+    espacios y la marca final « [truncado]») y nada distinto bajo ese id.
+    Sin una entrega con estructura para la unidad, `entrega_distinta`: lo
+    seguro (así tampoco pasan dos extractos intercambiados entre correos)."""
     if not isinstance(extracto, str) or not _texto(ident):
         return False
-    base = _sin_espacios(_MARCA_TRUNCADO.sub("", extracto))
-    marca = _marca_id(ids)
-    for texto in recibido:
-        inicio = texto.find(base)
-        while inicio != -1:
-            previas = list(marca.finditer(texto, 0, inicio))
-            if previas and previas[-1].group(1) == ident:
-                return True
-            inicio = texto.find(base, inicio + 1)
-    return False
+    recibidos = entregas.get(ident)
+    base = _normalizar_extracto(extracto)
+    return bool(recibidos) and all(r == base for r in recibidos)
 
 
 def _herramientas_especialista(p):

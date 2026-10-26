@@ -99,14 +99,16 @@ relue par un humain. / Traducción generada por una IA, sin revisión humana.
   compara el principio y el final del extracto.
   - **Qué cambia:** ahora `modelos.py validar` acepta
     `transcript_especialista`, la ruta del registro que Claude Code guarda de
-    la llamada al subagente. `validar` lo lee y busca cada extracto completo
-    en lo que el subagente recibió de verdad, sin tener en cuenta los
+    la llamada al subagente. `validar` lo lee y compara cada extracto, entero,
+    con el que el subagente recibió de verdad, sin tener en cuenta los
     espacios.
-  - **Resultado:** cualquier cambio, en cualquier punto del extracto, deja ese
-    correo en `entrega_distinta`, y su evaluación delegada no cuenta.
-  - **Cada extracto, bajo su ID:** el ID de la unidad tiene que ir antes de su
-    extracto. Así, si dos extractos se intercambian entre correos, tampoco
-    pasan la comprobación.
+  - **Resultado:** cualquier cambio, en cualquier punto del extracto (también
+    un añadido al principio o al final), deja ese correo en
+    `entrega_distinta`, y su evaluación delegada no cuenta.
+  - **Cada extracto, con estructura y bajo su ID:** dentro de
+    `<email-body-data id="8">…</email-body-data>` o en el JSON del lote. En
+    texto libre no cuenta. Así, si dos extractos se intercambian entre
+    correos, tampoco pasan la comprobación.
   - **Límites:** el formato del registro no está documentado por Claude Code,
     y fuera de Claude Code no existe. Si no hay registro, la salida lo indica
     con `entrega_verificada: false`.

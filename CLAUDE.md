@@ -355,9 +355,9 @@ con Claude Code 2.1.310, que cuenta la entrega `SubagentHandback`); solo esa
 entrega se descuenta, nombrada en `herramientas_especialista`, y un host sin
 dato se declara `"no_informado"` (`herramientas_verificadas: false`).
 Desde v3.22.9 `validar` acepta `transcript_especialista` (con `lote`): lee
-el transcript del host y exige cada extracto completo en lo que el
-especialista recibió (`entrega_distinta`; prueba real: 4 de 41 alterados al
-copiar). Es la única lectura de fichero de `modelos.py`; sigue sin escribir.
+el transcript del host y exige que el especialista recibiera cada extracto
+entero bajo su id, en `<email-body-data id>` o JSON (`entrega_distinta`;
+prueba real: 4 de 41 alterados al copiar). Es la única lectura de fichero de `modelos.py`; sigue sin escribir.
 Desde v3.21.26 una fila con `dudas` se puntúa igual (sigue `usar_principal`,
 motivo `requiere_contexto_o_revision`, con las dudas en la fila): así llega
 al comparador en vez de perderse (prueba real: Haiku, dudas en 5 de 5).
