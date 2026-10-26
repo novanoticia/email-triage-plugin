@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.22.4
+# Email Triage Plugin v3.22.5
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,25 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.22.5
+
+- **Diagnóstico por criterio al comparar Jev o Decisions.** Basta un criterio
+  incierto o con confianza baja para descartar el correo entero, y cada correo
+  tiene entre 13 y 30 criterios. En una prueba real, 0 de 48 correos dieron
+  propuesta con cada proveedor, así que no se sabía si el modelo coincidía con
+  el principal en casi todo o en casi nada. Ahora `comparar` añade:
+  - `por_criterio` en cada correo con respuesta válida, aunque se descarte:
+    cuántos criterios coinciden, cuáles difieren y cuáles salen inciertos;
+  - `comparacion_por_criterio` con el resumen del lote y la tasa de
+    coincidencia.
+
+  Los rechazos de formato llevan además `motivo_detalle`, que indica el
+  criterio y la causa. Las causas son opciones distintas, probabilidad fuera
+  de rango o suma desviada, con la desviación.
+
+  Es solo informativo: no crea propuestas, no cambia `usar_principal` y no
+  aparece en modo `hibrido`.
 
 ## Novedades en v3.22.4
 
