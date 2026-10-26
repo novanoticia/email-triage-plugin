@@ -33,6 +33,7 @@ DESC_INCIERTO = "Falta información suficiente o hay ambigüedad."
 DESC_NO_APLICA = "Este criterio condicional no se aplica al correo."
 MAX_JSON = 1_048_576
 MAX_PETICION = 65_536
+MAX_LOTE = 50  # correos por invocación (`_filas`) y tope de `max_llamadas`
 
 
 class ErrorClasificador(Exception):
@@ -80,7 +81,7 @@ def _filas(p):
     _exigir(isinstance(p, dict) and _texto(p.get("perfil_minimo"), 2000)
             and bool(p["perfil_minimo"].strip()), "perfil_invalido")
     emails = p.get("emails")
-    _exigir(isinstance(emails, list) and 1 <= len(emails) <= 50, "lote_invalido")
+    _exigir(isinstance(emails, list) and 1 <= len(emails) <= MAX_LOTE, "lote_invalido")
     ids = set()
     for e in emails:
         _exigir(isinstance(e, dict) and isinstance(e.get("id"), str)
@@ -286,7 +287,9 @@ def config_capa(capa, default, modelo_valido, etiqueta):
             "activacion_invalida")
     _exigir(c["modo"] in ("comparar", "hibrido"), "modo_invalido")
     _exigir(modelo_valido(c["modelo"]), "modelo_no_verificado")
-    _exigir(type(c["max_llamadas"]) is int and 1 <= c["max_llamadas"] <= 20
+    # Hasta 50 (v3.22.4): el mismo tope que el lote de `_filas`, para poder
+    # comparar una sesión completa en una invocación. El defecto sigue en 5.
+    _exigir(type(c["max_llamadas"]) is int and 1 <= c["max_llamadas"] <= MAX_LOTE
             and _numero(c["timeout_segundos"], 1, 60)
             and _numero(c["confianza_minima"], 0, 1), "limites_invalidos")
     return c

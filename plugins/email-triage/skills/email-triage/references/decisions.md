@@ -41,7 +41,7 @@ no simular una llamada real mediante otro modelo.
 
 La configuración admite `modo: comparar` (defecto) o `modo: hibrido`, `modelo`
 (`gpt-6-luna` por defecto, el único admitido por la API al consultarla), máximo de
-llamadas por ejecución 1–20 (defecto 5), timeout 1–60 s (defecto 15) y confianza
+llamadas por ejecución 1–50 (defecto 5), timeout 1–60 s (defecto 15) y confianza
 mínima 0–1 (defecto 0,8). No admite endpoints alternativos. Otro ID de modelo
 solo se acepta si la persona lo escribe en su capa; no hay alias: el `model` de la
 respuesta debe coincidir exactamente con el solicitado o el correo vuelve al

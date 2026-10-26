@@ -5,6 +5,6 @@ acepta_envio_datos: false
 modo: comparar                 # defecto sin movimientos; hibrido integra veredictos revisados
 # Sigue la versión estable actual. Puede fijarse un ID jev-X.Y.Z para reproducibilidad.
 modelo: jev-latest              # alias estable; API oficial verificada 2026-10-16
-max_llamadas: 5                 # por invocación, una por correo/hilo, sin reintentos
+max_llamadas: 5                 # 1–50, por invocación, una por correo/hilo, sin reintentos
 timeout_segundos: 15
 confianza_minima: 0.8           # experimental; no equivale a probabilidad de acierto
