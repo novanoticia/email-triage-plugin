@@ -270,9 +270,16 @@ def validar(p):
     if "transcript_especialista" in p:
         if enviados is None:
             return _error("transcript_sin_lote")
-        recibido, motivo_transcript = _texto_recibido(p["transcript_especialista"])
+        leido, motivo_transcript = _texto_recibido(p["transcript_especialista"])
         if motivo_transcript:
             return _error(motivo_transcript)
+        recibido, usadas = leido
+        # Lo que dice el transcript manda sobre lo que copia el principal:
+        # el freno de herramientas ya no depende de `acciones_especialista`.
+        motivo = _herramientas_transcript(usadas, p["acciones_especialista"])
+        if motivo:
+            return _error(motivo)
+        verificadas = True
     resultados = []
     for ident, esperado in esperados.items():
         fila = filas.get(ident)
@@ -351,6 +358,8 @@ def validar(p):
     salida = {"ok": True, "resultados": resultados,
               "herramientas_verificadas": verificadas,
               "entrega_verificada": recibido is not None}
+    if recibido is not None:
+        salida["herramientas_en_transcript"] = usadas
     _frenar_plantillas(salida)
     return salida
 
@@ -367,11 +376,14 @@ def _sin_espacios(texto):
 
 
 def _texto_recibido(ruta):
-    """({id: extractos recibidos}, motivo de error | None).
+    """(({id: extractos recibidos}, [herramientas usadas]), motivo | None).
 
     Lee el transcript JSONL del host (formato de Claude Code: entradas
     `type: user` con `message.content` en texto o en bloques `text`) y une
-    lo que recibió el especialista (ver `_entregas`). Solo lee. Un fichero sin ese texto es
+    lo que recibió el especialista (ver `_entregas`). De las entradas
+    `type: assistant` toma los bloques `*tool_use` (sus nombres, una vez
+    por id): lo que el especialista hizo, no lo que el principal copia.
+    Solo lee. Un fichero sin ese texto es
     `transcript_no_reconocido`: nunca un «todo bien» por defecto."""
     if not _texto(ruta):
         return None, "transcript_invalido"
@@ -379,18 +391,27 @@ def _texto_recibido(ruta):
     try:
         if not os.path.isfile(ruta) or os.path.getsize(ruta) > MAX_TRANSCRIPT:
             return None, "transcript_ilegible"
-        partes = []
+        partes, usadas, ids_uso = [], [], set()
         with open(ruta, encoding="utf-8", errors="replace") as fh:
             for ln in fh:
                 try:
                     doc = json.loads(ln)
                 except ValueError:
                     continue
-                if not isinstance(doc, dict) or doc.get("type") != "user":
+                if not isinstance(doc, dict) or doc.get("type") not in ("user", "assistant"):
                     continue
                 mensaje = doc.get("message")
                 contenido = mensaje.get("content") if isinstance(mensaje, dict) else None
-                if isinstance(contenido, str):
+                if doc["type"] == "assistant":
+                    for b in contenido if isinstance(contenido, list) else ():
+                        if (isinstance(b, dict) and isinstance(b.get("type"), str)
+                                and b["type"].endswith("tool_use")):
+                            ident = b.get("id")
+                            if isinstance(ident, str) and ident in ids_uso:
+                                continue
+                            ids_uso.add(ident)
+                            usadas.append(b["name"] if _texto(b.get("name")) else "desconocida")
+                elif isinstance(contenido, str):
                     partes.append(contenido)
                 elif isinstance(contenido, list):
                     partes.extend(b["text"] for b in contenido if isinstance(b, dict)
@@ -400,7 +421,7 @@ def _texto_recibido(ruta):
     crudo = "\n".join(partes)
     if not _sin_espacios(crudo):
         return None, "transcript_no_reconocido"
-    return _entregas(crudo), None
+    return (_entregas(crudo), usadas), None
 
 
 _ETIQUETA = re.compile(r'<email-body-data\s+id\s*=\s*"([^"<>]*)"\s*>(.*?)</email-body-data>',
@@ -496,6 +517,22 @@ def _herramientas_especialista(p):
     if acciones - entregas > 0:
         return False, "especialista_uso_herramientas"
     return True, None
+
+
+def _herramientas_transcript(usadas, acciones):
+    """Motivo de error | None según las herramientas del transcript.
+
+    Como en `_herramientas_especialista`, solo una `SubagentHandback` se
+    descuenta. Si el principal declaró menos acciones de las que el
+    transcript muestra, copió mal o las ocultó: `acciones_no_coinciden`.
+    "no_informado" no se contrasta (el host no dio el dato); el transcript
+    lo suple."""
+    otras = [n for n in usadas if n != ENTREGA_ESPECIALISTA]
+    if otras or len(usadas) > 1:
+        return "especialista_uso_herramientas"
+    if type(acciones) is int and acciones < len(usadas):
+        return "acciones_no_coinciden"
+    return None
 
 
 def _frenar_plantillas(salida):
