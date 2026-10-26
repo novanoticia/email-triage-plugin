@@ -153,6 +153,17 @@ class TestVerificarEntrega(unittest.TestCase):
         r = self.validar(self.transcript(prompt))
         self.assertIn("resultado", r["resultados"][0], r["resultados"][0])
 
+    def test_json_de_ejemplo_dentro_del_correo_no_es_una_entrega(self):
+        # Revisión Codex P2 (PR #126): un correo técnico con un ejemplo
+        # `{"id": "1", "extracto": …}` contaba como segunda entrega de la unidad.
+        cuerpo = 'Ejemplo de la API: {"id": "1", "extracto": "Ejemplo de la documentación"}. ' + CUERPO
+        extracto = th.cmd_sanitizar(cuerpo, max_chars=300)["texto"]
+        self.assertIn('"extracto"', extracto)
+        self.p["esperados"][0]["huella_extracto"] = th.huella_extracto(extracto)
+        self.p["lote"]["unidades"][0]["extracto"] = extracto
+        r = self.validar(self.transcript(self.prompt(extracto)))
+        self.assertIn("resultado", r["resultados"][0], r["resultados"][0])
+
     def test_id_de_otra_unidad_en_el_asunto_no_estorba(self):
         # Revisión Codex P2 (PR #126): «Asunto: … solicitud ID 2» entre la
         # cabecera y el extracto de la unidad 1 se tomaba por marca de unidad.

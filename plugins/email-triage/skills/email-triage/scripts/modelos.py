@@ -427,6 +427,9 @@ def _entregas(crudo):
 
     for m in _ETIQUETA.finditer(crudo):
         anotar(m.group(1), m.group(2))
+    # Revisión Codex P2 (PR #126): un JSON de ejemplo dentro del correo es
+    # dato, no una entrega; el barrido JSON no mira dentro de las etiquetas.
+    crudo = _ETIQUETA.sub(" ", crudo)
     decodificador = json.JSONDecoder()
     i = crudo.find("{")
     while i != -1:
