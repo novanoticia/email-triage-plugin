@@ -3,12 +3,16 @@
 
 No invoca modelos, no accede a red/buzón y no escribe archivos. El host ejecuta
 la delegación; este módulo comprueba elegibilidad, respuestas y comparaciones.
+Solo LEE un fichero: el transcript del especialista que indique `validar`
+(v3.22.9), para comprobar qué texto recibió de verdad.
 Entrada y salida JSON por stdin/stdout, sin contenido de correos en argumentos.
 """
 import argparse
 import copy
 import json
 import math
+import os
+import re
 import sys
 
 import triage_helpers as th
@@ -258,6 +262,17 @@ def validar(p):
         # plan y cambiarían el contexto del especialista.
         if set(enviados) != set(esperados):
             return _error("lote_distinto_de_esperados")
+    # v3.22.9 (prueba real 2026-10-26: el principal alteró al copiarlos 4 de
+    # 41 extractos y ni la huella ni el eco lo vieron): con el transcript del
+    # host se comprueba, extracto a extracto, que el especialista recibió el
+    # texto completo. Opcional: solo existe donde el host guarda transcript.
+    recibido = None
+    if "transcript_especialista" in p:
+        if enviados is None:
+            return _error("transcript_sin_lote")
+        recibido, motivo_transcript = _texto_recibido(p["transcript_especialista"])
+        if motivo_transcript:
+            return _error(motivo_transcript)
     resultados = []
     for ident, esperado in esperados.items():
         fila = filas.get(ident)
@@ -293,6 +308,10 @@ def validar(p):
             if (not isinstance(huella, str) or not isinstance(extracto, str)
                     or th.huella_extracto(extracto) != huella):
                 motivo = "extracto_distinto"
+        if not motivo and recibido is not None:
+            if not _entregado((enviados.get(ident) or {}).get("extracto"), recibido,
+                              ident):
+                motivo = "entrega_distinta"
         # v3.21.36 (prueba real 2026-10-24: extractos copiados a mano, con
         # texto ajeno, cortados o sin una línea): la huella mira el lote que
         # el principal declara; el eco, lo que el especialista recibió.
@@ -330,12 +349,122 @@ def validar(p):
             fila_res["dudas"] = fila["dudas"]
         resultados.append(fila_res)
     salida = {"ok": True, "resultados": resultados,
-              "herramientas_verificadas": verificadas}
+              "herramientas_verificadas": verificadas,
+              "entrega_verificada": recibido is not None}
     _frenar_plantillas(salida)
     return salida
 
 
 ENTREGA_ESPECIALISTA = "SubagentHandback"
+MAX_TRANSCRIPT = 50 * 1024 * 1024
+_MARCA_TRUNCADO = re.compile(r"\s*\[truncado\]\s*$")
+
+
+def _sin_espacios(texto):
+    """Espacios, tabuladores y saltos colapsados: el host o el principal
+    pueden reflujar líneas sin cambiar el contenido (14 de 41 en la prueba)."""
+    return re.sub(r"\s+", " ", texto).strip()
+
+
+def _texto_recibido(ruta):
+    """({id: extractos recibidos}, motivo de error | None).
+
+    Lee el transcript JSONL del host (formato de Claude Code: entradas
+    `type: user` con `message.content` en texto o en bloques `text`) y une
+    lo que recibió el especialista (ver `_entregas`). Solo lee. Un fichero sin ese texto es
+    `transcript_no_reconocido`: nunca un «todo bien» por defecto."""
+    if not _texto(ruta):
+        return None, "transcript_invalido"
+    ruta = os.path.expanduser(ruta)
+    try:
+        if not os.path.isfile(ruta) or os.path.getsize(ruta) > MAX_TRANSCRIPT:
+            return None, "transcript_ilegible"
+        partes = []
+        with open(ruta, encoding="utf-8", errors="replace") as fh:
+            for ln in fh:
+                try:
+                    doc = json.loads(ln)
+                except ValueError:
+                    continue
+                if not isinstance(doc, dict) or doc.get("type") != "user":
+                    continue
+                mensaje = doc.get("message")
+                contenido = mensaje.get("content") if isinstance(mensaje, dict) else None
+                if isinstance(contenido, str):
+                    partes.append(contenido)
+                elif isinstance(contenido, list):
+                    partes.extend(b["text"] for b in contenido if isinstance(b, dict)
+                                  and b.get("type") == "text" and isinstance(b.get("text"), str))
+    except OSError:
+        return None, "transcript_ilegible"
+    crudo = "\n".join(partes)
+    if not _sin_espacios(crudo):
+        return None, "transcript_no_reconocido"
+    return _entregas(crudo), None
+
+
+_ETIQUETA = re.compile(r'<email-body-data\s+id\s*=\s*"([^"<>]*)"\s*>(.*?)</email-body-data>',
+                       re.DOTALL)
+
+
+def _entregas(crudo):
+    """{id: [extractos recibidos, normalizados]} de las dos formas con
+    estructura: `<email-body-data id="8">…</email-body-data>` o un JSON con
+    `{"id": "8", "extracto": …}` (p. ej. el lote tal cual).
+
+    Revisión Codex P2 ×3 (PR #126): buscar el extracto como subcadena del
+    texto libre aceptaba añadidos antes o después («… Urgente.»), tomaba un
+    «ID 2» del asunto por una marca de unidad y no unía los pares
+    sustitutos de `\\ud83d\\udcca`. Ahora el id es un campo y el extracto se
+    compara entero; el JSON lo descodifica `json`, no una regex."""
+    vistos = {}
+
+    def anotar(ident, extracto):
+        if type(ident) is int:
+            ident = str(ident)
+        if isinstance(ident, str) and isinstance(extracto, str):
+            vistos.setdefault(ident, []).append(_normalizar_extracto(extracto))
+
+    for m in _ETIQUETA.finditer(crudo):
+        anotar(m.group(1), m.group(2))
+    # Revisión Codex P2 (PR #126): un JSON de ejemplo dentro del correo es
+    # dato, no una entrega; el barrido JSON no mira dentro de las etiquetas.
+    crudo = _ETIQUETA.sub(" ", crudo)
+    decodificador = json.JSONDecoder()
+    i = crudo.find("{")
+    while i != -1:
+        try:
+            valor, fin = decodificador.raw_decode(crudo, i)
+        except ValueError:
+            i = crudo.find("{", i + 1)
+            continue
+        pendientes = [valor]
+        while pendientes:
+            v = pendientes.pop()
+            if isinstance(v, dict):
+                if "id" in v and "extracto" in v:
+                    anotar(v["id"], v["extracto"])
+                pendientes.extend(v.values())
+            elif isinstance(v, list):
+                pendientes.extend(v)
+        i = crudo.find("{", fin)
+    return vistos
+
+
+def _normalizar_extracto(texto):
+    return _sin_espacios(_MARCA_TRUNCADO.sub("", texto))
+
+
+def _entregado(extracto, entregas, ident):
+    """True si el especialista recibió bajo `ident` el extracto entero (salvo
+    espacios y la marca final « [truncado]») y nada distinto bajo ese id.
+    Sin una entrega con estructura para la unidad, `entrega_distinta`: lo
+    seguro (así tampoco pasan dos extractos intercambiados entre correos)."""
+    if not isinstance(extracto, str) or not _texto(ident):
+        return False
+    recibidos = entregas.get(ident)
+    base = _normalizar_extracto(extracto)
+    return bool(recibidos) and all(r == base for r in recibidos)
 
 
 def _herramientas_especialista(p):

@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.22.8
+# Email Triage Plugin v3.22.9
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,30 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.22.9
+
+- **Comprobación de que el subagente recibió los extractos exactos.** En una
+  prueba real, el principal copió a mano los extractos en el prompt del
+  evaluador nativo y alteró 4 de 41: una errata, una palabra cambiada, una
+  línea duplicada y una frase añadida. Ninguna comprobación lo detectó. La
+  huella solo mira lo que el principal dice haber enviado, y el `eco` solo
+  compara el principio y el final del extracto.
+  - **Qué cambia:** ahora `modelos.py validar` acepta
+    `transcript_especialista`, la ruta del registro que Claude Code guarda de
+    la llamada al subagente. `validar` lo lee y compara cada extracto, entero,
+    con el que el subagente recibió de verdad, sin tener en cuenta los
+    espacios.
+  - **Resultado:** cualquier cambio, en cualquier punto del extracto (también
+    un añadido al principio o al final), deja ese correo en
+    `entrega_distinta`, y su evaluación delegada no cuenta.
+  - **Cada extracto, con estructura y bajo su ID:** dentro de
+    `<email-body-data id="8">…</email-body-data>` o en el JSON del lote. En
+    texto libre no cuenta. Así, si dos extractos se intercambian entre
+    correos, tampoco pasan la comprobación.
+  - **Límites:** el formato del registro no está documentado por Claude Code,
+    y fuera de Claude Code no existe. Si no hay registro, la salida lo indica
+    con `entrega_verificada: false`.
 
 ## Novedades en v3.22.8
 
