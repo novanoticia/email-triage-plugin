@@ -113,8 +113,8 @@ controles ni historial.
 La lista `answers` se convierte a la forma interna común antes de validarla. Se
 exige cobertura exacta: un `name` por pregunta, sin nulos ni duplicados; tipo
 `choice` sin campos extra; valores de texto (la API admite booleanos, que aquí se
-rechazan); probabilidades sin valores repetidos, finitas, que sumen uno y con la
-opción elegida como máxima. **Un `refusal` en cualquier pregunta es abstención del
+rechazan); probabilidades sin valores repetidos, finitas, que sumen uno (con la
+misma tolerancia de redondeo que Jev, v3.22.6) y con la opción elegida como máxima. **Un `refusal` en cualquier pregunta es abstención del
 correo entero** (`decisions_refusal`): la API permite que el resto se responda,
 pero no se puntúa con criterios ausentes. La confianza declarada es independiente
 de la distribución: se recalcula `(max(p)-1/n)/(1-1/n)` y se usa el **menor** de

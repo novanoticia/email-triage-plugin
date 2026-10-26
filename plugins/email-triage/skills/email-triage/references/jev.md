@@ -191,6 +191,13 @@ se conserva la confianza declarada y se usa el menor de ambos valores para el
 umbral, señalando discrepancias; nunca se aumenta confianza. Esta medida no es
 probabilidad de acertar. El umbral inicial es experimental.
 
+Desde v3.22.6 la suma admite el redondeo a dos decimales: una desviación de hasta
+0,005 por opción (prueba real: 20 de 48 respuestas de Jev sumaban 0,99, siempre
+con desviación 0,01). Más allá sigue siendo `probabilidades_invalidas`. Los
+criterios aceptados así figuran en `probabilidades_redondeadas`; con suma mayor
+que uno la confianza calculada se normaliza (nunca sube), y en `hibrido` un
+redondeo obliga a reevaluar con el principal.
+
 Los veredictos válidos pasan por el mismo `cmd_scoring_dispatch`, con los mismos
 pesos, reglas y controles del principal; no se acepta un score proporcionado por
 Jev. Se rechazan JSON duplicados/no finitos, respuestas excesivas y redirecciones.
