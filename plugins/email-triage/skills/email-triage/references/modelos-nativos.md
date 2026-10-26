@@ -218,6 +218,19 @@ Escribe `tmp/modelos-validar.json` con `esperados` del principal y `respuesta`
   no informa acciones, escribe `"acciones_especialista": "no_informado"` (sin
   nombres) y dilo en el resumen: la salida trae `herramientas_verificadas: false`.
   Nunca omitas el campo ni escribas 0 si el host informó otra cosa.
+- `transcript_especialista` (v3.22.9, con `lote`): la ruta del transcript que
+  el host guarda de la llamada al evaluador. En Claude Code es el `.jsonl` del
+  agente, bajo `~/.claude/projects/`, con el id que devuelve la herramienta.
+  `validar` lo lee (no escribe nada) y busca cada extracto del `lote` completo
+  en lo que el especialista **recibió**, sin contar espacios ni la marca final
+  `[truncado]`. Una palabra cambiada, añadida o perdida en cualquier punto deja
+  ese correo en `entrega_distinta` (prueba real: 4 de 41 extractos alterados al
+  copiarlos, y ni la huella ni el `eco` lo vieron). Un fichero sin el formato
+  esperado es `transcript_no_reconocido`, nunca un «todo bien». Pásalo siempre
+  que el host tenga transcript; si no lo encuentras, omítelo y dilo en el
+  resumen (la salida trae `entrega_verificada: false`). El formato del
+  transcript no está documentado por el host: es una comprobación de copia, no
+  una prueba frente a un principal que señale otro fichero.
 
 ```bash
 python3 "<ruta-del-skill>/scripts/modelos.py" validar --config ~/.email-triage/config.yaml < ~/.email-triage/tmp/modelos-validar.json
