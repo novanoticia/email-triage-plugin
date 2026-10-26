@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.22.10
+# Email Triage Plugin v3.22.11
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,28 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.22.11
+
+- **Aviso de plantilla con retoques (informativo).** En una prueba real, el
+  principal escribió los veredictos de 47 correos con un diccionario por
+  defecto y cambió solo 1-3 criterios en cada uno. Con un solo cambio, los
+  correos ya no son idénticos y la alerta de plantilla de v3.21.7 no saltaba.
+  - **Qué cambia:** `scoring` y el informe añaden `huellas_plantilla` con
+    dos señales:
+    - `criterios_inmoviles`: en un lote variado (10 o más correos en 3 o
+      más tiers), muchos criterios con el mismo valor en casi todos.
+    - `plantilla_cercana`: correos casi iguales a otros cuatro o más (3
+      veredictos de diferencia como mucho) que, aun así, caen en tiers
+      distintos.
+  - **Qué no salta:** diez promociones evaluadas de verdad se parecen, pero
+    van todas al mismo tier, así que no saltan.
+  - **Solo informativo:** no bloquea ningún movimiento. Antes de que frene
+    hay que calibrarlo con tus sesiones reales usando
+    `triage_helpers.py diagnostico-plantillas`, que solo lee los desgloses
+    guardados y dice qué sesiones habrían saltado.
+  - **`SKILL.md`:** prohíbe expresamente construir veredictos desde un
+    diccionario por defecto.
 
 ## Novedades en v3.22.10
 

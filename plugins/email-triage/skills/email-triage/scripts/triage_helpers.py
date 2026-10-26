@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.22.10).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.22.11).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -90,6 +90,9 @@ Uso:
   python3 triage_helpers.py diagnostico-ejes --desglose RUTA [RUTA ...] [--config RUTA]
                             (P1: mide la saturación de ejes en desgloses
                             reales; solo lee, no escribe ni cambia scores)
+  python3 triage_helpers.py diagnostico-plantillas [--desglose RUTA ...]
+                            (v3.22.11: calibra las huellas de plantilla con
+                            desgloses reales; solo lee)
   python3 triage_helpers.py registrar --ruta RUTA [--registro JSON]
                             (append atómico con flock; sin --registro lee de stdin)
   python3 triage_helpers.py escapar-applescript [--valores JSON]
@@ -210,6 +213,7 @@ Sin sus flags, 'calibrar', 'scoring' y 'sanitizar' no escriben nada. Ningún
 subcomando mueve correos.
 """
 import argparse
+import glob
 import html as html_mod
 import json
 import math
@@ -1684,6 +1688,156 @@ def _alerta_plantilla(items, res):
                      "evaluara cada correo; no se mueven como triaje"}
 
 
+# v3.22.11 (prueba real 2026-10-26): el principal escribió los veredictos de
+# 47 correos con un diccionario por defecto y 1-3 retoques por correo
+# (`u('M59', OPI, dict(...))`). Basta un retoque para que no sean idénticos
+# y `_alerta_plantilla` no salte, aunque 25+ de los 30 veredictos de cada
+# correo no los decidiera nadie mirándolo. Dos huellas más, SOLO
+# INFORMATIVAS hasta calibrarlas con sesiones reales (`diagnostico-plantillas`):
+#  - criterios inmóviles: en un lote variado (varios tiers), criterios con el
+#    mismo valor en casi todos los correos. Diez promociones (un solo tier)
+#    pueden coincidir de verdad; Codex, ensayos y ofertas, no.
+#  - vecinos cercanos: correos a <= DIST_CERCANA veredictos de otros
+#    MIN_VECINOS_CERCANA (vecinos directos, sin encadenar grupos) que caen
+#    en al menos dos tiers.
+# Ninguna bloquea `registrar`: solo `plantilla` (idénticos) lo hace.
+MIN_LOTE_INMOVILES = 10
+MIN_TIERS_INMOVILES = 3
+FRACCION_INMOVIL = 0.9
+UMBRAL_INMOVILES = 15
+DIST_CERCANA = 3
+MIN_VECINOS_CERCANA = 4
+MIN_CRITERIOS_CERCANA = 20
+MAX_FILAS_HUELLAS = 2000
+
+
+def _valor_clave(v):
+    try:
+        return json.dumps(v, sort_keys=True, ensure_ascii=False)
+    except (TypeError, ValueError):
+        return repr(v)
+
+
+def _huellas_plantilla(filas):
+    """Huellas informativas de veredictos de plantilla con retoques.
+
+    `filas`: [(id, {criterio: veredicto}, tier)]. Devuelve (resumen | None,
+    índices marcados `plantilla_cercana`). TOTAL: una fila rara no cuenta y
+    nunca lanza. No decide nada: el resumen dice qué mirar."""
+    try:
+        return _huellas_plantilla_nucleo(filas)
+    except Exception:  # red universal: es informativo, nunca tumba el lote
+        return None, []
+
+
+def _metricas_plantilla(filas):
+    """Métricas en bruto, sin umbrales (las usa también la calibración):
+    {"correos", "tiers", "inmoviles": [...], "cercanos": [índices]}."""
+    validas = [(i, {str(c): _valor_clave(v) for c, v in vs.items()}, t)
+               for i, (_, vs, t) in enumerate(filas)
+               if isinstance(vs, dict) and vs]
+    tiers = {t for _, _, t in validas if isinstance(t, str)}
+    n = len(validas)
+    cuenta = {}
+    for _, vs, _ in validas:
+        for c, v in vs.items():
+            cuenta.setdefault(c, {}).setdefault(v, 0)
+            cuenta[c][v] += 1
+    inmoviles = sorted(c for c, vals in cuenta.items()
+                       if n and max(vals.values()) >= FRACCION_INMOVIL * n)
+    # Vecinos que además caen en tiers distintos: diez promociones honradas
+    # son vecinas y van todas a ARCHIVE; una base común con retoques reparte
+    # correos casi iguales entre tiers.
+    cercanos = []
+    for i, va, ta in validas:
+        if len(va) < MIN_CRITERIOS_CERCANA:
+            continue
+        vecinos, tiers_vec = 0, {ta}
+        for j, vb, tb in validas:
+            if i == j or len(vb) < MIN_CRITERIOS_CERCANA:
+                continue
+            if sum(1 for c in set(va) | set(vb)
+                   if va.get(c) != vb.get(c)) <= DIST_CERCANA:
+                vecinos += 1
+                tiers_vec.add(tb)
+        if vecinos >= MIN_VECINOS_CERCANA and len(tiers_vec - {None}) >= 2:
+            cercanos.append(i)
+    return {"correos": n, "tiers": len(tiers), "criterios": len(cuenta),
+            "inmoviles": inmoviles, "cercanos": cercanos}
+
+
+def _huellas_plantilla_nucleo(filas):
+    if len(filas) > MAX_FILAS_HUELLAS:
+        return {"omitido": "lote de más de %d correos" % MAX_FILAS_HUELLAS}, []
+    m = _metricas_plantilla(filas)
+    resumen = {}
+    if (m["correos"] >= MIN_LOTE_INMOVILES and m["tiers"] >= MIN_TIERS_INMOVILES
+            and len(m["inmoviles"]) >= UMBRAL_INMOVILES):
+        resumen["criterios_inmoviles"] = {
+            "n": len(m["inmoviles"]), "de": m["criterios"],
+            "criterios": m["inmoviles"], "correos": m["correos"],
+            "tiers": m["tiers"]}
+    if m["cercanos"]:
+        resumen["plantilla_cercana"] = {
+            "correos": len(m["cercanos"]),
+            "ids": [filas[i][0] for i in m["cercanos"]]}
+    if not resumen:
+        return None, []
+    resumen["aviso"] = ("informativo (no frena): veredictos casi iguales o "
+                        "criterios que no se mueven en un lote variado; puede "
+                        "ser un diccionario por defecto con retoques. Revisa "
+                        "esos correos uno a uno")
+    return resumen, m["cercanos"]
+
+
+def _filas_desglose(pasadas):
+    """[(id, veredictos, tier)] de la ÚLTIMA pasada de cada id."""
+    return [(r.get("id"), _veredictos(r), r.get("tier"))
+            for r in _ultima_pasada(pasadas, None, [])
+            if isinstance(r, dict)]
+
+
+def cmd_diagnostico_plantillas(docs) -> dict:
+    """v3.22.11, calibración (SOLO LEE): pasa las huellas de plantilla por
+    desgloses de sesiones reales y dice, por sesión, sus métricas en bruto y
+    si habrían saltado. Para fijar umbrales con datos, no con intuición,
+    antes de que alguna huella frene. `docs`: [(ruta, desglose parseado)]."""
+    sesiones = []
+    for ruta, doc in docs:
+        try:
+            filas = _filas_desglose(doc["pasadas"])
+            m = _metricas_plantilla(filas)
+            huellas, _ = _huellas_plantilla(filas)
+        except Exception as e:  # TOTAL: un desglose raro no tumba el resto
+            sesiones.append({"ruta": ruta, "error": "%s: %s"
+                             % (type(e).__name__, e)})
+            continue
+        sesiones.append({
+            "ruta": ruta, "correos": m["correos"], "tiers": m["tiers"],
+            "criterios": m["criterios"], "inmoviles": len(m["inmoviles"]),
+            "cercanos": len(m["cercanos"]),
+            "saltaria": sorted(k for k in (huellas or {})
+                               if k in ("criterios_inmoviles",
+                                        "plantilla_cercana"))})
+    medidas = [x for x in sesiones if "error" not in x]
+    return {"ok": True, "sesiones": sesiones,
+            "resumen": {"sesiones": len(medidas),
+                        "con_inmoviles": sum(1 for x in medidas if
+                                             "criterios_inmoviles" in x["saltaria"]),
+                        "con_cercanos": sum(1 for x in medidas if
+                                            "plantilla_cercana" in x["saltaria"])},
+            "umbrales": {"min_lote_inmoviles": MIN_LOTE_INMOVILES,
+                         "min_tiers_inmoviles": MIN_TIERS_INMOVILES,
+                         "fraccion_inmovil": FRACCION_INMOVIL,
+                         "umbral_inmoviles": UMBRAL_INMOVILES,
+                         "dist_cercana": DIST_CERCANA,
+                         "min_vecinos_cercana": MIN_VECINOS_CERCANA,
+                         "min_criterios_cercana": MIN_CRITERIOS_CERCANA},
+            "nota": "solo lee; cada id cuenta con su última pasada. Una "
+                    "sesión que salta no prueba plantilla: compárala con lo "
+                    "que recuerdes de ella"}
+
+
 def cmd_scoring_dispatch(payload: dict, cfg: dict, brief: bool = False) -> dict:
     """single o lote. Lote: {"emails":[{id, verdicts, ...}, ...]}.
 
@@ -1728,6 +1882,15 @@ def cmd_scoring_dispatch(payload: dict, cfg: dict, brief: bool = False) -> dict:
         alerta = _alerta_plantilla(payload["emails"], res)
         if alerta:
             salida["alerta_plantilla"] = alerta
+        # v3.22.11: huellas informativas de plantilla con retoques.
+        huellas, cercanos = _huellas_plantilla(
+            [(r.get("id", i), it.get("verdicts") if isinstance(it, dict) else None,
+              r.get("tier")) if "error" not in r else (r.get("indice", i), None, None)
+             for i, (it, r) in enumerate(zip(payload["emails"], res))])
+        if huellas:
+            salida["huellas_plantilla"] = huellas
+            for i in cercanos:
+                res[i]["plantilla_cercana"] = True
         incompletos = [r.get("id", i) for i, r in enumerate(res)
                        if r.get("criterios_sin_evaluar")]
         if incompletos:
@@ -4891,6 +5054,17 @@ def _plantilla_retocada(ruta):
     return retocados
 
 
+def _huellas_desglose(ruta):
+    """v3.22.11: huellas de plantilla sobre la última pasada de cada id del
+    desglose acumulado de la sesión; None sin desglose o sin huellas. TOTAL."""
+    try:
+        with open(ruta, encoding="utf-8") as fh:
+            pasadas = _parsear_desglose(fh.read(MAX_INGESTA_BYTES))["pasadas"]
+    except (OSError, ValueError, UnicodeDecodeError, KeyError, TypeError):
+        return None
+    return _huellas_plantilla(_filas_desglose(pasadas))[0]
+
+
 def _cobertura_desglose(ruta):
     """v3.21.40: ids que, en su ÚLTIMA pasada del desglose acumulado de la
     sesión, traen `criterios_sin_evaluar`; None sin desglose. TOTAL."""
@@ -5031,6 +5205,27 @@ def cmd_informe(datos: dict) -> dict:
                    % (len(retocada), ", ".join(
                        "#%s" % _celda_md(r["id"], 12) for r in retocada[:20])
                       + (" …" if len(retocada) > 20 else "")), ""]
+    # v3.22.11: huellas informativas de plantilla con retoques.
+    huellas = _huellas_desglose(
+        os.path.join(base_estado(), "desgloses", sid + ".jsonl"))
+    if huellas and "omitido" not in huellas:
+        partes = []
+        inm = huellas.get("criterios_inmoviles")
+        if inm:
+            partes.append("%d de %d criterios con el mismo valor en casi todos "
+                          "los %d correos, repartidos en %d tiers"
+                          % (inm["n"], inm["de"], inm["correos"], inm["tiers"]))
+        cer = huellas.get("plantilla_cercana")
+        if cer:
+            partes.append("%d correos casi iguales a otros cuatro o más, "
+                          "en tiers distintos (%s)"
+                          % (cer["correos"], ", ".join(
+                              "#%s" % _celda_md(i, 12) for i in cer["ids"][:20])
+                             + (" …" if len(cer["ids"]) > 20 else "")))
+        lineas += ["> ⚠️ **Posible plantilla con retoques** (informativo): "
+                   "%s. Puede ser un diccionario de veredictos por defecto "
+                   "con pocos cambios por correo: revísalos uno a uno."
+                   % "; ".join(partes), ""]
     incompletos = _cobertura_desglose(
         os.path.join(base_estado(), "desgloses", sid + ".jsonl"))
     if incompletos:
@@ -5072,6 +5267,7 @@ def cmd_informe(datos: dict) -> dict:
                else {"plantilla_retocada": retocada}),
             **({} if incompletos is None
                else {"criterios_sin_evaluar": len(incompletos)}),
+            **({} if not huellas else {"huellas_plantilla": huellas}),
             "efimero": base_estado_es_efimera()}
 
 
@@ -5193,6 +5389,10 @@ def _construir_parser():
     pdx.add_argument("--config",
                      default=_expandir("~/.email-triage/config.yaml"),
                      help="solo para los umbrales de tier")
+    pdp = sub.add_parser("diagnostico-plantillas")
+    pdp.add_argument("--desglose", nargs="+", default=None, metavar="RUTA",
+                     help="desgloses de sesión; sin él, todos los de "
+                          "<base>/desgloses/")
     pco = sub.add_parser("coincidencias")
     pco.add_argument("--datos", default=None,
                      help='JSON {"correos": [{"id", "remitente", "asunto", '
@@ -5337,6 +5537,21 @@ def main():
         out = cmd_diagnostico_ejes(docs, cfg)
         if fallos:
             out.setdefault("ignorados", []).extend(fallos)
+    elif args.cmd == "diagnostico-plantillas":
+        # v3.22.11, calibración: SOLO LEE desgloses; no escribe nada.
+        rutas = args.desglose or sorted(glob.glob(
+            os.path.join(base_estado(), "desgloses", "*.jsonl")))
+        docs, fallos = [], []
+        for ruta in rutas:
+            try:
+                with open(_expandir(ruta), encoding="utf-8") as fh:
+                    docs.append((ruta, _parsear_desglose(fh.read(MAX_INGESTA_BYTES))))
+            except (OSError, ValueError) as e:
+                fallos.append({"ruta": ruta, "motivo": "%s: %s"
+                               % (type(e).__name__, e)})
+        out = cmd_diagnostico_plantillas(docs)
+        if fallos:
+            out["ignorados"] = fallos
     elif args.cmd == "coincidencias":
         # v3.21.8: SOLO LEE; filtros del config contra remitente y asunto.
         crudo = (args.datos if args.datos is not None

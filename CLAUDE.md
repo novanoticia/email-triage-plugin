@@ -251,6 +251,12 @@ rompes la conformidad (gate #7) y el skill deja de cargar fuera de Claude.
   como triaje un movimiento con `plantilla: true`: el 2026-10-18 se movieron
   49 correos con veredictos asignados por remitente. Es una huella, no una
   prueba; el freno es que no cuenten como triaje.
+  Desde v3.22.11 `scoring` e `informe` añaden `huellas_plantilla`, SOLO
+  INFORMATIVA: `criterios_inmoviles` (lote de 10+ en 3+ tiers con 15+
+  criterios casi constantes) y `plantilla_cercana` (4+ vecinos a <= 3
+  veredictos, en tiers distintos). Prueba real: diccionario por defecto con
+  1-3 retoques por correo, que `plantilla` no ve. No frena `registrar` hasta
+  calibrarla con `diagnostico-plantillas` (solo lee los desgloses).
   Desde v3.21.12 un movimiento de triaje exige además
   `"modo_scoring": "determinista"`: en modo `mental` no actúa ninguno de
   esos frenos (prueba real 11), así que puntuar de cabeza sirve para
