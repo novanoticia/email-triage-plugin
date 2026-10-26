@@ -35,28 +35,32 @@ en una prueba real); la de TypeSafe puede tenerlos o no, así que usa el mismo m
 siempre. Una clave guardada a medias hace que el proveedor responda que no es válida
 (`invalid_api_key` en OpenAI). Guárdala desde el portapapeles:
 
-1. Copia la clave con el **botón de copiar** de la web del proveedor.
-2. Comprueba que el portapapeles la tiene entera y **apunta el número**; lo usarás
-   en el paso 4:
+**Una clave cada vez.** El portapapeles solo guarda una cosa, y cada orden
+`security` toma lo que haya en él en ese momento. Si ejecutas las órdenes de las dos
+claves seguidas, las dos quedan guardadas con **la misma** clave (prueba real). Haz
+el bloque completo de una clave y, después, el de la otra.
 
-   ```bash
-   pbpaste | wc -c
-   ```
+**OpenAI (Decisions).** Copia la clave con el **botón de copiar** de
+platform.openai.com y ejecuta (la primera línea muestra la longitud: apúntala, la
+usarás en el paso 4; debe salir más de 128):
 
-3. Guárdala (`-U` sustituye la anterior si ya había una) y vacía el portapapeles.
-   Usa la línea de tu clave:
+```bash
+pbpaste | wc -c
+security add-generic-password -U -a "$USER" -s OPENAI_API_KEY -w "$(pbpaste)"
+pbcopy < /dev/null
+```
 
-   ```bash
-   # OpenAI (Decisions)
-   security add-generic-password -U -a "$USER" -s OPENAI_API_KEY -w "$(pbpaste)"
-   # TypeSafe (Jev)
-   security add-generic-password -U -a "$USER" -s TYPESAFE_API_KEY -w "$(pbpaste)"
+**TypeSafe (Jev).** Solo después de terminar la anterior, copia la clave de
+console.typesafe.ai con su botón de copiar y ejecuta:
 
-   pbcopy < /dev/null
-   ```
+```bash
+pbpaste | wc -c
+security add-generic-password -U -a "$USER" -s TYPESAFE_API_KEY -w "$(pbpaste)"
+pbcopy < /dev/null
+```
 
-   Si tienes las dos claves, repite el punto 1, el 2 y la línea correspondiente
-   para cada una: el portapapeles solo guarda una cosa a la vez.
+`-U` sustituye la clave anterior si ya había una con ese nombre; la última línea
+vacía el portapapeles.
 
 En el historial de Terminal queda `$(pbpaste)` escrito así, nunca la clave. El
 único coste es que, durante el instante que tarda el comando, la clave aparece en
@@ -88,7 +92,12 @@ echo "TypeSafe: ${#TYPESAFE_API_KEY} caracteres"
 ```
 
 Cada número debe coincidir con el que apuntaste en el paso 2 (un `0` es que esa
-clave no está cargada). Si cambias una clave con Terminal abierto, ejecuta antes
+clave no está cargada). Si usas las dos, comprueba además que no son la misma:
+
+```bash
+[ "$OPENAI_API_KEY" = "$TYPESAFE_API_KEY" ] && echo "IGUALES: repite el paso 2, una clave cada vez" || echo "distintas: bien"
+```
+ Si cambias una clave con Terminal abierto, ejecuta antes
 `source ~/.zshrc`: la variable solo se lee al abrir Terminal.
 
 **OpenAI** permite comprobar además que acepta la clave, sin coste:
