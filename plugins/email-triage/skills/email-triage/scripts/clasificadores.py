@@ -292,7 +292,9 @@ def validar_forma(answers, opciones_por_criterio, etiqueta):
                 {"criterio": k, "causa": "rango"})
         suma = sum(ps.values())
         desvio = abs(suma - 1)
-        _exigir(desvio <= max(1e-5, REDONDEO_POR_OPCION * len(ps)), "probabilidades_invalidas",
+        # + 1e-9: en el límite exacto la coma flotante da 0.020000000000000018 > 0.02
+        # (revisión Codex, PR #123: [0.93, 0.03, 0.03, 0.03] es un redondeo válido).
+        _exigir(desvio <= max(1e-5, REDONDEO_POR_OPCION * len(ps)) + 1e-9, "probabilidades_invalidas",
                 {"criterio": k, "causa": "suma", "desviacion": round(desvio, 8)})
         if desvio > 1e-5:
             redondeadas.append(k)

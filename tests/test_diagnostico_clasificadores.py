@@ -238,6 +238,19 @@ class TestRedondeo(unittest.TestCase):
         self.assertEqual(fila["motivo"], "probabilidades_invalidas")
         self.assertEqual(fila["motivo_detalle"]["causa"], "suma")
 
+    def test_limite_exacto_de_redondeo_se_acepta(self):
+        # Revisión Codex (PR #123): con 4 opciones el límite es 0,02 y la coma
+        # flotante calcula 0.020000000000000018 para [0.93, 0.03, 0.03, 0.03].
+        ps = {"a": 0.93, "b": 0.03, "c": 0.03, "d": 0.03}
+        v = nc.validar_forma({"k": {"type": "choice", "choice": "a", "probabilities": ps,
+                                    "confidence": 0.9}}, {"k": set(ps)}, "jev")
+        self.assertEqual(v["verdicts"], {"k": "a"})
+        self.assertEqual(v["probabilidades_redondeadas"], ["k"])
+        fuera = dict(ps, a=0.88)  # suma 0,97: desviación 0,03 > 0,02
+        with self.assertRaises(nc.ErrorClasificador):
+            nc.validar_forma({"k": {"type": "choice", "choice": "a", "probabilities": fuera,
+                                    "confidence": 0.9}}, {"k": set(ps)}, "jev")
+
     def test_sin_redondeo_lista_vacia(self):
         p, cfg = lote()
         with patch.dict(os.environ, {"TYPESAFE_API_KEY": "ficticia"}):
