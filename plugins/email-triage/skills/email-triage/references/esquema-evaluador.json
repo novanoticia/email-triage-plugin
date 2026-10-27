@@ -1,0 +1,933 @@
+{
+  "type": "object",
+  "properties": {
+    "evaluaciones": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "verdicts": {
+            "type": "object",
+            "properties": {
+              "cambia_algo_concreto": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "si",
+                  "no",
+                  null
+                ],
+                "description": "¿Leer esto cambiaría algo concreto que vaya a hacer?"
+              },
+              "cambio_predicciones": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "si",
+                  "no",
+                  null
+                ],
+                "description": "¿Altera mis predicciones sobre hoy/esta semana/este proyecto?"
+              },
+              "sorpresa_bayesiana": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "baja",
+                  "media",
+                  "alta",
+                  null
+                ],
+                "description": "¿Qué tan inesperada es esta información?"
+              },
+              "evidencia_filtrada": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "neutral",
+                  "selectivamente_persuasivo",
+                  "newsletter_marketing_burocratico",
+                  null
+                ],
+                "description": "¿Cuál es el algoritmo del remitente al enviarme esto?"
+              },
+              "forward_backward_flow": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "forward",
+                  "mixto",
+                  "backward",
+                  null
+                ],
+                "description": "¿Explora una solución o valida una decisión ya tomada?"
+              },
+              "retorno_atencional": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "alto",
+                  "medio",
+                  "bajo",
+                  null
+                ],
+                "description": "¿Es buena inversión de mis próximos 2 minutos?"
+              },
+              "confusion_productiva": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "si",
+                  "no",
+                  null
+                ],
+                "description": "¿Revela una discrepancia importante entre lo esperado y lo real?"
+              },
+              "impacto_causal_real": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "alto",
+                  "medio",
+                  "bajo",
+                  null
+                ],
+                "description": "Si actúo por este correo, ¿cuánto cambia realmente el resultado?"
+              },
+              "ruido_social": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "senal_real",
+                  "mixto",
+                  "ritual",
+                  null
+                ],
+                "description": "¿Es señal real o ritual social/burocrático?"
+              },
+              "abre_opciones": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "si",
+                  "no",
+                  null
+                ],
+                "description": "¿Abre una opción valiosa futura que antes no tenía?"
+              },
+              "distancia_inferencial": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "baja",
+                  "media",
+                  "alta",
+                  null
+                ],
+                "description": "¿Cuánto trabajo mental me cuesta entenderlo de verdad?"
+              },
+              "agente_estrategico": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "no",
+                  "quiza",
+                  "si",
+                  null
+                ],
+                "description": "¿El remitente optimiza para verdad o para influirme?"
+              },
+              "densidad_informativa": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "alta",
+                  "media",
+                  "baja",
+                  null
+                ],
+                "description": "¿Cuánta información nueva por línea aporta?"
+              },
+              "urgencia_real_vs_fabricada": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "fabricada",
+                  "neutral",
+                  "real",
+                  null
+                ],
+                "description": "¿La urgencia está respaldada por consecuencias verificables?"
+              },
+              "relevancia_longitudinal": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "si",
+                  "quiza",
+                  "no",
+                  null
+                ],
+                "description": "¿Mi yo de dentro de un mes agradecerá haber leído esto?"
+              },
+              "motivated_stopping": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "si",
+                  "no",
+                  null
+                ],
+                "description": "¿Me empuja a cerrar demasiado pronto una cuestión?"
+              },
+              "motivated_continuation": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "si",
+                  "no",
+                  null
+                ],
+                "description": "¿Prolonga artificialmente una decisión que ya podría cerrarse?"
+              },
+              "true_rejection": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "superficial",
+                  "mixta",
+                  "real",
+                  null
+                ],
+                "description": "¿La objeción que aparece es sustantiva o solo excusa elegante?"
+              },
+              "third_alternative": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "si",
+                  "no",
+                  null
+                ],
+                "description": "¿Detecta una tercera alternativa útil más allá de A o B?"
+              },
+              "privileging_the_hypothesis": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "si",
+                  "no",
+                  null
+                ],
+                "description": "¿Eleva una hipótesis sin evidencia suficiente?"
+              },
+              "proper_humility": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "duda_vaga",
+                  "neutral",
+                  "humildad_operativa",
+                  null
+                ],
+                "description": "¿La duda viene con mitigación/verificación concreta?"
+              },
+              "positive_bias": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "si",
+                  "no",
+                  null
+                ],
+                "description": "¿Solo aporta ejemplos favorables sin enfrentar objeciones?"
+              },
+              "argument_screens_off_authority": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "solo_autoridad",
+                  "mixto",
+                  "argumento_fuerte",
+                  null
+                ],
+                "description": "¿Trae evidencia/argumento o solo autoridad/rango/cargo?"
+              },
+              "hug_the_query": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "directo",
+                  "adyacente",
+                  "tangencial",
+                  null
+                ],
+                "description": "¿Está pegado a la decisión real o es contexto tangencial?"
+              },
+              "semantic_stopsigns": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "si",
+                  "no",
+                  null
+                ],
+                "description": "¿Usa jerga o etiquetas para cerrar la investigación?"
+              },
+              "fake_justification": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "si",
+                  "no",
+                  null
+                ],
+                "description": "¿La conclusión parece anterior al razonamiento?"
+              },
+              "fake_optimization_criteria": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "si",
+                  "no",
+                  null
+                ],
+                "description": "¿El criterio de decisión parece oportunista?"
+              },
+              "entangled_truths": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "alto",
+                  "medio",
+                  "flotante",
+                  null
+                ],
+                "description": "¿Está anclado a hechos verificables (tickets, fechas, métricas, personas)?"
+              },
+              "cached_thought": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "original",
+                  "mixto",
+                  "enlatado",
+                  null
+                ],
+                "description": "¿Es pensamiento original o plantilla repetida?"
+              },
+              "absence_of_expected_evidence": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "si",
+                  "no",
+                  null
+                ],
+                "description": "¿Falta una pieza que debería estar si esto fuese tan importante?"
+              }
+            },
+            "required": [
+              "cambia_algo_concreto",
+              "cambio_predicciones",
+              "sorpresa_bayesiana",
+              "evidencia_filtrada",
+              "forward_backward_flow",
+              "retorno_atencional",
+              "confusion_productiva",
+              "impacto_causal_real",
+              "ruido_social",
+              "abre_opciones",
+              "distancia_inferencial",
+              "agente_estrategico",
+              "densidad_informativa",
+              "urgencia_real_vs_fabricada",
+              "relevancia_longitudinal",
+              "motivated_stopping",
+              "motivated_continuation",
+              "true_rejection",
+              "third_alternative",
+              "privileging_the_hypothesis",
+              "proper_humility",
+              "positive_bias",
+              "argument_screens_off_authority",
+              "hug_the_query",
+              "semantic_stopsigns",
+              "fake_justification",
+              "fake_optimization_criteria",
+              "entangled_truths",
+              "cached_thought",
+              "absence_of_expected_evidence"
+            ],
+            "additionalProperties": false,
+            "description": "Una opción por criterio, o null si va en no_aplica."
+          },
+          "no_aplica": {
+            "type": "object",
+            "properties": {
+              "cambia_algo_concreto": {
+                "type": "null",
+                "description": "¿Leer esto cambiaría algo concreto que vaya a hacer? (core: no se excluye)"
+              },
+              "cambio_predicciones": {
+                "type": "null",
+                "description": "¿Altera mis predicciones sobre hoy/esta semana/este proyecto? (core: no se excluye)"
+              },
+              "sorpresa_bayesiana": {
+                "type": "null",
+                "description": "¿Qué tan inesperada es esta información? (core: no se excluye)"
+              },
+              "evidencia_filtrada": {
+                "type": "null",
+                "description": "¿Cuál es el algoritmo del remitente al enviarme esto? (core: no se excluye)"
+              },
+              "forward_backward_flow": {
+                "type": "null",
+                "description": "¿Explora una solución o valida una decisión ya tomada? (core: no se excluye)"
+              },
+              "retorno_atencional": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿Es buena inversión de mis próximos 2 minutos?"
+              },
+              "confusion_productiva": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿Revela una discrepancia importante entre lo esperado y lo real?"
+              },
+              "impacto_causal_real": {
+                "type": "null",
+                "description": "Si actúo por este correo, ¿cuánto cambia realmente el resultado? (core: no se excluye)"
+              },
+              "ruido_social": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿Es señal real o ritual social/burocrático?"
+              },
+              "abre_opciones": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿Abre una opción valiosa futura que antes no tenía?"
+              },
+              "distancia_inferencial": {
+                "type": "null",
+                "description": "¿Cuánto trabajo mental me cuesta entenderlo de verdad? (core: no se excluye)"
+              },
+              "agente_estrategico": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿El remitente optimiza para verdad o para influirme?"
+              },
+              "densidad_informativa": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿Cuánta información nueva por línea aporta?"
+              },
+              "urgencia_real_vs_fabricada": {
+                "type": "null",
+                "description": "¿La urgencia está respaldada por consecuencias verificables? (core: no se excluye)"
+              },
+              "relevancia_longitudinal": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿Mi yo de dentro de un mes agradecerá haber leído esto?"
+              },
+              "motivated_stopping": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿Me empuja a cerrar demasiado pronto una cuestión?"
+              },
+              "motivated_continuation": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿Prolonga artificialmente una decisión que ya podría cerrarse?"
+              },
+              "true_rejection": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿La objeción que aparece es sustantiva o solo excusa elegante?"
+              },
+              "third_alternative": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿Detecta una tercera alternativa útil más allá de A o B?"
+              },
+              "privileging_the_hypothesis": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿Eleva una hipótesis sin evidencia suficiente?"
+              },
+              "proper_humility": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿La duda viene con mitigación/verificación concreta?"
+              },
+              "positive_bias": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿Solo aporta ejemplos favorables sin enfrentar objeciones?"
+              },
+              "argument_screens_off_authority": {
+                "type": "null",
+                "description": "¿Trae evidencia/argumento o solo autoridad/rango/cargo? (core: no se excluye)"
+              },
+              "hug_the_query": {
+                "type": "null",
+                "description": "¿Está pegado a la decisión real o es contexto tangencial? (core: no se excluye)"
+              },
+              "semantic_stopsigns": {
+                "type": "null",
+                "description": "¿Usa jerga o etiquetas para cerrar la investigación? (core: no se excluye)"
+              },
+              "fake_justification": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿La conclusión parece anterior al razonamiento?"
+              },
+              "fake_optimization_criteria": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿El criterio de decisión parece oportunista?"
+              },
+              "entangled_truths": {
+                "type": "null",
+                "description": "¿Está anclado a hechos verificables (tickets, fechas, métricas, personas)? (core: no se excluye)"
+              },
+              "cached_thought": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿Es pensamiento original o plantilla repetida?"
+              },
+              "absence_of_expected_evidence": {
+                "type": "null",
+                "description": "¿Falta una pieza que debería estar si esto fuese tan importante? (core: no se excluye)"
+              }
+            },
+            "required": [
+              "cambia_algo_concreto",
+              "cambio_predicciones",
+              "sorpresa_bayesiana",
+              "evidencia_filtrada",
+              "forward_backward_flow",
+              "retorno_atencional",
+              "confusion_productiva",
+              "impacto_causal_real",
+              "ruido_social",
+              "abre_opciones",
+              "distancia_inferencial",
+              "agente_estrategico",
+              "densidad_informativa",
+              "urgencia_real_vs_fabricada",
+              "relevancia_longitudinal",
+              "motivated_stopping",
+              "motivated_continuation",
+              "true_rejection",
+              "third_alternative",
+              "privileging_the_hypothesis",
+              "proper_humility",
+              "positive_bias",
+              "argument_screens_off_authority",
+              "hug_the_query",
+              "semantic_stopsigns",
+              "fake_justification",
+              "fake_optimization_criteria",
+              "entangled_truths",
+              "cached_thought",
+              "absence_of_expected_evidence"
+            ],
+            "additionalProperties": false,
+            "description": "Razón de exclusión (solo no core), o null."
+          },
+          "evidencias": {
+            "type": "object",
+            "properties": {
+              "cambia_algo_concreto": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿Leer esto cambiaría algo concreto que vaya a hacer?"
+              },
+              "cambio_predicciones": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿Altera mis predicciones sobre hoy/esta semana/este proyecto?"
+              },
+              "sorpresa_bayesiana": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿Qué tan inesperada es esta información?"
+              },
+              "evidencia_filtrada": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿Cuál es el algoritmo del remitente al enviarme esto?"
+              },
+              "forward_backward_flow": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿Explora una solución o valida una decisión ya tomada?"
+              },
+              "retorno_atencional": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿Es buena inversión de mis próximos 2 minutos?"
+              },
+              "confusion_productiva": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿Revela una discrepancia importante entre lo esperado y lo real?"
+              },
+              "impacto_causal_real": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Si actúo por este correo, ¿cuánto cambia realmente el resultado?"
+              },
+              "ruido_social": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿Es señal real o ritual social/burocrático?"
+              },
+              "abre_opciones": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿Abre una opción valiosa futura que antes no tenía?"
+              },
+              "distancia_inferencial": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿Cuánto trabajo mental me cuesta entenderlo de verdad?"
+              },
+              "agente_estrategico": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿El remitente optimiza para verdad o para influirme?"
+              },
+              "densidad_informativa": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿Cuánta información nueva por línea aporta?"
+              },
+              "urgencia_real_vs_fabricada": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿La urgencia está respaldada por consecuencias verificables?"
+              },
+              "relevancia_longitudinal": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿Mi yo de dentro de un mes agradecerá haber leído esto?"
+              },
+              "motivated_stopping": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿Me empuja a cerrar demasiado pronto una cuestión?"
+              },
+              "motivated_continuation": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿Prolonga artificialmente una decisión que ya podría cerrarse?"
+              },
+              "true_rejection": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿La objeción que aparece es sustantiva o solo excusa elegante?"
+              },
+              "third_alternative": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿Detecta una tercera alternativa útil más allá de A o B?"
+              },
+              "privileging_the_hypothesis": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿Eleva una hipótesis sin evidencia suficiente?"
+              },
+              "proper_humility": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿La duda viene con mitigación/verificación concreta?"
+              },
+              "positive_bias": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿Solo aporta ejemplos favorables sin enfrentar objeciones?"
+              },
+              "argument_screens_off_authority": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿Trae evidencia/argumento o solo autoridad/rango/cargo?"
+              },
+              "hug_the_query": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿Está pegado a la decisión real o es contexto tangencial?"
+              },
+              "semantic_stopsigns": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿Usa jerga o etiquetas para cerrar la investigación?"
+              },
+              "fake_justification": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿La conclusión parece anterior al razonamiento?"
+              },
+              "fake_optimization_criteria": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿El criterio de decisión parece oportunista?"
+              },
+              "entangled_truths": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿Está anclado a hechos verificables (tickets, fechas, métricas, personas)?"
+              },
+              "cached_thought": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿Es pensamiento original o plantilla repetida?"
+              },
+              "absence_of_expected_evidence": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "¿Falta una pieza que debería estar si esto fuese tan importante?"
+              }
+            },
+            "required": [
+              "cambia_algo_concreto",
+              "cambio_predicciones",
+              "sorpresa_bayesiana",
+              "evidencia_filtrada",
+              "forward_backward_flow",
+              "retorno_atencional",
+              "confusion_productiva",
+              "impacto_causal_real",
+              "ruido_social",
+              "abre_opciones",
+              "distancia_inferencial",
+              "agente_estrategico",
+              "densidad_informativa",
+              "urgencia_real_vs_fabricada",
+              "relevancia_longitudinal",
+              "motivated_stopping",
+              "motivated_continuation",
+              "true_rejection",
+              "third_alternative",
+              "privileging_the_hypothesis",
+              "proper_humility",
+              "positive_bias",
+              "argument_screens_off_authority",
+              "hug_the_query",
+              "semantic_stopsigns",
+              "fake_justification",
+              "fake_optimization_criteria",
+              "entangled_truths",
+              "cached_thought",
+              "absence_of_expected_evidence"
+            ],
+            "additionalProperties": false,
+            "description": "Evidencia de cada veredicto, o null si no hay veredicto."
+          },
+          "dudas": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "resumen": {
+            "type": "string"
+          },
+          "eco": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "inicio": {
+                "type": "string"
+              },
+              "fin": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "inicio",
+              "fin"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "id",
+          "verdicts",
+          "no_aplica",
+          "evidencias",
+          "dudas",
+          "resumen",
+          "eco"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "evaluaciones"
+  ],
+  "additionalProperties": false
+}
