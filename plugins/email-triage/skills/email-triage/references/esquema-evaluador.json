@@ -894,10 +894,7 @@
             "type": "string"
           },
           "eco": {
-            "type": [
-              "object",
-              "null"
-            ],
+            "type": "object",
             "properties": {
               "inicio": {
                 "type": "string"
@@ -910,7 +907,8 @@
               "inicio",
               "fin"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "description": "Inicio y fin del texto recibido; cadenas vacías si no se pidió."
           }
         },
         "required": [

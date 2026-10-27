@@ -26,6 +26,7 @@ import modelos
 import triage_helpers as th
 
 
+# Subconjunto permitido; el test lo recorre contra estas mismas listas.
 _PALABRAS = {"type", "properties", "required", "additionalProperties",
              "enum", "items", "description"}
 _TIPOS = {"object", "array", "string", "boolean", "null"}
@@ -69,10 +70,11 @@ def generar(cfg):
         "evidencias": _objeto(ev, "Evidencia de cada veredicto, o null si no hay veredicto."),
         "dudas": {"type": "array", "items": {"type": "string"}},
         "resumen": {"type": "string"},
-        "eco": {"type": ["object", "null"],
-                "properties": {"inicio": {"type": "string"},
-                               "fin": {"type": "string"}},
-                "required": ["inicio", "fin"], "additionalProperties": False},
+        # Objeto NO anulable: un objeto con `type: [object, null]` no lo
+        # aceptan todos los modos estrictos (revisión PR #135). Sin ancla,
+        # `validar` ignora el eco; con ancla, uno vacío da `eco_distinto`.
+        "eco": _objeto({"inicio": {"type": "string"}, "fin": {"type": "string"}},
+                       "Inicio y fin del texto recibido; cadenas vacías si no se pidió."),
     })
     return _objeto({"evaluaciones": {"type": "array", "items": fila}})
 
@@ -81,7 +83,7 @@ def normalizar(respuesta):
     """Forma «esquema» → forma «validador». Pura y determinista.
 
     Quita las entradas None de verdicts/no_aplica/evidencias y elimina `eco`
-    si vale None. No toca ningún otro valor. Devuelve
+    si vale None (respuestas que no usan el esquema). No toca ningún otro valor. Devuelve
     {"ok": True, "respuesta": {...}} o `modelos._error(motivo)`.
     """
     if not isinstance(respuesta, dict) or not isinstance(

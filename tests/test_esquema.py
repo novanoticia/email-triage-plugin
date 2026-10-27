@@ -40,9 +40,7 @@ class TestReferencia(unittest.TestCase):
             "esquema-evaluador.json desactualizado: regenéralo")
 
 
-_PERMITIDAS = {"type", "properties", "required", "additionalProperties",
-               "enum", "items", "description"}
-_TIPOS = {"object", "array", "string", "boolean", "null"}
+_PERMITIDAS, _TIPOS = es._PALABRAS, es._TIPOS
 
 
 def _fila_esquema(esq):
@@ -60,7 +58,8 @@ def _respuesta_esquema(cfg, excluir=None):
             vs[k], na[k], ev[k] = sorted(opciones)[0], None, "Evidencia sintética."
     return {"evaluaciones": [{"id": "1", "verdicts": vs, "no_aplica": na,
                               "evidencias": ev, "dudas": [],
-                              "resumen": "Resumen sintético.", "eco": None}]}
+                              "resumen": "Resumen sintético.",
+                              "eco": {"inicio": "", "fin": ""}}]}
 
 
 def _validar(cfg, respuesta_validador):
@@ -98,6 +97,8 @@ class TestForma(unittest.TestCase):
                 # Anulable solo como [X, "null"].
                 self.assertEqual(len(tipos), 2, ruta)
                 self.assertEqual(tipos[1], "null", ruta)
+                # Anulable solo en escalares: objetos y arrays nunca.
+                self.assertNotIn(tipos[0], ("object", "array"), ruta)
             if "properties" in nodo:
                 self.assertEqual(set(nodo["required"]), set(nodo["properties"]), ruta)
                 self.assertIs(nodo["additionalProperties"], False, ruta)
@@ -171,7 +172,9 @@ class TestIdaYVuelta(unittest.TestCase):
         original = copy.deepcopy(resp)
         n = es.normalizar(resp)["respuesta"]["evaluaciones"][0]
         self.assertEqual(resp, original)  # pura: no muta la entrada
-        self.assertNotIn("eco", n)
+        self.assertEqual(n["eco"], {"inicio": "", "fin": ""})  # no se toca
+        resp["evaluaciones"][0]["eco"] = None
+        self.assertNotIn("eco", es.normalizar(resp)["respuesta"]["evaluaciones"][0])
         self.assertNotIn(self.no_core, n["verdicts"])
         self.assertEqual(n["no_aplica"], {self.no_core: "No procede en este correo."})
 

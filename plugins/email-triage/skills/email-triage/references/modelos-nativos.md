@@ -321,6 +321,8 @@ lo regenera y compara byte a byte. El modo estricto exige todas las claves, con
 `null` donde no aplica, y `validar` decide por presencia de claves: pasa la
 respuesta por `normalizar` (o `comprobar`, que también la devuelve normalizada)
 antes de `validar`. `normalizar` solo quita los `null`; no rellena ni corrige.
+`eco` es siempre un objeto (cadenas vacías si no se pidió), no anulable: un
+objeto anulable no lo aceptan todos los modos estrictos.
 
 Qué garantiza: ids y opciones exactos, ningún campo de más y que los core no
 puedan ir a `no_aplica`. Qué **no** garantiza, y sigue comprobando `validar`:
