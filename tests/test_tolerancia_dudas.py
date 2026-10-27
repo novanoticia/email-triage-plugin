@@ -115,6 +115,20 @@ class TestComparar(_Base):
         self.assertEqual(r["sin_propuesta"], 0)
 
 
+    def test_incierto_core_prueba_tambien_la_exclusion(self):
+        # La propuesta se puntúa sin el incierto: esa combinación debe estar.
+        _, core = j._opciones(self.cfg)[K]
+        self.assertTrue(core)
+        t = _con_duda([K])
+        self.fijar_score(30, t)
+        fila = self.correr(1, t)
+        n = len(j._opciones(self.cfg)[K][0])
+        self.assertEqual(fila["dudas_irrelevantes"]["combinaciones"], n + 1)
+        prop = fila["propuesta"]["score"]
+        di = fila["dudas_irrelevantes"]
+        self.assertTrue(di["score_min"] <= prop <= di["score_max"])
+
+
 class TestHibrido(_Base):
     modo = "hibrido"
 
@@ -160,7 +174,7 @@ class TestConfig(unittest.TestCase):
         activos = j._opciones(cfg)
         e = {"id": "1", "control": {"hard_rules": [], "extra_points": 0,
              "forzar_reply_needed": False, "tier_maximo": None, "remitente_en_historial": False}}
-        v = {"verdicts": {k: sorted(o)[0] for k, (o, _) in activos.items()}}
+        v = {"verdicts": {k: sorted(o)[0] for k, (o, _) in activos.items()}, "inciertos": []}
         dudosos = sorted(activos)[:3]
         with patch.object(nc, "MAX_COMBINACIONES_DUDAS", 1):
             self.assertIsNone(nc._dudas_irrelevantes(e, v, dudosos, activos, cfg, 3))

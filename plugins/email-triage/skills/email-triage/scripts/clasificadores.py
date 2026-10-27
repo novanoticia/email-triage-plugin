@@ -305,8 +305,8 @@ def _scoring(ident, control, vs, cfg):
 def _dudas_irrelevantes(e, v, dudosos, activos, cfg, maximo):
     """¿Cambia el tier alguna respuesta posible de los criterios dudosos?
 
-    Devuelve el resumen si TODAS las combinaciones (opciones del config y,
-    en los no core, la exclusión) dan el mismo tier con `_scoring`; None si
+    Devuelve el resumen si TODAS las combinaciones (opciones del config y
+    la exclusión en los no core y en los inciertos) dan el mismo tier con `_scoring`; None si
     alguna lo cambia o si hay más dudosos o combinaciones de las admitidas.
     Solo aritmética local: sin red y sin tocar la respuesta del proveedor.
     """
@@ -315,7 +315,10 @@ def _dudas_irrelevantes(e, v, dudosos, activos, cfg, maximo):
     alternativas = []
     for k in dudosos:
         opciones, core = activos[k]
-        alternativas.append(sorted(opciones) + ([] if core else [None]))
+        # Un incierto se puntúa sin veredicto (también si es core): la
+        # exclusión es justo la combinación de la propuesta y se prueba.
+        excluible = not core or k in v["inciertos"]
+        alternativas.append(sorted(opciones) + ([None] if excluible else []))
     total = math.prod(len(a) for a in alternativas)
     if total > MAX_COMBINACIONES_DUDAS:
         return None
