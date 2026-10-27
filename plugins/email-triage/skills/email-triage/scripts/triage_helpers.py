@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.22.15).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.22.16).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -4980,6 +4980,57 @@ def _dominio_remitente(bruto):
     return dir_.split("@", 1)[1] if "@" in dir_ else ""
 
 
+# v3.22.16 (prueba real 2026-10-27: 4 avisos de noreply@statuspage.io
+# sumaron +2 por «profundidad» y «único participante externo», como si
+# fueran una conversación; otra sesión no lo hizo). Las reglas de hilo del
+# 4.J las sumaba el modelo de cabeza: ahora las calcula `agrupar-hilos`.
+# Parte local de remitentes que nadie contesta. Lista conservadora a
+# propósito: info@/news@/hello@ los usan también personas.
+_RE_LOCAL_AUTOMATICO = re.compile(
+    r"^(?:no-?reply|do-?not-?reply|notifications?|alerts?|mailer-daemon|"
+    r"postmaster|bounces?)(?:[+._-].*)?$", re.IGNORECASE)
+
+
+def _es_remitente_automatico(bruto):
+    """True si la dirección del remitente es de un buzón automático
+    (noreply, notifications, mailer-daemon…). TOTAL: lo raro da False."""
+    if not isinstance(bruto, str):
+        return False
+    m = re.search(r"<([^>]+)>", bruto)
+    dir_ = (m.group(1) if m else bruto).strip()
+    if "@" not in dir_:
+        return False
+    return bool(_RE_LOCAL_AUTOMATICO.match(dir_.split("@", 1)[0]))
+
+
+def _extras_hilo(count, participantes):
+    """Reglas de hilo del 4.J (paso-1c-hilos.md): +1 profundidad (count >= 3),
+    -1 hilo muy largo (count >= 10), +1 único participante. Si todos los
+    participantes son automáticos no se premia (no hay conversación); la
+    penalización por largo se mantiene. Devuelve {puntos, detalle, omitidos}."""
+    detalle, omitidos = [], []
+    automatico = bool(participantes) and all(
+        _es_remitente_automatico(p) for p in participantes)
+    motivo = "remitente automático: no es una conversación"
+    if count >= 3:
+        if automatico:
+            omitidos.append({"regla": "profundidad_hilo", "motivo": motivo})
+        else:
+            detalle.append({"regla": "profundidad_hilo", "puntos": 1})
+    if count >= 10:
+        detalle.append({"regla": "hilo_muy_largo", "puntos": -1})
+    if len(participantes) == 1:
+        if automatico:
+            omitidos.append({"regla": "unico_participante_externo",
+                             "motivo": motivo})
+        else:
+            detalle.append({"regla": "unico_participante_externo", "puntos": 1})
+    out = {"puntos": sum(d["puntos"] for d in detalle), "detalle": detalle}
+    if omitidos:
+        out["omitidos"] = omitidos
+    return out
+
+
 def cmd_agrupar_hilos(datos: dict) -> dict:
     """Agrupa una lista plana de metadatos en unidades del PASO 1.C: mensajes
     individuales o hilos (2+ mensajes con la misma clave_hilo que comparten al
@@ -4991,7 +5042,9 @@ def cmd_agrupar_hilos(datos: dict) -> dict:
     Cada correo se conserva TAL CUAL en su unidad (miembros), en el orden de
     entrada. Devuelve {"ok", "n_unidades", "n_mensajes", "unidades":[...]}.
     Cada unidad: {"tipo": "individual"|"hilo", "clave_hilo", "count",
-    "participantes":[...], "miembros":[...]}.
+    "participantes":[...], "miembros":[...]}; los hilos traen además
+    `extras_hilo` {puntos, detalle, omitidos?} (reglas del 4.J, a sumar en
+    extra_points; v3.22.16).
     """
     if not isinstance(datos, dict):
         return {"ok": False, "error": "se esperaba un objeto JSON con 'correos'"}
@@ -5056,14 +5109,17 @@ def cmd_agrupar_hilos(datos: dict) -> dict:
                 r = (c.get("remitente") or "").strip()
                 if r and r not in participantes:
                     participantes.append(r)
-            unidades.append({
+            unidad = {
                 "tipo": "hilo" if len(miembros) >= 2 else "individual",
                 "clave_hilo": clave,
                 "count": len(miembros),
                 "participantes": participantes,
                 "orden_entrada": miembros_idx[0],
                 "miembros": miembros,
-            })
+            }
+            if len(miembros) >= 2:
+                unidad["extras_hilo"] = _extras_hilo(len(miembros), participantes)
+            unidades.append(unidad)
 
     for i in individuales_forzados:
         c = correos[i]

@@ -771,49 +771,49 @@ frases:
   hilo.titulo:
     texto: 🧵 [Asunto raíz] — hilo de N mensajes
     origen: original
-    fuente: references/paso-1c-hilos.md:193
+    fuente: references/paso-1c-hilos.md:204
     riesgo: normal
     lista: false
     invariable: false
   hilo.participantes:
     texto: '   Participantes: [remitente1], [remitente2]... | Último: [DD/MM] de [remitente]'
     origen: original
-    fuente: references/paso-1c-hilos.md:194
+    fuente: references/paso-1c-hilos.md:205
     riesgo: normal
     lista: false
     invariable: false
   hilo.esperando:
     texto: '   ⏳ Esperando tu respuesta: [Sí / No]'
     origen: original
-    fuente: references/paso-1c-hilos.md:195
+    fuente: references/paso-1c-hilos.md:206
     riesgo: normal
     lista: true
     invariable: false
   hilo.resumen:
     texto: '📝 Resumen del último mensaje: [2-3 líneas]'
     origen: original
-    fuente: references/paso-1c-hilos.md:196
+    fuente: references/paso-1c-hilos.md:207
     riesgo: normal
     lista: false
     invariable: false
   hilo.puntuacion:
     texto: '📊 Puntuación: X (decisional +N, epistémica +N, manipulación N, cognitivo N, acción +N, hilo +N)'
     origen: original
-    fuente: references/paso-1c-hilos.md:197
+    fuente: references/paso-1c-hilos.md:208
     riesgo: normal
     lista: false
     invariable: false
   hilo.rationale:
     texto: '💬 [Rationale: 1-2 frases que mencionan explícitamente si hay respuesta pendiente]'
     origen: original
-    fuente: references/paso-1c-hilos.md:201
+    fuente: references/paso-1c-hilos.md:212
     riesgo: normal
     lista: false
     invariable: false
   hilo.recomendacion:
     texto: '🔵 Recomendación: MOVER hilo completo (N mensajes) → [destino] / DEJAR / ARCHIVAR'
     origen: original
-    fuente: references/paso-1c-hilos.md:202
+    fuente: references/paso-1c-hilos.md:213
     riesgo: alto
     lista: true
     invariable: false
