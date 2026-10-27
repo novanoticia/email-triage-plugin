@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.22.19).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.22.20).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:

@@ -331,7 +331,13 @@ Verificado con API real el 2026-10-27: OpenAI `strict` (`gpt-6-luna`, Chat
 Completions) aceptó el esquema de la plantilla y su respuesta salió
 `conforme` en `comprobar`, con los 30 criterios cubiertos. En esa prueba el
 `eco` traía el correo entero: de ahí la descripción explícita de seis
-palabras. **Anthropic sigue sin verificar** con API real (solo por diseño:
+palabras. Repetida la prueba con esa descripción (v3.22.19, mismo día y
+modelo), el `eco` trajo seis palabras por extremo y `eco_coincide` lo
+acepta contra el ancla de `sanitizar` (el del correo entero, no). En esa
+repetición cambiaron 4 de 30 veredictos con el mismo correo y modelo
+(`impacto_causal_real`, `argument_screens_off_authority`, `cached_thought`,
+`absence_of_expected_evidence`): ruido entre ejecuciones, no fallo del
+esquema. **Anthropic sigue sin verificar** con API real (solo por diseño:
 cero tipos unión, fijado por test).
 
 Qué garantiza: ids y opciones exactos, ningún campo de más, una sola opción
