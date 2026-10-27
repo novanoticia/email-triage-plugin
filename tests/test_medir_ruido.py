@@ -89,7 +89,18 @@ class TestMedir(unittest.TestCase):
         score, tier = mr.score_tier(self.cfg, v)
         self.assertEqual(r["por_correo"]["logistica"],
                          {"tiers": {tier: 2}, "score_min": score, "score_max": score,
-                          "margen": min(abs(score - u) for u in mr.umbrales(self.cfg))})
+                          "margen": min(mr.margen_umbral(score, u) for u in mr.umbrales(self.cfg))})
+
+    def test_margen_es_lo_que_falta_para_cambiar_de_tier(self):
+        # Contra el scoring real: mover el score `margen` puntos cambia el tier
+        # y moverlo uno menos no (umbral `review`).
+        u = self.cfg["tiers"]["review"]
+        tier = lambda x: mr.th._tier_por_score(x, self.cfg["tiers"])
+        for x in (u - 2, u - 1, u, u + 1, u + 3):
+            m = mr.margen_umbral(x, u)
+            paso = -1 if x >= u else 1
+            self.assertEqual(tier(x + paso * (m - 1)), tier(x))
+            self.assertNotEqual(tier(x + paso * m), tier(x))
 
     def test_umbrales_sin_reply_needed_con_el_tope_activo(self):
         # Con el tope por defecto, REPLY_NEEDED no depende del score.

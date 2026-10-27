@@ -157,6 +157,13 @@ def umbrales(cfg):
     return [x for x in out if isinstance(x, (int, float)) and not isinstance(x, bool)]
 
 
+def margen_umbral(score, umbral):
+    """Puntos que el score tiene que moverse para cruzar `umbral`. El tier
+    usa `score >= umbral` (`_tier_por_score`): en el umbral basta bajar 1
+    punto; justo debajo, subir lo que falta (revisión Mistral, PR #140)."""
+    return score - umbral + 1 if score >= umbral else umbral - score
+
+
 def medir(cfg, correos, repeticiones, llamar):
     """Agrega la estabilidad por criterio. `llamar(correo)` devuelve la
     respuesta de la API (inyectable: los tests no usan red)."""
@@ -196,9 +203,8 @@ def medir(cfg, correos, repeticiones, llamar):
     for cid in comparables:
         st = [score_tier(cfg, t) for t in por_correo[cid]]
         scores = [x for x, _ in st if isinstance(x, (int, float))]
-        # Puntos entre la tirada más cercana y el umbral más próximo: cuánto
-        # ruido más haría falta para que el tier cambie.
-        margen = min((abs(x - u) for x in scores for u in umbrales(cfg)), default=None)
+        margen = min((margen_umbral(x, u) for x in scores for u in umbrales(cfg)),
+                     default=None)
         tiers[cid] = {"tiers": dict(collections.Counter(t for _, t in st)),
                       "score_min": min(scores) if scores else None,
                       "score_max": max(scores) if scores else None,
