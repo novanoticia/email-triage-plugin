@@ -105,6 +105,11 @@ relue par un humain. / Traducción generada por una IA, sin revisión humana.
   - **Qué se exige:** con bloques activos, `scoring` rechaza un lote mayor
     que `tamano_bloque` y una llamada sin `--desglose-append`. Así las
     huellas de plantilla se miden siempre sobre toda la sesión (v3.22.13).
+  - **Veredictos idénticos entre bloques:** la alerta de plantilla
+    (`plantilla`, 5 o más correos iguales) también se mide sobre la sesión
+    con `--desglose-append`. Sin esto, 6 correos iguales en dos bloques de 3
+    se escapaban. Los de bloques anteriores van en `ids_previos` y
+    `vectores` no los usa.
   - **Lo que no cambia:** sin `bloques: true`, todo sigue igual. La
     delegación a modelos y los clasificadores externos no pasan por esta
     regla.

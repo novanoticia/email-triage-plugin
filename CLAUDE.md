@@ -268,7 +268,10 @@ rompes la conformidad (gate #7) y el skill deja de cargar fuera de Claude.
   `scoring.bloques: true` (opt-in), `planificar-bloques` reparte las
   unidades (solo calcula) y `scoring` CLI rechaza más de `tamano_bloque`
   correos por llamada o sin `--desglose-append` (`_regla_bloques`, fuera de
-  `cmd_scoring_dispatch`: modelos y clasificadores no cambian). Las tres
+  `cmd_scoring_dispatch`: modelos y clasificadores no cambian). Con
+  `--desglose-append` también se acumula `plantilla` (idénticos): los
+  grupos que mezclan lotes van a `alerta_plantilla` con `ids_previos`, y
+  `vectores` los omite. Las tres
   vías miden los mismos veredictos aceptados (`_veredictos_aceptados`); lo
   que no se pudo medir va a `huellas_plantilla_omitidas`, nunca como huella.
   Desde v3.21.12 un movimiento de triaje exige además

@@ -21,8 +21,9 @@ cada paso es corto y las huellas se miden sobre toda la sesión.
    llamada sin el desglose acumulado, y no escribe nada. Sigue el plan; no
    lo esquives puntuando de cabeza.
 5. Las huellas de cada respuesta miden la sesión entera
-   (`huellas_acumuladas`). Si `plantilla_cercana` trae `ids_previos`, aplica
-   la regla de las huellas de plantilla del PASO 4: esos correos de bloques
+   (`huellas_acumuladas`), y también los veredictos idénticos. Si
+   `plantilla_cercana` o un grupo de `alerta_plantilla` traen `ids_previos`,
+   aplica la regla de las plantillas del PASO 4: esos correos de bloques
    anteriores también frenan.
 
 Que vayas bloque a bloque no prueba que leas con cuidado: lo vigilan las

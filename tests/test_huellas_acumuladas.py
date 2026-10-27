@@ -188,6 +188,47 @@ class TestHuellasAcumuladas(unittest.TestCase):
                                  {i: "<%s@x>" % i for i in ids}}, CFG)
             self.assertEqual(r["escritos"], len(ids), r)
 
+    # Revisión Codex (PR #131): veredictos idénticos repartidos en bloques.
+    def test_identicos_entre_bloques_frenan(self):
+        iguales = [plantilla_con_retoques()[0]] * 6
+        b1, b2 = bloques(iguales)
+        # Cada bloque de 3, solo, no llega a 5 iguales.
+        self.assertNotIn("alerta_plantilla", th.cmd_scoring_dispatch(b2, CFG))
+        o1 = th.cmd_scoring_dispatch(b1, CFG, previas=[])
+        self.assertNotIn("alerta_plantilla", o1)
+        o2 = th.cmd_scoring_dispatch(b2, CFG, previas=filas_de(o1))
+        self.assertTrue(all(r.get("plantilla") for r in o2["resultados"]))
+        g = o2["alerta_plantilla"]["grupos"][0]
+        self.assertTrue(g["acumulado"])
+        self.assertEqual(sorted(g["ids_previos"]), ["m01", "m02", "m03"])
+        self.assertIn("aviso_previos", o2["alerta_plantilla"])
+        # registrar lo frena como siempre.
+        with tempfile.TemporaryDirectory() as d:
+            r = th.cmd_registrar(os.path.join(d, "s.jsonl"), {
+                "event": "move", "message_id": "<a@b>", "to_folder": "X",
+                "score": 0, "plantilla": True, "modo_scoring": "determinista"})
+            self.assertIs(r["ok"], False)
+
+    def test_vectores_omite_los_identicos_previos(self):
+        with tempfile.TemporaryDirectory() as d:
+            ruta = os.path.join(d, "s.jsonl")
+            for b in bloques([plantilla_con_retoques()[0]] * 6):
+                out = th.cmd_scoring_dispatch(b, CFG,
+                                              previas=th._filas_previas(ruta))
+                th.cmd_registrar(ruta, {"ts": "t", "desglose": out})
+            r = th.cmd_vectores(os.path.join(d, "vectors.jsonl"), ruta,
+                                {"session_id": "s", "message_ids":
+                                 {"m01": "<m01@x>"}}, CFG)
+            self.assertEqual(r["escritos"], 0, r)
+            self.assertEqual(r["omitidos"][0]["motivo"], "veredictos de plantilla")
+
+    def test_menos_de_cinco_iguales_en_la_sesion_no_frenan(self):
+        iguales = [plantilla_con_retoques()[0]] * 4
+        b1, b2 = bloques(iguales)
+        o1 = th.cmd_scoring_dispatch(b1, CFG, previas=[])
+        o2 = th.cmd_scoring_dispatch(b2, CFG, previas=filas_de(o1))
+        self.assertNotIn("alerta_plantilla", o2)
+
 
 if __name__ == "__main__":
     unittest.main()

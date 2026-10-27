@@ -2116,6 +2116,48 @@ def cmd_scoring_dispatch(payload: dict, cfg: dict, brief: bool = False,
     return salida
 
 
+def _grupos_identicos(filas):
+    """Índices de `filas` [(id, veredictos aceptados, tier)] agrupados por
+    veredictos idénticos, solo los grupos de UMBRAL_PLANTILLA o más y con
+    MIN_CRITERIOS_PLANTILLA criterios o más. TOTAL."""
+    grupos = {}
+    for i, f in enumerate(filas):
+        vs = f[1] if isinstance(f, tuple) and len(f) == 3 else None
+        if not isinstance(vs, dict) or len(vs) < MIN_CRITERIOS_PLANTILLA:
+            continue
+        grupos.setdefault(_valor_clave(vs), []).append(i)
+    return [idx for idx in grupos.values() if len(idx) >= UMBRAL_PLANTILLA]
+
+
+def _alerta_plantilla_acumulada(salida, res, previas, filas):
+    """v3.22.14 (revisión Codex, PR #131): con bloques, cinco correos
+    idénticos repartidos en dos llamadas no se veían juntos y `plantilla` no
+    frenaba. Mide los grupos sobre la sesión (previas + lote); solo añade
+    los que mezclan correos de antes y de ahora (los del lote solo ya los
+    marca `_alerta_plantilla`). Marca `plantilla` en los del lote y nombra
+    los anteriores en `ids_previos`, dentro de `alerta_plantilla`."""
+    base = len(previas)
+    for idx in _grupos_identicos(previas + filas):
+        actuales = [i - base for i in idx if i >= base]
+        anteriores = [previas[i][0] for i in idx if i < base]
+        if not actuales or not anteriores:
+            continue
+        for i in actuales:
+            res[i]["plantilla"] = True
+        alerta = salida.setdefault("alerta_plantilla", {
+            "correos": 0, "grupos": [],
+            "aviso": "veredictos idénticos en bloque: no consta que se "
+                     "evaluara cada correo; no se mueven como triaje"})
+        alerta["grupos"].append({"n": len(idx), "acumulado": True,
+                                 "ids": [filas[i][0] for i in actuales],
+                                 "ids_previos": anteriores})
+        alerta["correos"] = alerta.get("correos", 0) + len(actuales)
+        alerta["aviso_previos"] = ("correos de lotes anteriores con los "
+                                   "mismos veredictos: repuntúalos o "
+                                   "registra su movimiento con plantilla: "
+                                   "true")
+
+
 def _aplicar_huellas(salida, res, filas, con_id, previas):
     """v3.22.11: huellas de plantilla con retoques. v3.22.13: sobre la
     sesión entera si llegan `previas` (un id repuntuado aquí manda sobre su
@@ -2133,6 +2175,8 @@ def _aplicar_huellas(salida, res, filas, con_id, previas):
                if isinstance(f, tuple) and len(f) == 3
                and _valor_clave(f[0]) not in con_id]
     base = len(previas)
+    if previas:
+        _alerta_plantilla_acumulada(salida, res, previas, filas)
     ev = _evaluar_huellas(previas + filas)
     if previas:
         salida["huellas_acumuladas"] = {"correos_previos": base,
@@ -3886,8 +3930,11 @@ def cmd_vectores(ruta, desglose, datos, cfg) -> dict:
         cer = (_evaluar_huellas(_filas_desglose(_pasadas_de(doc)))["huellas"]
                or {}).get("plantilla_cercana") or {}
         cercanos = {str(x) for x in cer.get("ids", [])}
+        filas_s = _filas_desglose(_pasadas_de(doc))
+        identicos = {str(filas_s[i][0]) for idx in _grupos_identicos(filas_s)
+                     for i in idx}
     except Exception:
-        cercanos = set()
+        cercanos, identicos = set(), set()
     ya = _vectores_ya_registrados(ruta)
     escritos, omitidos, ya_registrados = 0, [], []
     aviso_ruta = None
@@ -3898,7 +3945,7 @@ def cmd_vectores(ruta, desglose, datos, cfg) -> dict:
             motivo = "sin desglose para este id"
         elif "error" in r or r.get("modo") != "determinista":
             motivo = "sin scoring determinista"
-        elif r.get("plantilla") is True:
+        elif r.get("plantilla") is True or id_ in identicos:
             motivo = "veredictos de plantilla"
         elif r.get("plantilla_cercana") is True or id_ in cercanos:
             motivo = "veredictos casi iguales (plantilla_cercana)"
