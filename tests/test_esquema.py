@@ -179,6 +179,24 @@ class TestIdaYVuelta(unittest.TestCase):
         self.assertEqual(n["no_aplica"], {self.no_core: "No procede en este correo."})
 
 
+class TestConfigRota(unittest.TestCase):
+    def test_config_no_objeto_da_error_json(self):
+        import subprocess, sys, tempfile
+        for contenido in ("", "null\n", "- a\n"):
+            with tempfile.NamedTemporaryFile("w", suffix=".yaml") as f:
+                f.write(contenido)
+                f.flush()
+                for cmd in ("generar", "comprobar"):
+                    r = subprocess.run(
+                        [sys.executable, str(Path(DIR_SCRIPTS) / "esquema.py"),
+                         cmd, "--config", f.name],
+                        input="{}", capture_output=True, text=True)
+                    self.assertEqual(r.returncode, 1, (contenido, cmd))
+                    self.assertEqual(json.loads(r.stdout)["motivo"],
+                                     "entrada_o_config_invalida")
+                    self.assertNotIn("Traceback", r.stderr)
+
+
 class TestTotalidad(unittest.TestCase):
     def test_normalizar_nunca_lanza(self):
         rng = random.Random(20261027)

@@ -47,6 +47,10 @@ def generar(cfg):
     Los ids salen de `modelos._criterios` (sin lista paralela); el orden de
     criterios y opciones es el del config, para que el esquema sea legible.
     """
+    # Un YAML vacío, `null` o una lista llega aquí tal cual (revisión Codex,
+    # PR #135): error estructurado, nunca traceback.
+    if not isinstance(cfg, dict):
+        raise ValueError("config_invalida")
     activos = modelos._criterios(cfg)
     crit = cfg["criterios_epistemicos"]
     vs, na, ev = {}, {}, {}
