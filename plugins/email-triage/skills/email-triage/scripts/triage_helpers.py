@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.22.13).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.22.14).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -86,6 +86,9 @@ Uso:
                             --desglose escribe el desglose completo a RUTA y
                             deja stdout intacto; con --desglose-append añade
                             una línea JSONL por invocación en vez de sobrescribir)
+  python3 triage_helpers.py planificar-bloques [--config RUTA] [--datos JSON]
+                            (v3.22.14: reparte {"ids":[...]} en bloques de
+                            scoring.tamano_bloque; solo calcula, no escribe)
   python3 triage_helpers.py validar-config [--config RUTA] [--plantilla [RUTA]]
   python3 triage_helpers.py diagnostico-ejes --desglose RUTA [RUTA ...] [--config RUTA]
                             (P1: mide la saturación de ejes en desgloses
@@ -1936,6 +1939,97 @@ def cmd_diagnostico_plantillas(docs) -> dict:
                     "prueba plantilla: compárala con lo que recuerdes de ella"}
 
 
+# v3.22.14, evaluación por bloques (opt-in, `scoring.bloques: true`): el
+# principal evaluaba unas 50 unidades × 30 criterios de una vez y luego
+# puntuaba todo junto; en 8 de 10 sesiones con 30 criterios saltó la huella
+# de plantilla. Con bloques, `scoring` (CLI) no acepta más de
+# `scoring.tamano_bloque` correos por llamada y exige el desglose acumulado,
+# para que las huellas se midan sobre toda la sesión (v3.22.13).
+TAMANO_BLOQUE_DEF = 10
+TAMANO_BLOQUE_MIN = 2
+TAMANO_BLOQUE_MAX = 25
+
+
+def _config_bloques(cfg):
+    """(activo, tamaño) de `scoring.bloques` / `scoring.tamano_bloque`.
+    Solo un true literal activa; un tamaño no entero o fuera de
+    [TAMANO_BLOQUE_MIN, TAMANO_BLOQUE_MAX] cae al defecto (validar-config
+    lo avisa). TOTAL."""
+    scfg = cfg.get("scoring") if isinstance(cfg, dict) else None
+    scfg = scfg if isinstance(scfg, dict) else {}
+    tam = scfg.get("tamano_bloque")
+    if (isinstance(tam, bool) or not isinstance(tam, int)
+            or not TAMANO_BLOQUE_MIN <= tam <= TAMANO_BLOQUE_MAX):
+        tam = TAMANO_BLOQUE_DEF
+    return scfg.get("bloques") is True, tam
+
+
+def _regla_bloques(payload, cfg, acumula):
+    """Negativa de `scoring` (CLI) con bloques activos, o None. `acumula`:
+    si la llamada trae `--desglose RUTA --desglose-append`. Sin bloques
+    activos, nunca niega nada (lo de siempre)."""
+    activo, tam = _config_bloques(cfg)
+    if not activo:
+        return None
+    n = (len(payload["emails"]) if isinstance(payload, dict)
+         and isinstance(payload.get("emails"), list) else 1)
+    if not acumula:
+        return {"ok": False,
+                "error": "scoring.bloques activo: falta --desglose RUTA "
+                         "--desglose-append (sin el desglose acumulado las "
+                         "huellas de plantilla se diluyen bloque a bloque)",
+                "bloques": {"tamano": tam, "correos": n},
+                "remedio": "añade --desglose ~/.email-triage/desgloses/"
+                           "<session_id>.jsonl --desglose-append"}
+    if n > tam:
+        return {"ok": False,
+                "error": "lote de %d correos con scoring.bloques activo: "
+                         "como mucho %d por llamada" % (n, tam),
+                "bloques": {"tamano": tam, "correos": n},
+                "remedio": "reparte con planificar-bloques y evalúa y "
+                           "puntúa un bloque antes de leer el siguiente"}
+    return None
+
+
+def cmd_planificar_bloques(datos, cfg) -> dict:
+    """v3.22.14: reparte las unidades de la sesión en bloques consecutivos
+    de como mucho `scoring.tamano_bloque`, con tamaños equilibrados (23 con
+    tamaño 10 -> 8, 8, 7: sin un bloque final de 3). Un hilo ya es UNA
+    unidad (PASO 1.C), así que nunca se parte. Solo calcula: no escribe ni
+    puntúa. `datos`: {"ids": [...]} en el orden de evaluación. TOTAL."""
+    ids = datos.get("ids") if isinstance(datos, dict) else None
+    if not isinstance(ids, list) or not ids:
+        return {"ok": False, "error": "se esperaba {\"ids\": [...]} con al "
+                "menos un id"}
+    vistos = set()
+    for i in ids:
+        if isinstance(i, bool) or not isinstance(i, (str, int)):
+            return {"ok": False, "error": "id no válido %r: cadena o "
+                    "entero" % (i,)}
+        k = json.dumps(i)
+        if k in vistos:
+            return {"ok": False, "error": "id repetido %r" % (i,)}
+        vistos.add(k)
+    activo, tam = _config_bloques(cfg)
+    n = len(ids)
+    k = -(-n // tam)
+    base, extra = divmod(n, k)
+    bloques, ini = [], 0
+    for b in range(k):
+        fin = ini + base + (1 if b < extra else 0)
+        bloques.append({"bloque": b + 1, "ids": ids[ini:fin]})
+        ini = fin
+    out = {"ok": True, "activo": activo, "tamano": tam, "correos": n,
+           "bloques": bloques,
+           "siguiente": "evalúa el bloque 1 criterio a criterio y "
+                        "puntúalo con --desglose-append antes de leer el "
+                        "bloque 2"}
+    if not activo:
+        out["aviso"] = ("scoring.bloques no está activo: el plan es "
+                        "orientativo y scoring no lo exige")
+    return out
+
+
 def cmd_scoring_dispatch(payload: dict, cfg: dict, brief: bool = False,
                          previas=None) -> dict:
     """single o lote. Lote: {"emails":[{id, verdicts, ...}, ...]}.
@@ -2279,6 +2373,13 @@ def cmd_validar_config(ruta: str, plantilla: Optional[str] = None) -> dict:
     p2_invalido = _p2_raw is not None and not isinstance(_p2_raw, bool)
     _ens_raw = _scfg_raw.get("ensayo_p3")
     ensayo_invalido = _ens_raw is not None and not isinstance(_ens_raw, bool)
+    # v3.22.14: evaluación por bloques, mismas reglas que _config_bloques.
+    _blq_raw = _scfg_raw.get("bloques")
+    bloques_invalido = _blq_raw is not None and not isinstance(_blq_raw, bool)
+    _tamb_raw = _scfg_raw.get("tamano_bloque")
+    tamano_bloque_invalido = _tamb_raw is not None and (
+        isinstance(_tamb_raw, bool) or not isinstance(_tamb_raw, int)
+        or not TAMANO_BLOQUE_MIN <= _tamb_raw <= TAMANO_BLOQUE_MAX)
     # QW3 (auditoria 2026-07-19, F5/F22): validar-config no miraba `tiers`,
     # el ultimo bloque de tuning que rompia el scoring en runtime pese al 'ok':
     #  (a) un umbral no numerico ('cuatro', true) -> TypeError opaco en
@@ -2399,6 +2500,15 @@ def cmd_validar_config(ruta: str, plantilla: Optional[str] = None) -> dict:
         avisos.append(
             "scoring.ensayo_p3=%r debe ser true o false: con otro valor el "
             "ensayo P3 queda APAGADO" % (_ens_raw,))
+    if bloques_invalido:
+        avisos.append(
+            "scoring.bloques=%r debe ser true o false: con otro valor la "
+            "evaluación por bloques queda APAGADA" % (_blq_raw,))
+    if tamano_bloque_invalido:
+        avisos.append(
+            "scoring.tamano_bloque=%r debe ser un entero entre %d y %d: se "
+            "usa %d" % (_tamb_raw, TAMANO_BLOQUE_MIN, TAMANO_BLOQUE_MAX,
+                        TAMANO_BLOQUE_DEF))
     if tiers_no_mapa:
         avisos.append(
             "tiers no es un mapeo tier->umbral (es %s): el scoring usaria los "
@@ -5516,6 +5626,11 @@ def _construir_parser():
                      help="con --desglose: añade una línea JSONL por "
                           "invocación (append con flock) en vez de "
                           "sobrescribir; lo lee diagnostico-ejes — v3.21.5")
+    ppb = sub.add_parser("planificar-bloques")
+    ppb.add_argument("--config",
+                     default=_expandir("~/.email-triage/config.yaml"))
+    ppb.add_argument("--datos", default=None,
+                     help='JSON {"ids": [...]}; sin él se lee de stdin')
     pv = sub.add_parser("validar-config")
     pv.add_argument("--config",
                     default=_expandir("~/.email-triage/config.yaml"))
@@ -5670,6 +5785,11 @@ def main():
             # error legible que validar-config, por stdout, sin traceback.
             out = e.payload
         else:
+            # v3.22.14: con scoring.bloques activo no se puntúa nada (ni se
+            # escribe el desglose) fuera de la regla; sin él, None.
+            out = _regla_bloques(payload, cfg,
+                                 bool(args.desglose and args.desglose_append))
+        if out is None:
             # v3.22.13: con --desglose-append, las huellas de plantilla se
             # miden sobre lo ya puntuado en la sesión más este lote. Se lee
             # ANTES de añadir la pasada nueva.
@@ -5705,6 +5825,21 @@ def main():
             elif args.desglose_append:
                 out = dict(out)
                 out["desglose_error"] = "--desglose-append requiere --desglose RUTA"
+    elif args.cmd == "planificar-bloques":
+        # v3.22.14: solo calcula el reparto; no escribe ni puntúa.
+        crudo = (args.datos if args.datos is not None
+                 else sys.stdin.read(MAX_INGESTA_BYTES))
+        try:
+            datos = json.loads(crudo or "{}")
+        except json.JSONDecodeError as e:
+            out = {"ok": False, "error": "JSON inválido: %s" % e}
+        else:
+            try:
+                cfg = _cargar_config(args.config)
+            except ConfigError as e:
+                out = e.payload
+            else:
+                out = cmd_planificar_bloques(datos, cfg)
     elif args.cmd == "validar-config":
         out = cmd_validar_config(args.config, args.plantilla)
     elif args.cmd == "registrar":
