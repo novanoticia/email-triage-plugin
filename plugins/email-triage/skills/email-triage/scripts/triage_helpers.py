@@ -1994,35 +1994,7 @@ def cmd_scoring_dispatch(payload: dict, cfg: dict, brief: bool = False,
         alerta = _alerta_plantilla(payload["emails"], res)
         if alerta:
             salida["alerta_plantilla"] = alerta
-        # v3.22.11: huellas de plantilla con retoques. v3.22.13: sobre la
-        # sesión entera si llegan `previas` (un id repuntuado aquí manda
-        # sobre su pasada anterior): en lotes de 4 o menos ningún correo
-        # podía tener 4 vecinos y el freno no saltaba nunca.
-        previas = [f for f in previas or []
-                   if isinstance(f, tuple) and len(f) == 3
-                   and _valor_clave(f[0]) not in con_id]
-        base = len(previas)
-        ev = _evaluar_huellas(previas + filas)
-        if previas:
-            salida["huellas_acumuladas"] = {"correos_previos": base,
-                                            "correos_lote": len(filas)}
-        if ev["huellas"]:
-            salida["huellas_plantilla"] = ev["huellas"]
-            for i in ev["cercanos"]:
-                if i >= base:
-                    res[i - base]["plantilla_cercana"] = True
-            previos = [previas[i][0] for i in ev["cercanos"] if i < base]
-            cer = ev["huellas"].get("plantilla_cercana")
-            if previos and cer:
-                # Ya puntuados: su resultado anterior no trae la marca.
-                cer["ids_previos"] = previos
-                cer["aviso_previos"] = ("correos de lotes anteriores que "
-                                        "ahora son casi iguales a otros: "
-                                        "repuntúalos o registra su "
-                                        "movimiento con plantilla_cercana: "
-                                        "true")
-        if ev["omitidas"]:
-            salida["huellas_plantilla_omitidas"] = ev["omitidas"]
+        _aplicar_huellas(salida, res, filas, con_id, previas)
         incompletos = [r.get("id", i) for i, r in enumerate(res)
                        if r.get("criterios_sin_evaluar")]
         if incompletos:
@@ -2037,7 +2009,56 @@ def cmd_scoring_dispatch(payload: dict, cfg: dict, brief: bool = False,
     except Exception as e:
         return {"ok": False,
                 "error": "scoring reventó (%s: %s)" % (type(e).__name__, e)}
-    return _brief(r) if brief else r
+    salida = _brief(r) if brief else r
+    if previas is not None and isinstance(r, dict) and "error" not in r:
+        # Revisión Codex (PR #130): puntuar correo a correo también diluía
+        # el freno. Mismas huellas acumuladas que un lote de uno; las
+        # claves van al propio resultado (aditivas).
+        rid = r.get("id")
+        _aplicar_huellas(salida, [salida],
+                         [(rid, _veredictos_aceptados(r), r.get("tier"))],
+                         set() if rid is None else {_valor_clave(rid)},
+                         previas)
+    return salida
+
+
+def _aplicar_huellas(salida, res, filas, con_id, previas):
+    """v3.22.11: huellas de plantilla con retoques. v3.22.13: sobre la
+    sesión entera si llegan `previas` (un id repuntuado aquí manda sobre su
+    pasada anterior): en lotes de 4 o menos ningún correo podía tener 4
+    vecinos y el freno no saltaba nunca. `previas` es una lista, o None
+    (sin acumular), o la cadena con el motivo por el que el desglose de la
+    sesión no se pudo leer entero: entonces no se acumula y se dice."""
+    if isinstance(previas, str):
+        salida["huellas_acumuladas_omitidas"] = {
+            "motivo": previas,
+            "aviso": "no se pudo leer entero el desglose de la sesión: las "
+                     "huellas se miden solo sobre este lote"}
+        previas = None
+    previas = [f for f in previas or []
+               if isinstance(f, tuple) and len(f) == 3
+               and _valor_clave(f[0]) not in con_id]
+    base = len(previas)
+    ev = _evaluar_huellas(previas + filas)
+    if previas:
+        salida["huellas_acumuladas"] = {"correos_previos": base,
+                                        "correos_lote": len(filas)}
+    if ev["huellas"]:
+        salida["huellas_plantilla"] = ev["huellas"]
+        for i in ev["cercanos"]:
+            if i >= base:
+                res[i - base]["plantilla_cercana"] = True
+        previos = [previas[i][0] for i in ev["cercanos"] if i < base]
+        cer = ev["huellas"].get("plantilla_cercana")
+        if previos and cer:
+            # Ya puntuados: su resultado anterior no trae la marca.
+            cer["ids_previos"] = previos
+            cer["aviso_previos"] = ("correos de lotes anteriores que ahora "
+                                    "son casi iguales a otros: repuntúalos "
+                                    "o registra su movimiento con "
+                                    "plantilla_cercana: true")
+    if ev["omitidas"]:
+        salida["huellas_plantilla_omitidas"] = ev["omitidas"]
 
 
 # ════════════════════════════════════════════════════════════════
@@ -3748,6 +3769,15 @@ def cmd_vectores(ruta, desglose, datos, cfg) -> dict:
     ultimo = {}
     for r in _resultados_desglose(doc):
         ultimo[str(r["id"])] = r          # la última pasada manda
+    # Revisión Codex (PR #130): un correo de un lote anterior que salta al
+    # acumular solo aparece en `ids_previos`; su resultado no trae la marca.
+    # Se recalculan las huellas sobre la sesión entera, como el informe.
+    try:
+        cer = (_evaluar_huellas(_filas_desglose(_pasadas_de(doc)))["huellas"]
+               or {}).get("plantilla_cercana") or {}
+        cercanos = {str(x) for x in cer.get("ids", [])}
+    except Exception:
+        cercanos = set()
     ya = _vectores_ya_registrados(ruta)
     escritos, omitidos, ya_registrados = 0, [], []
     aviso_ruta = None
@@ -3760,7 +3790,7 @@ def cmd_vectores(ruta, desglose, datos, cfg) -> dict:
             motivo = "sin scoring determinista"
         elif r.get("plantilla") is True:
             motivo = "veredictos de plantilla"
-        elif r.get("plantilla_cercana") is True:
+        elif r.get("plantilla_cercana") is True or id_ in cercanos:
             motivo = "veredictos casi iguales (plantilla_cercana)"
         vered = {}
         if motivo is None:
@@ -5205,15 +5235,22 @@ def _plantilla_retocada(ruta):
 
 def _filas_previas(ruta):
     """v3.22.13: filas (id, veredictos aceptados, tier) de la última pasada
-    de cada id del desglose acumulado en `ruta`; [] si no existe o no se
-    puede leer. Las usa `scoring --desglose-append` para medir las huellas
-    sobre toda la sesión. TOTAL."""
+    de cada id del desglose acumulado en `ruta`; [] si aún no existe. Las
+    usa `scoring --desglose-append` para medir las huellas sobre toda la
+    sesión. Si existe pero no se puede leer entero devuelve una cadena con
+    el motivo: leído a medias, la última pasada de un id podría quedar
+    fuera y frenarían veredictos ya repuntuados (revisión Codex, PR #130,
+    como en `cmd_vectores`). TOTAL."""
+    if not os.path.exists(ruta):
+        return []
     try:
         with open(ruta, encoding="utf-8") as fh:
-            pasadas = _pasadas_de(_parsear_desglose(fh.read(MAX_INGESTA_BYTES)))
-        return _filas_desglose(pasadas)
+            texto = fh.read(MAX_INGESTA_BYTES + 1)
+        if len(texto) > MAX_INGESTA_BYTES:
+            return "desglose_grande"
+        return _filas_desglose(_pasadas_de(_parsear_desglose(texto)))
     except Exception:
-        return []
+        return "desglose_ilegible"
 
 
 def _huellas_desglose(ruta):
@@ -5221,7 +5258,9 @@ def _huellas_desglose(ruta):
     desglose acumulado de la sesión; None sin desglose o sin huellas. TOTAL:
     nada de lo que lea puede tumbar el informe (hallazgo 2)."""
     try:
-        return _evaluar_huellas(_filas_previas(ruta))["huellas"]
+        filas = _filas_previas(ruta)
+        return (_evaluar_huellas(filas)["huellas"]
+                if isinstance(filas, list) else None)
     except Exception:
         return None
 

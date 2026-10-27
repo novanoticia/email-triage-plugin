@@ -101,11 +101,17 @@ relue par un humain. / Traducción generada por una IA, sin revisión humana.
     añade `huellas_acumuladas`.
   - **Correos de lotes anteriores:** su resultado ya salió sin la marca, así
     que se nombran en `ids_previos`. El principal debe repuntuarlos o copiar
-    la marca a su registro.
+    la marca a su registro. `vectores` recalcula las huellas sobre toda la
+    sesión y no los usa para el aprendizaje.
+  - **También correo a correo:** el scoring individual acumula igual que un
+    lote de uno.
+  - **Desglose que no se puede leer entero:** si pasa del límite de lectura
+    o está roto, no se acumula a medias; la salida lo dice en
+    `huellas_acumuladas_omitidas`.
   - **Lo que no cambia:** sin `--desglose-append` todo sigue igual. Hoy ese
     flag solo se usa con `telemetria.guardar_desglose` o `guardar_vector`.
-  - **Límites:** el freno de los `ids_previos` depende de que el principal
-    copie la marca. `alerta_plantilla` (veredictos idénticos) sigue
+  - **Límites:** en `registrar`, el freno de los `ids_previos` depende de
+    que el principal copie la marca. `alerta_plantilla` (veredictos idénticos) sigue
     midiéndose por lote; `plantilla_cercana` ya cubre ese caso con 20
     criterios o más.
 

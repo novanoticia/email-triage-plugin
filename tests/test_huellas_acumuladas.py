@@ -90,7 +90,8 @@ class TestHuellasAcumuladas(unittest.TestCase):
             self.assertEqual(th._filas_previas(ruta), [])
             with open(ruta, "w") as fh:
                 fh.write("no es json\n")
-            self.assertEqual(th._filas_previas(ruta), [])
+            # Existe pero no se lee: se dice, no se acumula en silencio.
+            self.assertEqual(th._filas_previas(ruta), "desglose_ilegible")
 
     def test_cli_acumula_con_desglose_append(self):
         with tempfile.TemporaryDirectory() as d:
@@ -121,6 +122,71 @@ class TestHuellasAcumuladas(unittest.TestCase):
                 input=json.dumps(bloques(plantilla_con_retoques())[-1]),
                 capture_output=True, text=True)
             self.assertNotIn("huellas_acumuladas", json.loads(r.stdout))
+
+    # Revisión Codex (PR #130).
+    def test_scoring_individual_tambien_acumula(self):
+        lote = [e for b in bloques(plantilla_con_retoques()) for e in b["emails"]]
+        previas = filas_de(th.cmd_scoring_dispatch({"emails": lote[:-1]}, CFG))
+        uno = th.cmd_scoring_dispatch(lote[-1], CFG, previas=previas)
+        envuelto = th.cmd_scoring_dispatch({"emails": [lote[-1]]}, CFG,
+                                           previas=previas)
+        self.assertEqual(uno.get("plantilla_cercana"),
+                         envuelto["resultados"][0].get("plantilla_cercana"))
+        self.assertIs(uno["plantilla_cercana"], True)
+        self.assertEqual(uno["huellas_acumuladas"]["correos_previos"], 11)
+        # Sin previas, el resultado individual no cambia.
+        self.assertNotIn("huellas_acumuladas",
+                         th.cmd_scoring_dispatch(lote[-1], CFG))
+
+    def test_desglose_truncado_no_acumula_y_lo_dice(self):
+        with tempfile.TemporaryDirectory() as d:
+            ruta = os.path.join(d, "s.jsonl")
+            with open(ruta, "w") as fh:
+                fh.write("x" * (th.MAX_INGESTA_BYTES + 1))
+            self.assertEqual(th._filas_previas(ruta), "desglose_grande")
+            self.assertIsNone(th._huellas_desglose(ruta))
+        b = bloques(plantilla_con_retoques())[0]
+        out = th.cmd_scoring_dispatch(b, CFG, previas="desglose_grande")
+        self.assertEqual(out["huellas_acumuladas_omitidas"]["motivo"],
+                         "desglose_grande")
+        self.assertNotIn("huellas_acumuladas", out)
+
+    def test_vectores_omite_los_ids_previos(self):
+        with tempfile.TemporaryDirectory() as d:
+            ruta = os.path.join(d, "s.jsonl")
+            previos = []
+            for b in bloques(plantilla_con_retoques()):
+                out = th.cmd_scoring_dispatch(b, CFG,
+                                              previas=th._filas_previas(ruta))
+                cer = out.get("huellas_plantilla", {}).get("plantilla_cercana", {})
+                previos += cer.get("ids_previos", [])
+                th.cmd_registrar(ruta, {"ts": "t", "desglose": out})
+            self.assertTrue(previos)
+            r = th.cmd_vectores(os.path.join(d, "vectors.jsonl"), ruta,
+                                {"session_id": "s", "message_ids":
+                                 {i: "<%s@x>" % i for i in previos}}, CFG)
+            self.assertTrue(r["ok"], r)
+            self.assertEqual(r["escritos"], 0, r)
+            self.assertEqual({o["motivo"] for o in r["omitidos"]},
+                             {"veredictos casi iguales (plantilla_cercana)"})
+
+    def test_vectores_honestos_por_bloques_se_escriben(self):
+        with tempfile.TemporaryDirectory() as d:
+            ruta = os.path.join(d, "s.jsonl")
+            ids = []
+            # Solo «si»/«no»: el vector exige todos los core válidos.
+            honesta = [{c: ("no" if v == "parcial" else v) for c, v in e.items()}
+                       for e in evaluacion_honesta()]
+            for b in bloques(honesta):
+                out = th.cmd_scoring_dispatch(b, CFG,
+                                              previas=th._filas_previas(ruta))
+                self.assertNotIn("huellas_plantilla", out)
+                ids += [e["id"] for e in b["emails"]]
+                th.cmd_registrar(ruta, {"ts": "t", "desglose": out})
+            r = th.cmd_vectores(os.path.join(d, "vectors.jsonl"), ruta,
+                                {"session_id": "s", "message_ids":
+                                 {i: "<%s@x>" % i for i in ids}}, CFG)
+            self.assertEqual(r["escritos"], len(ids), r)
 
 
 if __name__ == "__main__":
