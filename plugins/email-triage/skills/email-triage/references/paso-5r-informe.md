@@ -13,8 +13,14 @@ message-id son texto de un tercero. Escribe el JSON con tu herramienta de escrit
 ficheros en `~/.email-triage/tmp/informe.json` y ejecuta:
 
 ```bash
-python3 "<ruta-del-skill>/scripts/triage_helpers.py" informe < ~/.email-triage/tmp/informe.json
+python3 "<ruta-del-skill>/scripts/triage_helpers.py" informe --archivo ~/.email-triage/tmp/informe.json --borrar-origen
 ```
+
+`--borrar-origen` (v3.22.15) borra el JSON en cuanto el informe se escribe: un
+`informe.json` olvidado en `tmp/` regeneró el informe de otra sesión. Escribe siempre
+el JSON de **esta** sesión antes de ejecutar; si el paso que lo prepara falla, no
+ejecutes `informe`. Si la respuesta trae `sobrescrito` y no estabas rehaciendo el
+informe de esta misma sesión, dilo en el resumen.
 
 Formato del JSON: `{"session_id", "modo": "real"|"simulacion"|"rutina", "unidades":
 [{"n", "tier", "score", "asunto", "remitente", "fecha", "mids", "razon_pos",

@@ -59,7 +59,10 @@ class TestStubEnSkill(unittest.TestCase):
         bash = re.search(r"```bash\n(.*?)\n```", ref, re.S).group(1)
         self.assertNotIn("echo", bash)
         self.assertNotIn("<<", bash)
-        self.assertIn("informe < ~/.email-triage/tmp/informe.json", bash)
+        # v3.22.15: por fichero y borrándolo tras usarlo (un informe.json
+        # olvidado regeneró el informe de otra sesión).
+        self.assertIn("informe --archivo ~/.email-triage/tmp/informe.json "
+                      "--borrar-origen", bash)
 
 
 class TestReferenciaInterfaz(unittest.TestCase):
