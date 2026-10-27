@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.22.11
+# Email Triage Plugin v3.22.12
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,28 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.22.12
+
+- **`plantilla_cercana` pasa de aviso a freno.** La v3.22.11 la midió sin
+  bloquear nada y `diagnostico-plantillas` la pasó por 16 sesiones reales.
+  Con los 30 criterios, la huella separó dos grupos sin mezclarlos:
+  - las sesiones sin diccionario por defecto tenían 0 correos casi iguales;
+  - las sesiones con diccionario tenían 7 o más.
+  
+  Dos de las sesiones con diccionario están comprobadas: en ellas el
+  principal usó un diccionario por defecto con retoques.
+  - **Qué cambia:** `registrar` rechaza como triaje un movimiento marcado
+    `plantilla_cercana`, igual que hace con `plantilla`, y `vectores` no
+    lo usa para el aprendizaje.
+  - **Qué hacer si salta:** se puede volver a evaluar ese correo criterio a
+    criterio, o moverlo como `regla_manual` si la persona lo decide.
+  - **Lo que no cambia:** `criterios_inmoviles` sigue siendo solo un aviso,
+    porque no señala correos concretos.
+  - **Límites:** solo hay dos sesiones de referencia sin diccionario, y no
+    sabemos con certeza qué sesiones fueron honestas. El freno depende de
+    que el principal copie la marca al registro, igual que ya ocurre con
+    `plantilla`.
 
 ## Novedades en v3.22.11
 

@@ -79,7 +79,7 @@ class TestHuellas(unittest.TestCase):
         self.assertGreaterEqual(h["plantilla_cercana"]["correos"], 5)
         marcados = [r["id"] for r in out["resultados"] if r.get("plantilla_cercana")]
         self.assertEqual(marcados, h["plantilla_cercana"]["ids"])
-        self.assertIn("informativo", h["aviso"])
+        self.assertIn("`plantilla_cercana` frena", h["aviso"])
 
     def test_evaluacion_honesta_no_salta(self):
         out = puntuar(evaluacion_honesta())
@@ -107,13 +107,34 @@ class TestHuellas(unittest.TestCase):
         self.assertEqual(th._huellas_plantilla([("a", None, None), (1, {"x": {1}}, 3)]),
                          (None, []))
 
-    def test_no_frena_registrar(self):
+    def test_registrar_frena_plantilla_cercana(self):
+        # v3.22.12: calibrada con 16 desgloses reales, pasa de aviso a freno.
+        with tempfile.TemporaryDirectory() as d:
+            ruta = os.path.join(d, "s.jsonl")
+            mov = {"event": "move", "message_id": "<a@b>", "to_folder": "X",
+                   "score": -2, "plantilla_cercana": True,
+                   "modo_scoring": "determinista"}
+            r = th.cmd_registrar(ruta, mov)
+            self.assertIs(r["ok"], False)
+            self.assertIn("plantilla_cercana", r["error"])
+            self.assertIn("regla_manual", r["remedio"])
+            self.assertFalse(os.path.exists(ruta))
+            # Como `plantilla`: la persona puede moverlo como regla manual.
+            mov.update(origen="regla_manual", regla="plantilla=cercana")
+            self.assertIs(th.cmd_registrar(ruta, mov)["ok"], True)
+            # Sin la marca (repuntuado y ya no cercano), cuenta como triaje.
+            libre = dict(mov, plantilla_cercana=False, origen="triaje")
+            del libre["regla"]
+            self.assertIs(th.cmd_registrar(ruta, libre)["ok"], True)
+
+    def test_criterios_inmoviles_no_frena(self):
+        # Solo `plantilla_cercana` frena; la otra huella no señala correos.
         with tempfile.TemporaryDirectory() as d:
             r = th.cmd_registrar(os.path.join(d, "s.jsonl"), {
                 "event": "move", "message_id": "<a@b>", "to_folder": "X",
-                "score": -2, "plantilla_cercana": True,
+                "score": -2, "criterios_inmoviles": True,
                 "modo_scoring": "determinista"})
-            self.assertTrue(r["ok"], r)
+            self.assertIs(r["ok"], True, r)
 
 
 class TestRevisionUltra(unittest.TestCase):
@@ -268,12 +289,28 @@ class TestInformeYCalibracion(unittest.TestCase):
         with open(r["ruta"], encoding="utf-8") as fh:
             return r, fh.read()
 
-    def test_informe_avisa_sin_frenar(self):
+    def test_informe_avisa_y_dice_que_frena(self):
         self.registrar(SID, puntuar(plantilla_con_retoques()))
         r, md = self.informe()
         self.assertIn("criterios_inmoviles", r["huellas_plantilla"])
         self.assertIn("Posible plantilla con retoques", md)
-        self.assertIn("informativo", md)
+        self.assertIn("no se mueven como triaje", md)
+
+    def test_vectores_omite_los_casi_iguales(self):
+        # Como `plantilla`: no alimentan el dataset de aprendizaje.
+        salida = puntuar(plantilla_con_retoques())
+        self.registrar(SID, salida)
+        marcados = {r["id"] for r in salida["resultados"] if r.get("plantilla_cercana")}
+        self.assertTrue(marcados)
+        r = th.cmd_vectores(os.path.join(self.d.name, "vectors.jsonl"),
+                            os.path.join(self.desgloses, SID + ".jsonl"),
+                            {"session_id": SID,
+                             "message_ids": {str(i): "<m%d@x>" % i for i in marcados}},
+                            CFG)
+        self.assertTrue(r["ok"], r)
+        self.assertEqual(r["escritos"], 0, r)
+        self.assertEqual({o["motivo"] for o in r["omitidos"]},
+                         {"veredictos casi iguales (plantilla_cercana)"})
 
     def test_informe_honesto_o_sin_desglose_no_cambia(self):
         r, md = self.informe()

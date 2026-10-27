@@ -16,7 +16,7 @@ compatibility: >
   Claude Code, Claude Cowork y ChatGPT.
 license: Apache-2.0
 metadata:
-  version: "3.22.11"
+  version: "3.22.12"
   author: novanoticia
 ---
 
@@ -960,8 +960,11 @@ verdad (2026-08-07, ver `references/lecciones-produccion.md`).
   retoques** (`base = {...}; u(id, base, {...})`): cada correo se evalúa
   criterio a criterio. Si `scoring` devuelve `huellas_plantilla` (v3.22.11:
   `criterios_inmoviles` en un lote variado o `plantilla_cercana`), dilo con
-  el número y revisa esos correos uno a uno antes de mover. Hoy es
-  informativo, no frena; no retoques veredictos para callarlo. Si devuelve
+  el número y revisa esos correos uno a uno antes de mover; no retoques
+  veredictos para callarlo. Desde v3.22.12 `plantilla_cercana` **frena**:
+  los correos marcados no se mueven como triaje; copia `plantilla_cercana`
+  al registro (`registrar` lo rechaza) o, si la persona lo decide, muévelos
+  como `regla_manual`. `criterios_inmoviles` sigue siendo un aviso. Si devuelve
   `huellas_plantilla_omitidas`, las huellas no se midieron (lote grande) o
   no pueden saltar (pocos criterios, p. ej. modo veloz): dilo; no es un
   «sin plantilla».

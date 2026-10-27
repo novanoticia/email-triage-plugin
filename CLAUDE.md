@@ -255,8 +255,11 @@ rompes la conformidad (gate #7) y el skill deja de cargar fuera de Claude.
   INFORMATIVA: `criterios_inmoviles` (lote de 10+ en 3+ tiers con 15+
   criterios casi constantes) y `plantilla_cercana` (4+ vecinos a <= 3
   veredictos, en tiers distintos). Prueba real: diccionario por defecto con
-  1-3 retoques por correo, que `plantilla` no ve. No frena `registrar` hasta
-  calibrarla con `diagnostico-plantillas` (solo lee los desgloses). Las tres
+  1-3 retoques por correo, que `plantilla` no ve. Desde v3.22.12
+  `plantilla_cercana` frena `registrar` (y `vectores` la omite) como
+  `plantilla`: calibrada con 16 desgloses reales vía `diagnostico-plantillas`
+  (0 vecinos sin diccionario por defecto, 7+ con él); `criterios_inmoviles`
+  sigue siendo solo aviso. Las tres
   vías miden los mismos veredictos aceptados (`_veredictos_aceptados`); lo
   que no se pudo medir va a `huellas_plantilla_omitidas`, nunca como huella.
   Desde v3.21.12 un movimiento de triaje exige además
