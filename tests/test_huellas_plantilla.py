@@ -185,6 +185,49 @@ class TestInformeYCalibracion(unittest.TestCase):
         self.assertEqual(out["resumen"], {"sesiones": 3, "con_inmoviles": 1,
                                           "con_cercanos": 1})
 
+    def diagnosticar(self, ruta):
+        with open(ruta, encoding="utf-8") as fh:
+            doc = th._parsear_desglose(fh.read())
+        return th.cmd_diagnostico_plantillas([(ruta, doc)])
+
+    def test_snapshot_sin_append_tambien_se_mide(self):
+        # Revisión Codex P2 (PR #128): `scoring --desglose RUTA` sin
+        # `--desglose-append` escribe un JSON sin `pasadas` (KeyError).
+        os.makedirs(self.desgloses, exist_ok=True)
+        ruta = os.path.join(self.desgloses, "snapshot.json")
+        with open(ruta, "w", encoding="utf-8") as fh:
+            json.dump(puntuar(plantilla_con_retoques()), fh)
+        out = self.diagnosticar(ruta)
+        self.assertEqual(out["resumen"]["sesiones"], 1, out)
+        self.assertIn("criterios_inmoviles", out["sesiones"][0]["saltaria"])
+
+    def test_estados_p2_cuentan_como_en_el_scoring(self):
+        # Revisión Codex P2 (PR #128): con contrato_p2, `no_aplica` va a
+        # `no_evaluados` y no a `criterios`; la calibración no lo veía.
+        cfg = json.loads(json.dumps(CFG))
+        cfg["scoring"]["contrato_p2"] = True
+        # 11 criterios que nunca se retocan, declarados `no_aplica`; los
+        # umbrales se mueven para que el lote siga en tres tiers.
+        cfg["tiers"] = {"reply_needed": 100, "review": 12, "reading_later": 10,
+                        "archive": 9}
+        constantes = [CRITERIOS[14]] + CRITERIOS[20:]
+        lote = [dict(v, **{c: "no_aplica" for c in constantes})
+                for v in plantilla_con_retoques()]
+        salida = th.cmd_scoring_dispatch(
+            {"emails": [{"id": i, "verdicts": v} for i, v in enumerate(lote, 1)]}, cfg)
+        self.assertEqual({r["tier"] for r in salida["resultados"]},
+                         {"READING_LATER", "REVIEW", "ARCHIVE"})
+        self.assertIn("huellas_plantilla", salida)
+        self.assertTrue(all(len(r.get("no_evaluados", [])) == 11
+                            for r in salida["resultados"]))
+        self.registrar(SID, salida)
+        out = self.diagnosticar(os.path.join(self.desgloses, SID + ".jsonl"))
+        self.assertEqual(out["sesiones"][0]["criterios"], 30, out)
+        self.assertEqual(out["sesiones"][0]["saltaria"],
+                         sorted(k for k in salida["huellas_plantilla"] if k != "aviso"))
+        r, _ = self.informe()
+        self.assertIn("huellas_plantilla", r)
+
     def test_cli_lee_la_base_por_defecto_y_no_escribe(self):
         self.registrar("s-plantilla", puntuar(plantilla_con_retoques()))
         with open(os.path.join(self.desgloses, "roto.jsonl"), "w") as fh:

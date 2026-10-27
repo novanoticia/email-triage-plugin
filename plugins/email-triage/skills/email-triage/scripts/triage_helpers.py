@@ -1790,11 +1790,30 @@ def _huellas_plantilla_nucleo(filas):
     return resumen, m["cercanos"]
 
 
+def _pasadas_de(doc):
+    """Lista de pasadas de un desglose parseado: el JSONL acumulado trae
+    `pasadas`; el snapshot de `scoring --desglose` sin `--desglose-append`
+    es una sola pasada (revisión Codex P2, PR #128: KeyError y la sesión
+    quedaba fuera de la calibración)."""
+    pasadas = doc.get("pasadas") if isinstance(doc, dict) else None
+    return pasadas if isinstance(pasadas, list) else [doc]
+
+
 def _filas_desglose(pasadas):
-    """[(id, veredictos, tier)] de la ÚLTIMA pasada de cada id."""
-    return [(r.get("id"), _veredictos(r), r.get("tier"))
-            for r in _ultima_pasada(pasadas, None, [])
-            if isinstance(r, dict)]
+    """[(id, veredictos, tier)] de la ÚLTIMA pasada de cada id. Incluye los
+    estados P2 (`no_aplica`, `no_observable`) de `no_evaluados`: el scoring
+    los ve como veredictos y la calibración tiene que medir lo mismo
+    (revisión Codex P2, PR #128)."""
+    filas = []
+    for r in _ultima_pasada(pasadas, None, []):
+        if not isinstance(r, dict):
+            continue
+        vs = _veredictos(r)
+        for n in r.get("no_evaluados") or []:
+            if isinstance(n, dict) and isinstance(n.get("criterio"), str):
+                vs.setdefault(n["criterio"], n.get("estado"))
+        filas.append((r.get("id"), vs, r.get("tier")))
+    return filas
 
 
 def cmd_diagnostico_plantillas(docs) -> dict:
@@ -1805,7 +1824,7 @@ def cmd_diagnostico_plantillas(docs) -> dict:
     sesiones = []
     for ruta, doc in docs:
         try:
-            filas = _filas_desglose(doc["pasadas"])
+            filas = _filas_desglose(_pasadas_de(doc))
             m = _metricas_plantilla(filas)
             huellas, _ = _huellas_plantilla(filas)
         except Exception as e:  # TOTAL: un desglose raro no tumba el resto
@@ -5059,7 +5078,7 @@ def _huellas_desglose(ruta):
     desglose acumulado de la sesión; None sin desglose o sin huellas. TOTAL."""
     try:
         with open(ruta, encoding="utf-8") as fh:
-            pasadas = _parsear_desglose(fh.read(MAX_INGESTA_BYTES))["pasadas"]
+            pasadas = _pasadas_de(_parsear_desglose(fh.read(MAX_INGESTA_BYTES)))
     except (OSError, ValueError, UnicodeDecodeError, KeyError, TypeError):
         return None
     return _huellas_plantilla(_filas_desglose(pasadas))[0]
