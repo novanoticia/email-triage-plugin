@@ -27,10 +27,9 @@ un criterio `__incierto__` o con confianza baja descartaba el correo entero
 aunque la duda no pudiera cambiar la decisión. Con la tolerancia activa, si
 hay como mucho N criterios dudosos y TODAS sus respuestas posibles dan el
 mismo tier con el scoring real, el correo sigue y lleva `dudas_irrelevantes`.
-Si una sola combinación cambia el tier, el freno actúa como antes. En
-`hibrido` toda duda tolerada fuerza la reevaluación por el principal: allí
-solo queda la anotación (un incierto no se rellena y una confianza baja no
-entra en un triaje real).
+Si una sola combinación cambia el tier, el freno actúa como antes. Un core
+`__incierto__` nunca se tolera. En `hibrido` solo se anota: el freno actúa
+igual, con su motivo y sin propuesta.
 """
 import hashlib
 import itertools
@@ -56,8 +55,9 @@ MAX_LOTE = 50  # correos por invocación (`_filas`) y tope de `max_llamadas`
 # Desviación de la suma admitida por opción: probabilidades redondeadas a dos
 # decimales (prueba real v3.22.5: 20 de 48 respuestas de Jev con suma 0,99).
 REDONDEO_POR_OPCION = 0.005
-# Tope de `tolerancia_dudas` y de combinaciones puntuadas por correo: con 3
-# criterios de hasta 7 opciones (+ exclusión) son 512; más no se prueba.
+# Tope de `tolerancia_dudas` y de combinaciones puntuadas por correo. Con la
+# plantilla (máx. 3 opciones por criterio) son como mucho (3+1)**3 = 64; el
+# tope de 512 = (7+1)**3 es margen para configs propios con más opciones.
 MAX_TOLERANCIA_DUDAS = 3
 MAX_COMBINACIONES_DUDAS = 512
 
@@ -306,9 +306,13 @@ def _scoring(ident, control, vs, cfg):
 def _dudas_irrelevantes(e, v, dudosos, activos, cfg, maximo):
     """¿Cambia el tier alguna respuesta posible de los criterios dudosos?
 
-    Devuelve el resumen si TODAS las combinaciones (opciones del config y
-    la exclusión en los no core y en los inciertos) dan el mismo tier con `_scoring`; None si
-    alguna lo cambia o si hay más dudosos o combinaciones de las admitidas.
+    Devuelve el resumen si TODAS las combinaciones (opciones del config y,
+    en los no core, la exclusión) dan el mismo tier con `_scoring`; None si
+    alguna lo cambia, si hay más dudosos o combinaciones de las admitidas, si
+    una combinación no se puede puntuar (entonces actúa el freno de siempre,
+    con su motivo) o si un criterio core salió `__incierto__`: la propuesta
+    quedaría sin él y no sería comparable con el principal (misma regla que
+    `_principal` para un core excluido).
     Solo aritmética local: sin red y sin tocar la respuesta del proveedor.
     """
     if not dudosos or len(dudosos) > maximo:
@@ -316,10 +320,9 @@ def _dudas_irrelevantes(e, v, dudosos, activos, cfg, maximo):
     alternativas = []
     for k in dudosos:
         opciones, core = activos[k]
-        # Un incierto se puntúa sin veredicto (también si es core): la
-        # exclusión es justo la combinación de la propuesta y se prueba.
-        excluible = not core or k in v["inciertos"]
-        alternativas.append(sorted(opciones) + ([None] if excluible else []))
+        if core and k in v["inciertos"]:
+            return None
+        alternativas.append(sorted(opciones) + ([] if core else [None]))
     total = math.prod(len(a) for a in alternativas)
     if total > MAX_COMBINACIONES_DUDAS:
         return None
@@ -327,7 +330,10 @@ def _dudas_irrelevantes(e, v, dudosos, activos, cfg, maximo):
     tiers, scores = set(), []
     for combinacion in itertools.product(*alternativas):
         vs = dict(fijos, **{k: x for k, x in zip(dudosos, combinacion) if x is not None})
-        r = _scoring(e["id"], e["control"], vs, cfg)
+        try:
+            r = _scoring(e["id"], e["control"], vs, cfg)
+        except ErrorClasificador:
+            return None
         tiers.add(r["tier"])
         scores.append(r["score"])
         if len(tiers) > 1:
@@ -567,11 +573,13 @@ def procesar(p, cfg, capa, transporte, modo, prov):
                 tolerancia = (_dudas_irrelevantes(e, v, dudosos, activos, cfg,
                                                   c["tolerancia_dudas"])
                               if c["tolerancia_dudas"] else None)
-                if tolerancia is None:
+                if tolerancia is not None:
+                    r["dudas_irrelevantes"] = tolerancia
+                if tolerancia is None or modo == "hibrido":
+                    # En `hibrido` la tolerancia solo anota: el freno actúa con su
+                    # motivo y sin propuesta (decisión del mantenedor, PR #141).
                     _exigir(not v["inciertos"], prov.etiqueta + "_incierto")
                     _exigir(min(v["confianzas"].values()) >= c["confianza_minima"], "confianza_baja")
-                else:
-                    r["dudas_irrelevantes"] = tolerancia
                 propuesta = _scoring(e["id"], e["control"], v["verdicts"], cfg)
                 r.update(propuesta=propuesta, no_aplica=v["no_aplica"], motivo="solo_comparacion")
                 if modo == "hibrido":
@@ -584,12 +592,7 @@ def procesar(p, cfg, capa, transporte, modo, prov):
                     reevaluar = (propuesta["tier"] in ("ARCHIVE", "REPLY_NEEDED")
                                  or any(abs(propuesta["score"] - x) <= 1 for x in fronteras)
                                  or bool(v["discrepancias_confianza"])
-                                 or bool(v["probabilidades_redondeadas"])
-                                 # Toda duda tolerada vuelve al principal: un incierto
-                                 # deja un criterio sin veredicto y una confianza baja
-                                 # no entra en un triaje real (decisión del mantenedor,
-                                 # revisión Mistral, PR #141).
-                                 or tolerancia is not None)
+                                 or bool(v["probabilidades_redondeadas"]))
                     r.update(usar_principal=reevaluar, revision_obligatoria=True,
                              motivo="reevaluar_tier_umbral_o_confianza" if reevaluar else "propuesta_validada",
                              payload_scoring=dict(e["control"], id=e["id"], verdicts=v["verdicts"]))

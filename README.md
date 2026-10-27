@@ -101,11 +101,12 @@ relue par un humain. / Traducción generada por una IA, sin revisión humana.
     script prueba todas sus respuestas posibles (y la exclusión en los no
     core) con el scoring real. Si todas dan el mismo tier, el correo sigue
     y lleva `dudas_irrelevantes` (criterios, tier, combinaciones y rango de
-    score). Si una sola cambia el tier, se descarta como antes.
-  - **En `hibrido`:** toda duda tolerada obliga a reevaluar con el
-    principal; allí solo queda la anotación `dudas_irrelevantes`. Ningún
-    veredicto dudoso entra en un triaje real hasta medirlo con correos
-    reales.
+    score). Si una sola cambia el tier, se descarta como antes. Un criterio
+    core `__incierto__` nunca se tolera: la propuesta quedaría sin él y no
+    sería comparable con el principal.
+  - **En `hibrido`:** solo se anota `dudas_irrelevantes`; el freno actúa
+    igual, con su motivo y sin propuesta. Ningún veredicto dudoso entra en
+    un triaje real hasta medirlo con correos reales.
   - **Qué no cambia:** `tolerancia_dudas: 0` es el valor por defecto; sin
     tocar la capa, los frenos actúan igual que antes.
 

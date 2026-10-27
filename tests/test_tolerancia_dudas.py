@@ -11,19 +11,24 @@ import unittest
 from unittest.mock import patch
 
 from tests.test_jev import ACTIVO, lote, respuesta
+from tests.test_decisions import respuesta as respuesta_decisions
 import clasificadores as nc
 import decisions as d
 import jev as j
 
-K = "cambia_algo_concreto"  # su «no» vale -5: con margen justo mueve el tier
+K = "cambia_algo_concreto"  # core; su «no» vale -5: con margen justo mueve el tier
+NC = "retorno_atencional"    # no core: admite la exclusión
 
 
-def _con_duda(criterios, incierto=True):
-    """Transporte que marca `criterios` como inciertos o de confianza baja."""
+def _con_duda(criterios, incierto=True, eleccion=None):
+    """Transporte que marca `criterios` como inciertos o de confianza baja
+    (con `eleccion`, la opción elegida con esa confianza baja)."""
     def t(body, *_):
         r = respuesta(body)
         for k in criterios:
             a = r["answers"][k]
+            if eleccion:
+                a["choice"] = eleccion
             if incierto:
                 a.update(choice=nc.INCIERTO,
                          probabilities={o: float(o == nc.INCIERTO) for o in a["probabilities"]})
@@ -67,7 +72,7 @@ class _Base(unittest.TestCase):
 
 class TestComparar(_Base):
     def test_desactivada_por_defecto_el_freno_no_cambia(self):
-        t = _con_duda([K])
+        t = _con_duda([NC])
         self.fijar_score(30, t)
         fila = j.comparar(self.p, self.cfg, ACTIVO, t)["resultados"][0]
         self.assertEqual(fila["motivo"], "jev_incierto")
@@ -75,25 +80,27 @@ class TestComparar(_Base):
         self.assertNotIn("propuesta", fila)
 
     def test_duda_que_no_cambia_el_tier_se_acepta(self):
-        t = _con_duda([K])
+        t = _con_duda([NC])
         self.fijar_score(30, t)  # lejos de cualquier umbral
         fila = self.correr(1, t)
         self.assertEqual(fila["motivo"], "solo_comparacion", fila)
         di = fila["dudas_irrelevantes"]
-        self.assertEqual(di["criterios"], [K])
+        self.assertEqual(di["criterios"], [NC])
+        # No core: sus opciones más la exclusión (la combinación de la propuesta).
+        self.assertEqual(di["combinaciones"], len(j._opciones(self.cfg)[NC][0]) + 1)
         self.assertEqual(di["tier"], fila["propuesta"]["tier"])
         self.assertGreater(di["combinaciones"], 1)
         self.assertLessEqual(di["score_min"], di["score_max"])
 
     def test_duda_que_cambia_el_tier_se_descarta_como_antes(self):
-        t = _con_duda([K])
+        t = _con_duda([K], incierto=False)
         self.fijar_score(4, t)  # justo en el umbral de REVIEW: el «no» (-5) lo baja
         fila = self.correr(3, t)
-        self.assertEqual(fila["motivo"], "jev_incierto")
+        self.assertEqual(fila["motivo"], "confianza_baja")
         self.assertNotIn("dudas_irrelevantes", fila)
 
     def test_mas_dudas_que_la_tolerancia_se_descarta(self):
-        t = _con_duda([K, "hug_the_query"])
+        t = _con_duda([NC, "ruido_social"])
         self.fijar_score(30, t)
         self.assertEqual(self.correr(1, t)["motivo"], "jev_incierto")
         self.assertIn("dudas_irrelevantes", self.correr(2, t))
@@ -108,49 +115,70 @@ class TestComparar(_Base):
         self.assertIn(K, fila["criterios_confianza_baja"])
 
     def test_tolerada_entra_en_la_comparacion(self):
-        t = _con_duda([K])
+        t = _con_duda([NC])
         self.fijar_score(30, t)
         r = j.comparar(self.p, self.cfg, self.capa(1), t)
         self.assertEqual(r["comparacion"]["total"], 1)
         self.assertEqual(r["sin_propuesta"], 0)
 
 
-    def test_incierto_core_prueba_tambien_la_exclusion(self):
-        # La propuesta se puntúa sin el incierto: esa combinación debe estar.
-        _, core = j._opciones(self.cfg)[K]
-        self.assertTrue(core)
+    def test_incierto_core_nunca_se_tolera(self):
+        # La propuesta quedaría sin un core que el principal sí puntúa: no
+        # comparable (misma regla que `_principal`; revisión /code-review, PR #141).
+        self.assertTrue(j._opciones(self.cfg)[K][1])
         t = _con_duda([K])
         self.fijar_score(30, t)
+        r = j.comparar(self.p, self.cfg, self.capa(3), t)
+        fila = r["resultados"][0]
+        self.assertEqual(fila["motivo"], "jev_incierto")
+        self.assertNotIn("dudas_irrelevantes", fila)
+        self.assertEqual(r["comparacion"]["total"], 0)
+
+    def test_no_aplica_de_confianza_baja_se_tolera(self):
+        t = _con_duda([NC], incierto=False, eleccion=nc.NO_APLICA)
+        self.fijar_score(30, t)
         fila = self.correr(1, t)
-        n = len(j._opciones(self.cfg)[K][0])
-        self.assertEqual(fila["dudas_irrelevantes"]["combinaciones"], n + 1)
-        prop = fila["propuesta"]["score"]
-        di = fila["dudas_irrelevantes"]
-        self.assertTrue(di["score_min"] <= prop <= di["score_max"])
+        self.assertEqual(fila["dudas_irrelevantes"]["criterios"], [NC])
+        self.assertIn(NC, fila["no_aplica"])
+
+    def test_error_al_puntuar_una_alternativa_deja_el_motivo_del_freno(self):
+        t = _con_duda([NC])
+        self.fijar_score(30, t)
+        real = nc._scoring
+
+        # «medio» no lo eligen ni el principal (primera opción: «alto») ni el
+        # proveedor (incierto): solo lo puntúa la búsqueda de alternativas.
+        self.assertEqual(self.p["emails"][0]["principal"]["verdicts"][NC], "alto")
+
+        def falla_en_medio(ident, control, vs, cfg):
+            if vs.get(NC) == "medio":
+                raise nc.ErrorClasificador("scoring_invalido")
+            return real(ident, control, vs, cfg)
+        with patch.object(nc, "_scoring", falla_en_medio):
+            fila = self.correr(1, t)
+        self.assertEqual(fila["motivo"], "jev_incierto")
 
 
 class TestHibrido(_Base):
     modo = "hibrido"
 
-    def test_incierto_tolerado_obliga_a_reevaluar(self):
-        # Falta su veredicto: el principal lo evalúa; nunca se rellena.
-        t = _con_duda([K])
-        self.fijar_score(30, t)
-        fila = self.correr(1, t)
-        self.assertIn("dudas_irrelevantes", fila)
-        self.assertTrue(fila["usar_principal"])
-        self.assertEqual(fila["motivo"], "reevaluar_tier_umbral_o_confianza")
-        self.assertNotIn(K, fila["payload_scoring"]["verdicts"])
-
-    def test_confianza_baja_tolerada_tambien_obliga_a_reevaluar(self):
-        # En un triaje real no entra un veredicto dudoso (decisión del
-        # mantenedor, PR #141): solo queda la anotación.
-        t = _con_duda([K], incierto=False)
-        self.fijar_score(30, t)
-        fila = self.correr(1, t)
-        self.assertIn("dudas_irrelevantes", fila)
-        self.assertTrue(fila["usar_principal"])
-        self.assertEqual(fila["motivo"], "reevaluar_tier_umbral_o_confianza")
+    def test_en_hibrido_solo_anota_y_el_freno_actua_igual(self):
+        # Decisión del mantenedor (PR #141): ningún veredicto dudoso entra en
+        # un triaje real; el motivo específico y la ausencia de propuesta se
+        # conservan (revisión /code-review, PR #141).
+        for t, motivo in ((_con_duda([NC]), "jev_incierto"),
+                          (_con_duda([K], incierto=False), "confianza_baja")):
+            with self.subTest(motivo=motivo):
+                self.p["emails"][0]["control"]["extra_points"] = 0
+                self.fijar_score(30, t)
+                r = j.evaluar(self.p, self.cfg, self.capa(1), t)
+                fila = r["resultados"][0]
+                self.assertIn("dudas_irrelevantes", fila)
+                self.assertEqual(fila["motivo"], motivo)
+                self.assertTrue(fila["usar_principal"])
+                self.assertNotIn("propuesta", fila)
+                self.assertNotIn("payload_scoring", fila)
+                self.assertEqual(r["sin_propuesta"], 1)
 
     def test_sin_dudas_la_propuesta_sigue_validandose(self):
         self.fijar_score(30, respuesta)
@@ -162,6 +190,34 @@ class TestHibrido(_Base):
         t = _con_duda([K], incierto=False)
         self.fijar_score(4, t)
         self.assertEqual(self.correr(3, t)["motivo"], "confianza_baja")
+
+
+class TestDecisions(unittest.TestCase):
+    """El adaptador Decisions pasa por el mismo freno de `clasificadores`."""
+
+    def setUp(self):
+        self.env = patch.dict(os.environ, {"OPENAI_API_KEY": "clave-ficticia"})
+        self.env.start()
+        self.addCleanup(self.env.stop)
+        self.p, self.cfg = lote()
+        self.p["emails"][0]["control"]["extra_points"] = 40  # lejos de los umbrales
+
+    def transporte(self, body, *_):
+        r = respuesta_decisions(body)
+        for a in r["answers"]:
+            if a["name"] == NC:
+                a["choice"] = nc.INCIERTO
+                for pr in a["probabilities"]:
+                    pr["probability"] = float(pr["value"] == nc.INCIERTO)
+        return r
+
+    def test_incierto_no_core_tolerado_en_decisions(self):
+        sin = d.comparar(self.p, self.cfg, ACTIVO, self.transporte)["resultados"][0]
+        self.assertEqual(sin["motivo"], "decisions_incierto")
+        con = d.comparar(self.p, self.cfg, dict(ACTIVO, tolerancia_dudas=1),
+                         self.transporte)["resultados"][0]
+        self.assertEqual(con["motivo"], "solo_comparacion", con)
+        self.assertEqual(con["dudas_irrelevantes"]["criterios"], [NC])
 
 
 class TestConfig(unittest.TestCase):
