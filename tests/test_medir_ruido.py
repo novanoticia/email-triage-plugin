@@ -82,6 +82,13 @@ class TestMedir(unittest.TestCase):
         self.assertIs(js["strict"], True)
         self.assertIn("La reunión del jueves", cuerpo["messages"][0]["content"])
 
+    def test_perfil_va_antes_del_correo_y_es_opcional(self):
+        sin = mr.peticion({}, "m", mr.CORREOS[0])["messages"][0]["content"]
+        con = mr.peticion({}, "m", mr.CORREOS[0], "Psicólogo")["messages"][0]["content"]
+        self.assertNotIn("perfil_minimo", sin)
+        self.assertTrue(con.endswith(sin))
+        self.assertIn("perfil_minimo: Psicólogo", con)
+
     def test_markdown_resume(self):
         r = mr.medir(self.cfg, mr.CORREOS[:1], 2, lambda c: _api(self.base))
         texto = mr.markdown(r)
@@ -98,6 +105,13 @@ class TestSinEjecutarNoHayRed(unittest.TestCase):
         t.assert_not_called()
         plan = json.loads(out.getvalue())["plan"]
         self.assertEqual(plan["llamadas"], len(mr.CORREOS) * 5)
+        self.assertFalse(plan["con_perfil"])
+
+    def test_perfil_demasiado_largo_se_rechaza(self):
+        argv = ["medir_ruido.py", "--modelo", "m", "--perfil", "x" * (mr.MAX_PERFIL + 1)]
+        with mock.patch.object(sys, "argv", argv), \
+                redirect_stdout(io.StringIO()), self.assertRaises(SystemExit):
+            mr.main()
 
 
 if __name__ == "__main__":
