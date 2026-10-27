@@ -22,7 +22,10 @@ los metadatos ya recogidos (SCRIPT 1A) y usa las `unidades` que devuelve:
 python3 "<ruta-del-skill>/scripts/triage_helpers.py" agrupar-hilos < ~/.email-triage/tmp/agrupar-hilos.json
 ```
 
-Devuelve `{"unidades":[{tipo, clave_hilo, count, participantes, miembros}]}`.
+Devuelve `{"unidades":[{tipo, clave_hilo, count, participantes, miembros}]}`;
+cada hilo trae además `extras_hilo` (v3.22.16): las reglas de hilo del 4.J
+ya calculadas. Suma `extras_hilo.puntos` a `extra_points` y no las cuentes
+a mano.
 En Gmail sigue mandando el hilo nativo (paso 0 de abajo); el algoritmo manual
 que sigue es la especificación que `agrupar-hilos` implementa (fallback si el
 script no está disponible).
@@ -161,6 +164,14 @@ procedimiento en lugar de evaluar cada mensaje por separado.
 | **Profundidad de hilo** | +1 | `count >= 3` (conversación activa) |
 | **Hilo muy largo** | -1 | `count >= 10` (posible ruido acumulado) |
 | **Único participante externo** | +1 | Solo hay un remitente externo (conversación directa, no lista) |
+
+Las tres últimas las calcula `agrupar-hilos` en `extras_hilo` (v3.22.16):
+suma `extras_hilo.puntos` a `extra_points` tal cual. Si todos los
+participantes son buzones automáticos (`noreply`, `notifications`,
+`alerts`, `mailer-daemon`…), profundidad y participante único no puntúan
+(van a `extras_hilo.omitidos`): un aviso repetido no es una conversación
+(prueba real: avisos de Statuspage con +2). En Gmail, donde el hilo nativo
+no pasa por `agrupar-hilos`, aplica la misma excepción.
 
 #### Criterios epistémicos afectados por el contexto de hilo
 

@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.22.15
+# Email Triage Plugin v3.22.16
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,22 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.22.16
+
+- **Los avisos automáticos ya no puntúan como conversación.** En una prueba
+  real, 4 avisos de `noreply@statuspage.io` agrupados en hilo sumaron +2
+  por «profundidad» y «único participante externo»; en otra sesión el
+  modelo no lo hizo. Esas reglas de hilo las sumaba el modelo de cabeza.
+  - **Qué cambia:** `agrupar-hilos` devuelve en cada hilo `extras_hilo`
+    (`puntos`, `detalle`, `omitidos`) con las reglas del 4.J ya calculadas,
+    y el modelo suma `puntos` a `extra_points`. Si todos los participantes
+    son buzones automáticos (`noreply`, `notifications`, `alerts`,
+    `mailer-daemon`…), profundidad y participante único no puntúan; el −1
+    por hilo muy largo se mantiene.
+  - **Qué no cambia:** `scoring`, los correos individuales y las palabras
+    clave de tu config (si un aviso sube por una palabra clave tuya, eso es
+    tu preferencia, no la regla de hilos).
 
 ## Novedades en v3.22.15
 
