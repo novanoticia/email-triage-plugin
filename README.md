@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.22.18
+# Email Triage Plugin v3.22.19
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,19 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.22.19
+
+- **El esquema del evaluador nativo, probado con una API real.** OpenAI en
+  modo `strict` (`gpt-6-luna`, Chat Completions) aceptó el esquema y su
+  respuesta salió conforme, con los 30 criterios cubiertos. Anthropic sigue
+  sin probar con API real.
+  - **Qué cambia:** la prueba sacó un fallo. El modelo copió el correo
+    entero en `eco`, y un eco así no coincide con el ancla, de modo que la
+    respuesta no habría contado. El esquema pide ahora, campo a campo, las
+    seis primeras y las seis últimas palabras del extracto.
+  - **Qué no cambia:** `validar`, `normalizar` y la forma del esquema. Solo
+    cambian sus descripciones.
 
 ## Novedades en v3.22.18
 
