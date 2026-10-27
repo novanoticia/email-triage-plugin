@@ -256,7 +256,9 @@ rompes la conformidad (gate #7) y el skill deja de cargar fuera de Claude.
   criterios casi constantes) y `plantilla_cercana` (4+ vecinos a <= 3
   veredictos, en tiers distintos). Prueba real: diccionario por defecto con
   1-3 retoques por correo, que `plantilla` no ve. No frena `registrar` hasta
-  calibrarla con `diagnostico-plantillas` (solo lee los desgloses).
+  calibrarla con `diagnostico-plantillas` (solo lee los desgloses). Las tres
+  vías miden los mismos veredictos aceptados (`_veredictos_aceptados`); lo
+  que no se pudo medir va a `huellas_plantilla_omitidas`, nunca como huella.
   Desde v3.21.12 un movimiento de triaje exige además
   `"modo_scoring": "determinista"`: en modo `mental` no actúa ninguno de
   esos frenos (prueba real 11), así que puntuar de cabeza sirve para

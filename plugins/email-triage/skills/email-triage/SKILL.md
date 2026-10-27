@@ -961,7 +961,10 @@ verdad (2026-08-07, ver `references/lecciones-produccion.md`).
   criterio a criterio. Si `scoring` devuelve `huellas_plantilla` (v3.22.11:
   `criterios_inmoviles` en un lote variado o `plantilla_cercana`), dilo con
   el número y revisa esos correos uno a uno antes de mover. Hoy es
-  informativo, no frena; no retoques veredictos para callarlo.
+  informativo, no frena; no retoques veredictos para callarlo. Si devuelve
+  `huellas_plantilla_omitidas`, las huellas no se midieron (lote grande) o
+  no pueden saltar (pocos criterios, p. ej. modo veloz): dilo; no es un
+  «sin plantilla».
 - Evalúa **todos** los criterios activos; solo los core si la persona pidió
   el modo veloz (v3.21.40). Si `scoring` devuelve `alerta_cobertura`, completa
   y repuntúa; no los muevas así. Copia `criterios_sin_evaluar` al registro.

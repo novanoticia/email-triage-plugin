@@ -1708,7 +1708,10 @@ UMBRAL_INMOVILES = 15
 DIST_CERCANA = 3
 MIN_VECINOS_CERCANA = 4
 MIN_CRITERIOS_CERCANA = 20
-MAX_FILAS_HUELLAS = 2000
+# /code-review ultra (PR #128, hallazgo 3): la búsqueda de vecinos es
+# cuadrática; con 2000 filas tardaba 16 s en cada `scoring` de lote. Una
+# sesión tiene como mucho 50 correos: 500 da margen sin coste visible.
+MAX_FILAS_HUELLAS = 500
 
 
 def _valor_clave(v):
@@ -1718,21 +1721,62 @@ def _valor_clave(v):
         return repr(v)
 
 
+def _veredictos_aceptados(r):
+    """{criterio: veredicto} que el scoring ACEPTÓ para un resultado: su
+    lista `criterios` más los estados P2 (`no_aplica`, `no_observable`) de
+    `no_evaluados`. Lo usan scoring, informe y calibración para medir lo
+    mismo (/code-review ultra, PR #128, hallazgo 5: scoring contaba los
+    veredictos crudos, con criterios desconocidos y valores inválidos; la
+    calibración, solo los aceptados). TOTAL: una entrada rara se ignora."""
+    vs = {}
+    if not isinstance(r, dict):
+        return vs
+    crits = r.get("criterios")
+    for c in crits if isinstance(crits, list) else ():
+        if isinstance(c, dict) and isinstance(c.get("criterio"), str):
+            vs[c["criterio"]] = c.get("veredicto")
+    no_ev = r.get("no_evaluados")
+    for n in no_ev if isinstance(no_ev, list) else ():
+        if isinstance(n, dict) and isinstance(n.get("criterio"), str):
+            vs.setdefault(n["criterio"], n.get("estado"))
+    return vs
+
+
 def _huellas_plantilla(filas):
     """Huellas informativas de veredictos de plantilla con retoques.
 
     `filas`: [(id, {criterio: veredicto}, tier)]. Devuelve (resumen | None,
-    índices marcados `plantilla_cercana`). TOTAL: una fila rara no cuenta y
-    nunca lanza. No decide nada: el resumen dice qué mirar."""
+    índices marcados `plantilla_cercana`). TOTAL: nunca lanza. No decide
+    nada: el resumen dice qué mirar."""
+    ev = _evaluar_huellas(filas)
+    return ev["huellas"], ev["cercanos"]
+
+
+def _evaluar_huellas(filas):
+    """Una sola pasada para scoring, informe y calibración (hallazgo 4):
+    {"huellas": resumen | None, "cercanos": [índices], "metricas": dict |
+    None, "omitidas": dict | None}. `omitidas` dice por qué una huella no
+    se midió o no puede saltar en este lote (lote demasiado grande, o
+    pocos criterios: modo veloz, hallazgos 6 y 7); nunca es una huella.
+    TOTAL: cualquier fallo devuelve todo vacío."""
+    vacio = {"huellas": None, "cercanos": [], "metricas": None, "omitidas": None}
     try:
-        return _huellas_plantilla_nucleo(filas)
+        n = sum(1 for _, vs, _ in filas if isinstance(vs, dict) and vs)
+        if n > MAX_FILAS_HUELLAS:
+            return dict(vacio, omitidas={
+                "motivo": "lote_grande", "correos": n, "max": MAX_FILAS_HUELLAS,
+                "aviso": "lote de más de %d correos: las huellas de plantilla "
+                         "no se han medido" % MAX_FILAS_HUELLAS})
+        m = _metricas_plantilla(filas)
+        return dict(vacio, metricas=m, **_huellas_desde_metricas(filas, m))
     except Exception:  # red universal: es informativo, nunca tumba el lote
-        return None, []
+        return vacio
 
 
 def _metricas_plantilla(filas):
     """Métricas en bruto, sin umbrales (las usa también la calibración):
-    {"correos", "tiers", "inmoviles": [...], "cercanos": [índices]}."""
+    {"correos", "tiers", "criterios", "criterios_max", "inmoviles": [...],
+    "cercanos": [índices]}."""
     validas = [(i, {str(c): _valor_clave(v) for c, v in vs.items()}, t)
                for i, (_, vs, t) in enumerate(filas)
                if isinstance(vs, dict) and vs]
@@ -1747,29 +1791,39 @@ def _metricas_plantilla(filas):
                        if n and max(vals.values()) >= FRACCION_INMOVIL * n)
     # Vecinos que además caen en tiers distintos: diez promociones honradas
     # son vecinas y van todas a ARCHIVE; una base común con retoques reparte
-    # correos casi iguales entre tiers.
-    cercanos = []
-    for i, va, ta in validas:
-        if len(va) < MIN_CRITERIOS_CERCANA:
-            continue
-        vecinos, tiers_vec = 0, {ta}
-        for j, vb, tb in validas:
-            if i == j or len(vb) < MIN_CRITERIOS_CERCANA:
+    # correos casi iguales entre tiers. Cada par se compara una vez, con las
+    # claves precalculadas y salida en cuanto pasa de DIST_CERCANA (hallazgo 3).
+    aptos = [k for k in range(n) if len(validas[k][1]) >= MIN_CRITERIOS_CERCANA]
+    claves = {k: set(validas[k][1]) for k in aptos}
+    vecinos = {k: 0 for k in aptos}
+    tiers_vec = {k: {validas[k][2]} for k in aptos}
+    for x, a in enumerate(aptos):
+        va, ka = validas[a][1], claves[a]
+        for b in aptos[x + 1:]:
+            vb, kb = validas[b][1], claves[b]
+            dist = len(ka ^ kb)
+            if dist > DIST_CERCANA:
                 continue
-            if sum(1 for c in set(va) | set(vb)
-                   if va.get(c) != vb.get(c)) <= DIST_CERCANA:
-                vecinos += 1
-                tiers_vec.add(tb)
-        if vecinos >= MIN_VECINOS_CERCANA and len(tiers_vec - {None}) >= 2:
-            cercanos.append(i)
+            for c in ka & kb:
+                if va[c] != vb[c]:
+                    dist += 1
+                    if dist > DIST_CERCANA:
+                        break
+            if dist <= DIST_CERCANA:
+                vecinos[a] += 1
+                vecinos[b] += 1
+                tiers_vec[a].add(validas[b][2])
+                tiers_vec[b].add(validas[a][2])
+    cercanos = [validas[k][0] for k in aptos
+                if vecinos[k] >= MIN_VECINOS_CERCANA
+                and len(tiers_vec[k] - {None}) >= 2]
     return {"correos": n, "tiers": len(tiers), "criterios": len(cuenta),
+            "criterios_max": max((len(vs) for _, vs, _ in validas), default=0),
             "inmoviles": inmoviles, "cercanos": cercanos}
 
 
-def _huellas_plantilla_nucleo(filas):
-    if len(filas) > MAX_FILAS_HUELLAS:
-        return {"omitido": "lote de más de %d correos" % MAX_FILAS_HUELLAS}, []
-    m = _metricas_plantilla(filas)
+def _huellas_desde_metricas(filas, m):
+    """Aplica los umbrales a unas métricas ya calculadas."""
     resumen = {}
     if (m["correos"] >= MIN_LOTE_INMOVILES and m["tiers"] >= MIN_TIERS_INMOVILES
             and len(m["inmoviles"]) >= UMBRAL_INMOVILES):
@@ -1781,13 +1835,28 @@ def _huellas_plantilla_nucleo(filas):
         resumen["plantilla_cercana"] = {
             "correos": len(m["cercanos"]),
             "ids": [filas[i][0] for i in m["cercanos"]]}
+    # Hallazgo 7: en modo veloz (13 core) ninguna huella puede saltar; se
+    # dice en vez de callar. Los umbrales no se tocan sin calibrar.
+    imposibles = []
+    if m["correos"] >= MIN_LOTE_INMOVILES and m["criterios"] < UMBRAL_INMOVILES:
+        imposibles.append("criterios_inmoviles")
+    if (m["correos"] > MIN_VECINOS_CERCANA
+            and m["criterios_max"] < MIN_CRITERIOS_CERCANA):
+        imposibles.append("plantilla_cercana")
+    omitidas = None
+    if imposibles:
+        omitidas = {"motivo": "pocos_criterios", "huellas": imposibles,
+                    "criterios": m["criterios"],
+                    "aviso": "con %d criterios por correo (¿modo veloz?) estas "
+                             "huellas no pueden saltar: no prueba que no haya "
+                             "plantilla" % m["criterios_max"]}
     if not resumen:
-        return None, []
+        return {"huellas": None, "cercanos": [], "omitidas": omitidas}
     resumen["aviso"] = ("informativo (no frena): veredictos casi iguales o "
                         "criterios que no se mueven en un lote variado; puede "
                         "ser un diccionario por defecto con retoques. Revisa "
                         "esos correos uno a uno")
-    return resumen, m["cercanos"]
+    return {"huellas": resumen, "cercanos": m["cercanos"], "omitidas": omitidas}
 
 
 def _pasadas_de(doc):
@@ -1800,19 +1869,21 @@ def _pasadas_de(doc):
 
 
 def _filas_desglose(pasadas):
-    """[(id, veredictos, tier)] de la ÚLTIMA pasada de cada id. Incluye los
-    estados P2 (`no_aplica`, `no_observable`) de `no_evaluados`: el scoring
-    los ve como veredictos y la calibración tiene que medir lo mismo
-    (revisión Codex P2, PR #128)."""
+    """[(id, veredictos aceptados, tier)] de la ÚLTIMA pasada de cada id.
+
+    Sin id no hay forma de saber si dos resultados son el mismo correo
+    repuntuado: se descartan (/code-review ultra, PR #128, hallazgo 1: cinco
+    pasadas de un correo sin id se marcaban vecinas entre sí). TOTAL: una
+    fila rara se salta (hallazgo 2)."""
     filas = []
     for r in _ultima_pasada(pasadas, None, []):
-        if not isinstance(r, dict):
+        try:
+            rid = r.get("id")
+            if rid is None or isinstance(rid, (dict, list)):
+                continue
+            filas.append((rid, _veredictos_aceptados(r), r.get("tier")))
+        except Exception:
             continue
-        vs = _veredictos(r)
-        for n in r.get("no_evaluados") or []:
-            if isinstance(n, dict) and isinstance(n.get("criterio"), str):
-                vs.setdefault(n["criterio"], n.get("estado"))
-        filas.append((r.get("id"), vs, r.get("tier")))
     return filas
 
 
@@ -1824,37 +1895,42 @@ def cmd_diagnostico_plantillas(docs) -> dict:
     sesiones = []
     for ruta, doc in docs:
         try:
-            filas = _filas_desglose(_pasadas_de(doc))
-            m = _metricas_plantilla(filas)
-            huellas, _ = _huellas_plantilla(filas)
+            ev = _evaluar_huellas(_filas_desglose(_pasadas_de(doc)))
         except Exception as e:  # TOTAL: un desglose raro no tumba el resto
             sesiones.append({"ruta": ruta, "error": "%s: %s"
                              % (type(e).__name__, e)})
             continue
-        sesiones.append({
-            "ruta": ruta, "correos": m["correos"], "tiers": m["tiers"],
-            "criterios": m["criterios"], "inmoviles": len(m["inmoviles"]),
-            "cercanos": len(m["cercanos"]),
-            "saltaria": sorted(k for k in (huellas or {})
-                               if k in ("criterios_inmoviles",
-                                        "plantilla_cercana"))})
-    medidas = [x for x in sesiones if "error" not in x]
+        m, huellas = ev["metricas"], ev["huellas"]
+        sesion = {"ruta": ruta}
+        if m is not None:
+            sesion.update(correos=m["correos"], tiers=m["tiers"],
+                          criterios=m["criterios"], inmoviles=len(m["inmoviles"]),
+                          cercanos=len(m["cercanos"]))
+        sesion["saltaria"] = sorted(k for k in (huellas or {})
+                                    if k in ("criterios_inmoviles",
+                                             "plantilla_cercana"))
+        if ev["omitidas"]:
+            sesion["omitidas"] = ev["omitidas"]
+        sesiones.append(sesion)
+    medidas = [x for x in sesiones if "error" not in x and "correos" in x]
     return {"ok": True, "sesiones": sesiones,
             "resumen": {"sesiones": len(medidas),
                         "con_inmoviles": sum(1 for x in medidas if
                                              "criterios_inmoviles" in x["saltaria"]),
                         "con_cercanos": sum(1 for x in medidas if
-                                            "plantilla_cercana" in x["saltaria"])},
+                                            "plantilla_cercana" in x["saltaria"]),
+                        "con_omitidas": sum(1 for x in sesiones if "omitidas" in x)},
             "umbrales": {"min_lote_inmoviles": MIN_LOTE_INMOVILES,
                          "min_tiers_inmoviles": MIN_TIERS_INMOVILES,
                          "fraccion_inmovil": FRACCION_INMOVIL,
                          "umbral_inmoviles": UMBRAL_INMOVILES,
                          "dist_cercana": DIST_CERCANA,
                          "min_vecinos_cercana": MIN_VECINOS_CERCANA,
-                         "min_criterios_cercana": MIN_CRITERIOS_CERCANA},
-            "nota": "solo lee; cada id cuenta con su última pasada. Una "
-                    "sesión que salta no prueba plantilla: compárala con lo "
-                    "que recuerdes de ella"}
+                         "min_criterios_cercana": MIN_CRITERIOS_CERCANA,
+                         "max_filas": MAX_FILAS_HUELLAS},
+            "nota": "solo lee; cada id cuenta con su última pasada y los "
+                    "resultados sin id no cuentan. Una sesión que salta no "
+                    "prueba plantilla: compárala con lo que recuerdes de ella"}
 
 
 def cmd_scoring_dispatch(payload: dict, cfg: dict, brief: bool = False) -> dict:
@@ -1873,12 +1949,13 @@ def cmd_scoring_dispatch(payload: dict, cfg: dict, brief: bool = False) -> dict:
         return {"ok": False, "error": "config invalido: el YAML no es un "
                 "mapeo de claves (¿fichero vacio?); ejecuta validar-config"}
     if isinstance(payload.get("emails"), list):
-        res = []
+        res, filas = [], []   # filas: (id, veredictos aceptados, tier), v3.22.11
         for i, item in enumerate(payload["emails"]):
             if not isinstance(item, dict):
                 res.append({"indice": i,
                             "error": "item %d del lote no es un objeto JSON "
                             "(%s)" % (i, type(item).__name__)})
+                filas.append((i, None, None))
                 continue
             try:
                 r = cmd_scoring(item, cfg)
@@ -1890,7 +1967,11 @@ def cmd_scoring_dispatch(payload: dict, cfg: dict, brief: bool = False) -> dict:
                 res.append({"indice": i,
                             "error": "item %d del lote reventó (%s: %s)"
                             % (i, type(e).__name__, e)})
+                filas.append((i, None, None))
                 continue
+            # Del resultado completo, antes de `_brief`: los mismos veredictos
+            # aceptados que verá la calibración en el desglose (hallazgo 5).
+            filas.append((r.get("id", i), _veredictos_aceptados(r), r.get("tier")))
             res.append(_brief(r) if brief else r)
         salida = {"resultados": res}
         sin_verificar = sum(1 for r in res
@@ -1902,14 +1983,13 @@ def cmd_scoring_dispatch(payload: dict, cfg: dict, brief: bool = False) -> dict:
         if alerta:
             salida["alerta_plantilla"] = alerta
         # v3.22.11: huellas informativas de plantilla con retoques.
-        huellas, cercanos = _huellas_plantilla(
-            [(r.get("id", i), it.get("verdicts") if isinstance(it, dict) else None,
-              r.get("tier")) if "error" not in r else (r.get("indice", i), None, None)
-             for i, (it, r) in enumerate(zip(payload["emails"], res))])
-        if huellas:
-            salida["huellas_plantilla"] = huellas
-            for i in cercanos:
+        ev = _evaluar_huellas(filas)
+        if ev["huellas"]:
+            salida["huellas_plantilla"] = ev["huellas"]
+            for i in ev["cercanos"]:
                 res[i]["plantilla_cercana"] = True
+        if ev["omitidas"]:
+            salida["huellas_plantilla_omitidas"] = ev["omitidas"]
         incompletos = [r.get("id", i) for i, r in enumerate(res)
                        if r.get("criterios_sin_evaluar")]
         if incompletos:
@@ -5075,13 +5155,14 @@ def _plantilla_retocada(ruta):
 
 def _huellas_desglose(ruta):
     """v3.22.11: huellas de plantilla sobre la última pasada de cada id del
-    desglose acumulado de la sesión; None sin desglose o sin huellas. TOTAL."""
+    desglose acumulado de la sesión; None sin desglose o sin huellas. TOTAL:
+    nada de lo que lea puede tumbar el informe (hallazgo 2)."""
     try:
         with open(ruta, encoding="utf-8") as fh:
             pasadas = _pasadas_de(_parsear_desglose(fh.read(MAX_INGESTA_BYTES)))
-    except (OSError, ValueError, UnicodeDecodeError, KeyError, TypeError):
+        return _evaluar_huellas(_filas_desglose(pasadas))["huellas"]
+    except Exception:
         return None
-    return _huellas_plantilla(_filas_desglose(pasadas))[0]
 
 
 def _cobertura_desglose(ruta):
@@ -5227,7 +5308,7 @@ def cmd_informe(datos: dict) -> dict:
     # v3.22.11: huellas informativas de plantilla con retoques.
     huellas = _huellas_desglose(
         os.path.join(base_estado(), "desgloses", sid + ".jsonl"))
-    if huellas and "omitido" not in huellas:
+    if huellas:
         partes = []
         inm = huellas.get("criterios_inmoviles")
         if inm:

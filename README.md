@@ -110,6 +110,10 @@ relue par un humain. / Traducción generada por una IA, sin revisión humana.
     guardados y dice qué sesiones habrían saltado.
   - **`SKILL.md`:** prohíbe expresamente construir veredictos desde un
     diccionario por defecto.
+  - **Cuando no se puede medir:** si el lote es muy grande (más de 500
+    correos) o tiene pocos criterios, como en el modo veloz, la salida trae
+    `huellas_plantilla_omitidas`. Así queda claro que no se midió, en vez de
+    dar a entender que no había plantilla.
 
 ## Novedades en v3.22.10
 
