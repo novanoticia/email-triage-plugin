@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.22.16).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.22.17).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -1137,6 +1137,28 @@ def _aplica_hard_rules(hard_rules, hard_cfg, en_historial, atenuado_a, ignorados
     return hard_puntos, hard_desglose
 
 
+def _lectura_verificada(payload, ignorados):
+    """v3.22.17 (experimento real 2026-10-27: `sanitizar` entregó 2500
+    caracteres y el script propio del modelo los recortó a 900 antes de
+    leerlos; nada lo vio). Con `ancla_extracto` (de `sanitizar`) y
+    `eco_lectura` {inicio, fin} (las palabras del texto que el modelo LEYÓ),
+    True si coinciden, False si no (lectura recortada) y None sin los dos
+    campos o con una forma que no se puede comparar (va a `ignorados`).
+    Caza el recorte accidental; un eco copiado del ancla pasa: huella, no
+    prueba. TOTAL."""
+    ancla, eco = payload.get("ancla_extracto"), payload.get("eco_lectura")
+    if ancla is None and eco is None:
+        return None
+    formas = (ancla, eco)
+    if not all(isinstance(x, dict) and isinstance(x.get("inicio"), str)
+               and isinstance(x.get("fin"), str) for x in formas):
+        ignorados.append({"campo": "eco_lectura",
+                          "motivo": "hacen falta ancla_extracto y eco_lectura "
+                          "como {inicio, fin} de texto; lectura sin verificar"})
+        return None
+    return eco_coincide(eco, ancla)
+
+
 def _criterios_sin_evaluar(cfg, vistos):
     """Criterios activos del config (solo los core con
     `comportamiento_veloz.solo_criterios_core: true`) que no están en
@@ -1164,6 +1186,8 @@ def cmd_scoring(payload: dict, cfg: dict) -> dict:
                                                 # `prioritario` (manda sobre él)
               "remitente_conteo_historial": int, # opcional: atenua sender_bulk
                                                  # de forma graduada por frecuencia
+              "ancla_extracto": {inicio, fin},   # v3.22.17, de sanitizar
+              "eco_lectura": {inicio, fin},      # v3.22.17, lo que se LEYÓ
               "id": cualquier}                   # opcional, para lote
     cfg: config.yaml ya parseado (dict). Devuelve score, tier, ejes y desglose.
     """
@@ -1371,6 +1395,11 @@ def cmd_scoring(payload: dict, cfg: dict) -> dict:
         out["no_evaluados"] = no_evaluados
         out["cobertura"] = cobertura
         out["confianza"] = _p2_confianza(payload, cobertura, ignorados)
+    lectura = _lectura_verificada(payload, ignorados)
+    if lectura is not None:
+        # Aditivo: solo con ancla y eco. No cambia score ni tier.
+        out["lectura_recortada" if lectura is False
+            else "lectura_verificada"] = True
     if "id" in payload:
         out["id"] = payload["id"]
     return out
@@ -1638,7 +1667,8 @@ def _brief(r):
     if r.get("suelo_aplicado"):
         out["suelo_aplicado"] = r["suelo_aplicado"]
     for k in ("prioritario_verificado", "aviso_prioritario",
-              "sender_bulk_exento", "criterios_sin_evaluar"):
+              "sender_bulk_exento", "criterios_sin_evaluar",
+              "lectura_recortada", "lectura_verificada"):
         if k in r:
             out[k] = r[k]
     if "confianza" in r:
@@ -2100,6 +2130,14 @@ def cmd_scoring_dispatch(payload: dict, cfg: dict, brief: bool = False,
                 "aviso": "faltan criterios activos del config: evalúalos "
                          "todos (o usa el modo veloz si la persona lo pide); "
                          "así no se mueven como triaje"}
+        recortados = [r.get("id", i) for i, r in enumerate(res)
+                      if r.get("lectura_recortada")]
+        if recortados:
+            salida["alerta_lectura"] = {
+                "correos": len(recortados), "ids": recortados,
+                "aviso": "el texto que evaluaste no termina como el extracto "
+                         "de sanitizar: no recortes el cuerpo saneado; "
+                         "reevalúa esos correos con el texto entero"}
         return salida
     try:
         r = cmd_scoring(payload, cfg)
@@ -5492,9 +5530,10 @@ def _huellas_desglose(ruta):
         return None
 
 
-def _cobertura_desglose(ruta):
+def _cobertura_desglose(ruta, clave="criterios_sin_evaluar"):
     """v3.21.40: ids que, en su ÚLTIMA pasada del desglose acumulado de la
-    sesión, traen `criterios_sin_evaluar`; None sin desglose. TOTAL."""
+    sesión, traen `clave` (desde v3.22.17 también `lectura_recortada`);
+    None sin desglose. TOTAL."""
     try:
         with open(ruta, encoding="utf-8") as fh:
             pasadas = _parsear_desglose(fh.read(MAX_INGESTA_BYTES))["pasadas"]
@@ -5512,12 +5551,12 @@ def _cobertura_desglose(ruta):
                 continue
             rid = r.get("id")
             if rid is None or isinstance(rid, (dict, list)):
-                if r.get("criterios_sin_evaluar"):
+                if r.get(clave):
                     sin_id.append("?")  # sin id no se puede deduplicar
                 continue
             ultimo[json.dumps(rid)] = r
     return [r.get("id") for r in ultimo.values()
-            if r.get("criterios_sin_evaluar")] + sin_id
+            if r.get(clave)] + sin_id
 
 
 def cmd_informe(datos: dict) -> dict:
@@ -5664,6 +5703,17 @@ def cmd_informe(datos: dict) -> dict:
                    % (len(incompletos), ", ".join(
                        "#%s" % _celda_md(i, 12) for i in incompletos[:20])
                       + (" …" if len(incompletos) > 20 else "")), ""]
+    recortados = _cobertura_desglose(
+        os.path.join(base_estado(), "desgloses", sid + ".jsonl"),
+        "lectura_recortada")
+    if recortados:
+        lineas += ["> ⚠️ **Lectura recortada en %d correos** (%s): el texto "
+                   "que se evaluó no termina como el extracto saneado; sus "
+                   "veredictos se basan en menos cuerpo del que pide el "
+                   "config. Es solo un aviso."
+                   % (len(recortados), ", ".join(
+                       "#%s" % _celda_md(i, 12) for i in recortados[:20])
+                      + (" …" if len(recortados) > 20 else "")), ""]
     if sin_determinista:
         lineas += ["> ⚠️ **Sin scoring determinista: %d de %d unidades** (%s; "
                    "marcadas ⚠️ en la columna Score). "
@@ -5705,6 +5755,8 @@ def cmd_informe(datos: dict) -> dict:
                else {"plantilla_retocada": retocada}),
             **({} if incompletos is None
                else {"criterios_sin_evaluar": len(incompletos)}),
+            **({} if not recortados
+               else {"lectura_recortada": len(recortados)}),
             **({} if not huellas else {"huellas_plantilla": huellas}),
             **({} if previo is None else {"sobrescrito": {
                 "mtime_anterior": previo,
