@@ -88,7 +88,24 @@ class TestMedir(unittest.TestCase):
         v, _ = mr.veredictos(self.cfg, _api(self.base))
         score, tier = mr.score_tier(self.cfg, v)
         self.assertEqual(r["por_correo"]["logistica"],
-                         {"tiers": {tier: 2}, "score_min": score, "score_max": score})
+                         {"tiers": {tier: 2}, "score_min": score, "score_max": score,
+                          "margen": min(abs(score - u) for u in mr.umbrales(self.cfg))})
+
+    def test_umbrales_sin_reply_needed_con_el_tope_activo(self):
+        # Con el tope por defecto, REPLY_NEEDED no depende del score.
+        cfg = {"tiers": {"reply_needed": 10, "review": 4, "reading_later": 0}}
+        self.assertEqual(sorted(mr.umbrales(cfg)), [0, 4])
+        cfg["scoring"] = {"cap_reply_needed_sin_accion": False}
+        self.assertEqual(sorted(mr.umbrales(cfg)), [0, 4, 10])
+
+    def test_score_alto_sin_accion_no_llega_a_reply_needed(self):
+        # La premisa de `umbrales`, comprobada con el scoring real.
+        vs = {k: max(o, key=lambda x: self.cfg["criterios_epistemicos"][k].get(x, 0)
+                     if isinstance(self.cfg["criterios_epistemicos"][k].get(x), (int, float)) else -99)
+              for k, (o, _) in mr.nc.modelos._criterios(self.cfg).items()}
+        score, tier = mr.score_tier(self.cfg, vs)
+        self.assertGreaterEqual(score, self.cfg["tiers"]["reply_needed"])
+        self.assertEqual(tier, "REVIEW")
 
     def test_no_neutro_y_no_aplica_dan_el_mismo_tier(self):
         k = "third_alternative"
@@ -143,6 +160,7 @@ class TestMedir(unittest.TestCase):
         self.assertIn("Criterios estables en todos los correos: 30 de 30.", texto)
         self.assertIn("Contando `no` (0 puntos) = `__no_aplica__`: 30 de 30.", texto)
         self.assertIn("Correos con el mismo tier en todas las tiradas: 1 de 1.", texto)
+        self.assertIn("Margen al umbral", texto)
 
 
 class TestSinEjecutarNoHayRed(unittest.TestCase):

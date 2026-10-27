@@ -145,6 +145,18 @@ def score_tier(cfg, v):
     return r.get("score"), r.get("tier")
 
 
+def umbrales(cfg):
+    """Umbrales de score que pueden cambiar el tier aquí. Mismos valores por
+    defecto que `_tier_por_score`. Con `cap_reply_needed_sin_accion` (por
+    defecto activo) el de REPLY_NEEDED no cuenta: sin `forzar_reply_needed`
+    se capa a REVIEW, y con él es REPLY_NEEDED sea cual sea el score."""
+    t = cfg.get("tiers") or {}
+    out = [t.get("review", 4), t.get("reading_later", 0)]
+    if (cfg.get("scoring") or {}).get("cap_reply_needed_sin_accion", True) is False:
+        out.append(t.get("reply_needed", 10))
+    return [x for x in out if isinstance(x, (int, float)) and not isinstance(x, bool)]
+
+
 def medir(cfg, correos, repeticiones, llamar):
     """Agrega la estabilidad por criterio. `llamar(correo)` devuelve la
     respuesta de la API (inyectable: los tests no usan red)."""
@@ -184,9 +196,13 @@ def medir(cfg, correos, repeticiones, llamar):
     for cid in comparables:
         st = [score_tier(cfg, t) for t in por_correo[cid]]
         scores = [x for x, _ in st if isinstance(x, (int, float))]
+        # Puntos entre la tirada más cercana y el umbral más próximo: cuánto
+        # ruido más haría falta para que el tier cambie.
+        margen = min((abs(x - u) for x in scores for u in umbrales(cfg)), default=None)
         tiers[cid] = {"tiers": dict(collections.Counter(t for _, t in st)),
                       "score_min": min(scores) if scores else None,
-                      "score_max": max(scores) if scores else None}
+                      "score_max": max(scores) if scores else None,
+                      "margen": margen}
     return {"repeticiones": repeticiones,
             "tiradas_validas": {c: len(t) for c, t in por_correo.items()},
             "fallos": dict(fallos),
@@ -219,11 +235,12 @@ def markdown(r):
                    total - len(r["criterios_inestables"]), total),
                "Contando `no` (0 puntos) = `__no_aplica__`: %d de %d." % (
                    total - len(r["criterios_inestables_equivalentes"]), total),
-               "", "| Correo | Tier en las tiradas | Score (mín–máx) |", "|---|---|---|"]
+               "", "| Correo | Tier en las tiradas | Score (mín–máx) | Margen al umbral |",
+               "|---|---|---|---|"]
     for c, v in r["por_correo"].items():
-        lineas.append("| %s | %s | %s–%s |" % (
+        lineas.append("| %s | %s | %s–%s | %s |" % (
             c, ", ".join("%s×%d" % (t, m) for t, m in v["tiers"].items()),
-            v["score_min"], v["score_max"]))
+            v["score_min"], v["score_max"], v["margen"]))
     lineas += ["", "Correos con el mismo tier en todas las tiradas: %d de %d." % (
         n - len(r["correos_tier_inestable"]), n)]
     return "\n".join(lineas)
