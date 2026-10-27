@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.22.12).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.22.13).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -1936,8 +1936,14 @@ def cmd_diagnostico_plantillas(docs) -> dict:
                     "prueba plantilla: compárala con lo que recuerdes de ella"}
 
 
-def cmd_scoring_dispatch(payload: dict, cfg: dict, brief: bool = False) -> dict:
+def cmd_scoring_dispatch(payload: dict, cfg: dict, brief: bool = False,
+                         previas=None) -> dict:
     """single o lote. Lote: {"emails":[{id, verdicts, ...}, ...]}.
+
+    `previas` (v3.22.13): filas (id, veredictos aceptados, tier) de los
+    lotes ya puntuados en la sesión (`_filas_previas` del desglose
+    acumulado). Las huellas se miden sobre ellas más este lote: puntuar por
+    bloques no puede diluir `plantilla_cercana`. Sin ellas, lo de siempre.
 
     Guardas de forma (v3.8.5): un payload que no es objeto JSON, un item del
     lote que no es objeto, o un YAML vacío (safe_load -> None) producían
@@ -1953,6 +1959,7 @@ def cmd_scoring_dispatch(payload: dict, cfg: dict, brief: bool = False) -> dict:
                 "mapeo de claves (¿fichero vacio?); ejecuta validar-config"}
     if isinstance(payload.get("emails"), list):
         res, filas = [], []   # filas: (id, veredictos aceptados, tier), v3.22.11
+        con_id = set()        # ids explícitos de este lote (v3.22.13)
         for i, item in enumerate(payload["emails"]):
             if not isinstance(item, dict):
                 res.append({"indice": i,
@@ -1975,6 +1982,8 @@ def cmd_scoring_dispatch(payload: dict, cfg: dict, brief: bool = False) -> dict:
             # Del resultado completo, antes de `_brief`: los mismos veredictos
             # aceptados que verá la calibración en el desglose (hallazgo 5).
             filas.append((r.get("id", i), _veredictos_aceptados(r), r.get("tier")))
+            if r.get("id") is not None:
+                con_id.add(_valor_clave(r.get("id")))
             res.append(_brief(r) if brief else r)
         salida = {"resultados": res}
         sin_verificar = sum(1 for r in res
@@ -1985,12 +1994,33 @@ def cmd_scoring_dispatch(payload: dict, cfg: dict, brief: bool = False) -> dict:
         alerta = _alerta_plantilla(payload["emails"], res)
         if alerta:
             salida["alerta_plantilla"] = alerta
-        # v3.22.11: huellas informativas de plantilla con retoques.
-        ev = _evaluar_huellas(filas)
+        # v3.22.11: huellas de plantilla con retoques. v3.22.13: sobre la
+        # sesión entera si llegan `previas` (un id repuntuado aquí manda
+        # sobre su pasada anterior): en lotes de 4 o menos ningún correo
+        # podía tener 4 vecinos y el freno no saltaba nunca.
+        previas = [f for f in previas or []
+                   if isinstance(f, tuple) and len(f) == 3
+                   and _valor_clave(f[0]) not in con_id]
+        base = len(previas)
+        ev = _evaluar_huellas(previas + filas)
+        if previas:
+            salida["huellas_acumuladas"] = {"correos_previos": base,
+                                            "correos_lote": len(filas)}
         if ev["huellas"]:
             salida["huellas_plantilla"] = ev["huellas"]
             for i in ev["cercanos"]:
-                res[i]["plantilla_cercana"] = True
+                if i >= base:
+                    res[i - base]["plantilla_cercana"] = True
+            previos = [previas[i][0] for i in ev["cercanos"] if i < base]
+            cer = ev["huellas"].get("plantilla_cercana")
+            if previos and cer:
+                # Ya puntuados: su resultado anterior no trae la marca.
+                cer["ids_previos"] = previos
+                cer["aviso_previos"] = ("correos de lotes anteriores que "
+                                        "ahora son casi iguales a otros: "
+                                        "repuntúalos o registra su "
+                                        "movimiento con plantilla_cercana: "
+                                        "true")
         if ev["omitidas"]:
             salida["huellas_plantilla_omitidas"] = ev["omitidas"]
         incompletos = [r.get("id", i) for i, r in enumerate(res)
@@ -5173,14 +5203,25 @@ def _plantilla_retocada(ruta):
     return retocados
 
 
+def _filas_previas(ruta):
+    """v3.22.13: filas (id, veredictos aceptados, tier) de la última pasada
+    de cada id del desglose acumulado en `ruta`; [] si no existe o no se
+    puede leer. Las usa `scoring --desglose-append` para medir las huellas
+    sobre toda la sesión. TOTAL."""
+    try:
+        with open(ruta, encoding="utf-8") as fh:
+            pasadas = _pasadas_de(_parsear_desglose(fh.read(MAX_INGESTA_BYTES)))
+        return _filas_desglose(pasadas)
+    except Exception:
+        return []
+
+
 def _huellas_desglose(ruta):
     """v3.22.11: huellas de plantilla sobre la última pasada de cada id del
     desglose acumulado de la sesión; None sin desglose o sin huellas. TOTAL:
     nada de lo que lea puede tumbar el informe (hallazgo 2)."""
     try:
-        with open(ruta, encoding="utf-8") as fh:
-            pasadas = _pasadas_de(_parsear_desglose(fh.read(MAX_INGESTA_BYTES)))
-        return _evaluar_huellas(_filas_desglose(pasadas))["huellas"]
+        return _evaluar_huellas(_filas_previas(ruta))["huellas"]
     except Exception:
         return None
 
@@ -5590,7 +5631,13 @@ def main():
             # error legible que validar-config, por stdout, sin traceback.
             out = e.payload
         else:
-            out = cmd_scoring_dispatch(payload, cfg, brief=args.brief)
+            # v3.22.13: con --desglose-append, las huellas de plantilla se
+            # miden sobre lo ya puntuado en la sesión más este lote. Se lee
+            # ANTES de añadir la pasada nueva.
+            previas = (_filas_previas(_expandir(args.desglose))
+                       if args.desglose and args.desglose_append else None)
+            out = cmd_scoring_dispatch(payload, cfg, brief=args.brief,
+                                       previas=previas)
             # CM2 (F12): --desglose materializa la orden doctrinal "el
             # desglose completo va a fichero, no al contexto", que hasta
             # ahora no tenía mecanismo: escribe el resultado COMPLETO (sin
@@ -5602,7 +5649,8 @@ def main():
             # {"ts", "desglose"} vía cmd_registrar, para que diagnostico-ejes
             # vea los veredictos retocados entre invocaciones de una sesión.
             if args.desglose:
-                completo = (cmd_scoring_dispatch(payload, cfg, brief=False)
+                completo = (cmd_scoring_dispatch(payload, cfg, brief=False,
+                                                 previas=previas)
                             if args.brief else out)
                 if args.desglose_append:
                     res = cmd_registrar(args.desglose, {
