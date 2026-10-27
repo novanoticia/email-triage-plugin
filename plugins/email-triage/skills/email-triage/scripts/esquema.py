@@ -85,8 +85,15 @@ def generar(cfg):
         # Objeto NO anulable: un objeto con `type: [object, null]` no lo
         # aceptan todos los modos estrictos (revisión PR #135). Sin ancla,
         # `validar` ignora el eco; con ancla, uno vacío da `eco_distinto`.
-        "eco": _objeto({"inicio": {"type": "string"}, "fin": {"type": "string"}},
-                       "Inicio y fin del texto recibido; cadenas vacías si no se pidió."),
+        # Prueba real 2026-10-27 (OpenAI strict): con «inicio y fin del
+        # texto» el modelo copió el correo entero en ambos, y `eco_coincide`
+        # rechaza un eco mucho más largo que el ancla. Se piden 6 palabras.
+        "eco": _objeto({
+            "inicio": {"type": "string",
+                       "description": "Las seis primeras palabras del extracto recibido, copiadas tal cual; nada más."},
+            "fin": {"type": "string",
+                    "description": "Las seis últimas palabras del extracto recibido, copiadas tal cual; nada más."}},
+            "Solo seis palabras por extremo, no el texto entero; cadenas vacías si no se pidió."),
     })
     return _objeto({"evaluaciones": {"type": "array", "items": fila}})
 

@@ -324,7 +324,15 @@ core no ofrecen. `validar` espera otra forma, así que pasa la respuesta por
 `normalizar` (o `comprobar`, que también la devuelve normalizada) antes de
 `validar`: reparte cada criterio en `verdicts`/`evidencias` o en `no_aplica`
 y descarta el campo que no corresponde; no rellena ni corrige. `eco` es
-siempre un objeto (cadenas vacías si no se pidió).
+siempre un objeto con las seis primeras y las seis últimas palabras del
+extracto (cadenas vacías si no se pidió).
+
+Verificado con API real el 2026-10-27: OpenAI `strict` (`gpt-6-luna`, Chat
+Completions) aceptó el esquema de la plantilla y su respuesta salió
+`conforme` en `comprobar`, con los 30 criterios cubiertos. En esa prueba el
+`eco` traía el correo entero: de ahí la descripción explícita de seis
+palabras. **Anthropic sigue sin verificar** con API real (solo por diseño:
+cero tipos unión, fijado por test).
 
 Qué garantiza: ids y opciones exactos, ningún campo de más, una sola opción
 por criterio y que los core no puedan excluirse. Qué **no** garantiza, y
