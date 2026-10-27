@@ -142,12 +142,20 @@ class TestHibrido(_Base):
         self.assertEqual(fila["motivo"], "reevaluar_tier_umbral_o_confianza")
         self.assertNotIn(K, fila["payload_scoring"]["verdicts"])
 
-    def test_confianza_baja_tolerada_sigue_las_reglas_de_siempre(self):
+    def test_confianza_baja_tolerada_tambien_obliga_a_reevaluar(self):
+        # En un triaje real no entra un veredicto dudoso (decisión del
+        # mantenedor, PR #141): solo queda la anotación.
         t = _con_duda([K], incierto=False)
         self.fijar_score(30, t)
         fila = self.correr(1, t)
         self.assertIn("dudas_irrelevantes", fila)
-        self.assertTrue(fila["revision_obligatoria"])
+        self.assertTrue(fila["usar_principal"])
+        self.assertEqual(fila["motivo"], "reevaluar_tier_umbral_o_confianza")
+
+    def test_sin_dudas_la_propuesta_sigue_validandose(self):
+        self.fijar_score(30, respuesta)
+        fila = self.correr(1, respuesta)
+        self.assertNotIn("dudas_irrelevantes", fila)
         self.assertEqual(fila["motivo"], "propuesta_validada")
 
     def test_cambio_de_tier_descarta_en_hibrido(self):

@@ -102,10 +102,10 @@ relue par un humain. / Traducción generada por una IA, sin revisión humana.
     core) con el scoring real. Si todas dan el mismo tier, el correo sigue
     y lleva `dudas_irrelevantes` (criterios, tier, combinaciones y rango de
     score). Si una sola cambia el tier, se descarta como antes.
-  - **En `hibrido`:** un `__incierto__` tolerado obliga a reevaluar con el
-    principal (falta su veredicto y nunca se rellena); una confianza baja
-    tolerada sigue las reglas de siempre (revisión obligatoria, fronteras,
-    plantillas).
+  - **En `hibrido`:** toda duda tolerada obliga a reevaluar con el
+    principal; allí solo queda la anotación `dudas_irrelevantes`. Ningún
+    veredicto dudoso entra en un triaje real hasta medirlo con correos
+    reales.
   - **Qué no cambia:** `tolerancia_dudas: 0` es el valor por defecto; sin
     tocar la capa, los frenos actúan igual que antes.
 

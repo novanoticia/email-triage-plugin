@@ -114,8 +114,8 @@ existente: para adoptar el alias cambia su campo a `modelo: jev-latest` o elimí
    el scoring real: la fila lleva `dudas_irrelevantes` con `criterios`,
    `tier`, `combinaciones`, `score_min` y `score_max`. Una sola combinación
    que cambie el tier, más de N dudas o más de 512 combinaciones → el freno
-   de siempre. En `hibrido`, un `__incierto__` tolerado fuerza la
-   reevaluación por el principal (su veredicto falta y no se rellena). Dilo
+   de siempre. En `hibrido` toda duda tolerada fuerza la reevaluación por el
+   principal (`usar_principal: true`): allí solo queda la anotación. Dilo
    como «la duda no cambia la decisión», no como acierto del proveedor.
 
 ## Triaje real: modo híbrido explícito

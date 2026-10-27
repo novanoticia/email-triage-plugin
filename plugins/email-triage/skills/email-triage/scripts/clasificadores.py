@@ -28,8 +28,9 @@ aunque la duda no pudiera cambiar la decisión. Con la tolerancia activa, si
 hay como mucho N criterios dudosos y TODAS sus respuestas posibles dan el
 mismo tier con el scoring real, el correo sigue y lleva `dudas_irrelevantes`.
 Si una sola combinación cambia el tier, el freno actúa como antes. En
-`hibrido` un `__incierto__` tolerado fuerza la reevaluación por el principal:
-falta su veredicto y nunca se rellena.
+`hibrido` toda duda tolerada fuerza la reevaluación por el principal: allí
+solo queda la anotación (un incierto no se rellena y una confianza baja no
+entra en un triaje real).
 """
 import hashlib
 import itertools
@@ -584,8 +585,11 @@ def procesar(p, cfg, capa, transporte, modo, prov):
                                  or any(abs(propuesta["score"] - x) <= 1 for x in fronteras)
                                  or bool(v["discrepancias_confianza"])
                                  or bool(v["probabilidades_redondeadas"])
-                                 # Un incierto tolerado deja un criterio sin veredicto.
-                                 or (tolerancia is not None and bool(v["inciertos"])))
+                                 # Toda duda tolerada vuelve al principal: un incierto
+                                 # deja un criterio sin veredicto y una confianza baja
+                                 # no entra en un triaje real (decisión del mantenedor,
+                                 # revisión Mistral, PR #141).
+                                 or tolerancia is not None)
                     r.update(usar_principal=reevaluar, revision_obligatoria=True,
                              motivo="reevaluar_tier_umbral_o_confianza" if reevaluar else "propuesta_validada",
                              payload_scoring=dict(e["control"], id=e["id"], verdicts=v["verdicts"]))
