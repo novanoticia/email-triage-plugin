@@ -107,6 +107,16 @@ existente: para adoptar el alias cambia su campo a `modelo: jev-latest` o elimí
    contestar `no` da el mismo score y el modelo alterna entre ambos con el
    mismo correo. Solo la opción literal `no`; `neutral` o `mixto` no. Presenta
    las dos tasas: la clásica no cambia de significado.
+8. Tolerancia a dudas (v3.22.22, opt-in, `comparar` e `hibrido`). Con
+   `tolerancia_dudas: N` (1–3; 0 por defecto) un correo con como mucho N
+   criterios `__incierto__` o de confianza baja no se descarta si TODAS sus
+   respuestas posibles (y la exclusión en los no core) dan el mismo tier con
+   el scoring real: la fila lleva `dudas_irrelevantes` con `criterios`,
+   `tier`, `combinaciones`, `score_min` y `score_max`. Una sola combinación
+   que cambie el tier, más de N dudas o más de 512 combinaciones → el freno
+   de siempre. En `hibrido`, un `__incierto__` tolerado fuerza la
+   reevaluación por el principal (su veredicto falta y no se rellena). Dilo
+   como «la duda no cambia la decisión», no como acierto del proveedor.
 
 ## Triaje real: modo híbrido explícito
 
