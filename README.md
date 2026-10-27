@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.22.20
+# Email Triage Plugin v3.22.21
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,22 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.22.21
+
+- **Jev y Decisions dejan de contar como desacuerdo un falso desacuerdo.**
+  Se midió el mismo correo 5 veces con `gpt-6-luna`, en 3 tandas de 20
+  llamadas (`scripts/medir_ruido.py`, nuevo). En los criterios cuyo «no»
+  vale 0 puntos, el modelo alterna entre `no` y `__no_aplica__`. Para el
+  score es lo mismo, pero la comparación lo contaba como desacuerdo.
+  - **Qué cambia:** `por_criterio` añade `equivalentes` y
+    `coinciden_equivalentes`, y `comparacion_por_criterio` añade
+    `tasa_coincidencia_equivalente`. Solo cuenta la opción literal `no`, no
+    `neutral` ni `mixto`. `medir_ruido.py` muestra las dos columnas.
+  - **Qué no cambia:** `coinciden`, `difieren` y `tasa_coincidencia`
+    significan lo mismo que antes. No cambian los frenos que descartan un
+    correo, ni el scoring, los tiers, el modo `hibrido` o las preguntas
+    que se envían.
 
 ## Novedades en v3.22.20
 

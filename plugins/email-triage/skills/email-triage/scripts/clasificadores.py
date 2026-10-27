@@ -19,6 +19,8 @@ Diagnóstico (v3.22.5, solo informativo): en `comparar` cada fila con respuesta
 válida lleva `por_criterio` (coincidencias con el principal criterio a criterio,
 aunque el correo se descarte) y la salida `comparacion_por_criterio`; un
 rechazo de forma lleva `motivo_detalle` (criterio y causa, nunca contenido).
+Desde v3.22.21 ambos traen además la coincidencia que cuenta como igual el par
+`no` de 0 puntos / `__no_aplica__` (`equivalentes`, `*_equivalente`).
 """
 import hashlib
 import http.client
@@ -202,21 +204,51 @@ def _principal(e, cfg, activos):
     return _scoring(e["id"], control, vs, cfg)
 
 
-def _por_criterio(principal, v):
-    """Veredicto externo frente al principal, criterio a criterio (informativo)."""
+def _no_neutro(cfg, k, valor):
+    """True si `valor` es la opción literal `no` y vale 0 puntos en el config.
+
+    v3.22.21 (medición real 2026-10-27, 3 × 20 llamadas): en los criterios
+    cuyo «no» vale 0, el modelo alterna entre `no` y `__no_aplica__` con el
+    mismo correo (`third_alternative`, `fake_justification`...). Para el
+    score es lo mismo (excluido o 0 puntos), así que no es un desacuerdo
+    real. Solo la opción literal `no`: `mixto` o `neutral` también valen 0,
+    pero no significan «no aplica» (variante estricta, decisión del
+    mantenedor)."""
+    if valor != "no" or not isinstance(cfg, dict):
+        return False
+    crit = (cfg.get("criterios_epistemicos") or {}).get(k)
+    puntos = crit.get("no") if isinstance(crit, dict) else None
+    return type(puntos) in (int, float) and puntos == 0
+
+
+def _por_criterio(principal, v, cfg=None):
+    """Veredicto externo frente al principal, criterio a criterio (informativo).
+
+    `equivalentes` (v3.22.21, aditivo) es el subconjunto de `difieren` en el
+    que un lado dice `__no_aplica__` y el otro un `no` de 0 puntos; sin `cfg`
+    queda vacío. `coinciden` y `difieren` conservan su significado."""
     ext = dict(v["verdicts"], **{k: NO_APLICA for k in v["no_aplica"]},
                **{k: INCIERTO for k in v["inciertos"]})
     pri = dict(principal["verdicts"], **{k: NO_APLICA for k in principal["no_aplica"]})
     difieren = {k: {"principal": pri[k], "externo": ext[k]} for k in sorted(ext)
                 if ext[k] != INCIERTO and ext[k] != pri.get(k)}
-    return {"criterios": len(ext), "coinciden": sum(ext[k] == pri.get(k) for k in ext),
-            "difieren": difieren, "inciertos": sorted(v["inciertos"])}
+    equivalentes = {k: d for k, d in difieren.items()
+                    if NO_APLICA in (d["principal"], d["externo"])
+                    and (_no_neutro(cfg, k, d["principal"]) or _no_neutro(cfg, k, d["externo"]))}
+    coinciden = sum(ext[k] == pri.get(k) for k in ext)
+    return {"criterios": len(ext), "coinciden": coinciden,
+            "difieren": difieren, "inciertos": sorted(v["inciertos"]),
+            "equivalentes": equivalentes,
+            "coinciden_equivalentes": coinciden + len(equivalentes)}
 
 
 def _agregar_por_criterio(filas):
     """Resumen de `por_criterio` de las filas con respuesta válida."""
     total = {"correos_evaluados": 0, "criterios_comparados": 0, "coinciden": 0,
-             "inciertos": 0, "tasa_coincidencia": None, "por_criterio": {}}
+             "inciertos": 0, "tasa_coincidencia": None, "por_criterio": {},
+             # v3.22.21, aditivo: cuenta además como coincidencia el par
+             # `no` (0 puntos) / `__no_aplica__`; ver `_no_neutro`.
+             "coinciden_equivalentes": 0, "tasa_coincidencia_equivalente": None}
     for r in filas:
         pc = r.get("por_criterio")
         if pc is None:
@@ -225,19 +257,25 @@ def _agregar_por_criterio(filas):
         total["criterios_comparados"] += pc["criterios"]
         total["coinciden"] += pc["coinciden"]
         total["inciertos"] += len(pc["inciertos"])
+        equivalentes = pc.get("equivalentes", {})
+        total["coinciden_equivalentes"] += pc["coinciden"] + len(equivalentes)
         for k in r["confianzas"]:
             c = total["por_criterio"].setdefault(
-                k, {"coinciden": 0, "difieren": 0, "inciertos": 0, "confianza_baja": 0})
+                k, {"coinciden": 0, "difieren": 0, "inciertos": 0, "confianza_baja": 0,
+                    "equivalentes": 0})
             if k in pc["inciertos"]:
                 c["inciertos"] += 1
             elif k in pc["difieren"]:
                 c["difieren"] += 1
+                c["equivalentes"] += k in equivalentes
             else:
                 c["coinciden"] += 1
             c["confianza_baja"] += k in r["criterios_confianza_baja"]
     if total["criterios_comparados"]:
         # Los inciertos cuentan como no coincidentes: tasa conservadora.
         total["tasa_coincidencia"] = round(total["coinciden"] / total["criterios_comparados"], 4)
+        total["tasa_coincidencia_equivalente"] = round(
+            total["coinciden_equivalentes"] / total["criterios_comparados"], 4)
     total["por_criterio"] = dict(sorted(total["por_criterio"].items()))
     return total
 
@@ -473,7 +511,7 @@ def procesar(p, cfg, capa, transporte, modo, prov):
                               in v["confianzas"].items() if valor < c["confianza_minima"]]})
                 if modo == "comparar":
                     # Antes de los frenos: así consta aunque el correo se descarte.
-                    r["por_criterio"] = _por_criterio(e["principal"], v)
+                    r["por_criterio"] = _por_criterio(e["principal"], v, cfg)
                 _exigir(not v["inciertos"], prov.etiqueta + "_incierto")
                 _exigir(min(v["confianzas"].values()) >= c["confianza_minima"], "confianza_baja")
                 propuesta = _scoring(e["id"], e["control"], v["verdicts"], cfg)

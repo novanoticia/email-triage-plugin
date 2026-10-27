@@ -100,6 +100,13 @@ existente: para adoptar el alias cambia su campo a `modelo: jev-latest` o elimí
    `opcion_no_maxima`), nunca contenido del correo. Nada de esto crea propuestas,
    cambia `usar_principal` ni existe en `hibrido`. Preséntalo como acuerdo con el
    principal, no como precisión: el principal no es verdad etiquetada.
+   Desde v3.22.21 (medición real: 3 × 20 llamadas a `gpt-6-luna`), cada fila
+   trae además `equivalentes` y `coinciden_equivalentes`, y el agregado
+   `tasa_coincidencia_equivalente`: cuentan como coincidencia el par `no` /
+   `__no_aplica__` cuando ese `no` vale 0 puntos, porque excluir el criterio o
+   contestar `no` da el mismo score y el modelo alterna entre ambos con el
+   mismo correo. Solo la opción literal `no`; `neutral` o `mixto` no. Presenta
+   las dos tasas: la clásica no cambia de significado.
 
 ## Triaje real: modo híbrido explícito
 

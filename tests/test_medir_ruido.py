@@ -59,6 +59,21 @@ class TestMedir(unittest.TestCase):
         self.assertIn(k, r["criterios_inestables"])
         self.assertIn(mr.NO_APLICA, r["por_criterio"][k]["valores"]["logistica"])
 
+    def test_no_neutro_frente_a_no_aplica_se_pliega(self):
+        k = "third_alternative"
+        tiradas = iter([_api(self._variante(k, "no")),
+                        _api(_respuesta_esquema(self.cfg, excluir=k))])
+        r = mr.medir(self.cfg, mr.CORREOS[:1], 2, lambda c: next(tiradas))
+        self.assertIn(k, r["criterios_inestables"])
+        self.assertNotIn(k, r["criterios_inestables_equivalentes"])
+
+    def test_si_frente_a_no_aplica_no_se_pliega(self):
+        k = "third_alternative"
+        tiradas = iter([_api(self._variante(k, "si")),
+                        _api(_respuesta_esquema(self.cfg, excluir=k))])
+        r = mr.medir(self.cfg, mr.CORREOS[:1], 2, lambda c: next(tiradas))
+        self.assertIn(k, r["criterios_inestables_equivalentes"])
+
     def test_fallos_cuentan_aparte_y_no_se_rellenan(self):
         malas = iter([{"error": {"message": "x"}},
                       {"choices": [{"message": {"refusal": "no"}}]},
@@ -93,6 +108,7 @@ class TestMedir(unittest.TestCase):
         r = mr.medir(self.cfg, mr.CORREOS[:1], 2, lambda c: _api(self.base))
         texto = mr.markdown(r)
         self.assertIn("Criterios estables en todos los correos: 30 de 30.", texto)
+        self.assertIn("Contando `no` (0 puntos) = `__no_aplica__`: 30 de 30.", texto)
 
 
 class TestSinEjecutarNoHayRed(unittest.TestCase):

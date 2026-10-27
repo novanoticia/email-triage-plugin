@@ -38,6 +38,7 @@ import urllib.request
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SKILL = os.path.join(RAIZ, "plugins", "email-triage", "skills", "email-triage")
 sys.path.insert(0, os.path.join(SKILL, "scripts"))
+import clasificadores as nc  # noqa: E402
 import esquema as es  # noqa: E402
 import triage_helpers as th  # noqa: E402
 
@@ -139,7 +140,10 @@ def medir(cfg, correos, repeticiones, llamar):
                      ["properties"]["criterios"]["properties"])
     tabla = {}
     for k in criterios:
-        inestables, valores = [], {}
+        # Misma regla que la comparación de Jev/Decisions (v3.22.21): un `no`
+        # de 0 puntos y `__no_aplica__` dan el mismo score.
+        equivale = nc._no_neutro(cfg, k, "no")
+        inestables, inestables_eq, valores = [], [], {}
         for cid, tiradas in por_correo.items():
             if len(tiradas) < 2:
                 continue  # con una sola tirada válida no hay nada que comparar
@@ -147,7 +151,11 @@ def medir(cfg, correos, repeticiones, llamar):
             valores[cid] = dict(cuenta)
             if len(cuenta) > 1:
                 inestables.append(cid)
-        tabla[k] = {"correos_inestables": inestables, "valores": valores}
+                plegados = {"no" if equivale and x == NO_APLICA else x for x in cuenta}
+                if len(plegados) > 1:
+                    inestables_eq.append(cid)
+        tabla[k] = {"correos_inestables": inestables,
+                    "correos_inestables_equivalentes": inestables_eq, "valores": valores}
     comparables = [c for c, t in por_correo.items() if len(t) >= 2]
     return {"repeticiones": repeticiones,
             "tiradas_validas": {c: len(t) for c, t in por_correo.items()},
@@ -156,6 +164,8 @@ def medir(cfg, correos, repeticiones, llamar):
             "criterios_inestables": sorted(
                 (k for k, v in tabla.items() if v["correos_inestables"]),
                 key=lambda k: (-len(tabla[k]["correos_inestables"]), k)),
+            "criterios_inestables_equivalentes": sorted(
+                k for k, v in tabla.items() if v["correos_inestables_equivalentes"]),
             "por_criterio": tabla}
 
 
@@ -164,15 +174,19 @@ def markdown(r):
     lineas = ["Tiradas válidas por correo: " + ", ".join(
                   "%s %d/%d" % (c, v, r["repeticiones"]) for c, v in r["tiradas_validas"].items()),
               "Fallos: " + (json.dumps(r["fallos"], ensure_ascii=False) if r["fallos"] else "ninguno"),
-              "", "| Criterio | Correos inestables (de %d) | Valores |" % n, "|---|---|---|"]
+              "", "| Criterio | Correos inestables (de %d) | Sin contar no/no_aplica | Valores |" % n,
+              "|---|---|---|---|"]
     for k in r["criterios_inestables"]:
         v = r["por_criterio"][k]
         detalle = "; ".join("%s: %s" % (c, ", ".join("%s×%d" % (x, m) for x, m in cnt.items()))
                             for c, cnt in v["valores"].items() if c in v["correos_inestables"])
-        lineas.append("| `%s` | %d | %s |" % (k, len(v["correos_inestables"]), detalle))
-    estables = len(r["por_criterio"]) - len(r["criterios_inestables"])
+        lineas.append("| `%s` | %d | %d | %s |" % (k, len(v["correos_inestables"]),
+                      len(v["correos_inestables_equivalentes"]), detalle))
+    total = len(r["por_criterio"])
     lineas += ["", "Criterios estables en todos los correos: %d de %d." % (
-        estables, len(r["por_criterio"]))]
+                   total - len(r["criterios_inestables"]), total),
+               "Contando `no` (0 puntos) = `__no_aplica__`: %d de %d." % (
+                   total - len(r["criterios_inestables_equivalentes"]), total)]
     return "\n".join(lineas)
 
 
