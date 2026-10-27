@@ -27,7 +27,8 @@ ALIASES = {"jev-latest", "jev-preview"}
 PRECIOS_MTOK = {"jev-1.13.0": 0.042, "jev-1.14.0": 0.042}  # USD, tarifa publicada de ambos modelos a 2026-10-16.
 DEFAULT = {"activo": False, "acepta_envio_datos": False, "modo": "comparar",
            "modelo": "jev-latest", "max_llamadas": 5,
-           "timeout_segundos": 15, "confianza_minima": 0.8}
+           "timeout_segundos": 15, "confianza_minima": 0.8,
+           "tolerancia_dudas": 0}
 
 ErrorJev = nc.ErrorClasificador  # mismo tipo: los except existentes siguen valiendo
 

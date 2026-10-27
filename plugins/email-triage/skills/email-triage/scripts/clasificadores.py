@@ -21,8 +21,18 @@ aunque el correo se descarte) y la salida `comparacion_por_criterio`; un
 rechazo de forma lleva `motivo_detalle` (criterio y causa, nunca contenido).
 Desde v3.22.21 ambos traen además la coincidencia que cuenta como igual el par
 `no` de 0 puntos / `__no_aplica__` (`equivalentes`, `*_equivalente`).
+
+Tolerancia a dudas (v3.22.22, opt-in con `tolerancia_dudas` > 0 en la capa):
+un criterio `__incierto__` o con confianza baja descartaba el correo entero
+aunque la duda no pudiera cambiar la decisión. Con la tolerancia activa, si
+hay como mucho N criterios dudosos y TODAS sus respuestas posibles dan el
+mismo tier con el scoring real, el correo sigue y lleva `dudas_irrelevantes`.
+Si una sola combinación cambia el tier, el freno actúa como antes. Un core
+`__incierto__` nunca se tolera. En `hibrido` solo se anota: el freno actúa
+igual, con su motivo y sin propuesta.
 """
 import hashlib
+import itertools
 import http.client
 import json
 import math
@@ -45,6 +55,11 @@ MAX_LOTE = 50  # correos por invocación (`_filas`) y tope de `max_llamadas`
 # Desviación de la suma admitida por opción: probabilidades redondeadas a dos
 # decimales (prueba real v3.22.5: 20 de 48 respuestas de Jev con suma 0,99).
 REDONDEO_POR_OPCION = 0.005
+# Tope de `tolerancia_dudas` y de combinaciones puntuadas por correo. Con la
+# plantilla (máx. 3 opciones por criterio) son como mucho (3+1)**3 = 64; el
+# tope de 512 = (7+1)**3 es margen para configs propios con más opciones.
+MAX_TOLERANCIA_DUDAS = 3
+MAX_COMBINACIONES_DUDAS = 512
 
 
 class ErrorClasificador(Exception):
@@ -288,6 +303,45 @@ def _scoring(ident, control, vs, cfg):
     return r
 
 
+def _dudas_irrelevantes(e, v, dudosos, activos, cfg, maximo):
+    """¿Cambia el tier alguna respuesta posible de los criterios dudosos?
+
+    Devuelve el resumen si TODAS las combinaciones (opciones del config y,
+    en los no core, la exclusión) dan el mismo tier con `_scoring`; None si
+    alguna lo cambia, si hay más dudosos o combinaciones de las admitidas, si
+    una combinación no se puede puntuar (entonces actúa el freno de siempre,
+    con su motivo) o si un criterio core salió `__incierto__`: la propuesta
+    quedaría sin él y no sería comparable con el principal (misma regla que
+    `_principal` para un core excluido).
+    Solo aritmética local: sin red y sin tocar la respuesta del proveedor.
+    """
+    if not dudosos or len(dudosos) > maximo:
+        return None
+    alternativas = []
+    for k in dudosos:
+        opciones, core = activos[k]
+        if core and k in v["inciertos"]:
+            return None
+        alternativas.append(sorted(opciones) + ([] if core else [None]))
+    total = math.prod(len(a) for a in alternativas)
+    if total > MAX_COMBINACIONES_DUDAS:
+        return None
+    fijos = {k: x for k, x in v["verdicts"].items() if k not in dudosos}
+    tiers, scores = set(), []
+    for combinacion in itertools.product(*alternativas):
+        vs = dict(fijos, **{k: x for k, x in zip(dudosos, combinacion) if x is not None})
+        try:
+            r = _scoring(e["id"], e["control"], vs, cfg)
+        except ErrorClasificador:
+            return None
+        tiers.add(r["tier"])
+        scores.append(r["score"])
+        if len(tiers) > 1:
+            return None
+    return {"criterios": list(dudosos), "tier": tiers.pop(), "combinaciones": total,
+            "score_min": min(scores), "score_max": max(scores)}
+
+
 def _estado(e, perfil):
     estado = e.get("estado")
     _exigir(_objeto(estado, ("asunto", "remitente", "texto")) and
@@ -401,6 +455,8 @@ def config_capa(capa, default, modelo_valido, etiqueta):
     _exigir(type(c["max_llamadas"]) is int and 1 <= c["max_llamadas"] <= MAX_LOTE
             and _numero(c["timeout_segundos"], 1, 60)
             and _numero(c["confianza_minima"], 0, 1), "limites_invalidos")
+    _exigir(type(c["tolerancia_dudas"]) is int
+            and 0 <= c["tolerancia_dudas"] <= MAX_TOLERANCIA_DUDAS, "tolerancia_dudas_invalida")
     return c
 
 
@@ -512,8 +568,18 @@ def procesar(p, cfg, capa, transporte, modo, prov):
                 if modo == "comparar":
                     # Antes de los frenos: así consta aunque el correo se descarte.
                     r["por_criterio"] = _por_criterio(e["principal"], v, cfg)
-                _exigir(not v["inciertos"], prov.etiqueta + "_incierto")
-                _exigir(min(v["confianzas"].values()) >= c["confianza_minima"], "confianza_baja")
+                dudosos = sorted(set(v["inciertos"]) | {
+                    k for k, x in v["confianzas"].items() if x < c["confianza_minima"]})
+                tolerancia = (_dudas_irrelevantes(e, v, dudosos, activos, cfg,
+                                                  c["tolerancia_dudas"])
+                              if c["tolerancia_dudas"] else None)
+                if tolerancia is not None:
+                    r["dudas_irrelevantes"] = tolerancia
+                if tolerancia is None or modo == "hibrido":
+                    # En `hibrido` la tolerancia solo anota: el freno actúa con su
+                    # motivo y sin propuesta (decisión del mantenedor, PR #141).
+                    _exigir(not v["inciertos"], prov.etiqueta + "_incierto")
+                    _exigir(min(v["confianzas"].values()) >= c["confianza_minima"], "confianza_baja")
                 propuesta = _scoring(e["id"], e["control"], v["verdicts"], cfg)
                 r.update(propuesta=propuesta, no_aplica=v["no_aplica"], motivo="solo_comparacion")
                 if modo == "hibrido":

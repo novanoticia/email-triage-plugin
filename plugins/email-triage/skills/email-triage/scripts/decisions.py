@@ -28,7 +28,8 @@ PRECIOS_MTOK = {"gpt-6-luna": 0.10}
 TARIFA_FECHA = "2026-10-25"
 DEFAULT = {"activo": False, "acepta_envio_datos": False, "modo": "comparar",
            "modelo": MODELO_POR_DEFECTO, "max_llamadas": 5,
-           "timeout_segundos": 15, "confianza_minima": 0.8}
+           "timeout_segundos": 15, "confianza_minima": 0.8,
+           "tolerancia_dudas": 0}
 
 ErrorDecisions = nc.ErrorClasificador
 

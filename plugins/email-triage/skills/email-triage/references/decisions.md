@@ -76,6 +76,8 @@ la capa:
    `motivo_detalle` en los rechazos de forma, solo en `comparar` e informativo;
    desde v3.22.21 también `tasa_coincidencia_equivalente` (par `no` de 0
    puntos / `__no_aplica__`, ver el mismo punto de `jev.md`).
+8. Misma tolerancia a dudas opt-in que Jev (`tolerancia_dudas`, punto 8 de
+   `references/jev.md`, v3.22.22), con el mismo freno en `clasificadores.py`.
 
 ## Triaje real: modo híbrido explícito
 

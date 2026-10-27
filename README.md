@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.22.21
+# Email Triage Plugin v3.22.22
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,27 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.22.22
+
+- **Jev y Decisions pueden aceptar un correo con dudas que no cambian el
+  tier (opt-in).** Un solo criterio `__incierto__` o con confianza baja
+  descartaba el correo entero. La medición real (`scripts/medir_ruido.py`,
+  `gpt-6-luna`, perfil real) dio 15 de 30 criterios inestables entre
+  tiradas, pero los 4 correos con el mismo tier en las 5.
+  - **Qué cambia:** con `tolerancia_dudas: N` (1–3) en `config-jev.yaml` o
+    `config-decisions.yaml`, si hay como mucho N criterios dudosos, el
+    script prueba todas sus respuestas posibles (y la exclusión en los no
+    core) con el scoring real. Si todas dan el mismo tier, el correo sigue
+    y lleva `dudas_irrelevantes` (criterios, tier, combinaciones y rango de
+    score). Si una sola cambia el tier, se descarta como antes. Un criterio
+    core `__incierto__` nunca se tolera: la propuesta quedaría sin él y no
+    sería comparable con el principal.
+  - **En `hibrido`:** solo se anota `dudas_irrelevantes`; el freno actúa
+    igual, con su motivo y sin propuesta. Ningún veredicto dudoso entra en
+    un triaje real hasta medirlo con correos reales.
+  - **Qué no cambia:** `tolerancia_dudas: 0` es el valor por defecto; sin
+    tocar la capa, los frenos actúan igual que antes.
 
 ## Novedades en v3.22.21
 

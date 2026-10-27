@@ -8,3 +8,4 @@ modelo: jev-latest              # alias estable; API oficial verificada 2026-10-
 max_llamadas: 5                 # 1–50, por invocación, una por correo/hilo, sin reintentos
 timeout_segundos: 15
 confianza_minima: 0.8           # experimental; no equivale a probabilidad de acierto
+tolerancia_dudas: 0             # 0 = desactivado; 1–3: acepta hasta N criterios dudosos si no cambian el tier
