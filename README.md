@@ -96,8 +96,9 @@ relue par un humain. / Traducción generada por una IA, sin revisión humana.
   Mistral) pueden obligar al especialista a responder con la forma exacta
   del contrato, en vez de confiar en que la copie bien.
   - **Qué cambia:** nuevo `scripts/esquema.py` con `generar` (esquema desde
-    los criterios activos del config efectivo), `normalizar` (quita los
-    `null` que exige el modo estricto, para que `validar` lo acepte) y
+    los criterios activos del config efectivo, sin tipos unión para no
+    pasar el límite de 16 de Anthropic), `normalizar` (reparte los
+    objetos por criterio en la forma que espera `validar`) y
     `comprobar`. El de la plantilla queda en
     `references/esquema-evaluador.json`, vigilado por un test.
   - **Qué no cambia:** `validar`, el agente, `SKILL.md`, Jev y Decisions.

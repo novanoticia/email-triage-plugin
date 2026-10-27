@@ -13,6 +13,7 @@ from tests import DIR_SCRIPTS
 from tests.test_modelos import lote
 from tests.test_triage_helpers import _rand_json
 import esquema as es
+import clasificadores as nc
 import jev
 import modelos as m
 import triage_helpers as th
@@ -47,17 +48,24 @@ def _fila_esquema(esq):
     return esq["properties"]["evaluaciones"]["items"]["properties"]
 
 
+def _crit_esquema(esq):
+    return _fila_esquema(esq)["criterios"]["properties"]
+
+
 def _respuesta_esquema(cfg, excluir=None):
-    """Respuesta sintética en forma «esquema»: todas las claves, null donde
-    no aplica. `excluir` (no core) va en no_aplica en vez de en verdicts."""
-    vs, na, ev = {}, {}, {}
-    for k, (opciones, _) in m._criterios(cfg).items():
+    """Respuesta sintética en forma «esquema»: un objeto por criterio con
+    todas sus claves. `excluir` (no core) va como `__no_aplica__`."""
+    crit = {}
+    for k, (opciones, core) in m._criterios(cfg).items():
         if k == excluir:
-            vs[k], na[k], ev[k] = None, "No procede en este correo.", None
+            c = {"veredicto": es.NO_APLICA, "evidencia": "",
+                 "razon_no_aplica": "No procede en este correo."}
         else:
-            vs[k], na[k], ev[k] = sorted(opciones)[0], None, "Evidencia sintética."
-    return {"evaluaciones": [{"id": "1", "verdicts": vs, "no_aplica": na,
-                              "evidencias": ev, "dudas": [],
+            c = {"veredicto": sorted(opciones)[0], "evidencia": "Evidencia sintética."}
+            if not core:
+                c["razon_no_aplica"] = ""
+        crit[k] = c
+    return {"evaluaciones": [{"id": "1", "criterios": crit, "dudas": [],
                               "resumen": "Resumen sintético.",
                               "eco": {"inicio": "", "fin": ""}}]}
 
@@ -69,36 +77,43 @@ def _validar(cfg, respuesta_validador):
     return m.ejecutar("validar", p)
 
 
+def _uniones(nodo):
+    """Parámetros con tipo unión (lista en `type`), lo que limita Anthropic."""
+    n = isinstance(nodo.get("type"), list)
+    n += sum(_uniones(v) for v in nodo.get("properties", {}).values())
+    return n + (_uniones(nodo["items"]) if "items" in nodo else 0)
+
+
 class TestForma(unittest.TestCase):
     def setUp(self):
         self.cfg = _cfg_plantilla()
         self.activos = m._criterios(self.cfg)
-        self.fila = _fila_esquema(es.generar(self.cfg))
+        self.crit = _crit_esquema(es.generar(self.cfg))
 
     def test_cada_criterio_activo_con_sus_opciones_y_ninguno_de_mas(self):
-        for campo in ("verdicts", "no_aplica", "evidencias"):
-            self.assertEqual(set(self.fila[campo]["properties"]), set(self.activos))
-        for k, (opciones, _) in self.activos.items():
-            enum = self.fila["verdicts"]["properties"][k]["enum"]
-            self.assertEqual(set(enum), opciones | {None})
-            self.assertEqual(len(enum), len(opciones) + 1)
+        self.assertEqual(set(self.crit), set(self.activos))
+        for k, (opciones, core) in self.activos.items():
+            enum = self.crit[k]["properties"]["veredicto"]["enum"]
+            extra = set() if core else {es.NO_APLICA}
+            self.assertEqual(set(enum), opciones | extra, k)
+            self.assertEqual(len(enum), len(set(enum)), k)
 
     def test_core_no_admite_no_aplica(self):
         for k, (_, core) in self.activos.items():
-            tipo = self.fila["no_aplica"]["properties"][k]["type"]
-            self.assertEqual(tipo, "null" if core else ["string", "null"], k)
+            campos = set(self.crit[k]["properties"])
+            enum = self.crit[k]["properties"]["veredicto"]["enum"]
+            if core:
+                self.assertEqual(campos, {"veredicto", "evidencia"}, k)
+                self.assertNotIn(es.NO_APLICA, enum, k)
+            else:
+                self.assertEqual(campos, {"veredicto", "evidencia", "razon_no_aplica"}, k)
 
     def test_subconjunto_comun_y_modo_estricto(self):
         def recorrer(nodo, ruta):
             self.assertLessEqual(set(nodo), _PERMITIDAS, ruta)
-            tipos = nodo["type"] if isinstance(nodo["type"], list) else [nodo["type"]]
-            self.assertLessEqual(set(tipos), _TIPOS, ruta)
-            if isinstance(nodo["type"], list):
-                # Anulable solo como [X, "null"].
-                self.assertEqual(len(tipos), 2, ruta)
-                self.assertEqual(tipos[1], "null", ruta)
-                # Anulable solo en escalares: objetos y arrays nunca.
-                self.assertNotIn(tipos[0], ("object", "array"), ruta)
+            # Sin uniones: ni [X, "null"] (revisión Codex, PR #135).
+            self.assertIsInstance(nodo["type"], str, ruta)
+            self.assertIn(nodo["type"], _TIPOS, ruta)
             if "properties" in nodo:
                 self.assertEqual(set(nodo["required"]), set(nodo["properties"]), ruta)
                 self.assertIs(nodo["additionalProperties"], False, ruta)
@@ -108,13 +123,18 @@ class TestForma(unittest.TestCase):
                 recorrer(nodo["items"], ruta + "[]")
         recorrer(es.generar(self.cfg), "$")
 
+    def test_limite_de_uniones_de_anthropic(self):
+        veloz = th._fusiona_config_veloz(
+            _cfg_plantilla(), str(SKILL / "config-veloz.yaml"))
+        for cfg in (self.cfg, veloz):
+            self.assertLessEqual(_uniones(es.generar(cfg)), 16)
+
     def test_capa_veloz_solo_core(self):
         cfg = th._fusiona_config_veloz(
             _cfg_plantilla(), str(SKILL / "config-veloz.yaml"))
-        fila = _fila_esquema(es.generar(cfg))
         core = {k for k, (_, c) in self.activos.items() if c}
         self.assertTrue(core)
-        self.assertEqual(set(fila["verdicts"]["properties"]), core)
+        self.assertEqual(set(_crit_esquema(es.generar(cfg))), core)
 
 
 class TestIdaYVuelta(unittest.TestCase):
@@ -138,45 +158,48 @@ class TestIdaYVuelta(unittest.TestCase):
 
     def test_lo_que_el_esquema_no_cubre_lo_rechaza_validar(self):
         k = self.no_core
-        casos = {
-            "evidencias_ausentes": lambda f: f["evidencias"].update({k: None}),
-            # Veredicto y no_aplica a la vez.
-            "cobertura_incompleta_o_desconocida":
-                lambda f: f["no_aplica"].update({k: "Razón."}),
-        }
-        for motivo, mutar in casos.items():
-            resp = _respuesta_esquema(self.cfg)
-            mutar(resp["evaluaciones"][0])
+        # Conformes con el esquema pero inválidos para el contrato.
+        casos = [
+            ("evidencias_ausentes", None, {"evidencia": ""}),
+            ("criterio_core_omitido_o_sin_justificacion", k,
+             {"razon_no_aplica": ""}),
+        ]
+        for motivo, excluir, cambio in casos:
+            resp = _respuesta_esquema(self.cfg, excluir)
+            resp["evaluaciones"][0]["criterios"][k].update(cambio)
             c, r = self._ciclo(resp)
             self.assertTrue(c["conforme"], c["errores"])
             self.assertEqual(r["resultados"][0]["motivo"], motivo)
-        # Ambos null: el criterio desaparece de la cobertura.
-        resp = _respuesta_esquema(self.cfg)
-        f = resp["evaluaciones"][0]
-        f["verdicts"][k] = f["evidencias"][k] = None
-        c, r = self._ciclo(resp)
-        self.assertTrue(c["conforme"], c["errores"])
-        self.assertEqual(r["resultados"][0]["motivo"],
-                         "cobertura_incompleta_o_desconocida")
+
+    def test_lo_que_el_esquema_ya_impide(self):
+        # Excluir un core, u omitir un criterio, ya no es conforme.
+        for mutar in (
+                lambda c: c["cambia_algo_concreto"].update(veredicto=es.NO_APLICA),
+                lambda c: c.pop(self.no_core)):
+            resp = _respuesta_esquema(self.cfg)
+            mutar(resp["evaluaciones"][0]["criterios"])
+            self.assertFalse(es.comprobar(self.cfg, resp)["conforme"])
 
     def test_no_conforme_se_informa_sin_valores(self):
         resp = _respuesta_esquema(self.cfg)
-        resp["evaluaciones"][0]["verdicts"]["cambia_algo_concreto"] = "SECRETO_DEL_CORREO"
-        resp["evaluaciones"][0]["intruso"] = "SECRETO_DEL_CORREO"
+        f = resp["evaluaciones"][0]
+        f["criterios"]["cambia_algo_concreto"]["veredicto"] = "SECRETO_DEL_CORREO"
+        f["intruso"] = "SECRETO_DEL_CORREO"
         c = es.comprobar(self.cfg, resp)
         self.assertFalse(c["conforme"])
         self.assertNotIn("SECRETO", json.dumps(c["errores"]))
 
-    def test_normalizar_no_toca_valores(self):
+    def test_normalizar_reparte_sin_tocar_valores(self):
         resp = _respuesta_esquema(self.cfg, self.no_core)
         original = copy.deepcopy(resp)
         n = es.normalizar(resp)["respuesta"]["evaluaciones"][0]
         self.assertEqual(resp, original)  # pura: no muta la entrada
-        self.assertEqual(n["eco"], {"inicio": "", "fin": ""})  # no se toca
-        resp["evaluaciones"][0]["eco"] = None
-        self.assertNotIn("eco", es.normalizar(resp)["respuesta"]["evaluaciones"][0])
+        self.assertNotIn("criterios", n)
+        self.assertEqual(n["eco"], {"inicio": "", "fin": ""})
         self.assertNotIn(self.no_core, n["verdicts"])
+        self.assertNotIn(self.no_core, n["evidencias"])
         self.assertEqual(n["no_aplica"], {self.no_core: "No procede en este correo."})
+        self.assertEqual(n["evidencias"]["cambia_algo_concreto"], "Evidencia sintética.")
 
 
 class TestConfigRota(unittest.TestCase):
@@ -202,8 +225,12 @@ class TestTotalidad(unittest.TestCase):
         rng = random.Random(20261027)
         for _ in range(3000):
             entrada = _rand_json(rng)
-            if rng.random() < 0.5:
+            t = rng.random()
+            if t < 0.3:
                 entrada = {"evaluaciones": [_rand_json(rng) for _ in range(3)]}
+            elif t < 0.6:
+                entrada = {"evaluaciones": [{"criterios": {
+                    "a": _rand_json(rng), "b": {"veredicto": _rand_json(rng)}}}]}
             r = es.normalizar(entrada)
             self.assertIsInstance(r, dict)
             json.dumps(r)
@@ -226,17 +253,18 @@ class TestSincroniaJev(unittest.TestCase):
         cfg = _cfg_plantilla()
         activos = m._criterios(cfg)
         preguntas = jev._preguntas(cfg, activos)
-        fila = _fila_esquema(es.generar(cfg))
-        especiales = {"__incierto__", "__no_aplica__"}
-        self.assertEqual(set(preguntas), set(fila["verdicts"]["properties"]))
+        crit = _crit_esquema(es.generar(cfg))
+        self.assertEqual(es.NO_APLICA, nc.NO_APLICA)
+        especiales = {nc.INCIERTO, nc.NO_APLICA}
+        self.assertEqual(set(preguntas), set(crit))
         for k, q in preguntas.items():
-            enum = set(fila["verdicts"]["properties"][k]["enum"]) - {None}
-            self.assertEqual(enum, set(q["criteria"]) - especiales, k)
+            enum = set(crit[k]["properties"]["veredicto"]["enum"])
+            self.assertEqual(enum - especiales, set(q["criteria"]) - especiales, k)
         sin_no_aplica = {k for k, q in preguntas.items()
-                         if "__no_aplica__" not in q["criteria"]}
-        nulos = {k for k, v in fila["no_aplica"]["properties"].items()
-                 if v["type"] == "null"}
-        self.assertEqual(sin_no_aplica, nulos)
+                         if nc.NO_APLICA not in q["criteria"]}
+        sin_exclusion = {k for k, v in crit.items()
+                         if es.NO_APLICA not in v["properties"]["veredicto"]["enum"]}
+        self.assertEqual(sin_no_aplica, sin_exclusion)
 
 
 if __name__ == "__main__":

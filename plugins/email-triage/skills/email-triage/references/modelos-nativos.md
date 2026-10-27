@@ -317,17 +317,19 @@ python3 "<ruta-del-skill>/scripts/esquema.py" comprobar --config ~/.email-triage
 ```
 
 `references/esquema-evaluador.json` es el de la plantilla, versionado; un test
-lo regenera y compara byte a byte. El modo estricto exige todas las claves, con
-`null` donde no aplica, y `validar` decide por presencia de claves: pasa la
-respuesta por `normalizar` (o `comprobar`, que también la devuelve normalizada)
-antes de `validar`. `normalizar` solo quita los `null`; no rellena ni corrige.
-`eco` es siempre un objeto (cadenas vacías si no se pidió), no anulable: un
-objeto anulable no lo aceptan todos los modos estrictos.
+lo regenera y compara byte a byte. No hay tipos unión (Anthropic admite como
+mucho 16): cada criterio es un objeto `{veredicto, evidencia}` y, si no es
+core, `razon_no_aplica`; excluirlo es `veredicto: "__no_aplica__"`, que los
+core no ofrecen. `validar` espera otra forma, así que pasa la respuesta por
+`normalizar` (o `comprobar`, que también la devuelve normalizada) antes de
+`validar`: reparte cada criterio en `verdicts`/`evidencias` o en `no_aplica`
+y descarta el campo que no corresponde; no rellena ni corrige. `eco` es
+siempre un objeto (cadenas vacías si no se pidió).
 
-Qué garantiza: ids y opciones exactos, ningún campo de más y que los core no
-puedan ir a `no_aplica`. Qué **no** garantiza, y sigue comprobando `validar`:
-exactamente una de veredicto o `no_aplica` por criterio, evidencia cuando hay
-veredicto, razón no vacía y `eco` igual al ancla. Jev y los clasificadores
+Qué garantiza: ids y opciones exactos, ningún campo de más, una sola opción
+por criterio y que los core no puedan excluirse. Qué **no** garantiza, y
+sigue comprobando `validar`: evidencia o razón no vacías y `eco` igual al
+ancla. Jev y los clasificadores
 externos no usan este esquema: tienen su propio contrato de preguntas
 (`jev.md`, `decisions.md`).
 

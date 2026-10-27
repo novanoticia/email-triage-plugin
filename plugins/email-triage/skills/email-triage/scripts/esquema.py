@@ -9,14 +9,15 @@ El esquema es un artefacto de CONTRATO, no una integración: un host que sepa
 pedir salida estructurada puede usarlo; uno que no, sigue igual que antes.
 Usa solo el subconjunto común de los Structured Outputs de Anthropic, OpenAI
 (`strict`), Gemini y Mistral: todas las propiedades en `required`,
-`additionalProperties: false` y lo opcional como tipo anulable.
+`additionalProperties: false` y ningún tipo unión (Anthropic admite como
+mucho 16; revisión Codex, PR #135).
 
-Ese modo estricto obliga a que TODAS las claves estén presentes (con `null`
-donde no aplica), y `modelos._validar_fila` decide por presencia de claves.
-`normalizar` traduce de una forma a otra quitando los `null`; no rellena,
-no corrige ni infiere. Lo que el esquema no puede garantizar (exactamente
-una opción por criterio, evidencia cuando hay veredicto, `no_aplica` solo en
-no core, `eco` igual al ancla) lo sigue comprobando `modelos.validar`.
+El modo estricto obliga a que TODAS las claves estén presentes, y
+`modelos._validar_fila` decide por presencia de claves. Por eso el esquema
+usa un objeto por criterio y `normalizar` lo reparte en `verdicts`,
+`no_aplica` y `evidencias`; no rellena, no corrige ni infiere. Lo que el
+esquema no puede garantizar (evidencia o razón no vacías, `eco` igual al
+ancla) lo sigue comprobando `modelos.validar`.
 """
 import argparse
 import json
@@ -29,8 +30,9 @@ import triage_helpers as th
 # Subconjunto permitido; el test lo recorre contra estas mismas listas.
 _PALABRAS = {"type", "properties", "required", "additionalProperties",
              "enum", "items", "description"}
-_TIPOS = {"object", "array", "string", "boolean", "null"}
-_POR_CRITERIO = ("verdicts", "no_aplica", "evidencias")
+_TIPOS = {"object", "array", "string", "boolean"}
+# Mismo valor que `clasificadores.NO_APLICA` (lo fija el test de sincronía).
+NO_APLICA = "__no_aplica__"
 
 
 def _objeto(propiedades, descripcion=None):
@@ -46,6 +48,11 @@ def generar(cfg):
 
     Los ids salen de `modelos._criterios` (sin lista paralela); el orden de
     criterios y opciones es el del config, para que el esquema sea legible.
+    Sin tipos unión: Anthropic admite como mucho 16 y la forma con `null`
+    por criterio daba 77 (revisión Codex, PR #135). Cada criterio es un
+    objeto con `veredicto` (enum), `evidencia` y, si no es core,
+    `razon_no_aplica`; excluirlo es `veredicto: "__no_aplica__"`, que los
+    core no ofrecen.
     """
     # Un YAML vacío, `null` o una lista llega aquí tal cual (revisión Codex,
     # PR #135): error estructurado, nunca traceback.
@@ -53,7 +60,7 @@ def generar(cfg):
         raise ValueError("config_invalida")
     activos = modelos._criterios(cfg)
     crit = cfg["criterios_epistemicos"]
-    vs, na, ev = {}, {}, {}
+    criterios = {}
     for k in crit:
         if k not in activos:
             continue
@@ -61,17 +68,18 @@ def generar(cfg):
         pregunta = crit[k].get("question")
         desc = pregunta if isinstance(pregunta, str) else k
         orden = [o for o in crit[k] if o in opciones]
-        vs[k] = {"type": ["string", "null"], "enum": orden + [None],
-                 "description": desc}
-        # Core: el esquema ya impide excluirlo; la razón siempre es null.
-        na[k] = ({"type": "null", "description": desc + " (core: no se excluye)"}
-                 if core else {"type": ["string", "null"], "description": desc})
-        ev[k] = {"type": ["string", "null"], "description": desc}
+        campos = {"veredicto": {"type": "string",
+                                "enum": orden if core else orden + [NO_APLICA]},
+                  "evidencia": {"type": "string",
+                                "description": "Cita o hecho del correo; vacía solo con " + NO_APLICA}}
+        if not core:
+            campos["razon_no_aplica"] = {
+                "type": "string",
+                "description": "Por qué no aplica; vacía si hay veredicto"}
+        criterios[k] = _objeto(campos, desc + (" (core: no se excluye)" if core else ""))
     fila = _objeto({
         "id": {"type": "string"},
-        "verdicts": _objeto(vs, "Una opción por criterio, o null si va en no_aplica."),
-        "no_aplica": _objeto(na, "Razón de exclusión (solo no core), o null."),
-        "evidencias": _objeto(ev, "Evidencia de cada veredicto, o null si no hay veredicto."),
+        "criterios": _objeto(criterios, "Un objeto por criterio activo."),
         "dudas": {"type": "array", "items": {"type": "string"}},
         "resumen": {"type": "string"},
         # Objeto NO anulable: un objeto con `type: [object, null]` no lo
@@ -86,9 +94,13 @@ def generar(cfg):
 def normalizar(respuesta):
     """Forma «esquema» → forma «validador». Pura y determinista.
 
-    Quita las entradas None de verdicts/no_aplica/evidencias y elimina `eco`
-    si vale None (respuestas que no usan el esquema). No toca ningún otro valor. Devuelve
-    {"ok": True, "respuesta": {...}} o `modelos._error(motivo)`.
+    Reparte cada `criterios[k]`: `veredicto == "__no_aplica__"` va a
+    `no_aplica[k] = razon_no_aplica`; cualquier otro a `verdicts[k]` y
+    `evidencias[k] = evidencia`. El campo que no corresponde se descarta
+    (una evidencia junto a `__no_aplica__`, una razón junto a un veredicto).
+    No rellena ni corrige: una evidencia o razón vacía llega vacía y la
+    rechaza `validar`. Devuelve {"ok": True, "respuesta": {...}} o
+    `modelos._error(motivo)`.
     """
     if not isinstance(respuesta, dict) or not isinstance(
             respuesta.get("evaluaciones"), list):
@@ -97,15 +109,19 @@ def normalizar(respuesta):
     for fila in respuesta["evaluaciones"]:
         if not isinstance(fila, dict):
             return modelos._error("fila_invalida")
-        nueva = {}
-        for k, v in fila.items():
-            if k in _POR_CRITERIO:
-                if not isinstance(v, dict):
-                    return modelos._error("veredictos_invalidos")
-                v = {c: x for c, x in v.items() if x is not None}
-            elif k == "eco" and v is None:
-                continue
-            nueva[k] = v
+        nueva = {k: v for k, v in fila.items() if k != "criterios"}
+        if "criterios" in fila:
+            crit = fila["criterios"]
+            if not isinstance(crit, dict) or not all(
+                    isinstance(c, dict) for c in crit.values()):
+                return modelos._error("veredictos_invalidos")
+            vs, na, ev = {}, {}, {}
+            for k, c in crit.items():
+                if c.get("veredicto") == NO_APLICA:
+                    na[k] = c.get("razon_no_aplica")
+                else:
+                    vs[k], ev[k] = c.get("veredicto"), c.get("evidencia")
+            nueva.update(verdicts=vs, no_aplica=na, evidencias=ev)
         filas.append(nueva)
     otros = {k: v for k, v in respuesta.items() if k != "evaluaciones"}
     return {"ok": True, "respuesta": dict(otros, evaluaciones=filas)}
