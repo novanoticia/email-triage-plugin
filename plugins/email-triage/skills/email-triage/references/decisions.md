@@ -73,7 +73,9 @@ la capa:
    evidencias narrativas: no inventarlas.
 7. Mismo diagnóstico por criterio que Jev (punto 7 de `references/jev.md`,
    v3.22.5): `por_criterio` por fila, `comparacion_por_criterio` en la salida y
-   `motivo_detalle` en los rechazos de forma, solo en `comparar` e informativo.
+   `motivo_detalle` en los rechazos de forma, solo en `comparar` e informativo;
+   desde v3.22.21 también `tasa_coincidencia_equivalente` (par `no` de 0
+   puntos / `__no_aplica__`, ver el mismo punto de `jev.md`).
 
 ## Triaje real: modo híbrido explícito
 
