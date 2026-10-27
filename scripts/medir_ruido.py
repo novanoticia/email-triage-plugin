@@ -5,7 +5,10 @@ Herramienta de desarrollo (no se distribuye con el plugin). Pide N veces la
 misma evaluación de cada correo FICTICIO a la API de OpenAI (Chat
 Completions, `response_format` con el esquema de `esquema.py` en modo
 `strict`), normaliza cada respuesta con `esquema.comprobar` y cuenta, por
-criterio, en cuántos correos el veredicto no fue siempre el mismo.
+criterio, en cuántos correos el veredicto no fue siempre el mismo. Desde
+v3.22.21 también puntúa cada tirada con el scoring real (solo veredictos, sin
+remitente ni reglas duras) y dice si el TIER del correo cambia: el ruido por
+criterio solo importa si mueve la decisión.
 
 Por qué (prueba real 2026-10-27): con el mismo correo y `gpt-6-luna`
 cambiaron 4 de 30 veredictos entre dos ejecuciones. Con Jev y Decisions un
@@ -128,6 +131,20 @@ def veredictos(cfg, respuesta_api):
     return out, None
 
 
+# Solo los veredictos: sin remitente, historial ni reglas duras, para que el
+# score dependa únicamente de lo que cambia entre tiradas.
+_BASE_SCORING = {"hard_rules": [], "extra_points": 0, "forzar_reply_needed": False,
+                 "tier_maximo": None, "remitente_en_historial": False}
+
+
+def score_tier(cfg, v):
+    """(score, tier) de una tirada con el scoring real del plugin. Un
+    `__no_aplica__` se omite, que es lo que hace el principal al excluirlo."""
+    r = th.cmd_scoring_dispatch(dict(_BASE_SCORING, id="t", verdicts={
+        k: x for k, x in v.items() if x != NO_APLICA}), cfg)
+    return r.get("score"), r.get("tier")
+
+
 def medir(cfg, correos, repeticiones, llamar):
     """Agrega la estabilidad por criterio. `llamar(correo)` devuelve la
     respuesta de la API (inyectable: los tests no usan red)."""
@@ -162,6 +179,14 @@ def medir(cfg, correos, repeticiones, llamar):
         tabla[k] = {"correos_inestables": inestables,
                     "correos_inestables_equivalentes": inestables_eq, "valores": valores}
     comparables = [c for c, t in por_correo.items() if len(t) >= 2]
+    # Lo que decide si el ruido importa: ¿cambia el tier del correo?
+    tiers = {}
+    for cid in comparables:
+        st = [score_tier(cfg, t) for t in por_correo[cid]]
+        scores = [x for x, _ in st if isinstance(x, (int, float))]
+        tiers[cid] = {"tiers": dict(collections.Counter(t for _, t in st)),
+                      "score_min": min(scores) if scores else None,
+                      "score_max": max(scores) if scores else None}
     return {"repeticiones": repeticiones,
             "tiradas_validas": {c: len(t) for c, t in por_correo.items()},
             "fallos": dict(fallos),
@@ -171,6 +196,8 @@ def medir(cfg, correos, repeticiones, llamar):
                 key=lambda k: (-len(tabla[k]["correos_inestables"]), k)),
             "criterios_inestables_equivalentes": sorted(
                 k for k, v in tabla.items() if v["correos_inestables_equivalentes"]),
+            "por_correo": tiers,
+            "correos_tier_inestable": sorted(c for c, v in tiers.items() if len(v["tiers"]) > 1),
             "por_criterio": tabla}
 
 
@@ -191,7 +218,14 @@ def markdown(r):
     lineas += ["", "Criterios estables en todos los correos: %d de %d." % (
                    total - len(r["criterios_inestables"]), total),
                "Contando `no` (0 puntos) = `__no_aplica__`: %d de %d." % (
-                   total - len(r["criterios_inestables_equivalentes"]), total)]
+                   total - len(r["criterios_inestables_equivalentes"]), total),
+               "", "| Correo | Tier en las tiradas | Score (mín–máx) |", "|---|---|---|"]
+    for c, v in r["por_correo"].items():
+        lineas.append("| %s | %s | %s–%s |" % (
+            c, ", ".join("%s×%d" % (t, m) for t, m in v["tiers"].items()),
+            v["score_min"], v["score_max"]))
+    lineas += ["", "Correos con el mismo tier en todas las tiradas: %d de %d." % (
+        n - len(r["correos_tier_inestable"]), n)]
     return "\n".join(lineas)
 
 

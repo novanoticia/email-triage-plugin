@@ -74,6 +74,39 @@ class TestMedir(unittest.TestCase):
         r = mr.medir(self.cfg, mr.CORREOS[:1], 2, lambda c: next(tiradas))
         self.assertIn(k, r["criterios_inestables_equivalentes"])
 
+    def test_tier_estable_con_respuestas_identicas(self):
+        r = mr.medir(self.cfg, mr.CORREOS[:1], 3, lambda c: _api(self.base))
+        v = r["por_correo"]["logistica"]
+        self.assertEqual(sum(v["tiers"].values()), 3)
+        self.assertEqual(len(v["tiers"]), 1)
+        self.assertEqual(v["score_min"], v["score_max"])
+        self.assertEqual(r["correos_tier_inestable"], [])
+
+    def test_tier_usa_el_scoring_real(self):
+        # Misma cuenta que el plugin: nada calculado aparte.
+        r = mr.medir(self.cfg, mr.CORREOS[:1], 2, lambda c: _api(self.base))
+        v, _ = mr.veredictos(self.cfg, _api(self.base))
+        score, tier = mr.score_tier(self.cfg, v)
+        self.assertEqual(r["por_correo"]["logistica"],
+                         {"tiers": {tier: 2}, "score_min": score, "score_max": score})
+
+    def test_no_neutro_y_no_aplica_dan_el_mismo_tier(self):
+        k = "third_alternative"
+        a, _ = mr.veredictos(self.cfg, _api(self._variante(k, "no")))
+        b, _ = mr.veredictos(self.cfg, _api(_respuesta_esquema(self.cfg, excluir=k)))
+        self.assertEqual(mr.score_tier(self.cfg, a), mr.score_tier(self.cfg, b))
+
+    def test_cambio_de_tier_se_detecta(self):
+        k = "cambia_algo_concreto"  # su `no` vale -5: mueve el score
+        tiradas = iter([_api(self._variante(k, "si")), _api(self._variante(k, "no"))])
+        a, _ = mr.veredictos(self.cfg, _api(self._variante(k, "si")))
+        b, _ = mr.veredictos(self.cfg, _api(self._variante(k, "no")))
+        r = mr.medir(self.cfg, mr.CORREOS[:1], 2, lambda c: next(tiradas))
+        v = r["por_correo"]["logistica"]
+        self.assertNotEqual(v["score_min"], v["score_max"])
+        distintos = mr.score_tier(self.cfg, a)[1] != mr.score_tier(self.cfg, b)[1]
+        self.assertEqual(r["correos_tier_inestable"] == ["logistica"], distintos)
+
     def test_fallos_cuentan_aparte_y_no_se_rellenan(self):
         malas = iter([{"error": {"message": "x"}},
                       {"choices": [{"message": {"refusal": "no"}}]},
@@ -109,6 +142,7 @@ class TestMedir(unittest.TestCase):
         texto = mr.markdown(r)
         self.assertIn("Criterios estables en todos los correos: 30 de 30.", texto)
         self.assertIn("Contando `no` (0 puntos) = `__no_aplica__`: 30 de 30.", texto)
+        self.assertIn("Correos con el mismo tier en todas las tiradas: 1 de 1.", texto)
 
 
 class TestSinEjecutarNoHayRed(unittest.TestCase):
