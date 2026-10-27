@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.22.11).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.22.12).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -1700,7 +1700,9 @@ def _alerta_plantilla(items, res):
 #  - vecinos cercanos: correos a <= DIST_CERCANA veredictos de otros
 #    MIN_VECINOS_CERCANA (vecinos directos, sin encadenar grupos) que caen
 #    en al menos dos tiers.
-# Ninguna bloquea `registrar`: solo `plantilla` (idénticos) lo hace.
+# v3.22.12: `plantilla_cercana` frena `registrar` como `plantilla`, tras
+# calibrarla con 16 desgloses reales (0 vecinos sin diccionario por defecto,
+# 7+ con él). `criterios_inmoviles` sigue siendo solo aviso.
 MIN_LOTE_INMOVILES = 10
 MIN_TIERS_INMOVILES = 3
 FRACCION_INMOVIL = 0.9
@@ -1847,15 +1849,16 @@ def _huellas_desde_metricas(filas, m):
     if imposibles:
         omitidas = {"motivo": "pocos_criterios", "huellas": imposibles,
                     "criterios": m["criterios"],
-                    "aviso": "con %d criterios por correo (¿modo veloz?) estas "
-                             "huellas no pueden saltar: no prueba que no haya "
-                             "plantilla" % m["criterios_max"]}
+                    "aviso": "con %d criterios por correo (modo veloz o "
+                             "evaluación incompleta) estas huellas no pueden "
+                             "saltar: no prueba que no haya plantilla"
+                             % m["criterios_max"]}
     if not resumen:
         return {"huellas": None, "cercanos": [], "omitidas": omitidas}
-    resumen["aviso"] = ("informativo (no frena): veredictos casi iguales o "
-                        "criterios que no se mueven en un lote variado; puede "
-                        "ser un diccionario por defecto con retoques. Revisa "
-                        "esos correos uno a uno")
+    resumen["aviso"] = ("puede ser un diccionario por defecto con retoques: "
+                        "revisa esos correos uno a uno. `plantilla_cercana` "
+                        "frena (esos correos no se mueven como triaje); "
+                        "`criterios_inmoviles` solo avisa")
     return {"huellas": resumen, "cercanos": m["cercanos"], "omitidas": omitidas}
 
 
@@ -2603,6 +2606,21 @@ def _negativa_movimiento(registro):
                            "la persona decide moverlo igualmente, registra con "
                            "\"origen\": \"regla_manual\" y \"regla\": "
                            "\"plantilla=...\""}
+    if registro.get("plantilla_cercana") is True:
+        # v3.22.12: la huella `plantilla_cercana` pasa de aviso a freno. En
+        # 16 desgloses reales separó sin solapes: 0 vecinos en las sesiones
+        # sin diccionario por defecto, 7+ en las que lo usaron (2 de ellas
+        # verificadas con `OPI` y retoques). `criterios_inmoviles`, que no
+        # señala correos, sigue siendo solo aviso.
+        return {"ok": False,
+                "error": "movimiento marcado `plantilla_cercana` por scoring "
+                         "(veredictos casi iguales a los de 4+ correos que "
+                         "caen en otros tiers): no puede registrarse como "
+                         "triaje",
+                "remedio": "evalúa ese correo criterio a criterio y "
+                           "repuntúalo, o, si la persona decide moverlo "
+                           "igualmente, registra con \"origen\": "
+                           "\"regla_manual\" y \"regla\": \"plantilla=...\""}
     if registro.get("criterios_sin_evaluar"):
         # v3.21.40: mismo freno que la plantilla, para la cobertura.
         return {"ok": False,
@@ -3712,6 +3730,8 @@ def cmd_vectores(ruta, desglose, datos, cfg) -> dict:
             motivo = "sin scoring determinista"
         elif r.get("plantilla") is True:
             motivo = "veredictos de plantilla"
+        elif r.get("plantilla_cercana") is True:
+            motivo = "veredictos casi iguales (plantilla_cercana)"
         vered = {}
         if motivo is None:
             filas = r.get("criterios")
@@ -5322,10 +5342,12 @@ def cmd_informe(datos: dict) -> dict:
                           % (cer["correos"], ", ".join(
                               "#%s" % _celda_md(i, 12) for i in cer["ids"][:20])
                              + (" …" if len(cer["ids"]) > 20 else "")))
-        lineas += ["> ⚠️ **Posible plantilla con retoques** (informativo): "
-                   "%s. Puede ser un diccionario de veredictos por defecto "
-                   "con pocos cambios por correo: revísalos uno a uno."
-                   % "; ".join(partes), ""]
+        lineas += ["> ⚠️ **Posible plantilla con retoques**: %s. Puede ser "
+                   "un diccionario de veredictos por defecto con pocos "
+                   "cambios por correo: revísalos uno a uno.%s"
+                   % ("; ".join(partes),
+                      " Los correos casi iguales no se mueven como triaje."
+                      if cer else " Es solo un aviso."), ""]
     incompletos = _cobertura_desglose(
         os.path.join(base_estado(), "desgloses", sid + ".jsonl"))
     if incompletos:
