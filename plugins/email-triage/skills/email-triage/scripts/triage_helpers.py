@@ -4996,11 +4996,22 @@ def _es_remitente_automatico(bruto):
     (noreply, notifications, mailer-daemon…). TOTAL: lo raro da False."""
     if not isinstance(bruto, str):
         return False
-    m = re.search(r"<([^>]+)>", bruto)
-    dir_ = (m.group(1) if m else bruto).strip()
-    if "@" not in dir_:
-        return False
-    return bool(_RE_LOCAL_AUTOMATICO.match(dir_.split("@", 1)[0]))
+    addr = _direccion(bruto)[0]
+    return bool(addr) and bool(_RE_LOCAL_AUTOMATICO.match(addr.split("@", 1)[0]))
+
+
+def _buzones_unicos(participantes):
+    """Participantes sin repetir por BUZÓN, no por cadena: «Ana <ana@x.com>»
+    y «ana@x.com» son la misma persona (revisión Codex, PR #133). Lo que
+    no tiene dirección cuenta por su texto normalizado."""
+    vistos = []
+    for p in participantes:
+        if not isinstance(p, str):
+            continue
+        k = _direccion(p)[0] or p.strip().lower()
+        if k and k not in vistos:
+            vistos.append(k)
+    return vistos
 
 
 def _extras_hilo(count, participantes):
@@ -5019,7 +5030,7 @@ def _extras_hilo(count, participantes):
             detalle.append({"regla": "profundidad_hilo", "puntos": 1})
     if count >= 10:
         detalle.append({"regla": "hilo_muy_largo", "puntos": -1})
-    if len(participantes) == 1:
+    if len(_buzones_unicos(participantes)) == 1:
         if automatico:
             omitidos.append({"regla": "unico_participante_externo",
                              "motivo": motivo})

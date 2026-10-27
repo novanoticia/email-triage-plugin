@@ -35,6 +35,11 @@ class TestExtrasHilo(unittest.TestCase):
         self.assertEqual(ex["puntos"], 2)
         self.assertNotIn("omitidos", ex)
 
+    # Revisión Codex (PR #133): misma persona con distintos nombres.
+    def test_mismo_buzon_con_varios_nombres_es_un_participante(self):
+        u, = hilo(["Ana <ana@x.com>", "ana@x.com", "Ana Pérez <ANA@x.com>"])
+        self.assertEqual(u["extras_hilo"]["puntos"], 2)
+
     def test_dos_humanos_solo_profundidad(self):
         u, = hilo(["Ana <ana@x.com>", "Luis <luis@x.com>", "Ana <ana@x.com>"])
         self.assertEqual(u["extras_hilo"]["detalle"],
