@@ -303,6 +303,36 @@ la referencia es el principal, no una verdad etiquetada. Mide tiempo total y
 consumo solo si el host los ofrece; distingue ausentes de cero y comparación
 de producción (comparar duplica evaluación y puede costar más).
 
+## Esquema JSON portable (opcional)
+
+`scripts/esquema.py` genera, desde los criterios activos de la configuración
+efectiva (misma fusión que `validar`), un JSON Schema de la respuesta del
+especialista. Usa solo el subconjunto común a los Structured Outputs de
+Anthropic, OpenAI (`strict`), Gemini y Mistral. **Ningún host está obligado a
+usarlo**: es un contrato, no una integración; sin él el flujo es el de siempre.
+
+```bash
+python3 "<ruta-del-skill>/scripts/esquema.py" generar --config ~/.email-triage/config.yaml [--config-veloz RUTA] [--config-ensayo RUTA]
+python3 "<ruta-del-skill>/scripts/esquema.py" comprobar --config ~/.email-triage/config.yaml < respuesta.json
+```
+
+`references/esquema-evaluador.json` es el de la plantilla, versionado; un test
+lo regenera y compara byte a byte. No hay tipos unión (Anthropic admite como
+mucho 16): cada criterio es un objeto `{veredicto, evidencia}` y, si no es
+core, `razon_no_aplica`; excluirlo es `veredicto: "__no_aplica__"`, que los
+core no ofrecen. `validar` espera otra forma, así que pasa la respuesta por
+`normalizar` (o `comprobar`, que también la devuelve normalizada) antes de
+`validar`: reparte cada criterio en `verdicts`/`evidencias` o en `no_aplica`
+y descarta el campo que no corresponde; no rellena ni corrige. `eco` es
+siempre un objeto (cadenas vacías si no se pidió).
+
+Qué garantiza: ids y opciones exactos, ningún campo de más, una sola opción
+por criterio y que los core no puedan excluirse. Qué **no** garantiza, y
+sigue comprobando `validar`: evidencia o razón no vacías y `eco` igual al
+ancla. Jev y los clasificadores
+externos no usan este esquema: tienen su propio contrato de preguntas
+(`jev.md`, `decisions.md`).
+
 ## Fallos, privacidad y límites
 
 Timeout/cuota/modelo no disponible: comprobar si el agente sigue activo y
