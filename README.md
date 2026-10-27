@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.22.12
+# Email Triage Plugin v3.22.13
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,32 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.22.13
+
+- **Huellas de plantilla sobre toda la sesión.** Es la primera pieza de la
+  evaluación por bloques. Hasta ahora las huellas se medían solo sobre el
+  lote que se puntuaba: con lotes de 4 correos o menos, ningún correo podía
+  tener 4 vecinos y `plantilla_cercana` no frenaba nunca.
+  - **Qué cambia:** con `scoring --desglose RUTA --desglose-append`, las
+    huellas se miden sobre lo ya puntuado en la sesión más el lote nuevo.
+    Si un correo se vuelve a puntuar, cuenta su última pasada. La salida
+    añade `huellas_acumuladas`.
+  - **Correos de lotes anteriores:** su resultado ya salió sin la marca, así
+    que se nombran en `ids_previos`. El principal debe repuntuarlos o copiar
+    la marca a su registro. `vectores` recalcula las huellas sobre toda la
+    sesión y no los usa para el aprendizaje.
+  - **También correo a correo:** el scoring individual acumula igual que un
+    lote de uno.
+  - **Desglose que no se puede leer entero:** si pasa del límite de lectura
+    o está roto, no se acumula a medias; la salida lo dice en
+    `huellas_acumuladas_omitidas`.
+  - **Lo que no cambia:** sin `--desglose-append` todo sigue igual. Hoy ese
+    flag solo se usa con `telemetria.guardar_desglose` o `guardar_vector`.
+  - **Límites:** en `registrar`, el freno de los `ids_previos` depende de
+    que el principal copie la marca. `alerta_plantilla` (veredictos idénticos) sigue
+    midiéndose por lote; `plantilla_cercana` ya cubre ese caso con 20
+    criterios o más.
 
 ## Novedades en v3.22.12
 

@@ -16,7 +16,7 @@ compatibility: >
   Claude Code, Claude Cowork y ChatGPT.
 license: Apache-2.0
 metadata:
-  version: "3.22.12"
+  version: "3.22.13"
   author: novanoticia
 ---
 
@@ -968,6 +968,10 @@ verdad (2026-08-07, ver `references/lecciones-produccion.md`).
   `huellas_plantilla_omitidas`, las huellas no se midieron (lote grande) o
   no pueden saltar (pocos criterios, p. ej. modo veloz): dilo; no es un
   «sin plantilla».
+  Con `--desglose-append` (v3.22.13) las huellas se miden sobre toda la
+  sesión, no solo sobre el lote: puntuar en lotes pequeños no las diluye.
+  Si `plantilla_cercana` trae `ids_previos`, esos correos de lotes
+  anteriores también frenan: repuntúalos o copia la marca a su registro.
 - Evalúa **todos** los criterios activos; solo los core si la persona pidió
   el modo veloz (v3.21.40). Si `scoring` devuelve `alerta_cobertura`, completa
   y repuntúa; no los muevas así. Copia `criterios_sin_evaluar` al registro.

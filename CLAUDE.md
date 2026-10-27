@@ -259,7 +259,12 @@ rompes la conformidad (gate #7) y el skill deja de cargar fuera de Claude.
   `plantilla_cercana` frena `registrar` (y `vectores` la omite) como
   `plantilla`: calibrada con 16 desgloses reales vía `diagnostico-plantillas`
   (0 vecinos sin diccionario por defecto, 7+ con él); `criterios_inmoviles`
-  sigue siendo solo aviso. Las tres
+  sigue siendo solo aviso. Desde v3.22.13, con `--desglose-append`, las
+  huellas se miden sobre el desglose de la sesión más el lote (lotes de 4
+  o menos no podían tener 4 vecinos), también en el scoring individual; los
+  ya puntuados que saltan van en `ids_previos` y `vectores` los omite
+  (recalcula sobre la sesión). Un desglose que no se lee entero no se
+  acumula: `huellas_acumuladas_omitidas`. Las tres
   vías miden los mismos veredictos aceptados (`_veredictos_aceptados`); lo
   que no se pudo medir va a `huellas_plantilla_omitidas`, nunca como huella.
   Desde v3.21.12 un movimiento de triaje exige además
