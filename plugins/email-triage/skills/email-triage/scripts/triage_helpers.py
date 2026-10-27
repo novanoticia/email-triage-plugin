@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.22.14).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.22.15).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -162,7 +162,7 @@ Uso:
   python3 triage_helpers.py gate-cuerpo [--datos JSON]
                             (PASO 4.D: decide si leer el cuerpo y con qué umbral
                             desde el score parcial de metadatos)
-  python3 triage_helpers.py informe [--datos JSON]
+  python3 triage_helpers.py informe [--datos JSON | --archivo RUTA [--borrar-origen]]
                             (PASO 5.R, v3.15: informe de sesión en Markdown con
                             enlaces message://; sin --datos lee de stdin)
 
@@ -204,7 +204,10 @@ su clase (CM2, auditoría 2026-07-19):
                            (no de datos: no alimenta el aprendizaje);
   5. 'informe':            informe de sesión <base>/informes/<session_id>.md
                            (v3.15, mismo patrón atómico, 700/600); la ruta no
-                           la elige quien llama: session_id validado.
+                           la elige quien llama: session_id validado. Con
+                           '--archivo RUTA --borrar-origen' (v3.22.15) BORRA
+                           el JSON de entrada tras escribir, solo dentro de
+                           <base>/tmp/, como 'sanitizar --borrar-origen'.
   6. 'sanitizar --borrar-origen' (v3.21.11): BORRA el cuerpo crudo y sus
                            metadatos tras sanearlos, solo dentro de <base>/tmp/
                            (es la invariante «los cuerpos crudos se borran tras
@@ -5613,6 +5616,15 @@ def cmd_informe(datos: dict) -> dict:
     if modo != "simulacion":
         lineas += ["↩️ Para deshacer: «deshaz el triaje» (sesión `%s`)." % sid, ""]
     ruta = os.path.join(base_estado(), "informes", sid + ".md")
+    # v3.22.15: sobrescribir el informe de una sesión es legítimo (se rehace
+    # tras corregir), pero no debe pasar en silencio: el 2026-10-27 un JSON
+    # olvidado regeneró el informe de otra sesión sin que nada lo dijera.
+    try:
+        previo = datetime.fromtimestamp(os.stat(ruta).st_mtime,
+                                        timezone.utc).isoformat(
+                                            timespec="seconds")
+    except (OSError, ValueError, OverflowError):
+        previo = None
     res = _escribir_texto_atomico("\n".join(lineas), ruta, ".informe-")
     if not res.get("ok"):
         return res
@@ -5627,6 +5639,11 @@ def cmd_informe(datos: dict) -> dict:
             **({} if incompletos is None
                else {"criterios_sin_evaluar": len(incompletos)}),
             **({} if not huellas else {"huellas_plantilla": huellas}),
+            **({} if previo is None else {"sobrescrito": {
+                "mtime_anterior": previo,
+                "aviso": "ya existía un informe de esta sesión y se ha "
+                         "reemplazado; si no lo estabas rehaciendo, "
+                         "revisa de qué sesión eran los datos"}}),
             "efimero": base_estado_es_efimera()}
 
 
@@ -5797,6 +5814,12 @@ def _construir_parser():
     pinf = sub.add_parser("informe")
     pinf.add_argument("--datos", default=None,
                       help="JSON con session_id/modo/unidades; sin él, stdin")
+    pinf.add_argument("--archivo", default=None, metavar="RUTA",
+                      help="lee el JSON de RUTA (p. ej. "
+                           "~/.email-triage/tmp/informe.json) — v3.22.15")
+    pinf.add_argument("--borrar-origen", action="store_true",
+                      help="con --archivo: si el informe se escribe, borra "
+                           "RUTA (solo dentro de <base>/tmp/) — v3.22.15")
     pgc = sub.add_parser("gate-cuerpo")
     pgc.add_argument("--datos", default=None,
                      help="JSON con score_parcial/remitente_en_ignorar; "
@@ -6054,13 +6077,29 @@ def main():
                       "agrupar-hilos", "gate-cuerpo", "informe"):
         # 4 subcomandos aditivos v3.8.19: mismo contrato de entrada que
         # montar-mover (JSON de --datos o stdin, error legible si es inválido).
-        crudo = (args.datos if args.datos is not None
-                 else sys.stdin.read(MAX_INGESTA_BYTES))
+        archivo = getattr(args, "archivo", None)
+        crudo, out = None, None
+        if getattr(args, "borrar_origen", False) and not archivo:
+            out = {"ok": False, "error": "--borrar-origen requiere --archivo RUTA"}
+        elif archivo:
+            # v3.22.15: el informe lee su JSON de fichero para poder borrarlo
+            # después (prueba real 2026-10-27: un informe.json de la sesión
+            # anterior, olvidado en tmp/, regeneró el informe de esa sesión).
+            try:
+                with open(_expandir(archivo), encoding="utf-8",
+                          errors="replace") as fh:
+                    crudo = fh.read(MAX_INGESTA_BYTES)
+            except OSError as e:
+                out = {"ok": False, "error": "no se pudo leer %s: %s"
+                       % (archivo, e)}
+        else:
+            crudo = (args.datos if args.datos is not None
+                     else sys.stdin.read(MAX_INGESTA_BYTES))
         try:
-            data = json.loads(crudo or "{}")
+            data = json.loads(crudo or "{}") if out is None else None
         except json.JSONDecodeError as e:
             out = {"ok": False, "error": "JSON inválido: %s" % e}
-        else:
+        if out is None:
             _despacho_v3819 = {
                 "montar-leer-metadatos": cmd_montar_leer_metadatos,
                 "montar-leer-cuerpos": cmd_montar_leer_cuerpos,
@@ -6069,6 +6108,14 @@ def main():
                 "informe": cmd_informe,
             }
             out = _despacho_v3819[args.cmd](data)
+            if getattr(args, "borrar_origen", False) and out.get("ok"):
+                # Solo si el informe se escribió: si falla, el JSON queda
+                # para corregirlo y reintentar. Como en sanitizar, un
+                # borrado fallido se dice en `origen_pendiente`.
+                b = _borrar_crudo(archivo)
+                out = dict(out, origen_borrado=[b],
+                           origen_pendiente=[] if b["borrado"]
+                           or b.get("motivo") == "no existe" else [archivo])
     else:
         if args.archivo:
             with open(args.archivo, encoding="utf-8", errors="replace") as fh:

@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.22.14
+# Email Triage Plugin v3.22.15
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,24 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.22.15
+
+- **El informe ya no reutiliza datos de otra sesión.** En una prueba real
+  falló un script auxiliar del modelo y quedó en `tmp/` el `informe.json` de
+  la sesión anterior. `informe` lo leyó y volvió a escribir el informe de
+  esa sesión sin avisar. No se perdió nada, pero pudo pasar.
+  - **Qué cambia:** `informe --archivo RUTA --borrar-origen` lee el JSON de
+    un fichero y lo borra en cuanto el informe queda escrito, igual que
+    `sanitizar --borrar-origen` hace con los cuerpos. Solo borra dentro de
+    `~/.email-triage/tmp/`. Si el informe falla, el JSON se queda para
+    corregirlo.
+  - **Aviso nuevo:** si ya existía un informe de esa sesión y se reemplaza,
+    la respuesta trae `sobrescrito` con la hora del anterior. La referencia
+    del PASO 5.R pide al modelo que lo diga si no estaba rehaciendo ese
+    mismo informe.
+  - **Lo que no cambia:** `informe` por stdin o con `--datos` funciona como
+    antes.
 
 ## Novedades en v3.22.14
 

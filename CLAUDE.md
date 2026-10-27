@@ -191,6 +191,11 @@ rompes la conformidad (gate #7) y el skill deja de cargar fuera de Claude.
   `sanitizar --borrar-origen` **borra** el cuerpo crudo y sus metadatos tras
   sanearlos, solo dentro de `<base>/tmp/`: la invariante «los cuerpos
   crudos se borran tras leerlos» deja de depender de la memoria del modelo.
+  Desde v3.22.15, `informe --archivo RUTA --borrar-origen` **borra** el JSON
+  de entrada tras escribir el informe, con la misma guarda (solo dentro de
+  `<base>/tmp/`), y el informe avisa con `sobrescrito` si reemplaza uno ya
+  existente (prueba real: un `informe.json` olvidado regeneró el de otra
+  sesión).
   Desde v3.21.23, `limpiar-tmp` **borra** de `<base>/tmp/` lo que tenga más
   de N horas (12 por defecto), sin seguir symlinks ni salir de `tmp/`
   (prueba real: 998 temporales acumulados); el PASO 5.L lo pide al cerrar.
