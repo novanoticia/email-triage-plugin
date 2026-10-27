@@ -303,6 +303,32 @@ la referencia es el principal, no una verdad etiquetada. Mide tiempo total y
 consumo solo si el host los ofrece; distingue ausentes de cero y comparación
 de producción (comparar duplica evaluación y puede costar más).
 
+## Esquema JSON portable (opcional)
+
+`scripts/esquema.py` genera, desde los criterios activos de la configuración
+efectiva (misma fusión que `validar`), un JSON Schema de la respuesta del
+especialista. Usa solo el subconjunto común a los Structured Outputs de
+Anthropic, OpenAI (`strict`), Gemini y Mistral. **Ningún host está obligado a
+usarlo**: es un contrato, no una integración; sin él el flujo es el de siempre.
+
+```bash
+python3 "<ruta-del-skill>/scripts/esquema.py" generar --config ~/.email-triage/config.yaml [--config-veloz RUTA] [--config-ensayo RUTA]
+python3 "<ruta-del-skill>/scripts/esquema.py" comprobar --config ~/.email-triage/config.yaml < respuesta.json
+```
+
+`references/esquema-evaluador.json` es el de la plantilla, versionado; un test
+lo regenera y compara byte a byte. El modo estricto exige todas las claves, con
+`null` donde no aplica, y `validar` decide por presencia de claves: pasa la
+respuesta por `normalizar` (o `comprobar`, que también la devuelve normalizada)
+antes de `validar`. `normalizar` solo quita los `null`; no rellena ni corrige.
+
+Qué garantiza: ids y opciones exactos, ningún campo de más y que los core no
+puedan ir a `no_aplica`. Qué **no** garantiza, y sigue comprobando `validar`:
+exactamente una de veredicto o `no_aplica` por criterio, evidencia cuando hay
+veredicto, razón no vacía y `eco` igual al ancla. Jev y los clasificadores
+externos no usan este esquema: tienen su propio contrato de preguntas
+(`jev.md`, `decisions.md`).
+
 ## Fallos, privacidad y límites
 
 Timeout/cuota/modelo no disponible: comprobar si el agente sigue activo y
