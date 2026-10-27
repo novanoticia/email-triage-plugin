@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.22.17
+# Email Triage Plugin v3.22.18
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,21 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.22.18
+
+- **Esquema JSON portable para la respuesta del evaluador nativo.** Los
+  hosts con salida estructurada (Anthropic, OpenAI en modo `strict`, Gemini,
+  Mistral) pueden obligar al especialista a responder con la forma exacta
+  del contrato, en vez de confiar en que la copie bien.
+  - **Qué cambia:** nuevo `scripts/esquema.py` con `generar` (esquema desde
+    los criterios activos del config efectivo), `normalizar` (quita los
+    `null` que exige el modo estricto, para que `validar` lo acepte) y
+    `comprobar`. El de la plantilla queda en
+    `references/esquema-evaluador.json`, vigilado por un test.
+  - **Qué no cambia:** `validar`, el agente, `SKILL.md`, Jev y Decisions.
+    Usar el esquema es opcional; sin él todo funciona como antes, y lo que
+    el esquema no puede garantizar lo sigue comprobando `validar`.
 
 ## Novedades en v3.22.17
 
