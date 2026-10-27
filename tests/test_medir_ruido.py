@@ -129,6 +129,30 @@ class TestSinEjecutarNoHayRed(unittest.TestCase):
                 redirect_stdout(io.StringIO()), self.assertRaises(SystemExit):
             mr.main()
 
+    def test_ids_repetidos_se_rechazan_antes_de_llamar(self):
+        import tempfile
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False,
+                                         encoding="utf-8") as f:
+            json.dump([{"id": "a", "texto": "x"}, {"id": "a", "texto": "y"}], f)
+        self.addCleanup(os.unlink, f.name)
+        # Sin --ejecutar: sin el freno imprimiría el plan y saldría con 0.
+        argv = ["medir_ruido.py", "--modelo", "m", "--correos", f.name]
+        with mock.patch.object(mr, "transporte_http") as t, \
+                mock.patch.object(sys, "argv", argv), \
+                redirect_stdout(io.StringIO()), mock.patch("sys.stderr", io.StringIO()), \
+                self.assertRaises(SystemExit):
+            mr.main()
+        t.assert_not_called()
+
+
+class TestTransporte(unittest.TestCase):
+    def test_tiempo_agotado_es_error_contable(self):
+        import urllib.error
+        for exc in (TimeoutError("t"), urllib.error.URLError("caida")):
+            with mock.patch("urllib.request.urlopen", side_effect=exc):
+                r = mr.transporte_http({}, "k", timeout=1)
+            self.assertEqual(mr.veredictos({}, r), (None, "error_api"))
+
 
 if __name__ == "__main__":
     unittest.main()

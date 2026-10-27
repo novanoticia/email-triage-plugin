@@ -95,6 +95,11 @@ def transporte_http(cuerpo, clave, timeout=60):
             return json.loads(e.read().decode("utf-8"))
         except ValueError:
             return {"error": {"message": "HTTP %d" % e.code}}
+    except (urllib.error.URLError, OSError, ValueError):
+        # Tiempo agotado, conexión caída o cuerpo ilegible: cuenta como
+        # `error_api` y sigue, sin perder las tiradas ya pagadas (revisión
+        # Codex, PR #138). Sin reintentos.
+        return {"error": {"message": "transporte"}}
 
 
 def veredictos(cfg, respuesta_api):
@@ -214,6 +219,9 @@ def main():
                 isinstance(c, dict) and isinstance(c.get("id"), str)
                 and isinstance(c.get("texto"), str) for c in correos)):
             p.error("--correos debe ser una lista de {id, texto}")
+        if len({c["id"] for c in correos}) != len(correos):
+            # Un id repetido pisaba las tiradas del anterior (revisión Codex).
+            p.error("--correos con ids repetidos")
     cfg = th._fusiona_config_veloz(th._cargar_config(a.config), a.config_veloz)
     llamadas = len(correos) * a.repeticiones
     if not a.ejecutar:
