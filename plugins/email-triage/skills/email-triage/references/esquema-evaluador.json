@@ -840,10 +840,12 @@
             "type": "object",
             "properties": {
               "inicio": {
-                "type": "string"
+                "type": "string",
+                "description": "Las seis primeras palabras del extracto recibido, copiadas tal cual; nada más."
               },
               "fin": {
-                "type": "string"
+                "type": "string",
+                "description": "Las seis últimas palabras del extracto recibido, copiadas tal cual; nada más."
               }
             },
             "required": [
@@ -851,7 +853,7 @@
               "fin"
             ],
             "additionalProperties": false,
-            "description": "Inicio y fin del texto recibido; cadenas vacías si no se pidió."
+            "description": "Solo seis palabras por extremo, no el texto entero; cadenas vacías si no se pidió."
           }
         },
         "required": [
