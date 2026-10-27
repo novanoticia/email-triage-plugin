@@ -159,9 +159,14 @@ def umbrales(cfg):
 
 def margen_umbral(score, umbral):
     """Puntos que el score tiene que moverse para cruzar `umbral`. El tier
-    usa `score >= umbral` (`_tier_por_score`): en el umbral basta bajar 1
-    punto; justo debajo, subir lo que falta (revisión Mistral, PR #140)."""
-    return score - umbral + 1 if score >= umbral else umbral - score
+    usa `score >= umbral` (`_tier_por_score`): con score y umbral enteros,
+    en el umbral basta bajar 1 punto (revisión Mistral, PR #140). Con
+    decimales no hay paso mínimo: cualquier bajada mayor que la distancia
+    cambia el tier, así que se da la distancia (revisión Codex, PR #140)."""
+    if score < umbral:
+        return umbral - score
+    enteros = all(float(x).is_integer() for x in (score, umbral))
+    return score - umbral + (1 if enteros else 0)
 
 
 def medir(cfg, correos, repeticiones, llamar):

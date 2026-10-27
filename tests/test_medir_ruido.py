@@ -102,6 +102,13 @@ class TestMedir(unittest.TestCase):
             self.assertEqual(tier(x + paso * (m - 1)), tier(x))
             self.assertNotEqual(tier(x + paso * m), tier(x))
 
+    def test_margen_con_umbral_decimal_no_suma_un_punto(self):
+        # Ejemplo de la revisión Codex: review -0.5, score 0 -> bajar 1 basta.
+        tiers = {"review": -0.5, "reading_later": -10}
+        self.assertEqual(mr.margen_umbral(0, -0.5), 0.5)
+        self.assertNotEqual(mr.th._tier_por_score(0 - 1, tiers),
+                            mr.th._tier_por_score(0, tiers))
+
     def test_umbrales_sin_reply_needed_con_el_tope_activo(self):
         # Con el tope por defecto, REPLY_NEEDED no depende del score.
         cfg = {"tiers": {"reply_needed": 10, "review": 4, "reading_later": 0}}
