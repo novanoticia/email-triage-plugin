@@ -11,6 +11,16 @@ DESPUÉS de presentar el resumen al usuario y ANTES de cerrar la sesión.
 no existe, crearlo con Desktop Commander (`create_directory`). Si alguna
 escritura falla, registrar el error en el resumen pero no abortar.
 
+### Desglose de una sola pasada (`--desglose` sin `--desglose-append`)
+
+Para conservar el desglose completo sin meterlo al contexto, añade
+`--desglose <ruta>` a la misma invocación de `scoring` (combinable con
+`--brief`):
+`triage_helpers.py scoring --brief --desglose ~/.email-triage/tmp/desglose.json`
+escribe el desglose por correo a fichero (JSON, escritura atómica) mientras
+stdout sigue compacto; un fallo de escritura se reporta en `desglose_error`,
+nunca en silencio (CM2/F12). (Movido desde el SKILL.md en v3.22.17.)
+
 ### Archivos y formato
 
 #### `guardar_score: true` → `scores.jsonl`

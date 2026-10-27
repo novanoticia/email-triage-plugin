@@ -16,7 +16,7 @@ compatibility: >
   Claude Code, Claude Cowork y ChatGPT.
 license: Apache-2.0
 metadata:
-  version: "3.22.16"
+  version: "3.22.17"
   author: novanoticia
 ---
 
@@ -671,12 +671,12 @@ devuelve solo `{id, score, tier, ejes, cap_aplicado?}`:
 python3 "<ruta-del-skill>/scripts/triage_helpers.py" scoring --config ~/.email-triage/config.yaml --brief < ~/.email-triage/tmp/scoring.json
 ```
 
-Para conservar el desglose completo sin meterlo al contexto, añade
-`--desglose <ruta>` a la misma invocación (combinable con `--brief`):
-`triage_helpers.py scoring --brief --desglose ~/.email-triage/tmp/desglose.json`
-escribe el desglose por correo a fichero (JSON, escritura atómica) mientras
-stdout sigue compacto; un fallo de escritura se reporta en `desglose_error`,
-nunca en silencio (CM2/F12).
+`--desglose <ruta>` guarda el desglose completo fuera del contexto
+(detalle en `references/paso-5b-telemetria.md`).
+**Lectura verificada (v3.22.17):** pasa en cada correo el `ancla_extracto`
+de `sanitizar` y `eco_lectura` {inicio, fin}: 6 palabras del principio y del
+final **del texto que leíste**, no del ancla. Si recortas el cuerpo saneado,
+sale `lectura_recortada`; no lo recortes.
 Si `telemetria.guardar_desglose: true`, añade siempre `--desglose
 ~/.email-triage/desgloses/<session_id>.jsonl --desglose-append`, también en
 simulación: cada invocación añade una línea y `diagnostico-ejes` ve qué

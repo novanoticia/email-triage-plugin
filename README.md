@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.22.16
+# Email Triage Plugin v3.22.17
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,22 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.22.17
+
+- **El plugin puede comprobar si el modelo leyó el cuerpo entero.** En un
+  experimento real, `sanitizar` entregó 2500 caracteres por correo y el
+  script auxiliar que escribió el modelo los recortó a 900 antes de
+  leerlos. Nada lo detectó, y el experimento dejó de medir lo que buscaba.
+  - **Qué cambia:** `scoring` acepta por correo `ancla_extracto` (el que
+    devuelve `sanitizar`) y `eco_lectura` (6 palabras del principio y del
+    final del texto que el modelo leyó). Si no coinciden, marca
+    `lectura_recortada`, el lote trae `alerta_lectura` con los ids y el
+    informe lo avisa arriba con los números de correo.
+  - **Qué no cambia:** score, tier y movimientos. Es solo un aviso, y sin
+    esos dos campos todo funciona como antes.
+  - **Límite:** detecta el recorte accidental, no la trampa: un eco copiado
+    del ancla pasa la comprobación.
 
 ## Novedades en v3.22.16
 
