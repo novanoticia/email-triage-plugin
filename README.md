@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.22.13
+# Email Triage Plugin v3.22.14
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,34 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.22.14
+
+- **Evaluación por bloques (opcional, desactivada por defecto).** Ataca la
+  causa de los veredictos de plantilla. Hasta ahora el principal evaluaba
+  unos 50 correos con 30 criterios y los puntuaba todos de una vez; en 8 de
+  10 sesiones reales con 30 criterios apareció la huella de plantilla.
+  - **Cómo se activa:** en `~/.email-triage/config.yaml`, dentro de
+    `scoring`, pon `bloques: true`. `tamano_bloque` (10 por defecto, de 2 a
+    25) fija cuántos correos entran en cada bloque.
+  - **Qué hace:** el subcomando nuevo `planificar-bloques` reparte las
+    unidades en bloques equilibrados (23 correos con tamaño 10 dan 8, 8 y 7).
+    Un hilo es una sola unidad, así que nunca se parte. El modelo evalúa y
+    puntúa un bloque antes de leer el siguiente.
+  - **Qué se exige:** con bloques activos, `scoring` rechaza un lote mayor
+    que `tamano_bloque` y una llamada sin `--desglose-append`. Así las
+    huellas de plantilla se miden siempre sobre toda la sesión (v3.22.13).
+  - **Veredictos idénticos entre bloques:** la alerta de plantilla
+    (`plantilla`, 5 o más correos iguales) también se mide sobre la sesión
+    con `--desglose-append`. Sin esto, 6 correos iguales en dos bloques de 3
+    se escapaban. Los de bloques anteriores van en `ids_previos` y
+    `vectores` no los usa.
+  - **Lo que no cambia:** sin `bloques: true`, todo sigue igual. La
+    delegación a modelos y los clasificadores externos no pasan por esta
+    regla.
+  - **Límites:** que el modelo puntúe bloque a bloque no prueba que lea con
+    cuidado; lo que lo vigila son las huellas acumuladas. Falta probarlo
+    con correos reales.
 
 ## Novedades en v3.22.13
 

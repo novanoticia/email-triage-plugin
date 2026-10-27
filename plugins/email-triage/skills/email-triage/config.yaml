@@ -282,6 +282,15 @@ scoring:
   # responsabilidad_personal. Siguen 30 activos y 13 core. Solo un true
   # literal lo activa. Ver references/ensayo-p3.md.
 
+  bloques: false
+  tamano_bloque: 10
+  # Evaluación por bloques (v3.22.14, opt-in). Con true, el skill reparte
+  # las unidades con planificar-bloques y evalúa y puntúa un bloque antes
+  # de leer el siguiente; scoring rechaza más de tamano_bloque correos por
+  # llamada (entero de 2 a 25) y exige --desglose-append, para que las
+  # huellas de plantilla se midan sobre toda la sesión. Solo un true
+  # literal lo activa. Con false, todo sigue como antes.
+
   # Rangos acotados de cada eje (el script clampa la suma a estos límites).
   ejes:
     valor_decisional: [0, 10]

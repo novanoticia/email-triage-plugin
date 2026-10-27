@@ -264,7 +264,14 @@ rompes la conformidad (gate #7) y el skill deja de cargar fuera de Claude.
   o menos no podían tener 4 vecinos), también en el scoring individual; los
   ya puntuados que saltan van en `ids_previos` y `vectores` los omite
   (recalcula sobre la sesión). Un desglose que no se lee entero no se
-  acumula: `huellas_acumuladas_omitidas`. Las tres
+  acumula: `huellas_acumuladas_omitidas`. Desde v3.22.14, con
+  `scoring.bloques: true` (opt-in), `planificar-bloques` reparte las
+  unidades (solo calcula) y `scoring` CLI rechaza más de `tamano_bloque`
+  correos por llamada o sin `--desglose-append` (`_regla_bloques`, fuera de
+  `cmd_scoring_dispatch`: modelos y clasificadores no cambian). Con
+  `--desglose-append` también se acumula `plantilla` (idénticos): los
+  grupos que mezclan lotes van a `alerta_plantilla` con `ids_previos`, y
+  `vectores` los omite. Las tres
   vías miden los mismos veredictos aceptados (`_veredictos_aceptados`); lo
   que no se pudo medir va a `huellas_plantilla_omitidas`, nunca como huella.
   Desde v3.21.12 un movimiento de triaje exige además

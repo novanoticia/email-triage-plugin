@@ -16,7 +16,7 @@ compatibility: >
   Claude Code, Claude Cowork y ChatGPT.
 license: Apache-2.0
 metadata:
-  version: "3.22.13"
+  version: "3.22.14"
   author: novanoticia
 ---
 
@@ -684,6 +684,10 @@ veredictos retocaste al repuntuar.
 Si `telemetria.guardar_vector: true` y no `guardar_desglose`, añade igual
 `--desglose ~/.email-triage/tmp/desglose-<session_id>.jsonl --desglose-append`
 (solo en ejecución real): de ahí saca `vectores` el vector en el PASO 5.B.
+
+**Bloques** (`scoring.bloques: true`): **lee `references/evaluacion-bloques.md`
+AHORA**. Rige igual: puntúa cada bloque con `--desglose-append` antes de leer
+el siguiente.
 
 **Contrato P2 (opt-in):** solo si `scoring.contrato_p2: true` y el modo es
 `determinista`, **lee `references/contrato-p2.md` AHORA**: veredictos
