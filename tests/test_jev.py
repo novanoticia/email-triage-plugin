@@ -317,7 +317,7 @@ class TestJev(unittest.TestCase):
             r = subprocess.run([sys.executable, str(SKILL/'scripts/jev.py'), 'comparar',
                 '--config', str(SKILL/'config.yaml'), '--config-jev', str(capa)],
                 input=json.dumps(p), text=True, capture_output=True, check=True,
-                env=dict(os.environ, TYPESAFE_API_KEY=''))
+                env=dict(os.environ, TYPESAFE_API_KEY='', EMAIL_TRIAGE_HOME=d))
         out = json.loads(r.stdout)
         self.assertEqual(out['llamadas'], 0)
         self.assertFalse(out['permitir_movimientos'])
@@ -497,7 +497,7 @@ class TestJevHibrido(unittest.TestCase):
                 r = subprocess.run([sys.executable, str(SKILL/'scripts/jev.py'), 'evaluar',
                     '--config', str(SKILL/'config.yaml'), '--config-jev', str(capa)],
                     input=json.dumps(self.p), text=True, capture_output=True,
-                    env=dict(os.environ, TYPESAFE_API_KEY=''))
+                    env=dict(os.environ, TYPESAFE_API_KEY='', EMAIL_TRIAGE_HOME=d))
                 out = json.loads(r.stdout)
                 self.assertEqual(out['ok'], valido)
                 self.assertTrue(out['usar_principal'])

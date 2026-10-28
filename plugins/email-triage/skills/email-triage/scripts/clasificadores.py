@@ -74,6 +74,11 @@ class ErrorClasificador(Exception):
         self.detalle = detalle
 
 
+class ErrorCapaDisco(ErrorClasificador):
+    """El config indicado no es el de la base de estado ni se ajusta a él.
+    Los CLI lo devuelven con su código (los demás fallos siguen genéricos)."""
+
+
 def _exigir(condicion, codigo, detalle=None):
     if not condicion:
         raise ErrorClasificador(codigo, detalle)
@@ -440,6 +445,40 @@ def solicitar(endpoint, body, key, timeout):
         raise ErrorClasificador("fallo_red_o_timeout") from None
     except (ValueError, UnicodeError, RecursionError):
         raise ErrorClasificador("respuesta_json_invalida") from None
+
+
+def capa_desde_disco(ruta, canonica, cargar, validar):
+    """Config de la capa para el CLI; el de la base de estado manda.
+
+    v3.22.23 (prueba real 2026-10-28): el modelo pasó a Jev una copia
+    temporal de la capa con `modo: hibrido` cuando la del usuario decía
+    `comparar`, y otra sin la clave que el script instalado rechazaba. La
+    ruta es un argumento que el modelo puede escribir; la capa en disco no
+    (misma idea que `modelos._contra_capa`). Si `ruta` no es `canonica` y
+    activa la capa, `canonica` tiene que existir, ser válida y coincidir en
+    activación, consentimiento, modo y modelo, sin que la copia sea más
+    permisiva (más llamadas, menos confianza mínima, más tolerancia). Una
+    copia inactiva o ausente no autoriza nada y se acepta como siempre.
+    """
+    capa = cargar(ruta, opcional=True)
+    if os.path.realpath(os.path.expanduser(ruta)) == os.path.realpath(
+            os.path.expanduser(canonica)):
+        return capa
+    c = validar(capa)
+    if not c["activo"]:
+        return capa
+    if not os.path.isfile(os.path.expanduser(canonica)):
+        raise ErrorCapaDisco("config_fuera_de_base")
+    try:
+        base = validar(cargar(canonica))
+    except Exception:
+        raise ErrorCapaDisco("config_base_invalida") from None
+    if (any(c[k] != base[k] for k in ("activo", "acepta_envio_datos", "modo", "modelo"))
+            or c["max_llamadas"] > base["max_llamadas"]
+            or c["confianza_minima"] < base["confianza_minima"]
+            or c["tolerancia_dudas"] > base["tolerancia_dudas"]):
+        raise ErrorCapaDisco("config_no_coincide_con_base")
+    return capa
 
 
 def config_capa(capa, default, modelo_valido, etiqueta):

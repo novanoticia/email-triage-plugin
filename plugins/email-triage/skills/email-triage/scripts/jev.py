@@ -127,7 +127,8 @@ def main():
         if args.cmd == "preparar":
             out = preparar(p)
         else:
-            capa = _yaml(args.config_jev, opcional=True)
+            capa = nc.capa_desde_disco(args.config_jev,
+                                       str(Path(th.base_estado()) / "config-jev.yaml"), _yaml, _config)
             c = _config(capa)
             cfg = _yaml(args.config) if c["activo"] else {}
             if c["activo"] and args.config_veloz:
@@ -135,6 +136,11 @@ def main():
             if c["activo"]:
                 cfg = th._fusiona_config_ensayo(cfg, args.config_ensayo)
             out = (evaluar if args.cmd == "evaluar" else comparar)(p, cfg, capa)
+    except nc.ErrorCapaDisco as exc:
+        # v3.22.23: el config no es el de la base ni se ajusta a él; el código
+        # dice cuál (sin rutas ni contenido).
+        out = {"ok": False, "motivo": str(exc), "usar_principal": True,
+               "permitir_movimientos": False, "requiere_simulacion": True}
     except Exception:
         # Fallos de fichero/YAML/JSON: no imprimir paths, entrada o credencial.
         out = {"ok": False, "motivo": "entrada_o_config_invalida",

@@ -429,7 +429,8 @@ class TestDecisions(unittest.TestCase):
             capa.write_text("activo: true\nacepta_envio_datos: true\n", encoding="utf-8")
             r = subprocess.run([sys.executable, str(SKILL / "scripts/decisions.py"), "comparar",
                 "--config", str(SKILL / "config.yaml"), "--config-decisions", str(capa)],
-                input=json.dumps(p), text=True, capture_output=True, env=env, check=True)
+                input=json.dumps(p), text=True, capture_output=True,
+                env=dict(env, EMAIL_TRIAGE_HOME=tmp), check=True)
         out = json.loads(r.stdout)
         self.assertEqual(out["llamadas"], 0)
         self.assertEqual(out["resultados"][0]["motivo"], "credencial_ausente_o_invalida")

@@ -119,6 +119,13 @@ existente: para adoptar el alias cambia su campo a `modelo: jev-latest` o elimí
    motivo. En `hibrido` solo se anota `dudas_irrelevantes`: el freno actúa
    igual, sin propuesta. Preséntalo como una duda que no altera el tier, no
    como acierto del proveedor.
+9. La capa de la base de estado manda (v3.22.23). Usa siempre
+   `config-jev.yaml` de la base; no escribas copias de la capa para cambiar
+   el modo, el modelo, los límites ni para esquivar un error de config. Si
+   `--config-jev` apunta a otro fichero activo, el CLI exige que coincida con
+   el de la base y responde `config_fuera_de_base`, `config_base_invalida` o
+   `config_no_coincide_con_base`. Ante cualquiera de los tres, explica el
+   motivo y pide a la persona que corrija su fichero; no lo edites tú.
 
 ## Triaje real: modo híbrido explícito
 
