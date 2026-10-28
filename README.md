@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.22.22
+# Email Triage Plugin v3.22.23
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,22 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.22.23
+
+- **Jev y Decisions ya no aceptan un config hecho a medida por el modelo.**
+  Prueba real (2026-10-28): para esquivar un error, el modelo pasó a
+  `jev.py` copias temporales de la capa, una de ellas con `modo: hibrido`
+  cuando la del usuario decía `comparar`.
+  - **Qué cambia:** si `--config-jev` / `--config-decisions` no apunta al
+    fichero de la base de estado y activa la capa, el de la base tiene que
+    existir, ser válido y coincidir en activación, consentimiento, modo y
+    modelo; la copia no puede pedir más llamadas, menos confianza mínima ni
+    más tolerancia. Si no, el CLI responde `config_fuera_de_base`,
+    `config_base_invalida` o `config_no_coincide_con_base`, sin enviar nada.
+  - **Qué no cambia:** con la ruta por defecto todo funciona igual, y una
+    copia inactiva o ausente se trata como siempre (desactivada). El freno
+    vive en `clasificadores.py` (`capa_desde_disco`).
 
 ## Novedades en v3.22.22
 

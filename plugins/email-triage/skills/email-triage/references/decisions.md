@@ -78,6 +78,8 @@ la capa:
    puntos / `__no_aplica__`, ver el mismo punto de `jev.md`).
 8. Misma tolerancia a dudas opt-in que Jev (`tolerancia_dudas`, punto 8 de
    `references/jev.md`, v3.22.22), con el mismo freno en `clasificadores.py`.
+9. Misma regla de capa en disco que Jev (punto 9 de `references/jev.md`,
+   v3.22.23) con `config-decisions.yaml` y `--config-decisions`.
 
 ## Triaje real: modo híbrido explícito
 
