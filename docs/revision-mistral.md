@@ -8,9 +8,13 @@ el código esté demostrado correcto.
 ## Cuándo se ejecuta
 
 Al crear el PR, marcarlo listo para revisión, subir commits, reabrirlo o editar
-su título o descripción. Cada ejecución sustituye el comentario anterior y
-lo identifica con el SHA de la cabeza del PR. Un push nuevo cancela la revisión
-anterior. Editar el PR también puede volver a consumir la API.
+su título o descripción. Cada ejecución que obtiene un resultado publica un
+**comentario nuevo**, identificado con el SHA de la cabeza del PR y un enlace
+a la ejecución y al intento de Actions. Los reintentos del mismo commit también
+se conservan por separado, incluidos los resultados inválidos o fallos de API.
+Los comentarios anteriores no se editan ni se borran. Un push nuevo cancela
+la revisión en curso; una ejecución cancelada antes de publicar puede no dejar
+comentario. Editar el PR también puede volver a consumir la API.
 
 ## Qué recibe y qué debe devolver
 
@@ -31,7 +35,9 @@ El modelo se elige con la variable de Actions `MISTRAL_MODEL` (por defecto
 
 ## Cómo interpretar el resultado y continuar
 
-1. Comprueba que el SHA del comentario coincide con el último commit del PR.
+1. Comprueba que el SHA del comentario coincide con el último commit del PR;
+   para varias revisiones del mismo SHA, distingue la ejecución y su intento.
+   Los informes anteriores describen su propio commit e intento, no el actual.
 2. Lee los escenarios y las comprobaciones pendientes incluso si no hay hallazgos.
    Una cita válida demuestra que el texto existe, no que el defecto sea real.
 3. Reproduce los defectos antes de corregirlos. Tras subir el arreglo, espera

@@ -21,7 +21,8 @@ Inventario de los **últimos comentarios conservados** con la marca del bot:
 | Revisión inválida | #131 | 1 |
 | Sin comentario con la marca actual | #105–107 | 3 |
 
-El bot edita el comentario en cada ejecución. Por eso este inventario **no es
+En los snapshots auditados, incluido `f6d6973`, el bot editaba el comentario en
+cada ejecución. Por eso este inventario **no es
 un recuento de ejecuciones ni permite calcular precisión o sensibilidad
 históricas**. «Sin hallazgos» después de corregir un PR no prueba que Mistral
 ignorara el defecto antes. Algunas rondas anteriores solo se conservan en
@@ -164,3 +165,9 @@ etiquetan automáticamente la revisión final de Mistral como falso negativo.
 
 No se han realizado llamadas de evaluación a Mistral en esta investigación.
 La mejora de calidad que pueda aportar cada propuesta está pendiente de medir.
+
+Actualización posterior a la auditoría: a petición del mantenedor, el revisor
+publica un comentario nuevo por resultado, con SHA y enlace a la ejecución y
+al intento de Actions. Esto conserva el historial futuro; no recupera las
+versiones anteriores que se sobrescribieron. Los artefactos estructurados y
+los diagnósticos detallados propuestos arriba siguen pendientes.

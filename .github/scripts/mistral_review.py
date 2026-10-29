@@ -13,8 +13,8 @@ que traía diez):
 - **Hallazgos verificables.** El modelo responde en JSON y cada hallazgo
   exige fichero, fragmento citado y escenario. Se comprueba que la cita
   exista en el diff enviado; eso no demuestra que el defecto sea real.
-- **Un solo comentario del bot, con commit.** Los fallos sustituyen también
-  el resultado anterior; una respuesta inválida hace fallar el check.
+- **Historial de comentarios, con commit y ejecución.** Cada resultado se
+  publica por separado; una respuesta inválida hace fallar el check.
 - **Reintentos acotados.** Tres solicitudes como máximo, respetando
   Retry-After hasta MAX_ESPERA; una espera mayor se informa como fallo.
 """
@@ -314,13 +314,19 @@ def _linea(valor, limite=500):
 
 
 def renderizar(resultado, modelo, diff_len, recortado, cabeza="", error=None,
-               comprobaciones=None):
+               comprobaciones=None, ejecucion_url="", intento=""):
     partes = [MARCA, "## Revisión de Mistral (`%s`)" % modelo]
     if cabeza:
         partes.append("Commit revisado: `%s`." % cabeza)
+    if ejecucion_url:
+        etiqueta = "Ejecución de Actions"
+        if intento:
+            etiqueta += " (intento %s)" % intento
+        partes.append("[%s](%s)." % (etiqueta, ejecucion_url))
     if error:
         partes.append("**Revisión no completada:** %s. "
-                      "Este resultado sustituye la revisión del push anterior." % error)
+                      "Consulta el commit y la ejecución de este informe; "
+                      "los comentarios anteriores se conservan como historial." % error)
     elif resultado is None:
         partes.append("**Revisión no válida:** la respuesta no cumple el esquema "
                       "de hallazgos y comprobaciones o sus citas no corresponden al diff enviado. "
@@ -365,26 +371,11 @@ def renderizar(resultado, modelo, diff_len, recortado, cabeza="", error=None,
 
 
 def publicar(repo, numero, cuerpo):
-    """Edita solo el comentario de GitHub Actions con MARCA; si no, lo crea."""
-    crudo = subprocess.run(
-        ["gh", "api", "--paginate", "--slurp",
-         "repos/%s/issues/%s/comments" % (repo, numero)],
-        check=True, capture_output=True, text=True).stdout
-    propios = [comentario for pagina in json.loads(crudo) for comentario in pagina
-               if comentario.get("user", {}).get("login") == "github-actions[bot]"
-               and comentario.get("user", {}).get("type") == "Bot"
-               and (comentario.get("body") or "").startswith(MARCA)]
-    entrada = json.dumps({"body": cuerpo})
-    if propios:
-        subprocess.run(["gh", "api", "-X", "PATCH",
-                        "repos/%s/issues/comments/%s" % (repo, propios[-1]["id"]),
-                        "--input", "-"], input=entrada, text=True,
-                       check=True, capture_output=True)
-    else:
-        subprocess.run(["gh", "api", "-X", "POST",
-                        "repos/%s/issues/%s/comments" % (repo, numero),
-                        "--input", "-"], input=entrada, text=True,
-                       check=True, capture_output=True)
+    """Añade un comentario por resultado sin leer ni editar los anteriores."""
+    subprocess.run(["gh", "api", "-X", "POST",
+                    "repos/%s/issues/%s/comments" % (repo, numero),
+                    "--input", "-"], input=json.dumps({"body": cuerpo}), text=True,
+                   check=True, capture_output=True)
 
 
 def main():
@@ -425,13 +416,20 @@ def main():
     except (OSError, subprocess.CalledProcessError):
         error = "no se pudo preparar el diff o la guía del proyecto"
     # No mostrar cuerpos de error de la API: pueden contener datos del prompt.
+    repo = os.environ["GITHUB_REPOSITORY"]
+    ejecucion = os.environ.get("GITHUB_RUN_ID")
+    intento = os.environ.get("GITHUB_RUN_ATTEMPT", "1")
+    servidor = os.environ.get("GITHUB_SERVER_URL", "https://github.com").rstrip("/")
+    ejecucion_url = ("%s/%s/actions/runs/%s/attempts/%s" % (
+        servidor, repo, ejecucion, intento)) if ejecucion else ""
     cuerpo = renderizar(resultado, modelo, len(diff), recortado,
                         cabeza=pr["head"]["sha"], error=error,
-                        comprobaciones=comprobaciones)
+                        comprobaciones=comprobaciones,
+                        ejecucion_url=ejecucion_url, intento=intento)
     escribir_resumen(cuerpo)
     print(cuerpo)
     try:
-        publicar(os.environ["GITHUB_REPOSITORY"], pr["number"], cuerpo)
+        publicar(repo, pr["number"], cuerpo)
     except (OSError, subprocess.CalledProcessError):
         print("::error::No se pudo publicar el comentario; consulta el resumen de Actions.")
         return 1
