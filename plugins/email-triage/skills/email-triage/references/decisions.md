@@ -80,6 +80,8 @@ la capa:
    `references/jev.md`, v3.22.22), con el mismo freno en `clasificadores.py`.
 9. Misma regla de capa en disco que Jev (punto 9 de `references/jev.md`,
    v3.22.23) con `config-decisions.yaml` y `--config-decisions`.
+10. Misma propuesta sin freno en `comparar` (punto 10 de `references/jev.md`,
+   v3.22.25): `propuesta_sin_freno` y `comparacion_sin_freno`, solo informativas.
 
 ## Triaje real: modo híbrido explícito
 

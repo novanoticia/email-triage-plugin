@@ -444,7 +444,10 @@ avisa (prueba real: «evalué solo los 13 core, así que no delegué»). Jev usa
 Desde v3.22.0 OpenAI Decisions (`scripts/decisions.py`, `references/decisions.md`)
 es un segundo adaptador con las mismas garantías: lo neutro (preguntas,
 validación, transporte, frenos de `procesar`) vive solo en `scripts/clasificadores.py`;
-un freno nuevo va ahí, nunca en un adaptador. No combinar proveedores en una sesión. Comparar implica simulación
+un freno nuevo va ahí, nunca en un adaptador. Desde v3.22.25, en `comparar`,
+`propuesta_sin_freno` y `comparacion_sin_freno` miden el tier sin el freno de
+confianza (prueba real: 26-30 criterios dudosos por correo, ninguno pasaba);
+son informativas, no autorizan nada y no existen en `hibrido`. No combinar proveedores en una sesión. Comparar implica simulación
 y no alimenta aprendizaje con desacuerdos entre modelos. Los controles de scoring
 vienen del principal, nunca de la respuesta delegada. Las pruebas sintéticas
 validan mecanismos, no la calidad de los modelos ni compatibilidad real del host.
