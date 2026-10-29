@@ -1,0 +1,59 @@
+name: Mistral Reply to AI Reviews
+
+on:
+  pull_request_review:
+    types: [submitted]
+  pull_request_review_comment:
+    types: [created]
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Número del PR (puede estar cerrado para un contraste histórico)
+        required: true
+      review_comment_id:
+        description: ID del hallazgo de línea de otra IA al que responder
+        required: true
+
+# Serializa eventos repetidos de la misma fuente; las reviews diferentes
+# conservan sus propias ejecuciones y no se expulsan de la cola entre sí.
+concurrency:
+  group: mistral-reply-${{ github.event.pull_request.number || github.event.issue.number || inputs.pr_number }}-${{ github.event.review.id || github.event.comment.pull_request_review_id || github.event.comment.id || inputs.review_comment_id }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  responder:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      ((github.event_name == 'pull_request_review' || github.event_name == 'pull_request_review_comment') &&
+       github.event.pull_request.head.repo.full_name == github.repository &&
+       github.event.review.user.login != 'github-actions[bot]' &&
+       github.event.comment.user.login != 'github-actions[bot]') ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request &&
+       github.event.comment.user.login != 'github-actions[bot]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # El script de confianza vive en la rama predeterminada. Nunca se
+          # ejecutan scripts ni tests del PR con las credenciales de respuesta.
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Contrastar y comentar, sin aplicar parches
+        # Un workflow nuevo aún no existe en main durante su propio PR.
+        if: hashFiles('.github/scripts/mistral_reply.py') != ''
+        env:
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          MISTRAL_MODEL: ${{ vars.MISTRAL_MODEL }}
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/mistral_reply.py
