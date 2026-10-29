@@ -23,6 +23,9 @@ _spec.loader.exec_module(mr)
 HALLAZGO = {"severidad": "media", "archivo": "a.py", "fragmento": "x = `1`",
             "problema": "El ancla quita la marca", "escenario": "texto truncado -> eco_distinto",
             "arreglo": "conservar la marca"}
+COMPROBACION = {"archivo": "a.py", "escenario": "entrada vacía",
+               "conclusion": "la guarda devuelve error antes de escribir",
+               "estado": "revisado"}
 
 
 class TestDiff(unittest.TestCase):
@@ -106,6 +109,7 @@ class TestRespuesta(unittest.TestCase):
         alto = dict(HALLAZGO, severidad="alta", problema="grave")
         md = mr.renderizar(("R", [bajo, alto]), "codestral-latest", 100, False)
         self.assertTrue(md.startswith(mr.MARCA))
+        self.assertIn("[Mistral AI (@mistralai)](https://github.com/mistralai)", md)
         self.assertLess(md.index("grave"), md.index("menor"))
         self.assertIn("🔴 **alta** · `a.py`", md)
         self.assertIn("Escenario: texto truncado -> eco_distinto", md)
@@ -121,33 +125,30 @@ class TestRespuesta(unittest.TestCase):
 
 
 class TestPublicar(unittest.TestCase):
-    def comentario(self, id, login="github-actions[bot]", tipo="Bot", cuerpo=mr.MARCA):
-        return {"id": id, "user": {"login": login, "type": tipo}, "body": cuerpo}
+    def test_dos_resultados_crean_comentarios_sin_editar_ni_leer_el_historial(self):
+        anterior = {"body": mr.MARCA + "\nRevisión anterior"}
+        comentarios = [dict(anterior)]
 
-    def publicar(self, paginas):
-        with mock.patch.object(mr.subprocess, "run", return_value=mock.Mock(
-                stdout=json.dumps(paginas))) as run:
-            mr.publicar("o/r", 7, "cuerpo con \"comillas\"\ny saltos")
-        return run.call_args_list
+        def crear(comando, **kwargs):
+            self.assertEqual(comando, ["gh", "api", "-X", "POST",
+                "repos/o/r/issues/7/comments", "--input", "-"])
+            comentarios.append(json.loads(kwargs["input"]))
+            return mock.Mock(stdout="{}")
 
-    def test_edita_el_ultimo_comentario_propio_entre_paginas(self):
-        llamadas = self.publicar([[self.comentario(11)], [self.comentario(22),
-            self.comentario(33, "persona", "User"), self.comentario(44, "otro[bot]")]])
-        self.assertIn("--paginate", llamadas[0].args[0])
-        self.assertIn("--slurp", llamadas[0].args[0])
-        self.assertIn("PATCH", llamadas[1].args[0])
-        self.assertIn("repos/o/r/issues/comments/22", llamadas[1].args[0])
-        self.assertEqual(json.loads(llamadas[1].kwargs["input"]),
-                         {"body": "cuerpo con \"comillas\"\ny saltos"})
+        cuerpos = ["cuerpo con \"comillas\"\ny saltos",
+                   mr.renderizar(None, "m", 1, False, error="fallo de API")]
+        with mock.patch.object(mr.subprocess, "run", side_effect=crear) as run:
+            for cuerpo in cuerpos:
+                mr.publicar("o/r", 7, cuerpo)
+        self.assertEqual(run.call_count, 2)
+        self.assertEqual(comentarios, [anterior] + [{"body": c} for c in cuerpos])
 
-    def test_crea_si_no_hay_comentario_propio_con_marca(self):
-        for paginas in ([[]], [[self.comentario(33, "persona", "User"),
-                                self.comentario(44, "otro[bot]"),
-                                self.comentario(55, cuerpo="otra revisión")]]):
-            with self.subTest(paginas=paginas):
-                llamadas = self.publicar(paginas)
-                self.assertIn("POST", llamadas[1].args[0])
-                self.assertIn("repos/o/r/issues/7/comments", llamadas[1].args[0])
+    def test_error_al_crear_se_propaga_sin_intentar_editar_otros_comentarios(self):
+        with mock.patch.object(mr.subprocess, "run", side_effect=
+                subprocess.CalledProcessError(1, "gh")) as run:
+            with self.assertRaises(subprocess.CalledProcessError):
+                mr.publicar("o/r", 7, "cuerpo")
+        run.assert_called_once()
 
 
 class TestAPI(unittest.TestCase):
@@ -242,14 +243,22 @@ class TestAPI(unittest.TestCase):
 class TestMain(unittest.TestCase):
     DIFF = "diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n@@ -1 +1 @@\n-x = 0\n+x = `1`\n"
 
-    def ejecutar(self, respuesta=None, fallo=None):
+    def ejecutar(self, respuesta=None, fallo=None, entorno=None):
+        if respuesta and respuesta.startswith("{"):
+            datos = json.loads(respuesta)
+            datos.setdefault("comprobaciones", [COMPROBACION])
+            respuesta = json.dumps(datos)
         evento = json.dumps({"pull_request": {
             "number": 7, "base": {"sha": "base"}, "head": {"sha": "abc123"}}})
-        with mock.patch.dict(os.environ, {"MISTRAL_API_KEY": "clave",
-                    "GITHUB_EVENT_PATH": "evento.json", "GITHUB_REPOSITORY": "o/r"}), \
+        variables = {"MISTRAL_API_KEY": "clave", "GITHUB_EVENT_PATH": "evento.json",
+                     "GITHUB_REPOSITORY": "o/r", "GITHUB_RUN_ID": ""}
+        variables.update(entorno or {})
+        with mock.patch.dict(os.environ, variables), \
                 mock.patch("builtins.open", mock.mock_open(read_data=evento)), \
                 mock.patch.object(mr, "obtener_diff", return_value=self.DIFF), \
+                mock.patch.object(mr, "obtener_rutas_diff", return_value={"a.py"}), \
                 mock.patch.object(mr, "leer_guia", return_value=(None, "")), \
+                mock.patch.object(mr, "obtener_contexto", return_value="contexto"), \
                 mock.patch.object(mr, "llamar_mistral", return_value=respuesta, side_effect=fallo), \
                 mock.patch.object(mr, "publicar") as publicar, mock.patch("builtins.print"):
             codigo = mr.main()
@@ -270,7 +279,7 @@ class TestMain(unittest.TestCase):
                     self.assertIn("Revisión no válida", cuerpo)
                     self.assertNotIn("**Sin hallazgos.**", cuerpo)
 
-    def test_fallo_de_api_sustituye_el_resultado_anterior_sin_filtrar_detalles(self):
+    def test_fallo_de_api_publica_informe_sin_filtrar_detalles(self):
         fallos = (TimeoutError("dato privado"), urllib.error.URLError("dato privado"),
                   ValueError("dato privado"),
                   urllib.error.HTTPError(mr.API, 401, "dato privado", {}, None))
@@ -282,6 +291,24 @@ class TestMain(unittest.TestCase):
                 self.assertIn("Commit revisado: `abc123`", cuerpo)
                 self.assertNotIn("dato privado", cuerpo)
                 self.assertNotIn("Sin hallazgos", cuerpo)
+                self.assertNotIn("sustituye", cuerpo)
+
+    def test_cada_intento_del_mismo_commit_identifica_su_ejecucion_en_todos_los_estados(self):
+        for intento in ("1", "2"):
+            for respuesta, fallo in ((json.dumps({"resumen": "R", "hallazgos": []}), None),
+                                     ("no json", None), (None, TimeoutError())):
+                with self.subTest(intento=intento, respuesta=respuesta, fallo=fallo):
+                    _, cuerpo = self.ejecutar(respuesta, fallo, entorno={
+                        "GITHUB_SERVER_URL": "https://github.example.test/",
+                        "GITHUB_RUN_ID": "123456", "GITHUB_RUN_ATTEMPT": intento})
+                    self.assertIn("Commit revisado: `abc123`", cuerpo)
+                    self.assertIn("https://github.example.test/o/r/actions/runs/123456/attempts/"
+                                  + intento, cuerpo)
+                    self.assertIn("intento %s" % intento, cuerpo)
+
+    def test_fuera_de_actions_no_inventa_un_enlace(self):
+        _, cuerpo = self.ejecutar(json.dumps({"resumen": "R", "hallazgos": []}))
+        self.assertNotIn("/actions/runs/", cuerpo)
 
     def test_evidencia_fuera_de_la_parte_enviada_no_cuenta(self):
         with mock.patch.object(mr, "MAX_DIFF", self.DIFF.index("+x = `1`")):
@@ -290,11 +317,82 @@ class TestMain(unittest.TestCase):
         self.assertEqual(codigo, 1)
         self.assertIn("Revisión no válida", cuerpo)
 
+    def test_diff_vacio_no_consulta_api_ni_exige_casos_inventados(self):
+        with mock.patch.object(self, "DIFF", ""):
+            codigo, cuerpo = self.ejecutar(fallo=AssertionError("no llamar API"))
+        self.assertEqual(codigo, 0)
+        self.assertIn("No hay diff revisable", cuerpo)
+
 
 class TestSinClave(unittest.TestCase):
     def test_sin_clave_no_falla(self):
         with mock.patch.dict(os.environ, {"MISTRAL_API_KEY": ""}):
             self.assertEqual(mr.main(), 0)
+
+
+class TestComprobaciones(unittest.TestCase):
+    def test_exige_escenarios_y_rutas_del_diff_sin_aceptar_exito_vacio(self):
+        base = {"resumen": "R", "hallazgos": [], "comprobaciones": [COMPROBACION]}
+        self.assertIsNotNone(mr.interpretar(json.dumps(base), TestMain.DIFF, True))
+        for valor in (None, [], [{}], [dict(COMPROBACION, estado="ejecutado")],
+                      [dict(COMPROBACION, escenario="")],
+                      [dict(COMPROBACION, archivo="inventado.py")]):
+            with self.subTest(valor=valor):
+                self.assertIsNone(mr.interpretar(json.dumps(dict(
+                    base, comprobaciones=valor)), TestMain.DIFF, True))
+        del base["comprobaciones"]
+        self.assertIsNone(mr.interpretar(json.dumps(base), TestMain.DIFF, True))
+
+    def test_renderiza_casos_pendientes_como_lectura_no_como_tests_ejecutados(self):
+        md = mr.renderizar(("R", []), "m", 10, False,
+            comprobaciones=[dict(COMPROBACION, estado="pendiente")])
+        self.assertIn("sin ejecutar tests", md)
+        self.assertIn("**pendiente**", md)
+        self.assertIn(COMPROBACION["escenario"], md)
+
+    def test_contexto_del_commit_acotado_y_enviado_como_datos(self):
+        with mock.patch.object(mr.subprocess, "run", return_value=mock.Mock(
+                returncode=0, stdout=b"def funcion():\n    pass\n")) as run, \
+                mock.patch.object(mr, "MAX_ARCHIVO", 12):
+            contexto = mr.obtener_contexto(TestMain.DIFF, "abc123")
+        self.assertEqual(run.call_args.args[0], ["git", "show", "abc123:a.py"])
+        self.assertIn("contexto recortado", contexto)
+        self.assertNotIn("pass", contexto)
+        mensajes, _ = mr.construir_mensajes("T", "D", TestMain.DIFF,
+                                           (None, ""), contexto)
+        self.assertIn(contexto, mensajes[1]["content"])
+
+    def test_resumen_sobrevive_a_fallo_de_publicacion(self):
+        with tempfile.TemporaryDirectory() as d:
+            ruta = os.path.join(d, "resumen.md")
+            with mock.patch.dict(os.environ, {"GITHUB_STEP_SUMMARY": ruta}), \
+                    mock.patch.object(mr, "publicar", side_effect=OSError("privado")):
+                # El helper anterior verifica publicación correcta; aquí main se
+                # ejecuta directamente para comprobar el fallo de permisos.
+                evento = json.dumps({"pull_request": {"number": 7,
+                    "head": {"sha": "abc123"}, "base": {"sha": "base"}}})
+                with mock.patch.dict(os.environ, {"MISTRAL_API_KEY": "clave",
+                        "GITHUB_EVENT_PATH": "evento", "GITHUB_REPOSITORY": "o/r"}), \
+                        mock.patch.object(mr, "obtener_diff", return_value=TestMain.DIFF), \
+                        mock.patch.object(mr, "obtener_rutas_diff", return_value={"a.py"}), \
+                        mock.patch.object(mr, "obtener_contexto", return_value=""), \
+                        mock.patch.object(mr, "leer_guia", return_value=(None, "")), \
+                        mock.patch.object(mr, "llamar_mistral", return_value=json.dumps({
+                            "resumen": "R", "hallazgos": [],
+                            "comprobaciones": [COMPROBACION]})), \
+                        mock.patch("builtins.open", mock.mock_open(read_data=evento)) as abrir, \
+                        mock.patch("builtins.print"):
+                    self.assertEqual(mr.main(), 1)
+                    abrir.assert_any_call(ruta, "a", encoding="utf-8")
+                    escrito = abrir().write.call_args.args[0]
+                    self.assertIn("Comprobaciones por lectura", escrito)
+
+    def test_sin_clave_deja_motivo_en_resumen(self):
+        with mock.patch.dict(os.environ, {"MISTRAL_API_KEY": ""}), \
+                mock.patch.object(mr, "escribir_resumen") as resumen, \
+                mock.patch("builtins.print"):
+            self.assertEqual(mr.main(), 0)
+        self.assertIn("omitida", resumen.call_args.args[0])
 
 
 if __name__ == "__main__":
