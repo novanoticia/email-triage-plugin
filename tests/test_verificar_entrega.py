@@ -32,12 +32,15 @@ class TestVerificarEntrega(unittest.TestCase):
         self.p["esperados"][0]["huella_extracto"] = th.huella_extracto(self.extracto)
         self.p["lote"] = {"unidades": [{"id": "1", "extracto": self.extracto}]}
 
-    def transcript(self, prompt, forma="texto", extra=()):
-        """JSONL como el de Claude Code: la primera entrada `user` es el prompt."""
+    def transcript(self, prompt, forma="texto", extra=(), respuesta=None):
+        """JSONL como el de Claude Code: la primera entrada `user` es el prompt
+        y el especialista contesta con `respuesta` (por defecto, la del lote)."""
         contenido = prompt if forma == "texto" else [{"type": "text", "text": prompt}]
+        if respuesta is None:
+            respuesta = json.dumps(self.p["respuesta"], ensure_ascii=False)
         lineas = [{"type": "user", "message": {"role": "user", "content": contenido}},
                   {"type": "assistant", "message": {"role": "assistant",
-                   "content": [{"type": "text", "text": "{\"evaluaciones\": []}"}]}},
+                   "content": [{"type": "text", "text": respuesta}]}},
                   *extra]
         ruta = os.path.join(self.dir, "agent.jsonl")
         with open(ruta, "w", encoding="utf-8") as fh:
@@ -318,8 +321,121 @@ class TestVerificarEntrega(unittest.TestCase):
         self.assertTrue(r["ok"])
         self.assertFalse(r["entrega_verificada"])
         self.assertNotIn("herramientas_en_transcript", r)
+        self.assertNotIn("respuesta_desde_transcript", r)
         self.assertIn("resultado", r["resultados"][0])
 
+
+    # --- v3.22.24: la respuesta es la que escribió el especialista ---
+    # Prueba real 2026-10-28: el especialista no entregó y el principal sacó
+    # el JSON de su transcript con un script propio; `validar` miraba lo que
+    # el especialista recibió, no lo que contestó.
+
+    def retocada(self):
+        r = copy.deepcopy(self.p["respuesta"])
+        vs = r["evaluaciones"][0]["verdicts"]
+        k = next(iter(vs))
+        opciones = list(m._criterios(self.p["config"])[k][0])
+        vs[k] = next(o for o in opciones if o != vs[k])
+        return r
+
+    def con_respuesta(self, *textos, extra=()):
+        # Una entrada `assistant` por texto, en orden, tras la primera.
+        mas = [{"type": "assistant", "message": {"role": "assistant",
+                "content": [{"type": "text", "text": t}]}} for t in textos[1:]]
+        return self.transcript(self.prompt(self.extracto), respuesta=textos[0],
+                               extra=[*mas, *extra])
+
+    def test_veredicto_retocado_por_el_principal_no_cuenta(self):
+        ruta = self.transcript(self.prompt(self.extracto))  # emite el original
+        self.p["respuesta"] = self.retocada()
+        fila = self.validar(ruta)["resultados"][0]
+        self.assertEqual(fila["motivo"], "respuesta_distinta")
+        self.assertTrue(fila["usar_principal"])
+        self.assertNotIn("resultado", fila)
+
+    def test_sin_respuesta_la_toma_del_transcript(self):
+        ruta = self.transcript(self.prompt(self.extracto))
+        del self.p["respuesta"]
+        r = self.validar(ruta)
+        self.assertTrue(r["ok"], r)
+        self.assertTrue(r["respuesta_desde_transcript"])
+        self.assertIn("resultado", r["resultados"][0])
+
+    def test_con_respuesta_copiada_tal_cual_cuenta(self):
+        r = self.validar(self.transcript(self.prompt(self.extracto)))
+        self.assertFalse(r["respuesta_desde_transcript"])
+        self.assertIn("resultado", r["resultados"][0])
+
+    def test_bloque_json_con_texto_alrededor_cuenta(self):
+        texto = "Aquí va:\n```json\n%s\n```\nFin." % json.dumps(self.p["respuesta"], indent=2)
+        del self.p["respuesta"]
+        r = self.validar(self.con_respuesta(texto))
+        self.assertIn("resultado", r["resultados"][0], r)
+
+    def test_si_corrige_vale_la_ultima(self):
+        primera = json.dumps(self.retocada())
+        ultima = json.dumps(self.p["respuesta"])
+        r = self.validar(self.con_respuesta(primera, "Corrijo:", ultima))
+        self.assertIn("resultado", r["resultados"][0], r)
+        self.p["respuesta"] = json.loads(primera)
+        r = self.validar(self.con_respuesta(primera, ultima))
+        self.assertEqual(r["resultados"][0]["motivo"], "respuesta_distinta")
+
+    def test_sin_respuesta_emitida_no_hay_nada_que_validar(self):
+        for textos in (("No puedo evaluar estas unidades.",),
+                       ('{"evaluacion": []}',), ('{"evaluaciones": [], "nota": 1}',)):
+            with self.subTest(textos=textos):
+                r = self.validar(self.con_respuesta(*textos))
+                self.assertFalse(r["ok"])
+                self.assertEqual(r["motivo"], "respuesta_no_emitida")
+                self.assertTrue(r["usar_principal"])
+
+    def test_json_en_el_prompt_no_es_lo_que_contesto(self):
+        prompt = self.prompt(self.extracto) + "\nFormato: " + json.dumps(self.p["respuesta"])
+        r = self.validar(self.transcript(prompt, respuesta="Hecho."))
+        self.assertEqual(r["motivo"], "respuesta_no_emitida")
+
+    def test_entrega_por_subagent_handback_cuenta(self):
+        self.p.update(acciones_especialista=1, herramientas_especialista=["SubagentHandback"])
+        for entrada in ({"result": json.dumps(self.p["respuesta"])},
+                        {"result": copy.deepcopy(self.p["respuesta"])}):
+            with self.subTest(tipo=type(entrada["result"]).__name__):
+                ruta = self.transcript(self.prompt(self.extracto), respuesta="Entrego.", extra=[
+                    {"type": "assistant", "message": {"role": "assistant", "content": [
+                        {"type": "tool_use", "id": "h1", "name": "SubagentHandback",
+                         "input": entrada}]}}])
+                r = self.validar(ruta)
+                self.assertTrue(r["ok"], r)
+                self.assertIn("resultado", r["resultados"][0])
+
+    def test_entrada_de_otra_herramienta_no_es_respuesta(self):
+        # Además frena por herramientas; nunca cuenta como lo que contestó.
+        ruta = self.transcript(self.prompt(self.extracto), respuesta="Hecho.", extra=[
+            {"type": "assistant", "message": {"role": "assistant", "content": [
+                {"type": "tool_use", "id": "b1", "name": "Bash",
+                 "input": {"command": json.dumps(self.p["respuesta"])}}]}}])
+        self.assertEqual(self.validar(ruta)["motivo"], "respuesta_no_emitida")
+
+    def test_id_numerico_emitido_cuenta(self):
+        emitida = copy.deepcopy(self.p["respuesta"])
+        emitida["evaluaciones"][0]["id"] = 1
+        r = self.validar(self.con_respuesta(json.dumps(emitida)))
+        self.assertIn("resultado", r["resultados"][0], r)
+
+    def test_fila_duplicada_en_lo_emitido_no_cuenta(self):
+        emitida = copy.deepcopy(self.p["respuesta"])
+        emitida["evaluaciones"].append(self.retocada()["evaluaciones"][0])
+        r = self.validar(self.con_respuesta(json.dumps(emitida)))
+        self.assertEqual(r["resultados"][0]["motivo"], "respuesta_distinta")
+
+    def test_solo_la_fila_retocada_no_cuenta(self):
+        otro = self.dos_unidades()
+        prompt = self.prompt(self.extracto, "1") + self.prompt(otro, "2")
+        ruta = self.transcript(prompt)
+        self.p["respuesta"]["evaluaciones"][0] = self.retocada()["evaluaciones"][0]
+        r = self.validar(ruta)
+        self.assertEqual([f["motivo"] for f in r["resultados"]][0], "respuesta_distinta")
+        self.assertIn("resultado", r["resultados"][1])
 
 if __name__ == "__main__":
     unittest.main()

@@ -241,7 +241,20 @@ def validar(p):
         return _error("config_invalida")
     criterios = _criterios(cfg)
     esperados = _indexar(p.get("esperados"))
-    respuesta = p.get("respuesta")
+    # v3.22.24 (prueba real 2026-10-28: el especialista no entregó y el
+    # principal sacó el JSON de su transcript con un script propio): con
+    # transcript, la respuesta es la que el especialista ESCRIBIÓ. Sin
+    # `respuesta`, `validar` la toma de ahí; con ella, cada fila tiene que
+    # ser la emitida (`respuesta_distinta`): retocar veredictos ya no pasa.
+    leido = emitida = None
+    if "transcript_especialista" in p:
+        leido, motivo_transcript = _texto_recibido(p["transcript_especialista"])
+        if motivo_transcript:
+            return _error(motivo_transcript)
+        emitida = leido[2]
+        if emitida is None:
+            return _error("respuesta_no_emitida")
+    respuesta = p.get("respuesta", emitida)
     if not isinstance(respuesta, dict) or set(respuesta) != {"evaluaciones"}:
         return _error("respuesta_invalida")
     filas = _indexar(respuesta["evaluaciones"])
@@ -270,10 +283,7 @@ def validar(p):
     if "transcript_especialista" in p:
         if enviados is None:
             return _error("transcript_sin_lote")
-        leido, motivo_transcript = _texto_recibido(p["transcript_especialista"])
-        if motivo_transcript:
-            return _error(motivo_transcript)
-        recibido, usadas = leido
+        recibido, usadas, _ = leido
         # Lo que dice el transcript manda sobre lo que copia el principal:
         # el freno de herramientas ya no depende de `acciones_especialista`.
         motivo = _herramientas_transcript(usadas, p["acciones_especialista"])
@@ -319,6 +329,8 @@ def validar(p):
             if not _entregado((enviados.get(ident) or {}).get("extracto"), recibido,
                               ident):
                 motivo = "entrega_distinta"
+        if not motivo and emitida is not None and not _fila_emitida(fila, emitida, ident):
+            motivo = "respuesta_distinta"
         # v3.21.36 (prueba real 2026-10-24: extractos copiados a mano, con
         # texto ajeno, cortados o sin una línea): la huella mira el lote que
         # el principal declara; el eco, lo que el especialista recibió.
@@ -360,6 +372,7 @@ def validar(p):
               "entrega_verificada": recibido is not None}
     if recibido is not None:
         salida["herramientas_en_transcript"] = usadas
+        salida["respuesta_desde_transcript"] = "respuesta" not in p
     _frenar_plantillas(salida)
     return salida
 
@@ -376,7 +389,8 @@ def _sin_espacios(texto):
 
 
 def _texto_recibido(ruta):
-    """(({id: extractos recibidos}, [herramientas usadas]), motivo | None).
+    """(({id: extractos recibidos}, [herramientas usadas], respuesta | None),
+    motivo | None).
 
     Lee el transcript JSONL del host (formato de Claude Code: entradas
     `type: user` con `message.content` en texto o en bloques `text`) y une
@@ -384,6 +398,8 @@ def _texto_recibido(ruta):
     `type: assistant` (y `user`) toma los bloques `*tool_use` (sus nombres,
     una vez por id) y cuenta como «desconocida» cada `tool_result` sin su
     `tool_use`: lo que el especialista hizo, no lo que el principal copia.
+    v3.22.24: también la última respuesta que ESCRIBIÓ (el texto de sus
+    entradas `assistant` o la entrada de su `SubagentHandback`), o None.
     Solo lee. Un fichero sin ese texto es
     `transcript_no_reconocido`: nunca un «todo bien» por defecto."""
     if not _texto(ruta):
@@ -392,7 +408,7 @@ def _texto_recibido(ruta):
     try:
         if not os.path.isfile(ruta) or os.path.getsize(ruta) > MAX_TRANSCRIPT:
             return None, "transcript_ilegible"
-        partes, usadas, ids_uso, ids_resultado = [], [], set(), set()
+        partes, usadas, ids_uso, ids_resultado, emitido = [], [], set(), set(), []
         with open(ruta, encoding="utf-8", errors="replace") as fh:
             for ln in fh:
                 try:
@@ -416,9 +432,15 @@ def _texto_recibido(ruta):
                             continue
                         ids_uso.add(ident)
                         usadas.append(b["name"] if _texto(b.get("name")) else "desconocida")
+                        if doc["type"] == "assistant" and b.get("name") == ENTREGA_ESPECIALISTA:
+                            emitido.append(b.get("input"))
+                    elif tipo == "text" and doc["type"] == "assistant":
+                        emitido.append(b.get("text"))
                     elif tipo.endswith("tool_result"):
                         ids_resultado.add(b.get("tool_use_id"))
                 if doc["type"] == "assistant":
+                    if isinstance(contenido, str):
+                        emitido.append(contenido)
                     continue
                 if isinstance(contenido, str):
                     partes.append(contenido)
@@ -431,7 +453,55 @@ def _texto_recibido(ruta):
     crudo = "\n".join(partes)
     if not _sin_espacios(crudo):
         return None, "transcript_no_reconocido"
-    return (_entregas(crudo), usadas), None
+    return (_entregas(crudo), usadas, _ultima_respuesta(emitido)), None
+
+
+def _es_respuesta(v):
+    return isinstance(v, dict) and set(v) == {"evaluaciones"}
+
+
+def _ultima_respuesta(emitido):
+    """La última `{"evaluaciones": …}` que escribió el especialista, o None.
+
+    Busca en su texto (también dentro de un bloque ```json) y en la entrada
+    de su `SubagentHandback`, en orden: si corrigió la respuesta, vale la
+    última; un JSON de ejemplo anterior tampoco estorba."""
+    ultima, decodificador = None, json.JSONDecoder()
+    pendientes = list(reversed(emitido))
+    while pendientes:
+        v = pendientes.pop()
+        if _es_respuesta(v):
+            ultima = v
+        elif isinstance(v, dict):
+            pendientes.extend(reversed(list(v.values())))
+        elif isinstance(v, list):
+            pendientes.extend(reversed(v))
+        elif isinstance(v, str):
+            i = v.find("{")
+            while i != -1:
+                try:
+                    valor, fin = decodificador.raw_decode(v, i)
+                except ValueError:
+                    i = v.find("{", i + 1)
+                    continue
+                if _es_respuesta(valor):
+                    ultima = valor
+                i = v.find("{", fin)
+    return ultima
+
+
+def _fila_emitida(fila, emitida, ident):
+    """True si `fila` es, campo a campo, la única que el especialista
+    escribió bajo `ident` (su id puede venir como número). Dos filas con el
+    mismo id en lo emitido no prueban cuál vale: False."""
+    filas = emitida.get("evaluaciones")
+    propias = [f for f in filas if isinstance(f, dict)
+               and type(f.get("id")) in (str, int) and str(f["id"]) == ident
+               ] if isinstance(filas, list) else []
+    if len(propias) != 1:
+        return False
+    return ({k: v for k, v in propias[0].items() if k != "id"}
+            == {k: v for k, v in fila.items() if k != "id"})
 
 
 _ETIQUETA = re.compile(r'<email-body-data\s+id\s*=\s*"([^"<>]*)"\s*>(.*?)</email-body-data>',

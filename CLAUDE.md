@@ -390,6 +390,12 @@ Desde v3.22.10 ese transcript también da las herramientas (bloques `tool_use`
 del especialista) y manda sobre `acciones_especialista`: otra que no sea una
 `SubagentHandback` → `especialista_uso_herramientas`; declarar menos →
 `acciones_no_coinciden`. El freno ya no depende de lo que copia el principal. Es la única lectura de fichero de `modelos.py`; sigue sin escribir.
+Desde v3.22.24 ese transcript también da la respuesta: la última
+`{"evaluaciones": …}` que escribió el especialista (texto `assistant` o
+entrada de su `SubagentHandback`). Sin `respuesta`, `validar` la toma de ahí;
+con ella, una fila distinta de la emitida → `respuesta_distinta`, y sin
+ninguna emitida → `respuesta_no_emitida` (prueba real: el especialista no
+entregó y el principal sacó el JSON con un script propio).
 Desde v3.21.26 una fila con `dudas` se puntúa igual (sigue `usar_principal`,
 motivo `requiere_contexto_o_revision`, con las dudas en la fila): así llega
 al comparador en vez de perderse (prueba real: Haiku, dudas en 5 de 5).
