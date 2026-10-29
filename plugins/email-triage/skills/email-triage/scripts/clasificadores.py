@@ -39,6 +39,15 @@ con respuesta válida y sin un core `__incierto__` lleva `propuesta_sin_freno`
 (score y tier de los veredictos del proveedor, sin los inciertos) y la salida
 `comparacion_sin_freno`. No cambia motivos, `propuesta` ni `comparacion`, y en
 `hibrido` no existe: nunca autoriza nada.
+
+Core que admite `__no_aplica__` en `comparar` (v3.22.26): el mismo
+diagnóstico dio 12 de 13 filas no comparables por un solo criterio,
+`razonamiento_dirigido` (core del ensayo P3), que el principal declaraba
+«no aplica» en avisos y boletines sin decisión que explorar. Solo en
+`comparar` y solo para los criterios de `CORE_NO_APLICA_EN_COMPARAR`: el
+proveedor también puede responder `__no_aplica__`, el principal que lo
+declara sigue siendo comparable y «los dos dicen no aplica» coincide. Otro
+core `no_aplica` sigue dejando la fila fuera, y `hibrido` no cambia.
 """
 import hashlib
 import itertools
@@ -58,6 +67,8 @@ INCIERTO = "__incierto__"
 NO_APLICA = "__no_aplica__"
 DESC_INCIERTO = "Falta información suficiente o hay ambigüedad."
 DESC_NO_APLICA = "Este criterio condicional no se aplica al correo."
+# Core que admite `__no_aplica__`, solo en `comparar` (v3.22.26; ver arriba).
+CORE_NO_APLICA_EN_COMPARAR = frozenset({"razonamiento_dirigido"})
 MAX_JSON = 1_048_576
 MAX_PETICION = 65_536
 MAX_LOTE = 50  # correos por invocación (`_filas`) y tope de `max_llamadas`
@@ -171,6 +182,17 @@ def _opciones(cfg):
     return activos
 
 
+def _admite_no_aplica(k, core, modo):
+    return not core or (modo == "comparar" and k in CORE_NO_APLICA_EN_COMPARAR)
+
+
+def _activos_para_preguntas(activos, modo):
+    """`activos` con `core` a False donde `_admite_no_aplica`: solo decide si
+    se ofrece `__no_aplica__`; los frenos siguen usando `activos`."""
+    return {k: (opciones, core and not _admite_no_aplica(k, core, modo))
+            for k, (opciones, core) in activos.items()}
+
+
 def preguntas_neutras(cfg, activos):
     """{criterio: {"opciones": {valor: descripción|None}, "instrucciones": str}}."""
     preguntas = {}
@@ -228,7 +250,9 @@ def _principal(e, cfg, activos):
     # proveedor no se le ofrece __no_aplica__ en core; se excluye solo él en vez
     # de rechazar el lote entero (prueba real: el modelo cambiaba la muestra y
     # dejaba fuera justo los casos dudosos). Devuelve None = no comparable.
-    if any(activos[k][1] for k in na):
+    # Solo se llama en `comparar`: los de CORE_NO_APLICA_EN_COMPARAR sí se le
+    # ofrecen y no excluyen el correo (v3.22.26).
+    if any(not _admite_no_aplica(k, activos[k][1], "comparar") for k in na):
         return None
     return _scoring(e["id"], control, vs, cfg)
 
@@ -341,11 +365,11 @@ def _sin_freno(e, v, activos, cfg):
     return {"id": e["id"], "score": r["score"], "tier": r["tier"]}
 
 
-def _dudas_irrelevantes(e, v, dudosos, activos, cfg, maximo):
+def _dudas_irrelevantes(e, v, dudosos, activos, cfg, maximo, modo=None):
     """¿Cambia el tier alguna respuesta posible de los criterios dudosos?
 
     Devuelve el resumen si TODAS las combinaciones (opciones del config y,
-    en los no core, la exclusión) dan el mismo tier con `_scoring`; None si
+    en los no core, o donde `_admite_no_aplica`, la exclusión) dan el mismo tier con `_scoring`; None si
     alguna lo cambia, si hay más dudosos o combinaciones de las admitidas, si
     una combinación no se puede puntuar (entonces actúa el freno de siempre,
     con su motivo) o si un criterio core salió `__incierto__`: la propuesta
@@ -360,7 +384,8 @@ def _dudas_irrelevantes(e, v, dudosos, activos, cfg, maximo):
         opciones, core = activos[k]
         if core and k in v["inciertos"]:
             return None
-        alternativas.append(sorted(opciones) + ([] if core else [None]))
+        alternativas.append(sorted(opciones)
+                            + ([None] if _admite_no_aplica(k, core, modo) else []))
     total = math.prod(len(a) for a in alternativas)
     if total > MAX_COMBINACIONES_DUDAS:
         return None
@@ -573,7 +598,7 @@ def procesar(p, cfg, capa, transporte, modo, prov):
         salida["requiere_simulacion"] = modo == "comparar"
         _exigir(c["acepta_envio_datos"], "envio_no_autorizado")
         filas, activos = _filas(p), _opciones(cfg)
-        preguntas = prov.preguntas(cfg, activos)
+        preguntas = prov.preguntas(cfg, _activos_para_preguntas(activos, modo))
         preparados = []
         # Validar todo el lote antes de acceder a credenciales o enviar un solo byte.
         for e in filas:
@@ -648,7 +673,7 @@ def procesar(p, cfg, capa, transporte, modo, prov):
                 dudosos = sorted(set(v["inciertos"]) | {
                     k for k, x in v["confianzas"].items() if x < c["confianza_minima"]})
                 tolerancia = (_dudas_irrelevantes(e, v, dudosos, activos, cfg,
-                                                  c["tolerancia_dudas"])
+                                                  c["tolerancia_dudas"], modo)
                               if c["tolerancia_dudas"] else None)
                 if tolerancia is not None:
                     r["dudas_irrelevantes"] = tolerancia
