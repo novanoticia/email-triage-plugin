@@ -421,6 +421,11 @@ class TestVerificarEntrega(unittest.TestCase):
         emitida["evaluaciones"][0]["id"] = 1
         r = self.validar(self.con_respuesta(json.dumps(emitida)))
         self.assertIn("resultado", r["resultados"][0], r)
+        # Revisión Codex P2 (PR #143): también sin copiar `respuesta`.
+        del self.p["respuesta"]
+        r = self.validar(self.con_respuesta(json.dumps(emitida)))
+        self.assertTrue(r["ok"], r)
+        self.assertIn("resultado", r["resultados"][0], r)
 
     def test_fila_duplicada_en_lo_emitido_no_cuenta(self):
         emitida = copy.deepcopy(self.p["respuesta"])

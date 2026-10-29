@@ -254,7 +254,7 @@ def validar(p):
         emitida = leido[2]
         if emitida is None:
             return _error("respuesta_no_emitida")
-    respuesta = p.get("respuesta", emitida)
+    respuesta = p.get("respuesta", _ids_como_texto(emitida))
     if not isinstance(respuesta, dict) or set(respuesta) != {"evaluaciones"}:
         return _error("respuesta_invalida")
     filas = _indexar(respuesta["evaluaciones"])
@@ -488,6 +488,18 @@ def _ultima_respuesta(emitido):
                     ultima = valor
                 i = v.find("{", fin)
     return ultima
+
+
+def _ids_como_texto(emitida):
+    """Copia de `emitida` con los ids numéricos como texto, igual que los
+    acepta `_fila_emitida` (revisión Codex P2, PR #143: con `"id": 1`,
+    omitir `respuesta` daba `entrada_invalida` y copiarla, no). Los
+    duplicados siguen llegando a `_indexar`."""
+    if not _es_respuesta(emitida) or not isinstance(emitida["evaluaciones"], list):
+        return emitida
+    return {"evaluaciones": [
+        dict(f, id=str(f["id"])) if isinstance(f, dict) and type(f.get("id")) is int else f
+        for f in emitida["evaluaciones"]]}
 
 
 def _fila_emitida(fila, emitida, ident):
