@@ -2,7 +2,7 @@ name: Mistral PR Review
 
 on:
   pull_request:
-    types: [ready_for_review, opened, synchronize]
+    types: [ready_for_review, opened, synchronize, reopened, edited]
 
 # Un push nuevo cancela la revisión anterior del mismo PR.
 concurrency:
@@ -12,6 +12,7 @@ concurrency:
 jobs:
   mistral-review:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       pull-requests: write
       contents: read

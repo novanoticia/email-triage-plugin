@@ -23,6 +23,9 @@ _spec.loader.exec_module(mr)
 HALLAZGO = {"severidad": "media", "archivo": "a.py", "fragmento": "x = `1`",
             "problema": "El ancla quita la marca", "escenario": "texto truncado -> eco_distinto",
             "arreglo": "conservar la marca"}
+COMPROBACION = {"archivo": "a.py", "escenario": "entrada vacía",
+               "conclusion": "la guarda devuelve error antes de escribir",
+               "estado": "revisado"}
 
 
 class TestDiff(unittest.TestCase):
@@ -243,6 +246,10 @@ class TestMain(unittest.TestCase):
     DIFF = "diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n@@ -1 +1 @@\n-x = 0\n+x = `1`\n"
 
     def ejecutar(self, respuesta=None, fallo=None):
+        if respuesta and respuesta.startswith("{"):
+            datos = json.loads(respuesta)
+            datos.setdefault("comprobaciones", [COMPROBACION])
+            respuesta = json.dumps(datos)
         evento = json.dumps({"pull_request": {
             "number": 7, "base": {"sha": "base"}, "head": {"sha": "abc123"}}})
         with mock.patch.dict(os.environ, {"MISTRAL_API_KEY": "clave",
@@ -250,6 +257,7 @@ class TestMain(unittest.TestCase):
                 mock.patch("builtins.open", mock.mock_open(read_data=evento)), \
                 mock.patch.object(mr, "obtener_diff", return_value=self.DIFF), \
                 mock.patch.object(mr, "leer_guia", return_value=(None, "")), \
+                mock.patch.object(mr, "obtener_contexto", return_value="contexto"), \
                 mock.patch.object(mr, "llamar_mistral", return_value=respuesta, side_effect=fallo), \
                 mock.patch.object(mr, "publicar") as publicar, mock.patch("builtins.print"):
             codigo = mr.main()
@@ -290,11 +298,81 @@ class TestMain(unittest.TestCase):
         self.assertEqual(codigo, 1)
         self.assertIn("Revisión no válida", cuerpo)
 
+    def test_diff_vacio_no_consulta_api_ni_exige_casos_inventados(self):
+        with mock.patch.object(self, "DIFF", ""):
+            codigo, cuerpo = self.ejecutar(fallo=AssertionError("no llamar API"))
+        self.assertEqual(codigo, 0)
+        self.assertIn("No hay diff revisable", cuerpo)
+
 
 class TestSinClave(unittest.TestCase):
     def test_sin_clave_no_falla(self):
         with mock.patch.dict(os.environ, {"MISTRAL_API_KEY": ""}):
             self.assertEqual(mr.main(), 0)
+
+
+class TestComprobaciones(unittest.TestCase):
+    def test_exige_escenarios_y_rutas_del_diff_sin_aceptar_exito_vacio(self):
+        base = {"resumen": "R", "hallazgos": [], "comprobaciones": [COMPROBACION]}
+        self.assertIsNotNone(mr.interpretar(json.dumps(base), TestMain.DIFF, True))
+        for valor in (None, [], [{}], [dict(COMPROBACION, estado="ejecutado")],
+                      [dict(COMPROBACION, escenario="")],
+                      [dict(COMPROBACION, archivo="inventado.py")]):
+            with self.subTest(valor=valor):
+                self.assertIsNone(mr.interpretar(json.dumps(dict(
+                    base, comprobaciones=valor)), TestMain.DIFF, True))
+        del base["comprobaciones"]
+        self.assertIsNone(mr.interpretar(json.dumps(base), TestMain.DIFF, True))
+
+    def test_renderiza_casos_pendientes_como_lectura_no_como_tests_ejecutados(self):
+        md = mr.renderizar(("R", []), "m", 10, False,
+            comprobaciones=[dict(COMPROBACION, estado="pendiente")])
+        self.assertIn("sin ejecutar tests", md)
+        self.assertIn("**pendiente**", md)
+        self.assertIn(COMPROBACION["escenario"], md)
+
+    def test_contexto_del_commit_acotado_y_enviado_como_datos(self):
+        with mock.patch.object(mr.subprocess, "run", return_value=mock.Mock(
+                returncode=0, stdout=b"def funcion():\n    pass\n")) as run, \
+                mock.patch.object(mr, "MAX_ARCHIVO", 12):
+            contexto = mr.obtener_contexto(TestMain.DIFF, "abc123")
+        self.assertEqual(run.call_args.args[0], ["git", "show", "abc123:a.py"])
+        self.assertIn("contexto recortado", contexto)
+        self.assertNotIn("pass", contexto)
+        mensajes, _ = mr.construir_mensajes("T", "D", TestMain.DIFF,
+                                           (None, ""), contexto)
+        self.assertIn(contexto, mensajes[1]["content"])
+
+    def test_resumen_sobrevive_a_fallo_de_publicacion(self):
+        with tempfile.TemporaryDirectory() as d:
+            ruta = os.path.join(d, "resumen.md")
+            with mock.patch.dict(os.environ, {"GITHUB_STEP_SUMMARY": ruta}), \
+                    mock.patch.object(mr, "publicar", side_effect=OSError("privado")):
+                # El helper anterior verifica publicación correcta; aquí main se
+                # ejecuta directamente para comprobar el fallo de permisos.
+                evento = json.dumps({"pull_request": {"number": 7,
+                    "head": {"sha": "abc123"}, "base": {"sha": "base"}}})
+                with mock.patch.dict(os.environ, {"MISTRAL_API_KEY": "clave",
+                        "GITHUB_EVENT_PATH": "evento", "GITHUB_REPOSITORY": "o/r"}), \
+                        mock.patch.object(mr, "obtener_diff", return_value=TestMain.DIFF), \
+                        mock.patch.object(mr, "obtener_contexto", return_value=""), \
+                        mock.patch.object(mr, "leer_guia", return_value=(None, "")), \
+                        mock.patch.object(mr, "llamar_mistral", return_value=json.dumps({
+                            "resumen": "R", "hallazgos": [],
+                            "comprobaciones": [COMPROBACION]})), \
+                        mock.patch("builtins.open", mock.mock_open(read_data=evento)) as abrir, \
+                        mock.patch("builtins.print"):
+                    self.assertEqual(mr.main(), 1)
+                    abrir.assert_any_call(ruta, "a", encoding="utf-8")
+                    escrito = abrir().write.call_args.args[0]
+                    self.assertIn("Comprobaciones por lectura", escrito)
+
+    def test_sin_clave_deja_motivo_en_resumen(self):
+        with mock.patch.dict(os.environ, {"MISTRAL_API_KEY": ""}), \
+                mock.patch.object(mr, "escribir_resumen") as resumen, \
+                mock.patch("builtins.print"):
+            self.assertEqual(mr.main(), 0)
+        self.assertIn("omitida", resumen.call_args.args[0])
 
 
 if __name__ == "__main__":
