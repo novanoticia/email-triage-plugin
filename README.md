@@ -2146,7 +2146,7 @@ scan.
 - **Privacy.** See [PRIVACY.md](PRIVACY.md).
 
 ## Créditos
-Diseñado por Pablo Rodríguez López ([mindandhealth.org](https://mindandhealth.org/)) con asistencia de Claude y ChatGPT. Consulta [CONTRIBUTORS.md](CONTRIBUTORS.md) para el detalle de las contribuciones.
+Diseñado por Pablo Rodríguez López ([mindandhealth.org](https://mindandhealth.org/)) con asistencia de Claude y ChatGPT, y revisiones automatizadas con modelos de [Mistral AI](https://github.com/mistralai). Consulta [CONTRIBUTORS.md](CONTRIBUTORS.md) para el detalle de las contribuciones.
 
 Criterios epistémicos basados en las [Sequences](https://www.lesswrong.com/rationality) de Eliezer Yudkowsky (LessWrong).
 

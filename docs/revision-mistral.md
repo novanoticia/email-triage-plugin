@@ -5,6 +5,12 @@ tests**. Los tests reales se ejecutan en el workflow de CI. Un resultado
 «Sin hallazgos» significa que el modelo no ha identificado defectos, no que
 el código esté demostrado correcto.
 
+La cabecera de cada informe enlaza al perfil de
+[Mistral AI (@mistralai)](https://github.com/mistralai), proveedor del modelo
+identificado en el título. La revisión se ejecuta mediante su API y el
+comentario lo publica GitHub Actions del proyecto. Su asistencia se reconoce
+en [CONTRIBUTORS.md](../CONTRIBUTORS.md).
+
 ## Cuándo se ejecuta
 
 Al crear el PR, marcarlo listo para revisión, subir commits, reabrirlo o editar

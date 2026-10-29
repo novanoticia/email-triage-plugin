@@ -315,7 +315,8 @@ def _linea(valor, limite=500):
 
 def renderizar(resultado, modelo, diff_len, recortado, cabeza="", error=None,
                comprobaciones=None, ejecucion_url="", intento=""):
-    partes = [MARCA, "## Revisión de Mistral (`%s`)" % modelo]
+    partes = [MARCA, "## Revisión de [Mistral AI (@mistralai)]"
+              "(https://github.com/mistralai) (`%s`)" % modelo]
     if cabeza:
         partes.append("Commit revisado: `%s`." % cabeza)
     if ejecucion_url:

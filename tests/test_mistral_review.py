@@ -109,6 +109,7 @@ class TestRespuesta(unittest.TestCase):
         alto = dict(HALLAZGO, severidad="alta", problema="grave")
         md = mr.renderizar(("R", [bajo, alto]), "codestral-latest", 100, False)
         self.assertTrue(md.startswith(mr.MARCA))
+        self.assertIn("[Mistral AI (@mistralai)](https://github.com/mistralai)", md)
         self.assertLess(md.index("grave"), md.index("menor"))
         self.assertIn("🔴 **alta** · `a.py`", md)
         self.assertIn("Escenario: texto truncado -> eco_distinto", md)
