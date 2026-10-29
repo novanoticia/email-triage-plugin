@@ -58,7 +58,8 @@ existente: para adoptar el alias cambia su campo a `modelo: jev-latest` o elimí
    `principal: {verdicts: {...}, no_aplica: {...}}` con cobertura exacta de los
    criterios activos; `no_aplica` mapea criterios a motivos (desde v3.22.2, si
    incluye un criterio core, ese correo queda fuera de la comparación con
-   `principal_no_comparable` y no sale a la red; el resto del lote sigue). Añade
+   `principal_no_comparable` y no sale a la red; el resto del lote sigue;
+   desde v3.22.26, salvo `razonamiento_dirigido`, punto 11). Añade
    `control` con los valores habituales calculados por el principal:
    `hard_rules`, `extra_points`, `forzar_reply_needed`, `tier_maximo`,
    `remitente_en_historial` y opcionales `remitente_conteo_historial`,
@@ -134,6 +135,16 @@ existente: para adoptar el alias cambia su campo a `modelo: jev-latest` o elimí
    `reply_a_archive`). Úsala para decir si el tier coincide con el principal,
    **nunca** como propuesta para mover ni para aprender: el motivo de la fila
    sigue siendo el del freno. En `hibrido` no existe.
+11. Core que admite `__no_aplica__` (v3.22.26, solo `comparar`). El
+   diagnóstico real dio 12 de 13 filas `principal_no_comparable` por un solo
+   criterio, `razonamiento_dirigido` (core del ensayo P3), en avisos y
+   boletines sin decisión que explorar. En `comparar` a Jev también se le
+   ofrece `__no_aplica__` en ese criterio, el principal que lo declara «no
+   aplica» sigue siendo comparable y que los dos digan `__no_aplica__` cuenta
+   como coincidencia en `por_criterio`. Cualquier otro core en `no_aplica`
+   sigue dejando la fila fuera, un core `__incierto__` sigue frenando y en
+   `hibrido` no cambia nada. La lista vive en `CORE_NO_APLICA_EN_COMPARAR`
+   (`scripts/clasificadores.py`).
 
 ## Triaje real: modo híbrido explícito
 
@@ -215,7 +226,7 @@ Verificado en documentación oficial el **16 de octubre de 2026**:
 `POST https://api.typesafe.ai/v1/systemone`, Bearer en Authorization, JSON con
 `model`, `state`, `questions`. Cada criterio activo se convierte en una pregunta
 Choice con sus opciones originales, `__incierto__` y, solo en los condicionales,
-`__no_aplica__`. La pregunta real va en `instructions`: el identificador no se
+`__no_aplica__` (en `comparar`, también `razonamiento_dirigido`: punto 11). La pregunta real va en `instructions`: el identificador no se
 interpreta como pregunta. No se envían pesos, carpetas, controles ni historial.
 Las respuestas deben cubrir exactamente las preguntas y opciones, identificar el
 modelo solicitado, contener probabilidades finitas que sumen uno y elegir una

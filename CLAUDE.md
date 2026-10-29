@@ -447,7 +447,11 @@ validación, transporte, frenos de `procesar`) vive solo en `scripts/clasificado
 un freno nuevo va ahí, nunca en un adaptador. Desde v3.22.25, en `comparar`,
 `propuesta_sin_freno` y `comparacion_sin_freno` miden el tier sin el freno de
 confianza (prueba real: 26-30 criterios dudosos por correo, ninguno pasaba);
-son informativas, no autorizan nada y no existen en `hibrido`. No combinar proveedores en una sesión. Comparar implica simulación
+son informativas, no autorizan nada y no existen en `hibrido`. Desde v3.22.26,
+solo en `comparar`, los core de `CORE_NO_APLICA_EN_COMPARAR`
+(`razonamiento_dirigido`) admiten `__no_aplica__` en ambos lados (prueba real: 12
+de 13 filas no comparables venían de ese criterio); otro core en `no_aplica`
+sigue dejando la fila fuera. No combinar proveedores en una sesión. Comparar implica simulación
 y no alimenta aprendizaje con desacuerdos entre modelos. Los controles de scoring
 vienen del principal, nunca de la respuesta delegada. Las pruebas sintéticas
 validan mecanismos, no la calidad de los modelos ni compatibilidad real del host.

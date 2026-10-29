@@ -82,6 +82,9 @@ la capa:
    v3.22.23) con `config-decisions.yaml` y `--config-decisions`.
 10. Misma propuesta sin freno en `comparar` (punto 10 de `references/jev.md`,
    v3.22.25): `propuesta_sin_freno` y `comparacion_sin_freno`, solo informativas.
+11. Mismo core que admite `__no_aplica__` en `comparar` (punto 11 de
+   `references/jev.md`, v3.22.26): `razonamiento_dirigido`; en `hibrido` no
+   cambia nada.
 
 ## Triaje real: modo híbrido explícito
 
@@ -114,7 +117,8 @@ preguntas. No se usan imágenes, `input_json` ni historial de conversación. Cad
 criterio activo es una pregunta `choice` con `name` igual al criterio,
 `instructions` con la pregunta real y `choices` `{value, description}` con sus
 opciones originales, `__incierto__` y, solo en los condicionales,
-`__no_aplica__` (las mismas descripciones que Jev; la API recomienda una opción
+`__no_aplica__` (en `comparar`, también `razonamiento_dirigido`: punto 11; las
+mismas descripciones que Jev; la API recomienda una opción
 de escape). No se usan `predicate` ni `score`. No se envían pesos, carpetas,
 controles ni historial.
 

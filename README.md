@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.22.25
+# Email Triage Plugin v3.22.26
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,21 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.22.26
+
+- **`razonamiento_dirigido` deja de sacar correos de la comparación.**
+  Diagnóstico real (2026-10-29, ensayo P3): de 13 correos que `comparar`
+  dejaba fuera por un core «no aplica» del principal, 12 eran por este
+  criterio, en avisos y boletines sin ninguna decisión que explorar. Al
+  proveedor no se le ofrecía esa respuesta por ser core.
+  - **Qué cambia:** solo en `comparar`, Jev y Decisions también pueden
+    responder `__no_aplica__` en `razonamiento_dirigido`; el principal que
+    lo declara «no aplica» sigue siendo comparable, y que los dos lo digan
+    cuenta como coincidencia.
+  - **Qué no cambia:** cualquier otro core «no aplica» sigue dejando el
+    correo fuera, un core incierto sigue frenando y `hibrido` es idéntico.
+    Sin el ensayo P3 activo, nada cambia.
 
 ## Novedades en v3.22.25
 
