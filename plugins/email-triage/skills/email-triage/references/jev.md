@@ -126,6 +126,14 @@ existente: para adoptar el alias cambia su campo a `modelo: jev-latest` o elimí
    el de la base y responde `config_fuera_de_base`, `config_base_invalida` o
    `config_no_coincide_con_base`. Ante cualquiera de los tres, explica el
    motivo y pide a la persona que corrija su fichero; no lo edites tú.
+10. Propuesta sin freno (v3.22.25, solo `comparar`, informativa). Cada fila
+   con respuesta válida y sin un core `__incierto__` trae
+   `propuesta_sin_freno` (`id`, `score`, `tier` de los veredictos de Jev, sin
+   los inciertos), aunque el freno de confianza la descarte; la salida trae
+   `comparacion_sin_freno` (`total`, `mismo_tier`, `diferencias`,
+   `reply_a_archive`). Úsala para decir si el tier coincide con el principal,
+   **nunca** como propuesta para mover ni para aprender: el motivo de la fila
+   sigue siendo el del freno. En `hibrido` no existe.
 
 ## Triaje real: modo híbrido explícito
 

@@ -30,6 +30,15 @@ mismo tier con el scoring real, el correo sigue y lleva `dudas_irrelevantes`.
 Si una sola combinación cambia el tier, el freno actúa como antes. Un core
 `__incierto__` nunca se tolera. En `hibrido` solo se anota: el freno actúa
 igual, con su motivo y sin propuesta.
+
+Propuesta sin freno (v3.22.25, solo `comparar`, informativa): el diagnóstico
+real del 2026-10-29 dio 26-30 criterios dudosos por correo (probabilidad
+máxima mediana 0,52), así que el freno de confianza dejaba la comparación de
+tier siempre vacía; sin él, 12 de 14 correos daban el mismo tier. Cada fila
+con respuesta válida y sin un core `__incierto__` lleva `propuesta_sin_freno`
+(score y tier de los veredictos del proveedor, sin los inciertos) y la salida
+`comparacion_sin_freno`. No cambia motivos, `propuesta` ni `comparacion`, y en
+`hibrido` no existe: nunca autoriza nada.
 """
 import hashlib
 import itertools
@@ -308,6 +317,30 @@ def _scoring(ident, control, vs, cfg):
     return r
 
 
+def _comparar_sin_freno(bases, propuestas):
+    """Como `comparacion`, sobre las propuestas sin freno, más `mismo_tier`."""
+    if not bases:
+        return {"total": 0, "mismo_tier": 0, "diferencias": [], "reply_a_archive": [],
+                "referencia": "modelo_principal_no_verdad"}
+    r = modelos._comparar_filas({"base": bases, "propuesta": propuestas})
+    r.pop("ok", None)
+    r["mismo_tier"] = sum(b["tier"] == p["tier"] for b, p in zip(bases, propuestas))
+    return r
+
+
+def _sin_freno(e, v, activos, cfg):
+    """{id, score, tier} de los veredictos del proveedor sin el freno de
+    confianza, o None si un core salió `__incierto__` (no comparable, como en
+    `_dudas_irrelevantes`) o si no se puede puntuar. Solo aritmética local."""
+    if any(activos[k][1] for k in v["inciertos"]):
+        return None
+    try:
+        r = _scoring(e["id"], e["control"], v["verdicts"], cfg)
+    except ErrorClasificador:
+        return None
+    return {"id": e["id"], "score": r["score"], "tier": r["tier"]}
+
+
 def _dudas_irrelevantes(e, v, dudosos, activos, cfg, maximo):
     """¿Cambia el tier alguna respuesta posible de los criterios dudosos?
 
@@ -564,7 +597,7 @@ def procesar(p, cfg, capa, transporte, modo, prov):
                         and all(33 <= ord(ch) <= 126 for ch in key))
         transporte = transporte or prov.transporte
         detenido = None
-        bases, propuestas = [], []
+        bases, propuestas, bases_sf, propuestas_sf = [], [], [], []
         for e, base, bloqueo, body in preparados:
             r = {"id": e["id"], "usar_principal": True,
                  "modelo_solicitado": c["modelo"]}
@@ -607,6 +640,11 @@ def procesar(p, cfg, capa, transporte, modo, prov):
                 if modo == "comparar":
                     # Antes de los frenos: así consta aunque el correo se descarte.
                     r["por_criterio"] = _por_criterio(e["principal"], v, cfg)
+                    sin_freno = _sin_freno(e, v, activos, cfg)
+                    if sin_freno is not None:
+                        r["propuesta_sin_freno"] = sin_freno
+                        bases_sf.append(base)
+                        propuestas_sf.append(sin_freno)
                 dudosos = sorted(set(v["inciertos"]) | {
                     k for k, x in v["confianzas"].items() if x < c["confianza_minima"]})
                 tolerancia = (_dudas_irrelevantes(e, v, dudosos, activos, cfg,
@@ -656,6 +694,7 @@ def procesar(p, cfg, capa, transporte, modo, prov):
             salida["comparacion"] = (modelos._comparar_filas({"base": bases, "propuesta": propuestas})
                                       if bases else {"total": 0, "diferencias": []})
             salida["comparacion_por_criterio"] = _agregar_por_criterio(salida["resultados"])
+            salida["comparacion_sin_freno"] = _comparar_sin_freno(bases_sf, propuestas_sf)
         else:
             modelos._frenar_plantillas(salida)
             salida["usar_principal"] = any(r["usar_principal"] for r in salida["resultados"])

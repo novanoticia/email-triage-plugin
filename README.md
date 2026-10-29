@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.22.24
+# Email Triage Plugin v3.22.25
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,21 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.22.25
+
+- **Jev y Decisions ya pueden decir si coincide el tier, aunque duden.**
+  Diagnóstico real (2026-10-29, 41 correos): los dos proveedores dejan
+  entre 26 y 30 criterios dudosos por correo (probabilidad máxima mediana
+  0,52). Con cualquier umbral de confianza entre 0,8 y 0,3 ningún correo
+  pasaba el freno, así que `comparar` nunca comparaba un tier. Sin el
+  freno, 12 de 14 correos daban el mismo tier que el principal.
+  - **Qué cambia:** en `comparar`, cada correo sin un criterio core
+    incierto trae `propuesta_sin_freno` (score y tier), y la salida trae
+    `comparacion_sin_freno` con cuántos coinciden en tier.
+  - **Qué no cambia:** el freno, los motivos, `propuesta` y `comparacion`
+    siguen igual. Es informativo: no mueve nada, no alimenta el aprendizaje
+    y en `hibrido` no existe.
 
 ## Novedades en v3.22.24
 
