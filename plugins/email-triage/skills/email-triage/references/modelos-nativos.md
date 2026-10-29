@@ -189,7 +189,17 @@ Escribe `tmp/modelos-validar.json` con `esperados` del principal y `respuesta`
   suelo de prioritarios) y `remitente` (v3.21.27: con él, el script decide
   `prioritario`). Su origen son 4.A, 4.C y S0 del principal. No
   rellenar campos ausentes con cero/falso para permitir una delegación.
-- `respuesta`: objeto JSON devuelto por el especialista.
+- `respuesta`: objeto JSON devuelto por el especialista. **Con
+  `transcript_especialista`, omítelo** (v3.22.24): `validar` toma la última
+  respuesta que el especialista escribió en su transcript (su texto o la
+  entrada de su `SubagentHandback`) y la salida trae
+  `respuesta_desde_transcript: true`. Si la pasas, cada fila tiene que ser,
+  campo a campo, la que él escribió; una retocada sale `respuesta_distinta` y
+  no cuenta. Sin ninguna `{"evaluaciones": …}` escrita por el especialista,
+  `validar` responde `respuesta_no_emitida`: no la reconstruyas tú ni la
+  saques del transcript con un script propio (prueba real 2026-10-28: el
+  especialista no entregó y el principal extrajo el JSON a mano; nada
+  comprobaba que fuera el suyo). Repite la llamada o usa el principal.
 - `plan`: la salida literal de `planificar` que autorizó esta llamada.
 - `lote` y `esperados[].huella_extracto` (v3.21.30): el lote enviado y la
   `huella_extracto` que devolvió `sanitizar` para cada correo, copiada tal
