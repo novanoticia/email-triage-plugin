@@ -114,6 +114,20 @@ def obtener_diff(base, cabeza):
         errors="replace").stdout
 
 
+def obtener_rutas_diff(base, cabeza):
+    """Inventario independiente de hunks; incluye binarios, modos y renombrados.
+
+    El separador NUL evita confundir espacios, tabuladores o saltos en rutas.
+    Git devuelve la ruta nueva de un renombrado y la antigua de un eliminado.
+    """
+    excl = [":(exclude)%s" % r for r in EXCLUIDOS]
+    salida = subprocess.run(
+        ["git", "diff", "--name-only", "-z", "%s...%s" % (base, cabeza),
+         "--", "."] + excl,
+        check=True, capture_output=True).stdout
+    return set(salida.decode("utf-8", "replace").split("\0")) - {""}
+
+
 def indice_diff(diff):
     """Líneas de hunks por ruta; no confundir cabeceras con evidencia."""
     archivos = {}
@@ -251,7 +265,8 @@ def llamar_mistral(mensajes, modelo, clave, json_mode=True):
         time.sleep(espera)
 
 
-def interpretar(texto, diff=None, exigir_comprobaciones=False):
+def interpretar(texto, diff=None, exigir_comprobaciones=False,
+                rutas_comprobaciones=None):
     """Valida esquema y, si se aporta diff, citas; devuelve resultado o None."""
     try:
         datos = json.loads(texto)
@@ -265,7 +280,9 @@ def interpretar(texto, diff=None, exigir_comprobaciones=False):
     if comprobaciones is not None or exigir_comprobaciones:
         if not isinstance(comprobaciones, list) or not 1 <= len(comprobaciones) <= 6:
             return None
-        rutas = indice_diff(diff) if diff is not None else None
+        rutas = rutas_comprobaciones
+        if rutas is None and diff is not None:
+            rutas = indice_diff(diff)
         for c in comprobaciones:
             if not isinstance(c, dict) or any(
                     not isinstance(c.get(k), str) or not c[k].strip()
@@ -394,7 +411,9 @@ def main():
             mensajes, recortado = construir_mensajes(pr.get("title"), pr.get("body"),
                 diff, leer_guia(), obtener_contexto(diff[:MAX_DIFF], pr["head"]["sha"]))
             texto = llamar_mistral(mensajes, modelo, clave)
-            resultado = interpretar(texto, diff[:MAX_DIFF], exigir_comprobaciones=True)
+            resultado = interpretar(texto, diff[:MAX_DIFF], exigir_comprobaciones=True,
+                rutas_comprobaciones=obtener_rutas_diff(
+                    pr["base"]["sha"], pr["head"]["sha"]))
             if resultado is not None:
                 comprobaciones = json.loads(texto)["comprobaciones"]
     except urllib.error.HTTPError as fallo:

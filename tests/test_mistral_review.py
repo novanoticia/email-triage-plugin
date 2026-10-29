@@ -256,6 +256,7 @@ class TestMain(unittest.TestCase):
                     "GITHUB_EVENT_PATH": "evento.json", "GITHUB_REPOSITORY": "o/r"}), \
                 mock.patch("builtins.open", mock.mock_open(read_data=evento)), \
                 mock.patch.object(mr, "obtener_diff", return_value=self.DIFF), \
+                mock.patch.object(mr, "obtener_rutas_diff", return_value={"a.py"}), \
                 mock.patch.object(mr, "leer_guia", return_value=(None, "")), \
                 mock.patch.object(mr, "obtener_contexto", return_value="contexto"), \
                 mock.patch.object(mr, "llamar_mistral", return_value=respuesta, side_effect=fallo), \
@@ -355,6 +356,7 @@ class TestComprobaciones(unittest.TestCase):
                 with mock.patch.dict(os.environ, {"MISTRAL_API_KEY": "clave",
                         "GITHUB_EVENT_PATH": "evento", "GITHUB_REPOSITORY": "o/r"}), \
                         mock.patch.object(mr, "obtener_diff", return_value=TestMain.DIFF), \
+                        mock.patch.object(mr, "obtener_rutas_diff", return_value={"a.py"}), \
                         mock.patch.object(mr, "obtener_contexto", return_value=""), \
                         mock.patch.object(mr, "leer_guia", return_value=(None, "")), \
                         mock.patch.object(mr, "llamar_mistral", return_value=json.dumps({

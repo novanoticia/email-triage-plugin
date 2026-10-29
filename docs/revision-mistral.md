@@ -21,6 +21,8 @@ anterior. Editar el PR también puede volver a consumir la API.
   Los recortes se indican; no se incluyen automáticamente dependencias sin cambios.
 - Entre una y seis comprobaciones con archivo, escenario, conclusión y estado
   `revisado` o `pendiente`. Son razonamientos por lectura, no pruebas ejecutadas.
+  Sus rutas se contrastan con el inventario de Git, incluidos renombrados puros,
+  cambios de permisos y binarios sin hunks. Esto no valida la verdad del análisis.
 - Hallazgos solo con escenario concreto y una cita literal del diff del archivo.
   Se admite que no haya hallazgos; una respuesta sin comprobaciones es inválida.
 
@@ -43,3 +45,7 @@ El modelo se elige con la variable de Actions `MISTRAL_MODEL` (por defecto
 
 Las pruebas locales simulan la API. La calidad de detección debe contrastarse
 en PR reales, especialmente con regresiones conocidas que antes no detectó.
+
+La [auditoría del 29 de octubre de 2026](auditoria-mistral-2026-10-29.md)
+contrasta los primeros PR con el código histórico, documenta falsos positivos
+y propone una evaluación de calidad antes de nuevos ajustes del revisor.
