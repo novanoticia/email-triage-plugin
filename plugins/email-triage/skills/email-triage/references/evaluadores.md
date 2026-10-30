@@ -157,6 +157,7 @@ Solo se admite una evaluación y el id del correo solicitado.
 | JSON no conforme | `esquema_no_conforme`; detalle con ruta/causa, nunca valores |
 | Evidencia o justificación vacía | Motivo literal de `_validar_fila`, por ejemplo `evidencias_ausentes` |
 | Dudas no vacías | `evaluador_con_dudas`; sin propuesta ni `payload_scoring` |
+| Scoring con criterios sin evaluar en híbrido (incluido `__no_aplica__` sin cobertura en scoring) | `scoring_incompleto`; conserva `no_aplica` para resolución del principal, sin propuesta ni `payload_scoring`; requiere simulación. En `comparar` permanece como resultado informativo. |
 | Eco distinto | `eco_distinto`; sin propuesta |
 | Rechazo o contenido vacío | `proveedor_rehusa`; abstención del correo entero |
 | Salida truncada o llamada a herramientas | Rechazo; nunca reparar o completar veredictos |

@@ -248,6 +248,9 @@ def procesar(p, cfg, capa, transporte=None, modo="comparar"):
                 propuesta = nc._scoring(e["id"], e["control"], v["verdicts"], cfg)
                 r.update(propuesta=propuesta, no_aplica=v["no_aplica"], motivo="solo_comparacion")
                 if modo == "hibrido":
+                    # El scoring no acepta exclusiones libres como cobertura.
+                    # Conservamos no_aplica para que el principal lo resuelva.
+                    _exigir(not propuesta.get("criterios_sin_evaluar"), "scoring_incompleto")
                     umbrales = cfg.get("tiers", {})
                     fronteras = [umbrales.get(k, valor) for k, valor in
                                  (("reply_needed", 10), ("review", 4), ("reading_later", 0))]

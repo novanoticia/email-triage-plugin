@@ -352,6 +352,28 @@ class TestEvaluadores(unittest.TestCase):
         self.assertEqual(r['resultados'][0]['motivo'], 'principal_no_comparable')
         t.assert_not_called()
 
+    def test_no_aplica_no_habilita_scoring_incompleto_en_hibrido(self):
+        def excluir(d):
+            d['evaluaciones'][0]['criterios']['retorno_atencional'].update(
+                veredicto='__no_aplica__', evidencia='', razon_no_aplica='No corresponde.')
+        for nombre in PROVEEDORES:
+            with self.subTest(proveedor=nombre):
+                comparacion, _ = self.ejecutar(nombre, 'comparar', excluir)
+                self.assertIn('retorno_atencional',
+                    comparacion['resultados'][0]['propuesta']['criterios_sin_evaluar'])
+                r, _ = self.ejecutar(nombre, 'hibrido', excluir)
+                fila = r['resultados'][0]
+                self.assertEqual(fila['motivo'], 'scoring_incompleto')
+                self.assertEqual(fila['no_aplica'], {'retorno_atencional': 'No corresponde.'})
+                self.assertTrue(fila['usar_principal'])
+                self.assertNotIn('payload_scoring', fila)
+                self.assertNotIn('propuesta', fila)
+                self.assertTrue(r['usar_principal'])
+                self.assertTrue(r['requiere_simulacion'])
+                self.assertFalse(r['permitir_movimientos'])
+                self.assertEqual(r['cobertura']['propuestas_validadas'], 0)
+                self.assertEqual(r['cobertura']['pendientes_principal'], 1)
+
     def test_importes_incluyen_salida_y_modelo_sin_tarifa(self):
         for nombre in PROVEEDORES:
             r, _ = self.ejecutar(nombre)
