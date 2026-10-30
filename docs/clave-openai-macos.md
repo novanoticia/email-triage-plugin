@@ -110,10 +110,26 @@ echo "OpenRouter: ${#OPENROUTER_API_KEY} caracteres"
 ```
 
 Cada número debe coincidir con el que apuntaste en el paso 2 (un `0` es que esa
-clave no está cargada). Si usas las dos, comprueba además que no son la misma:
+clave no está cargada). Si usas varias, comprueba que no has guardado la misma
+clave para dos proveedores. Esta comprobación omite las variables vacías:
 
 ```bash
-[ "$OPENAI_API_KEY" = "$TYPESAFE_API_KEY" ] && echo "IGUALES: repite el paso 2, una clave cada vez" || echo "distintas: bien"
+python3 - <<'PYTHON'
+import os
+from itertools import combinations
+
+nombres = ("OPENAI_API_KEY", "TYPESAFE_API_KEY", "OPENROUTER_API_KEY")
+cargadas = [(nombre, os.environ.get(nombre, "")) for nombre in nombres]
+cargadas = [(nombre, clave) for nombre, clave in cargadas if clave]
+repetidas = [(a, b) for (a, ka), (b, kb) in combinations(cargadas, 2) if ka == kb]
+if repetidas:
+    for a, b in repetidas:
+        print(f"IGUALES: {a} y {b}; repite el paso 2, una clave cada vez")
+elif len(cargadas) < 2:
+    print("Hay menos de dos claves cargadas; no se pueden comparar")
+else:
+    print("Las claves cargadas son distintas: bien")
+PYTHON
 ```
  Si cambias una clave con Terminal abierto, ejecuta antes
 `source ~/.zshrc`: la variable solo se lee al abrir Terminal.
