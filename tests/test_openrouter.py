@@ -170,3 +170,79 @@ class TestOpenRouter(unittest.TestCase):
                                 '--config-openrouter', str(otra)], input='{}', text=True,
                                capture_output=True, env=env)
             self.assertEqual(json.loads(r.stdout)['motivo'], 'config_no_coincide_con_base')
+
+    def test_modelo_vacio_no_envia_y_omision_usa_default(self):
+        t = Mock()
+        r = self.comparar(dict(ACTIVO, modelo=''), t)
+        t.assert_not_called()
+        self.assertEqual(r['diagnostico_error'], 'identificador_modelo_invalido')
+        self.assertEqual(o._config(ACTIVO)['modelo'], o.MODELO_POR_DEFECTO)
+
+    def test_config_personalizada_leida_sin_alterar_otras_capas(self):
+        import tempfile
+        import yaml
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            otros = {nombre: base / nombre for nombre in
+                     ('config-jev.yaml', 'config-decisions.yaml')}
+            for ruta in otros.values():
+                ruta.write_text('activo: true\nmodelo: personalizado\n')
+            antes = {nombre: ruta.read_bytes() for nombre, ruta in otros.items()}
+            ruta = base / 'config-openrouter.yaml'
+            capa = dict(ACTIVO, modelo='typesafe/jev-1.14', confianza_minima=0.9)
+            ruta.write_text(yaml.safe_dump(capa))
+            original = ruta.read_bytes()
+            cargada = nc.capa_desde_disco(str(ruta), str(ruta), o._yaml, o._config)
+            t = Mock(side_effect=respuesta)
+            self.comparar(cargada, t)
+            self.assertEqual(t.call_args.args[0]['model'], capa['modelo'])
+            self.assertEqual(o._config(cargada)['confianza_minima'], 0.9)
+            self.assertEqual(ruta.read_bytes(), original)
+            self.assertEqual({nombre: ruta.read_bytes() for nombre, ruta in otros.items()}, antes)
+
+    def test_errores_http_reales_sin_leer_cuerpo_y_diagnostico(self):
+        import urllib.error
+        self.p, self.cfg = lote(2)
+        for codigo, categoria in ((401, 'autenticacion'), (402, 'saldo_o_credito'),
+                (403, 'acceso_denegado'), (400, 'peticion_o_modelo'),
+                (404, 'recurso_o_modelo'), (422, 'peticion_o_capacidades'),
+                (429, 'limite_solicitudes'), (500, 'fallo_servicio'), (503, 'fallo_servicio')):
+            cuerpo = Mock()
+            error = urllib.error.HTTPError(o.ENDPOINT, codigo, 'privado', {}, cuerpo)
+            opener = Mock()
+            opener.open.side_effect = error
+            with self.subTest(codigo=codigo), patch('urllib.request.build_opener', return_value=opener):
+                r = self.comparar(transporte=o.solicitar)
+                cuerpo.read.assert_not_called()
+                self.assertEqual(opener.open.call_count, 1)
+                self.assertEqual(r['resultados'][0]['motivo'], f'http_{codigo}')
+                self.assertEqual(r['resultados'][0]['diagnostico_error'], categoria)
+                self.assertEqual(r['resultados'][1]['diagnostico_error'], 'llamadas_suspendidas')
+                self.assertFalse(r['permitir_movimientos'])
+                self.assertNotIn('privado', json.dumps(r))
+                self.assertTrue(all('propuesta' not in fila for fila in r['resultados']))
+
+    def test_timeout_y_respuesta_incompleta_con_ayuda(self):
+        opener = Mock()
+        opener.open.side_effect = TimeoutError('dato-privado')
+        with patch('urllib.request.build_opener', return_value=opener):
+            r = self.comparar(transporte=o.solicitar)
+        self.assertEqual(r['resultados'][0]['diagnostico_error'], 'conexion_o_timeout')
+        self.assertNotIn('dato-privado', json.dumps(r))
+        def incompleta(body, *_):
+            r = respuesta(body)
+            r['answers'].pop(next(iter(r['answers'])))
+            return r
+        fila = self.comparar(transporte=incompleta)['resultados'][0]
+        self.assertEqual(fila['diagnostico_error'], 'respuesta_invalida_o_incompatible')
+        self.assertNotIn('propuesta', fila)
+
+    def test_diagnostico_hibrido_y_exito_sin_ayuda(self):
+        self.assertNotIn('diagnostico_error', self.comparar()['resultados'][0])
+        for e in self.p['emails']:
+            e.pop('principal')
+            e['contexto_suficiente'] = True
+        t = Mock(side_effect=o.ErrorOpenRouter('http_402'))
+        r = o.evaluar(self.p, self.cfg, dict(ACTIVO, modo='hibrido'), t)
+        self.assertEqual(r['resultados'][0]['diagnostico_error'], 'saldo_o_credito')
+        self.assertFalse(r['permitir_movimientos'])

@@ -46,6 +46,46 @@ El modelo devuelto debe coincidir con el solicitado o ser su snapshot con sufijo
 `-YYYYMMDD`; otro modelo se rechaza. No se admiten selección automática ni URLs.
 La sintaxis del ID se valida localmente; disponibilidad y soporte los valida la API.
 
+Un campo `modelo` omitido usa el valor predeterminado; vacío se rechaza, sin
+sustitución automática. Cambiar el modelo no modifica los umbrales.
+
+## Confianza al cambiar de modelo
+
+La validación comprueba estructura y coherencia numérica; no demuestra que las
+probabilidades o la confianza estén calibradas igual entre modelos. El núcleo
+aplica el menor valor entre la confianza declarada y la concentración calculada
+como `(max(p)-1/n)/(1-1/n)`, con las guardas de redondeo existentes. Ese freno
+conservador no convierte la confianza en probabilidad de acierto ni garantiza
+resultados equivalentes a Jev.
+
+Al cambiar de modelo, empezar en `comparar` con una muestra etiquetada por una
+persona; comprobar cobertura, errores por tier, abstenciones y comportamiento de
+los umbrales antes de activar híbrido. Revisar si los umbrales son adecuados;
+no ajustarlos automáticamente ni relajar frenos para conseguir propuestas.
+
+## Errores y ayuda del orquestador
+
+`motivo` conserva el código original; `diagnostico_error` añade una categoría
+segura. Explicar la causa y el siguiente paso en el idioma elegido, usando esta
+tabla como orientación, sin reproducir mensajes HTTP ni credenciales:
+
+| Diagnóstico | Explicación y siguiente paso |
+|---|---|
+| `credencial_local` | Clave ausente o inválida en el entorno; revisar su carga y el proceso que ejecuta el plugin. |
+| `autenticacion` | HTTP 401: autenticación rechazada; comprobar o renovar la clave de OpenRouter. |
+| `saldo_o_credito` | HTTP 402: revisar saldo, crédito y límites de gasto de la cuenta. |
+| `acceso_denegado` | HTTP 403: revisar permisos y restricciones de la cuenta. |
+| `peticion_o_modelo`, `recurso_o_modelo`, `peticion_o_capacidades` | HTTP 400/404/422: revisar ID, disponibilidad y soporte de Choice; el código solo no permite afirmar que el modelo no existe o es incompatible. |
+| `limite_solicitudes` | HTTP 429: se alcanzó un límite de solicitudes; esperar o revisar límites antes de una nueva ejecución explícita. |
+| `conexion_o_timeout` | Fallo de conexión o timeout; no se distinguen con el transporte compartido. Revisar conectividad y tiempo de espera; puede haber consumo. |
+| `fallo_servicio` | HTTP 5xx: fallo del servicio; conservar el principal y comprobar el estado del proveedor. |
+| `identificador_modelo_invalido` | ID vacío o con formato no admitido; indicar un ID completo de Decisions. |
+| `modelo_distinto` | La respuesta identifica otro modelo; revisar el ID y su resolución a snapshot. |
+| `respuesta_invalida_o_incompatible` | Respuesta incompleta o que incumple el contrato; conservar el principal y revisar compatibilidad. |
+| `llamadas_suspendidas` | Un fallo previo detuvo las llamadas pendientes; explicar primero ese fallo. |
+
+No interpretar un error como una clasificación ni añadir reintentos automáticos.
+
 ## Protocolo
 
 Aplicar íntegramente el protocolo de `references/jev.md`, incluidos sanitización,
