@@ -331,6 +331,37 @@ class TestSinClave(unittest.TestCase):
 
 
 class TestComprobaciones(unittest.TestCase):
+    def test_diagnostico_distingue_rechazos_sin_exponer_contenido(self):
+        base = {"resumen": "R", "hallazgos": [], "comprobaciones": [COMPROBACION]}
+        casos = [
+            ("dato privado", "json_invalido"),
+            (dict(base, hallazgos=None), "hallazgos_no_lista"),
+            (dict(base, resumen=""), "resumen_invalido"),
+            (dict(base, comprobaciones=[]), "comprobaciones_cantidad_o_tipo"),
+            (dict(base, comprobaciones=[{}]), "comprobacion_0_campos_invalidos"),
+            (dict(base, comprobaciones=[dict(COMPROBACION, estado="dato privado")]),
+             "comprobacion_0_estado_invalido"),
+            (dict(base, comprobaciones=[dict(COMPROBACION, archivo="dato privado")]),
+             "comprobacion_0_archivo_fuera_del_pr"),
+            (dict(base, hallazgos=[{}]), "hallazgo_0_campos_invalidos"),
+            (dict(base, hallazgos=[dict(HALLAZGO, severidad="dato privado")]),
+             "hallazgo_0_severidad_invalida"),
+            (dict(base, hallazgos=[dict(HALLAZGO, fragmento="dato privado")]),
+             "hallazgo_0_cita_fuera_del_diff"),
+        ]
+        for datos, esperado in casos:
+            with self.subTest(codigo=esperado):
+                diagnostico = []
+                texto = datos if isinstance(datos, str) else json.dumps(datos)
+                self.assertIsNone(mr.interpretar(texto, TestMain.DIFF, True,
+                                                diagnostico=diagnostico))
+                self.assertEqual(diagnostico, [esperado])
+                self.assertNotIn('dato privado', str(diagnostico))
+        diagnostico = []
+        self.assertIsNotNone(mr.interpretar(json.dumps(base), TestMain.DIFF, True,
+                                           diagnostico=diagnostico))
+        self.assertEqual(diagnostico, [])
+
     def test_exige_escenarios_y_rutas_del_diff_sin_aceptar_exito_vacio(self):
         base = {"resumen": "R", "hallazgos": [], "comprobaciones": [COMPROBACION]}
         self.assertIsNotNone(mr.interpretar(json.dumps(base), TestMain.DIFF, True))

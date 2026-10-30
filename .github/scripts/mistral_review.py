@@ -84,6 +84,8 @@ Si no hay defectos, "hallazgos": [].
 
 Incluye también "comprobaciones": una lista de 1 a 6 objetos con
 "archivo", "escenario", "conclusion" y "estado" ("revisado" o "pendiente").
+"archivo" debe ser una ruta exacta de un archivo modificado en el diff del PR;
+no uses archivos que aparezcan únicamente en la guía o el contexto adicional.
 Para cada caso, sigue una entrada concreta por el código y contrasta el
 resultado con el contrato y los tests disponibles. Prioriza entradas límite,
 ramas de error y conservación del comportamiento por defecto. No basta con
@@ -266,46 +268,52 @@ def llamar_mistral(mensajes, modelo, clave, json_mode=True):
 
 
 def interpretar(texto, diff=None, exigir_comprobaciones=False,
-                rutas_comprobaciones=None):
+                rutas_comprobaciones=None, diagnostico=None):
     """Valida esquema y, si se aporta diff, citas; devuelve resultado o None."""
+    def rechazar(codigo):
+        # Solo códigos propios e índices; nunca contenido devuelto por el modelo.
+        if diagnostico is not None:
+            diagnostico.append(codigo)
+        return None
+
     try:
         datos = json.loads(texto)
     except (TypeError, ValueError):
-        return None
+        return rechazar("json_invalido")
     if not isinstance(datos, dict) or not isinstance(datos.get("hallazgos"), list):
-        return None
+        return rechazar("hallazgos_no_lista")
     if not isinstance(datos.get("resumen"), str) or not datos["resumen"].strip():
-        return None
+        return rechazar("resumen_invalido")
     comprobaciones = datos.get("comprobaciones")
     if comprobaciones is not None or exigir_comprobaciones:
         if not isinstance(comprobaciones, list) or not 1 <= len(comprobaciones) <= 6:
-            return None
+            return rechazar("comprobaciones_cantidad_o_tipo")
         rutas = rutas_comprobaciones
         if rutas is None and diff is not None:
             rutas = indice_diff(diff)
-        for c in comprobaciones:
+        for i, c in enumerate(comprobaciones):
             if not isinstance(c, dict) or any(
                     not isinstance(c.get(k), str) or not c[k].strip()
                     for k in ("archivo", "escenario", "conclusion", "estado")):
-                return None
+                return rechazar("comprobacion_%d_campos_invalidos" % i)
             if c["estado"] not in ("revisado", "pendiente"):
-                return None
+                return rechazar("comprobacion_%d_estado_invalido" % i)
             if rutas is not None and c["archivo"] not in rutas:
-                return None
+                return rechazar("comprobacion_%d_archivo_fuera_del_pr" % i)
     # No descartar filas inválidas: convertirlas en [] anunciaría un falso éxito.
     campos = ("severidad", "archivo", "fragmento", "problema", "escenario", "arreglo")
     hallazgos = datos["hallazgos"]
     archivos = indice_diff(diff) if diff is not None else None
-    for h in hallazgos:
+    for i, h in enumerate(hallazgos):
         if not isinstance(h, dict) or any(
                 not isinstance(h.get(c), str) or not h[c].strip() for c in campos):
-            return None
+            return rechazar("hallazgo_%d_campos_invalidos" % i)
         if h["severidad"] not in SEVERIDADES:
-            return None
+            return rechazar("hallazgo_%d_severidad_invalida" % i)
         if archivos is not None:
             lineas = archivos.get(h["archivo"], set())
             if not any(h["fragmento"] in (linea, linea[1:]) for linea in lineas):
-                return None
+                return rechazar("hallazgo_%d_cita_fuera_del_diff" % i)
     return datos["resumen"].strip(), hallazgos
 
 
@@ -403,9 +411,12 @@ def main():
             mensajes, recortado = construir_mensajes(pr.get("title"), pr.get("body"),
                 diff, leer_guia(), obtener_contexto(diff[:MAX_DIFF], pr["head"]["sha"]))
             texto = llamar_mistral(mensajes, modelo, clave)
+            diagnostico = []
             resultado = interpretar(texto, diff[:MAX_DIFF], exigir_comprobaciones=True,
                 rutas_comprobaciones=obtener_rutas_diff(
-                    pr["base"]["sha"], pr["head"]["sha"]))
+                    pr["base"]["sha"], pr["head"]["sha"]), diagnostico=diagnostico)
+            if diagnostico:
+                print("::error::Respuesta de Mistral rechazada: " + ", ".join(diagnostico))
             if resultado is not None:
                 comprobaciones = json.loads(texto)["comprobaciones"]
     except urllib.error.HTTPError as fallo:
