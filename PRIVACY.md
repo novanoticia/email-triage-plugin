@@ -111,6 +111,19 @@ persistentes nuevos ni propuestas en aprendizaje.
 
 [Configuración, límites, costes y contrato verificado el 2026-10-25](plugins/email-triage/skills/email-triage/references/decisions.md).
 
+## OpenRouter Decisions opcional
+
+Desactivado por defecto. Requiere `activo: true`, `acepta_envio_datos: true` y
+`OPENROUTER_API_KEY`. Envía asunto, remitente y extracto sanitizados, perfil
+mínimo y preguntas a OpenRouter y al proveedor que sirva el modelo elegido
+(Microsoft-Decision-1 por defecto). Sanitizar no anonimiza. Cambiar el modelo
+puede cambiar el destinatario y sus condiciones de tratamiento. No se presuponen
+retención cero ni residencia europea. Facturación independiente de OpenRouter.
+Comparación sin movimientos por defecto; híbrido solo explícito y revisado.
+Sin registros persistentes nuevos ni propuestas en aprendizaje.
+
+[Configuración y contrato](plugins/email-triage/skills/email-triage/references/openrouter.md).
+
 ## Changes and contact
 
 Changes to this policy are published in this file and recorded in the

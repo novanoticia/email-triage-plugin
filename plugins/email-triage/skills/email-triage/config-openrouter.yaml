@@ -1,0 +1,12 @@
+# OPCIONAL: copiar a la base de estado personal. Nunca guardar claves aquí.
+# Activar envía asunto, remitente y extracto sanitizados (≤1500 caracteres),
+# perfil mínimo y preguntas a OpenRouter y al proveedor que sirva el modelo.
+# Credencial independiente: OPENROUTER_API_KEY. Facturación de OpenRouter.
+activo: false
+acepta_envio_datos: false
+modo: comparar
+modelo: microsoft/microsoft-decision-1  # cambiar solo este ID por otro modelo de Decisions
+max_llamadas: 5
+timeout_segundos: 15
+confianza_minima: 0.8
+tolerancia_dudas: 0

@@ -16,11 +16,11 @@ compatibility: >
   Claude Code, Claude Cowork y ChatGPT.
 license: Apache-2.0
 metadata:
-  version: "3.22.26"
+  version: "3.23.0"
   author: novanoticia
 ---
 
-# Email Triage v3.22 — Filtrado epistémico por valor diferencial
+# Email Triage v3.23 — Filtrado epistémico por valor diferencial
 
 ## Qué hace este skill
 
@@ -137,6 +137,8 @@ a TypeSafe y clave propia. Simulación solicitada siempre prevalece.
 cualquier fase: mismos modos y frenos que Jev, con `OPENAI_API_KEY` propia y
 consentimiento de envío a OpenAI. Nunca combines Decisions, Jev y el evaluador
 nativo en la misma sesión; con varias capas activas, pregunta cuál usar.
+Si se pide OpenRouter o está activo `config-openrouter.yaml`, lee
+`references/openrouter.md` antes de cualquier fase; no combinar evaluadores.
 <!-- i18n:fin -->
 
 Lee la configuración antes de cualquier fase. Contiene perfil, carpetas y pesos.
