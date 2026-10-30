@@ -1,0 +1,13 @@
+# OPCIONAL: copiar a la base de estado personal; nunca guardar claves aquí.
+# Envía asunto, remitente y extracto sanitizados, perfil mínimo y preguntas
+# al proveedor elegido. Sanitizar no anonimiza. Facturación API independiente.
+# OPENAI_API_KEY / MISTRAL_API_KEY / GEMINI_API_KEY, solo en el entorno.
+activo: false
+acepta_envio_datos: false
+modo: comparar  # hibrido: veredictos revisados en el flujo real, sin permisos nuevos
+proveedor: openai  # openai, mistral o gemini; solo uno por sesión
+modelo: ""  # vacío = modelo verificado por defecto del adaptador
+max_llamadas: 5
+timeout_segundos: 30
+# Solo 0: dudas es texto libre, nunca se interpreta como ids de criterios.
+tolerancia_dudas: 0
