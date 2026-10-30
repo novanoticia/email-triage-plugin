@@ -180,6 +180,9 @@ No propongas trabajo en estas líneas salvo petición expresa del mantenedor:
 - Excepción autorizada el 2026-10-25 (v3.22.0): OpenAI Decisions, con las
   mismas garantías, modos y límites que Jev, sobre el núcleo común
   `clasificadores.py`. Tampoco autoriza movimientos directos.
+- Excepción autorizada el 2026-10-30: OpenRouter Decisions como tercera opción
+  externa, con Microsoft-Decision-1 por defecto y modelo configurable; mismos
+  modos y garantías que Jev y OpenAI Decisions, sin movimientos directos.
 - Cambios de licencia, distribución o marketplace.
 - Rediseños de la interfaz de revisión que no respondan a P1 o P2.
 
@@ -217,6 +220,7 @@ la que más informa a P2 y al resto de P3.
 
 | Fecha | Hito | Versión |
 |---|---|---|
+| 2026-10-30 | OpenRouter Decisions implementado, opt-in; pruebas simuladas, pendiente de validación real | 3.23.0 |
 | — | Redacción inicial de este ROADMAP | 3.17.x |
 | 2026-10-16 | P3, paso 2 cerrado: decisión del mantenedor tras la auditoría; implementación pendiente | 3.18.0 |
 | 2026-10-16 | Coherencia documental F.1–F.8 (#60) | 3.18.1 |
