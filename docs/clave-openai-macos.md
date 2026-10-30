@@ -1,12 +1,14 @@
-# Guardar las claves de API en el Mac (capas Decisions y Jev)
+# Guardar las claves de API en el Mac (Decisions, Jev y OpenRouter)
 
-Esta guía solo hace falta si quieres activar una de las dos capas opcionales que
+Esta guía solo hace falta si quieres activar una de las tres capas opcionales que
 envían extractos a otro proveedor:
 
 | Capa | Proveedor | Variable de entorno | Dónde se crea la clave | Guía de la capa |
 |---|---|---|---|---|
 | **Decisions** | OpenAI | `OPENAI_API_KEY` | <https://platform.openai.com> → **API keys** | [`references/decisions.md`](../plugins/email-triage/skills/email-triage/references/decisions.md) |
 | **Jev** | TypeSafe AI | `TYPESAFE_API_KEY` | <https://console.typesafe.ai> | [`references/jev.md`](../plugins/email-triage/skills/email-triage/references/jev.md) |
+
+| **OpenRouter Decisions** | OpenRouter y el proveedor del modelo | `OPENROUTER_API_KEY` | <https://openrouter.ai/settings/keys> | [`references/openrouter.md`](../plugins/email-triage/skills/email-triage/references/openrouter.md) |
 
 Son claves **distintas y no intercambiables**: cada capa lee solo la suya. El
 plugin las lee de la variable de entorno y nunca de un archivo. En macOS lo más
@@ -26,6 +28,10 @@ los comandos de esa clave.
   da acceso a la API.
 - **TypeSafe (Jev):** en <https://console.typesafe.ai>. La facturación es aparte,
   en TypeSafe.
+- **OpenRouter:** crea una clave en <https://openrouter.ai/settings/keys>. La
+  facturación y el saldo se gestionan en OpenRouter, independientemente de
+  OpenAI y TypeSafe. La misma clave sirve al cambiar entre modelos compatibles
+  con su API Decisions, incluido `microsoft/microsoft-decision-1`.
 
 ## 2. Guárdala en el Llavero
 
@@ -38,8 +44,8 @@ siempre. Una clave guardada a medias hace que el proveedor responda que no es v�
 **Una clave cada vez, y en este orden.** El portapapeles solo guarda una cosa, y la
 orden `security` guarda lo que haya en él **en el momento de pulsar Enter**. Copiar el
 comando desde esta guía también usa el portapapeles: si lo ejecutas sin más, se
-guardaría el texto del comando en vez de la clave. Y si ejecutas las órdenes de las
-dos claves seguidas, ambas quedan con la misma clave (las dos cosas pasaron en
+guardaría el texto del comando en vez de la clave. Y si ejecutas las órdenes de varias
+claves seguidas, todas quedan con la misma clave (las dos cosas pasaron en
 pruebas reales). Por eso, para cada clave:
 
 1. **Copia la línea de comando** de abajo (es una sola línea) y **pégala en
@@ -62,6 +68,12 @@ console.typesafe.ai:
 pbpaste | wc -c; security add-generic-password -U -a "$USER" -s TYPESAFE_API_KEY -w "$(pbpaste)"; pbcopy < /dev/null
 ```
 
+**OpenRouter**, siguiendo también los tres pasos anteriores con su propia clave:
+
+```bash
+pbpaste | wc -c; security add-generic-password -U -a "$USER" -s OPENROUTER_API_KEY -w "$(pbpaste)"; pbcopy < /dev/null
+```
+
 `-U` sustituye la clave anterior si ya había una con ese nombre; lo último
 (`pbcopy < /dev/null`) vacía el portapapeles.
 
@@ -80,6 +92,8 @@ ejecutas añade la misma línea al final de `~/.zshrc`.
 echo 'export OPENAI_API_KEY="$(security find-generic-password -a "$USER" -s OPENAI_API_KEY -w 2>/dev/null)"' >> ~/.zshrc
 # TypeSafe (Jev)
 echo 'export TYPESAFE_API_KEY="$(security find-generic-password -a "$USER" -s TYPESAFE_API_KEY -w 2>/dev/null)"' >> ~/.zshrc
+# OpenRouter
+echo 'export OPENROUTER_API_KEY="$(security find-generic-password -a "$USER" -s OPENROUTER_API_KEY -w 2>/dev/null)"' >> ~/.zshrc
 ```
 
 Después cierra Terminal y ábrelo de nuevo (o ejecuta `source ~/.zshrc`).
@@ -92,6 +106,7 @@ pulsa **Permitir siempre** para que no vuelva a preguntar.
 ```bash
 echo "OpenAI:   ${#OPENAI_API_KEY} caracteres"
 echo "TypeSafe: ${#TYPESAFE_API_KEY} caracteres"
+echo "OpenRouter: ${#OPENROUTER_API_KEY} caracteres"
 ```
 
 Cada número debe coincidir con el que apuntaste en el paso 2 (un `0` es que esa
@@ -103,9 +118,10 @@ clave no está cargada). Si usas las dos, comprueba además que no son la misma:
  Si cambias una clave con Terminal abierto, ejecuta antes
 `source ~/.zshrc`: la variable solo se lee al abrir Terminal.
 
-Comprueba además que cada proveedor acepta su clave. Las dos consultas solo piden
-la lista de modelos de tu cuenta: no envían texto, así que no consumen tokens de
-entrada, que es lo que cobran ambos.
+Comprueba además que cada proveedor acepta su clave. OpenAI y TypeSafe consultan
+modelos; OpenRouter consulta la información de la clave autenticada (su catálogo
+de modelos es público y no sirve para validar una clave). Ninguna consulta envía
+correos ni solicita inferencia.
 
 ```bash
 # OpenAI (Decisions)
@@ -114,11 +130,17 @@ curl -s -o /dev/null -w "%{http_code}\n" https://api.openai.com/v1/models -H "Au
 curl -s -o /dev/null -w "%{http_code}\n" https://api.typesafe.ai/v1/models -H "Authorization: Bearer $TYPESAFE_API_KEY"
 ```
 
+Para **OpenRouter**, comprueba la clave sin mostrar su información:
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" https://openrouter.ai/api/v1/key -H "Authorization: Bearer $OPENROUTER_API_KEY"
+```
+
 Cada una debe responder **`200`**. Un **`401`** significa clave ausente o no válida
 (lo documenta [TypeSafe](https://docs.typesafe.ai/api/errors.md); en OpenAI se
 comprobó en una prueba real, con `invalid_api_key`). Si sale `401` con una
 longitud de 128 exactos, la clave se guardó recortada: repite el paso 2. Con la
-clave correcta pero mal cargada, `jev.py` o `decisions.py` responden
+clave correcta pero mal cargada, `jev.py`, `decisions.py` o `openrouter.py` responden
 `credencial_ausente_o_invalida`; con una clave que el proveedor rechaza, `http_401`.
 En ambos casos el triaje sigue con el principal.
 
@@ -127,12 +149,12 @@ En ambos casos el triaje sigue con el principal.
 - **Abre Claude Code desde ese Terminal** (escribiendo `claude`) para que herede las
   variables. Si lo abres desde el Dock o como app de escritorio, puede que no las
   vea. No está comprobado cómo pasan el entorno la app de escritorio ni Cowork: si
-  `decisions.py` o `jev.py` responden `credencial_ausente_o_invalida`, lo más
+  `decisions.py`, `jev.py` o `openrouter.py` responden `credencial_ausente_o_invalida`, lo más
   probable es que la causa sea esa.
 - **Nunca pegues una clave** en el chat, en `config-decisions.yaml`,
-  `config-jev.yaml` ni en ningún archivo del repositorio. El plugin no la necesita
+  `config-jev.yaml`, `config-openrouter.yaml` ni en ningún archivo del repositorio. El plugin no la necesita
   en ningún otro sitio.
-- **No combines las capas en una sesión:** Decisions, Jev y la delegación nativa son
+- **No combines las capas en una sesión:** Decisions, Jev, OpenRouter y la delegación nativa son
   alternativas. Si tienes varias activas, el modelo te preguntará cuál usar.
 - **Pon un límite de gasto** en la web del proveedor si lo ofrece (en OpenAI:
   platform.openai.com → **Limits**). Es la protección más sencilla si algo sale mal.
@@ -141,6 +163,7 @@ En ambos casos el triaje sigue con el principal.
   ```bash
   security delete-generic-password -a "$USER" -s OPENAI_API_KEY      # OpenAI
   security delete-generic-password -a "$USER" -s TYPESAFE_API_KEY    # TypeSafe
+  security delete-generic-password -a "$USER" -s OPENROUTER_API_KEY  # OpenRouter
   ```
 
   y quita su línea del final de `~/.zshrc` (por ejemplo con `open -e ~/.zshrc`,
@@ -149,14 +172,20 @@ En ambos casos el triaje sigue con el principal.
 ## Siguiente paso
 
 Con la clave cargada, copia la plantilla de la capa a `~/.email-triage/`
-(`config-decisions.yaml` o `config-jev.yaml`), pon `activo: true` y
+(`config-decisions.yaml`, `config-jev.yaml` o `config-openrouter.yaml`), pon `activo: true` y
 `acepta_envio_datos: true`, deja `modo: comparar` y empieza con correos ficticios,
 sin movimientos: «compara Decisions con el principal usando correos ficticios» o
 «compara Jev con el principal usando correos ficticios». El detalle está en la guía
 de cada capa (tabla de arriba).
 
+Para OpenRouter, empieza con «compara OpenRouter con el principal usando correos
+ficticios, sin movimientos». El modelo inicial es
+`modelo: microsoft/microsoft-decision-1`; cambia solo ese campo para usar otro ID
+compatible con Decisions. Activarlo autoriza enviar los extractos a OpenRouter
+y al proveedor que sirva ese modelo.
+
 ---
 
 *Guía elaborada con asistencia de IA; requiere revisión humana antes de darla por
-definitiva. Los menús de platform.openai.com y console.typesafe.ai pueden cambiar
+definitiva. Los menús de platform.openai.com, console.typesafe.ai y openrouter.ai pueden cambiar
 de nombre.*

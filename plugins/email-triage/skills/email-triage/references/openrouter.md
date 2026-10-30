@@ -20,6 +20,9 @@ residencia europea ni las mismas condiciones de privacidad para distintos modelo
 La clave se crea en <https://openrouter.ai/settings/keys> y se inyecta como
 `OPENROUTER_API_KEY` mediante el gestor de secretos del cliente. No pedirla en
 el chat, guardarla en YAML/git, pasarla por argumentos ni imprimir el entorno.
+Guía de Llavero y Terminal en macOS:
+<https://github.com/novanoticia/email-triage-plugin/blob/main/docs/clave-openai-macos.md>
+(no viaja con el plugin instalado: proporcionar la URL).
 Las claves de OpenAI y TypeSafe no la sustituyen. Requiere Python con PyYAML y
 HTTPS a `openrouter.ai`.
 
