@@ -99,6 +99,13 @@ Desactivados por defecto; las capas anteriores mantienen su comportamiento.
 [Configuración, fallos y prueba ficticia](plugins/email-triage/skills/email-triage/references/evaluadores.md).
 Pruebas con transporte simulado; pendiente de validación real con cada proveedor.
 
+## Novedades en v3.23.1
+
+- OpenRouter añade categorías de ayuda para errores sin exponer mensajes HTTP,
+  documenta la validación de confianza al cambiar de modelo y amplía las pruebas
+  de configuración, autenticación, saldo, timeout y respuestas incompatibles.
+  Conserva los códigos originales y los umbrales existentes.
+
 ## Novedades en v3.23.0
 
 - **OpenRouter como tercera opción de decisión**, junto a Jev y OpenAI Decisions.
