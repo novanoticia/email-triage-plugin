@@ -75,12 +75,45 @@ PROVEEDOR = nc.Proveedor(
     transporte=lambda body, key, timeout: solicitar(body, key, timeout))
 
 
+def _diagnosticar(salida):
+    """Añade códigos de ayuda seguros; el orquestador los explica en su idioma.
+
+    Conserva `motivo`. Nunca lee mensajes/cuerpos HTTP ni deduce la causa de
+    un 400/404, que pueden tener varios significados.
+    """
+    categorias = {
+        "credencial_ausente_o_invalida": "credencial_local",
+        "http_401": "autenticacion", "http_402": "saldo_o_credito",
+        "http_403": "acceso_denegado",
+        "http_400": "peticion_o_modelo", "http_404": "recurso_o_modelo",
+        "http_422": "peticion_o_capacidades", "http_429": "limite_solicitudes",
+        "fallo_red_o_timeout": "conexion_o_timeout",
+        "modelo_no_verificado": "identificador_modelo_invalido",
+        "modelo_inesperado": "modelo_distinto",
+        "proveedor_detenido": "llamadas_suspendidas",
+    }
+    invalidas = {"cobertura_openrouter", "tipo_respuesta", "probabilidades_invalidas",
+                 "opcion_no_maxima", "opcion_openrouter_invalida", "confianza_invalida",
+                 "usage_invalido", "respuesta_json_invalida", "respuesta_excesiva",
+                 "respuesta_http_inesperada", "redireccion_rechazada"}
+    for fila in [salida] + salida.get("resultados", []):
+        motivo = fila.get("motivo", "")
+        categoria = categorias.get(motivo)
+        if motivo in invalidas:
+            categoria = "respuesta_invalida_o_incompatible"
+        if re.fullmatch(r"http_5[0-9]{2}", motivo):
+            categoria = "fallo_servicio"
+        if categoria:
+            fila["diagnostico_error"] = categoria
+    return salida
+
+
 def comparar(p, cfg, capa, transporte=None):
-    return nc.procesar(p, cfg, capa, transporte, "comparar", PROVEEDOR)
+    return _diagnosticar(nc.procesar(p, cfg, capa, transporte, "comparar", PROVEEDOR))
 
 
 def evaluar(p, cfg, capa, transporte=None):
-    return nc.procesar(p, cfg, capa, transporte, "hibrido", PROVEEDOR)
+    return _diagnosticar(nc.procesar(p, cfg, capa, transporte, "hibrido", PROVEEDOR))
 
 
 def _yaml(ruta, opcional=False):
