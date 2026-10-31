@@ -77,7 +77,9 @@ mantenedor. El token tiene `contents: read` y `pull-requests: write`.
   para no invocar otros bots.
 - El nuevo comentario enlaza cada fuente y distingue **de acuerdo**, **no se
   sostiene con el contexto disponible**, **ya corregido** o **pendiente**.
-  Los dictámenes concluyentes deben citar líneas del código enviado. Declarar
+  Los dictámenes concluyentes deben citar líneas completas del código enviado;
+  como en la revisión, no cuentan la sangría ni los espacios de los extremos,
+  y el resto debe coincidir carácter a carácter. Declarar
   «ya corregido» requiere citas del original y de la cabeza; si falta alguno,
   corresponde dejarlo pendiente. Las citas no garantizan la verdad del juicio.
 - Se conserva el comentario anterior. Las marcas identifican fuente y SHA
@@ -86,6 +88,10 @@ mantenedor. El token tiene `contents: read` y `pull-requests: write`.
   La deduplicación es de mejor esfuerzo cuando coinciden activaciones manuales
   y automáticas. Si falla la API o la validación de la respuesta, se publica
   un aviso enlazado a las fuentes, sin dictamen ni marca que impida reintentarlo.
+  Si lo que falla es la validación, el aviso incluye el diagnóstico: códigos
+  propios con el índice de la respuesta y de la cita, y la causa de cada cita
+  rechazada (`parcial`, `sin_coincidencia`, `archivo_sin_cambios`…), sin
+  texto devuelto por el modelo.
 - Solo se procesan automáticamente PR abiertos del propio repositorio. Como
   límite de coste, se omiten revisiones con más de seis fuentes y se explica
   en Actions; pueden contrastarse sus hallazgos individualmente de forma manual.
