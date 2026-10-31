@@ -143,8 +143,13 @@ conserva `requiere_simulacion: true`: no ejecutar movimientos de ese lote. El pr
 resuelve los pendientes y sigue el proceso habitual de revisión/autorización.
 Solo un lote híbrido sin ninguna fila pendiente del principal puede devolver
 `requiere_simulacion: false`; esto tampoco concede permisos. Un modo o config ilegible nunca permite
-salir de simulación. El comportamiento híbrido previo de Jev, Decisions y
-OpenRouter no se modifica.
+salir de simulación. Jev, Decisions y OpenRouter no siguen esta regla a
+propósito (decisión del mantenedor, 2026-10-31): su contrato híbrido
+(`references/jev.md`, pasos 4-7) deja que el principal complete las filas
+pendientes y el lote continúe, mientras que aquí, con evidencias narrativas de
+un modelo generalista, una fila pendiente basta para dejar todo el lote en
+simulación. Los demás frenos (plantilla, fallo a mitad de lote, `__no_aplica__`)
+sí son comunes desde v3.24.3.
 
 ## Validación y fallos
 
