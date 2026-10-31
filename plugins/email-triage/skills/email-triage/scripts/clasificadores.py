@@ -685,6 +685,13 @@ def procesar(p, cfg, capa, transporte, modo, prov):
                 propuesta = _scoring(e["id"], e["control"], v["verdicts"], cfg)
                 r.update(propuesta=propuesta, no_aplica=v["no_aplica"], motivo="solo_comparacion")
                 if modo == "hibrido":
+                    # Un `__no_aplica__` deja el criterio sin veredicto: el scoring
+                    # no lo cubre y no es una propuesta validada (mismo freno que
+                    # evaluadores.py, PR #149). La exclusión queda en `no_aplica`
+                    # para que la resuelva el principal.
+                    if propuesta.get("criterios_sin_evaluar"):
+                        del r["propuesta"]
+                        _exigir(False, "scoring_incompleto")
                     # Mismas precauciones que la delegación nativa. Sin evidencia
                     # narrativa del proveedor: la revisión contra el extracto es obligatoria.
                     umbrales = cfg.get("tiers", {})

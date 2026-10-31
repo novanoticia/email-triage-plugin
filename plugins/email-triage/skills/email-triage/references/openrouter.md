@@ -104,6 +104,8 @@ fuerza simulación durante toda la sesión, incluidos fallos. Acepta
 `--config-veloz` y `--config-ensayo` en los mismos casos que Jev.
 `evaluar` exige `modo: hibrido` elegido explícitamente: integrar solo veredictos
 validados, con revisión obligatoria, `payload_scoring` en 4.D y PASO 5 habitual.
+Un `__no_aplica__` deja la fila en `scoring_incompleto`, sin propuesta (punto 12
+de `references/jev.md`, v3.24.1).
 El adaptador nunca mueve ni concede permisos. Una simulación solicitada prevalece.
 Config ilegible o inválido: detener delegación y conservar simulación.
 

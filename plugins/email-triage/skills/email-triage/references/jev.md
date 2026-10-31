@@ -145,6 +145,14 @@ existente: para adoptar el alias cambia su campo a `modelo: jev-latest` o elimí
    sigue dejando la fila fuera, un core `__incierto__` sigue frenando y en
    `hibrido` no cambia nada. La lista vive en `CORE_NO_APLICA_EN_COMPARAR`
    (`scripts/clasificadores.py`).
+12. `__no_aplica__` en `hibrido` (v3.24.1). Un criterio no core que Jev
+   declara «no aplica» queda sin veredicto y el scoring lo marca en
+   `criterios_sin_evaluar`. Antes la fila salía con `payload_scoring` y
+   contaba como propuesta validada con el scoring incompleto; ahora sale
+   `scoring_incompleto`, con `usar_principal: true`, sin `propuesta` ni
+   `payload_scoring`, y conserva `no_aplica` para que lo resuelva el
+   principal (mismo freno que los evaluadores LLM). En `comparar` no cambia:
+   la propuesta sigue siendo informativa con sus `criterios_sin_evaluar`.
 
 ## Triaje real: modo híbrido explícito
 
