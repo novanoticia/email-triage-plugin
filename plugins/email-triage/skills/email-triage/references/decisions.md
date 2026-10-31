@@ -85,6 +85,9 @@ la capa:
 11. Mismo core que admite `__no_aplica__` en `comparar` (punto 11 de
    `references/jev.md`, v3.22.26): `razonamiento_dirigido`; en `hibrido` no
    cambia nada.
+12. Mismo freno ante `__no_aplica__` en `hibrido` (punto 12 de
+   `references/jev.md`, v3.24.1): `scoring_incompleto`, sin propuesta ni
+   `payload_scoring`, conservando `no_aplica` para el principal.
 
 ## Triaje real: modo híbrido explícito
 

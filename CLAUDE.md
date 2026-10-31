@@ -451,7 +451,10 @@ son informativas, no autorizan nada y no existen en `hibrido`. Desde v3.22.26,
 solo en `comparar`, los core de `CORE_NO_APLICA_EN_COMPARAR`
 (`razonamiento_dirigido`) admiten `__no_aplica__` en ambos lados (prueba real: 12
 de 13 filas no comparables venían de ese criterio); otro core en `no_aplica`
-sigue dejando la fila fuera. No combinar proveedores en una sesión. Comparar implica simulación
+sigue dejando la fila fuera. Desde v3.24.1, en `hibrido`, una propuesta con
+`criterios_sin_evaluar` (un `__no_aplica__` del proveedor) sale
+`scoring_incompleto`, sin propuesta ni `payload_scoring`: antes contaba como
+validada. No combinar proveedores en una sesión. Comparar implica simulación
 y no alimenta aprendizaje con desacuerdos entre modelos. Los controles de scoring
 vienen del principal, nunca de la respuesta delegada. Las pruebas sintéticas
 validan mecanismos, no la calidad de los modelos ni compatibilidad real del host.

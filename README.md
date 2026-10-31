@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.24.0
+# Email Triage Plugin v3.24.1
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,15 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.24.1
+
+Jev, Decisions y OpenRouter en `hibrido`: un `__no_aplica__` del proveedor en un
+criterio no core dejaba el scoring incompleto y aun así la fila contaba como
+propuesta validada con `payload_scoring`. Ahora sale `scoring_incompleto`, vuelve
+al principal y conserva la exclusión, como ya hacían los evaluadores LLM. El modo
+`comparar` no cambia. Los avisos del contraste de Mistral a otras IAs indican
+ahora por qué se rechazó la respuesta, y las citas sin sangría cuentan.
 
 ## Novedades en v3.24.0
 
