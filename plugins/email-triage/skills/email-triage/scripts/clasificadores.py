@@ -701,9 +701,7 @@ def procesar(p, cfg, capa, transporte, modo, prov):
                     # no lo cubre y no es una propuesta validada (mismo freno que
                     # evaluadores.py, PR #149). La exclusión queda en `no_aplica`
                     # para que la resuelva el principal.
-                    if propuesta.get("criterios_sin_evaluar"):
-                        del r["propuesta"]
-                        _exigir(False, "scoring_incompleto")
+                    _exigir(not propuesta.get("criterios_sin_evaluar"), "scoring_incompleto")
                     # Mismas precauciones que la delegación nativa. Sin evidencia
                     # narrativa del proveedor: la revisión contra el extracto es obligatoria.
                     umbrales = cfg.get("tiers", {})
@@ -721,6 +719,10 @@ def procesar(p, cfg, capa, transporte, modo, prov):
                     bases.append(base)
                 propuestas.append(propuesta)
             except ErrorClasificador as exc:
+                # Una fila frenada no lleva propuesta aunque ya se hubiera
+                # calculado (umbrales, scoring incompleto): como evaluadores.py.
+                r.pop("propuesta", None)
+                r.pop("payload_scoring", None)
                 r["motivo"] = str(exc)
                 if exc.detalle is not None:
                     r["motivo_detalle"] = exc.detalle
@@ -741,16 +743,29 @@ def procesar(p, cfg, capa, transporte, modo, prov):
             salida["comparacion_sin_freno"] = _comparar_sin_freno(bases_sf, propuestas_sf)
         else:
             modelos._frenar_plantillas(salida)
+            # Una plantilla vuelve al principal sin propuesta ni payload: no
+            # cuenta como validada (v3.24.3, igual que evaluadores.py).
+            for r in salida["resultados"]:
+                if r.get("motivo") == "plantilla":
+                    r.pop("propuesta", None)
+                    r.pop("payload_scoring", None)
             salida["usar_principal"] = any(r["usar_principal"] for r in salida["resultados"])
-        salida["sin_propuesta"] = len(filas) - len(propuestas)
+        aceptadas = sum("propuesta" in r for r in salida["resultados"])
+        salida["sin_propuesta"] = len(filas) - aceptadas
         salida["cobertura"] = {"correos_total": len(filas)}
         if modo == "comparar":
-            salida["cobertura"]["propuestas_comparadas"] = len(propuestas)
+            salida["cobertura"]["propuestas_comparadas"] = aceptadas
         else:
-            salida["cobertura"].update(propuestas_validadas=len(propuestas),
+            salida["cobertura"].update(propuestas_validadas=aceptadas,
                 pendientes_principal=sum(r["usar_principal"] for r in salida["resultados"]))
         return salida
     except (ErrorClasificador, ValueError, TypeError, KeyError, AttributeError, OverflowError) as exc:
+        # Un fallo a mitad de lote no deja propuestas de las filas ya
+        # procesadas (v3.24.3, igual que evaluadores.py).
+        for r in salida["resultados"]:
+            r.pop("propuesta", None)
+            r.pop("payload_scoring", None)
+            r["usar_principal"] = True
         # Nunca devolver str de excepciones ajenas: puede contener datos privados.
-        return dict(salida, ok=False,
+        return dict(salida, ok=False, usar_principal=True, requiere_simulacion=True,
                     motivo=str(exc) if isinstance(exc, ErrorClasificador) else "entrada_invalida")
