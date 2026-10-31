@@ -167,7 +167,12 @@ class TestEvaluadores(unittest.TestCase):
             body, clave, timeout = t.call_args.args
             enviado = (body['generationConfig']['responseFormat']['text']['schema'] if nombre == 'gemini'
                        else body['response_format']['json_schema']['schema'])
-            self.assertEqual(enviado, esquema.generar(self.cfg))
+            self.assertEqual(enviado, ev.esquema_evaluador(self.cfg))
+            # Igual al esquema común salvo la descripción de `dudas` (v3.24.5).
+            sin = copy.deepcopy(enviado)
+            dudas = sin['properties']['evaluaciones']['items']['properties']['dudas']
+            self.assertEqual(dudas.pop('description'), ev.DESCRIPCION_DUDAS)
+            self.assertEqual(sin, esquema.generar(self.cfg))
             for prohibido in ('control', 'huella', 'hard_rules', 'carpetas', 'cuerpo', CLAVE):
                 self.assertNotIn(prohibido, json.dumps(body))
             self.assertEqual(clave, CLAVE)
@@ -432,6 +437,18 @@ class TestEvaluadores(unittest.TestCase):
         self.assertNotIn(e['estado']['texto'], ms[0]['content'])
         self.assertEqual(ms[1]['content'].count('</email-body-data>'), 1)
         self.assertEqual(json.loads(ms[1]['content'].split('\n')[1])['texto'], e['estado']['texto'])
+
+    def test_instruccion_de_dudas_y_no_aplica(self):
+        # v3.24.5 (medición real con Gemini): dudas solo si impiden elegir;
+        # sin nada que citar, `__no_aplica__` en vez de evidencia vacía.
+        texto = ev.sistema(self.cfg, 'Perfil ficticio')
+        self.assertIn(ev.INSTRUCCION_DUDAS, texto)
+        self.assertNotIn('Si falta información, anótalo en dudas', texto)
+        self.assertIn('__no_aplica__', ev.INSTRUCCION_DUDAS)
+        # La tolerancia no cambia: cualquier duda sigue bloqueando.
+        r, _ = self.ejecutar('gemini', 'hibrido', lambda d: d['evaluaciones'][0].update(
+            dudas=['Una duda cualquiera.']))
+        self.assertEqual(r['resultados'][0]['motivo'], 'evaluador_con_dudas')
 
     def test_instruccion_sin_incierto_y_sistema_una_vez_por_lote(self):
         # La frase de `__incierto__` se sustituye en origen, no con un replace
