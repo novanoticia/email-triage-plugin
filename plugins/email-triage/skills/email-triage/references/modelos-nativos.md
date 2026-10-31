@@ -315,6 +315,9 @@ de producción (comparar duplica evaluación y puede costar más).
 
 ## Esquema JSON portable (opcional)
 
+`references/evaluadores.md` documenta el primer consumidor externo del esquema:
+evaluadores LLM opt-in con comparación e híbrido revisado, separados de esta delegación.
+
 `scripts/esquema.py` genera, desde los criterios activos de la configuración
 efectiva (misma fusión que `validar`), un JSON Schema de la respuesta del
 especialista. Usa solo el subconjunto común a los Structured Outputs de

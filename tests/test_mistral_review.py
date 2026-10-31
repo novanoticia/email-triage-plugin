@@ -331,6 +331,120 @@ class TestSinClave(unittest.TestCase):
 
 
 class TestComprobaciones(unittest.TestCase):
+    def test_diagnostico_distingue_rechazos_sin_exponer_contenido(self):
+        base = {"resumen": "R", "hallazgos": [], "comprobaciones": [COMPROBACION]}
+        casos = [
+            ("dato privado", "json_invalido"),
+            (dict(base, hallazgos=None), "hallazgos_no_lista"),
+            (dict(base, resumen=""), "resumen_invalido"),
+            (dict(base, comprobaciones=[]), "comprobaciones_cantidad_o_tipo"),
+            (dict(base, comprobaciones=[{}]), "comprobacion_0_campos_invalidos"),
+            (dict(base, comprobaciones=[dict(COMPROBACION, estado="dato privado")]),
+             "comprobacion_0_estado_invalido"),
+            (dict(base, comprobaciones=[dict(COMPROBACION, archivo="dato privado")]),
+             "comprobacion_0_archivo_fuera_del_pr"),
+            (dict(base, hallazgos=[{}]), "hallazgo_0_campos_invalidos"),
+            (dict(base, hallazgos=[dict(HALLAZGO, severidad="dato privado")]),
+             "hallazgo_0_severidad_invalida"),
+            (dict(base, hallazgos=[dict(HALLAZGO, fragmento="dato privado")]),
+             "hallazgo_0_cita_fuera_del_diff(sin_coincidencia)"),
+        ]
+        for datos, esperado in casos:
+            with self.subTest(codigo=esperado):
+                diagnostico = []
+                texto = datos if isinstance(datos, str) else json.dumps(datos)
+                self.assertIsNone(mr.interpretar(texto, TestMain.DIFF, True,
+                                                diagnostico=diagnostico))
+                self.assertEqual(diagnostico, [esperado])
+                self.assertNotIn('dato privado', str(diagnostico))
+        diagnostico = []
+        self.assertIsNotNone(mr.interpretar(json.dumps(base), TestMain.DIFF, True,
+                                           diagnostico=diagnostico))
+        self.assertEqual(diagnostico, [])
+
+    def test_causa_de_cita_rechazada_sin_contenido_ni_relajar_la_aceptacion(self):
+        base = {"resumen": "R", "comprobaciones": [COMPROBACION]}
+        casos = (("x = `", "a.py", "parcial"),
+                 ("x = `1`\ny = 2", "a.py", "multilinea"),
+                 ("x = `1`", "otro.py", "archivo_sin_cambios"),
+                 ("dato privado", "a.py", "sin_coincidencia"))
+        for fragmento, archivo, causa in casos:
+            with self.subTest(causa=causa):
+                h = dict(HALLAZGO, fragmento=fragmento, archivo=archivo)
+                diagnostico, sin_verificar = [], []
+                self.assertIsNone(mr.interpretar(json.dumps(dict(base, hallazgos=[h])),
+                    TestMain.DIFF, True, diagnostico=diagnostico, sin_verificar=sin_verificar))
+                self.assertEqual(diagnostico, ["hallazgo_0_cita_fuera_del_diff(%s)" % causa])
+                self.assertNotIn("privado", str(diagnostico))
+                self.assertEqual(sin_verificar, [(h, causa)])
+
+    def test_cita_con_otra_sangria_cuenta_pero_no_el_texto_distinto(self):
+        base = {"resumen": "R", "comprobaciones": [COMPROBACION]}
+        for fragmento, valida in (("    x = `1`  ", True), ("x = `1`", True),
+                                  ("+x = `1`", True), ("+   x = `1`", True),
+                                  ("x  = `1`", False), ("x = `1`;", False),
+                                  ("   ", False)):
+            with self.subTest(fragmento=fragmento):
+                texto = json.dumps(dict(base, hallazgos=[dict(HALLAZGO, fragmento=fragmento)]))
+                r = mr.interpretar(texto, TestMain.DIFF, True)
+                self.assertEqual(r is not None, valida)
+
+    def test_cita_sin_letras_ni_numeros_no_prueba_nada(self):
+        diff = TestMain.DIFF + "@@ -3 +3 @@\n+    }\n+\n"
+        for fragmento in ("}", "+}", "+", " ) "):
+            with self.subTest(fragmento=fragmento):
+                diagnostico, sin_verificar = [], []
+                texto = json.dumps({"resumen": "R", "comprobaciones": [COMPROBACION],
+                                    "hallazgos": [dict(HALLAZGO, fragmento=fragmento)]})
+                self.assertIsNone(mr.interpretar(texto, diff, True, diagnostico=diagnostico,
+                                                 sin_verificar=sin_verificar))
+                self.assertEqual(diagnostico, ["hallazgo_0_cita_fuera_del_diff(sin_contenido)"])
+
+    def test_hallazgos_no_aceptados_se_publican_inertes(self):
+        malo = dict(HALLAZGO, archivo="x` @octocat [clic](https://evil.invalid) <img src=x> `",
+                    fragmento="no existe", problema="ver @octocat ![p](https://evil.invalid/p.png)",
+                    escenario="<details>", arreglo="[aquí](https://evil.invalid)")
+        texto = json.dumps({"resumen": "R", "hallazgos": [malo], "comprobaciones": [COMPROBACION]})
+        _, cuerpo = TestMain().ejecutar(texto)
+        seccion = cuerpo.split("sin aceptar", 1)[1]
+        self.assertIn("hallazgo_0", seccion)
+        for linea in seccion.splitlines():
+            for peligroso in ("@octocat", "](https", "<img", "<details>"):
+                if peligroso in linea:
+                    # Solo dentro de un span de código, que GitHub no interpreta.
+                    trozos = linea.split("`")
+                    self.assertTrue(all(peligroso not in t for t in trozos[0::2]), linea)
+
+    def test_cita_mala_no_borra_las_demas_ni_aprueba_el_check(self):
+        malo = dict(HALLAZGO, fragmento="línea que no existe", problema="Defecto B")
+        texto = json.dumps({"resumen": "R", "hallazgos": [HALLAZGO, malo],
+                            "comprobaciones": [COMPROBACION]})
+        sin_verificar = []
+        self.assertIsNone(mr.interpretar(texto, TestMain.DIFF, True,
+                                         sin_verificar=sin_verificar))
+        self.assertEqual([c for _, c in sin_verificar], [None, "sin_coincidencia"])
+        codigo, cuerpo = TestMain().ejecutar(texto)
+        self.assertEqual(codigo, 1)
+        self.assertIn("Revisión no válida", cuerpo)
+        self.assertIn("Hallazgos devueltos sin aceptar (2)", cuerpo)
+        self.assertIn("El ancla quita la marca", cuerpo)
+        self.assertIn("Defecto B", cuerpo)
+        self.assertIn("verificada en el diff", cuerpo)
+        self.assertIn("no verificada (`sin_coincidencia`)", cuerpo)
+        self.assertNotIn("Sin hallazgos", cuerpo)
+
+    def test_otro_rechazo_no_muestra_hallazgos_sin_verificar(self):
+        # Si falla el esquema, no hay nada fiable que mostrar.
+        malo = dict(HALLAZGO, fragmento="línea que no existe")
+        sin_verificar = []
+        texto = json.dumps({"resumen": "R", "hallazgos": [malo, {}],
+                            "comprobaciones": [COMPROBACION]})
+        self.assertIsNone(mr.interpretar(texto, TestMain.DIFF, True,
+                                         sin_verificar=sin_verificar))
+        self.assertEqual(sin_verificar, [])
+        _, cuerpo = TestMain().ejecutar(texto)
+        self.assertNotIn("sin aceptar", cuerpo)
+
     def test_exige_escenarios_y_rutas_del_diff_sin_aceptar_exito_vacio(self):
         base = {"resumen": "R", "hallazgos": [], "comprobaciones": [COMPROBACION]}
         self.assertIsNotNone(mr.interpretar(json.dumps(base), TestMain.DIFF, True))

@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.23.1
+# Email Triage Plugin v3.24.0
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,18 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.24.0
+
+Evaluadores LLM opcionales con Structured Outputs de OpenAI, Mistral y Gemini,
+en `comparar` y `hibrido`. Devuelven evidencias y resumen, validan el esquema y
+conservan el scoring y la revisión del principal. Doble consentimiento; cualquier
+duda o fallo bloquea la propuesta, sin permisos automáticos de movimiento.
+Desactivados por defecto; las capas anteriores mantienen su comportamiento.
+[Configuración, fallos y prueba ficticia](plugins/email-triage/skills/email-triage/references/evaluadores.md).
+Pruebas con transporte simulado; pendiente de validación real con cada proveedor.
+La guía del Llavero pasa a [`docs/claves-api-macos.md`](docs/claves-api-macos.md),
+con Gemini, Mistral y una prueba ficticia real; la ruta antigua remite a ella.
 
 ## Novedades en v3.23.1
 
@@ -2004,12 +2016,12 @@ por defecto: requiere consentimiento y clave propia, añade consumo en TypeSafe
 y admite comparación sin movimientos o híbrido explícito con revisión del principal
 y las autorizaciones existentes.
 [Guía de Jev](plugins/email-triage/skills/email-triage/references/jev.md) (clave
-`TYPESAFE_API_KEY`: misma guía del Llavero, [`docs/clave-openai-macos.md`](docs/clave-openai-macos.md)).
+`TYPESAFE_API_KEY`: misma guía del Llavero, [`docs/claves-api-macos.md`](docs/claves-api-macos.md)).
 La capa de **OpenAI Decisions** funciona igual (mismo núcleo común, modos y frenos),
 también desactivada por defecto, con `OPENAI_API_KEY` propia y facturación aparte
 en OpenAI; no se combina con Jev ni con la delegación nativa en la misma sesión.
 [Guía de Decisions](plugins/email-triage/skills/email-triage/references/decisions.md) ·
-[Cómo guardar las claves de OpenAI y TypeSafe en el Mac](docs/clave-openai-macos.md).
+[Cómo guardar las claves de API en el Mac](docs/claves-api-macos.md).
 
 Contrato completo y límites:
 [`references/modelos-nativos.md`](plugins/email-triage/skills/email-triage/references/modelos-nativos.md).
