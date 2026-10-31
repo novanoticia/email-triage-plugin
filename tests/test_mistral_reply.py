@@ -142,7 +142,8 @@ class TestDictamenMistral(unittest.TestCase):
         self.assertIsNone(self.interpretar([RESPUESTA, RESPUESTA], fuentes, evidencias))
 
     def test_rechaza_esquema_y_citas_sin_convertirlos_en_dictamen_valido(self):
-        for campo, valor in (("veredicto", "confirmado"), ("explicacion", " "),
+        for campo, valor in (("veredicto", "confirmado"), ("veredicto", ["de_acuerdo"]),
+                             ("evidencia", [None]), ("evidencia", [dict(CITA, fragmento=None)]), ("explicacion", " "),
                              ("explicacion", None), ("evidencia", []), ("evidencia", "texto"),
                              ("evidencia", [dict(CITA, fragmento="return False")]),
                              ("evidencia", [dict(CITA, archivo="inventado.py")]),
@@ -153,6 +154,37 @@ class TestDictamenMistral(unittest.TestCase):
                 self.assertIsNone(self.interpretar([dict(RESPUESTA, **{campo: valor})]))
         for texto in ("no JSON", "[]", "null", "{}"):
             self.assertIsNone(reply.interpretar_respuestas(texto, [FUENTE], EVIDENCIAS))
+
+    def test_cita_sin_sangria_cuenta_y_el_resto_sigue_literal(self):
+        evidencias = {"12": {"original": {}, "cabeza": {"a.py": {"        return True"}}}}
+        for fragmento in ("return True", "  return True  ", "        return True"):
+            with self.subTest(fragmento=fragmento):
+                r = dict(RESPUESTA, evidencia=[dict(CITA, fragmento=fragmento)])
+                self.assertEqual(self.interpretar([r], evidencias=evidencias), [r])
+        for fragmento in ("return  True", "return", "}", "return True\nreturn True"):
+            with self.subTest(fragmento=fragmento):
+                r = dict(RESPUESTA, evidencia=[dict(CITA, fragmento=fragmento)])
+                self.assertIsNone(self.interpretar([r], evidencias=evidencias))
+
+    def test_el_rechazo_dice_por_que_sin_texto_del_modelo(self):
+        secreto = "texto-del-modelo-que-no-debe-salir"
+        casos = (("no json", "respuesta_json_invalida"),
+                 (json.dumps({"respuestas": []}), "respuestas_0_de_1"),
+                 (json.dumps({"respuestas": [dict(RESPUESTA, id=12)]}), "respuesta_0_id_desconocido"),
+                 (json.dumps({"respuestas": [dict(RESPUESTA, evidencia=[dict(CITA, fragmento=secreto)])]}),
+                  "respuesta_0_cita_0_cabeza(sin_coincidencia)"),
+                 (json.dumps({"respuestas": [dict(RESPUESTA, evidencia=[dict(CITA, archivo="b.py")])]}),
+                  "respuesta_0_cita_0_cabeza(archivo_sin_cambios)"),
+                 (json.dumps({"respuestas": [dict(RESPUESTA, evidencia=[dict(CITA, fragmento="return")])]}),
+                  "respuesta_0_cita_0_cabeza(parcial)"),
+                 (json.dumps({"respuestas": [dict(RESPUESTA, veredicto="ya_corregido")]}),
+                  "respuesta_0_ya_corregido_sin_ambas_versiones"))
+        for texto, codigo in casos:
+            with self.subTest(codigo=codigo):
+                diagnostico = []
+                self.assertIsNone(reply.interpretar_respuestas(texto, [FUENTE], EVIDENCIAS, diagnostico))
+                self.assertEqual(diagnostico, [codigo])
+                self.assertNotIn(secreto, " ".join(diagnostico))
 
     def test_ya_corregido_necesita_original_y_cabeza(self):
         corregido = dict(RESPUESTA, veredicto="ya_corregido")
@@ -300,6 +332,13 @@ class TestMainMistralReply(unittest.TestCase):
         self.assertIn(FUENTE["html_url"], llamadas[0].args[2])
         self.assertNotIn(reply.marca_fuente(12, SHA), llamadas[0].args[2])
         self.assertNotIn("De acuerdo con el hallazgo", llamadas[0].args[2])
+
+    def test_respuesta_invalida_publica_su_diagnostico(self):
+        codigo, llamadas = self.ejecutar(respuesta=json.dumps({"respuestas": [
+            dict(RESPUESTA, evidencia=[dict(CITA, fragmento="no está en el código")])]}))
+        self.assertEqual(codigo, 1)
+        self.assertIn("`respuesta_0_cita_0_cabeza(sin_coincidencia)`", llamadas[0].args[2])
+        self.assertNotIn("no está en el código", llamadas[0].args[2])
 
 
 @unittest.skipUnless(yaml, "PyYAML no instalado")
