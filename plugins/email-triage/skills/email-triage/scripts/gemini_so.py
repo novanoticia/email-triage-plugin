@@ -7,10 +7,6 @@ https://ai.google.dev/gemini-api/docs/pricing
 La ficha declara Structured outputs: Supported. El esquema se envía íntegro:
 no traducir a responseSchema ni eliminar restricciones silenciosamente.
 """
-import http.client
-import urllib.error
-import urllib.request
-
 import clasificadores as nc
 from clasificadores import _exigir
 
@@ -80,18 +76,5 @@ def coste_conocido(respuesta):
 
 
 def solicitar(body, key, timeout):
-    """Defensas de nc.solicitar; única diferencia: x-goog-api-key, nunca URL."""
-    req = urllib.request.Request(ENDPOINT, data=nc._json(body), method="POST", headers={
-        "x-goog-api-key": key, "Content-Type": "application/json", "Accept": "application/json"})
-    try:
-        with urllib.request.build_opener(nc._SinRedireccion()).open(req, timeout=timeout) as resp:
-            _exigir(resp.status == 200 and resp.geturl() == ENDPOINT, "respuesta_http_inesperada")
-            raw = resp.read(nc.MAX_JSON + 1)
-            _exigir(len(raw) <= nc.MAX_JSON, "respuesta_excesiva")
-            return nc._cargar_json(raw.decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        raise nc.ErrorClasificador("http_%d" % exc.code) from None
-    except (urllib.error.URLError, OSError, TimeoutError, http.client.HTTPException):
-        raise nc.ErrorClasificador("fallo_red_o_timeout") from None
-    except (ValueError, UnicodeError, RecursionError):
-        raise nc.ErrorClasificador("respuesta_json_invalida") from None
+    """Transporte común (`nc.solicitar`); la clave va en x-goog-api-key, nunca en la URL."""
+    return nc.solicitar(ENDPOINT, body, key, timeout, cabecera_clave="x-goog-api-key")
