@@ -153,6 +153,13 @@ existente: para adoptar el alias cambia su campo a `modelo: jev-latest` o elimí
    `payload_scoring`, y conserva `no_aplica` para que lo resuelva el
    principal (mismo freno que los evaluadores LLM). En `comparar` no cambia:
    la propuesta sigue siendo informativa con sus `criterios_sin_evaluar`.
+13. Plantillas y fallos en `hibrido` (v3.24.3, mismos frenos que los
+   evaluadores LLM). Una fila que el freno de plantillas marca `plantilla`
+   vuelve al principal sin `propuesta` ni `payload_scoring` y no cuenta en
+   `propuestas_validadas` (antes las conservaba y contaba como validada,
+   aunque `registrar` la rechazara después). Un fallo inesperado a mitad de
+   lote (`ok: false`) quita las propuestas de las filas ya procesadas, deja
+   `usar_principal: true` en todas y fuerza `requiere_simulacion: true`.
 
 ## Triaje real: modo híbrido explícito
 

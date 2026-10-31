@@ -454,7 +454,9 @@ de 13 filas no comparables venían de ese criterio); otro core en `no_aplica`
 sigue dejando la fila fuera. Desde v3.24.1, en `hibrido`, una propuesta con
 `criterios_sin_evaluar` (un `__no_aplica__` del proveedor) sale
 `scoring_incompleto`, sin propuesta ni `payload_scoring`: antes contaba como
-validada. No combinar proveedores en una sesión. Comparar implica simulación
+validada. Desde v3.24.3 una fila `plantilla` en `hibrido` pierde `propuesta` y
+`payload_scoring` (no cuenta como validada) y un `ok: false` a mitad de lote no
+deja propuestas: mismos frenos que `evaluadores.py`. No combinar proveedores en una sesión. Comparar implica simulación
 y no alimenta aprendizaje con desacuerdos entre modelos. Los controles de scoring
 vienen del principal, nunca de la respuesta delegada. Las pruebas sintéticas
 validan mecanismos, no la calidad de los modelos ni compatibilidad real del host.
