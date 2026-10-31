@@ -51,6 +51,14 @@ si el orquestador ejecuta varias veces: no repetir para eludirlo.
 `tolerancia_dudas` solo admite **0**. Cualquier valor superior se rechaza con
 `tolerancia_dudas_no_disponible`. Las dudas son texto libre: ni un nombre de
 criterio literal en una duda permite aplicar la tolerancia de clasificadores.
+Desde v3.24.5 el prompt (`INSTRUCCION_DUDAS`) y la descripción de `dudas` en el
+esquema enviado (`esquema_evaluador`, que solo añade esa descripción al esquema
+común) piden anotar solo lo que impida elegir la opción de algún criterio, y
+usar `__no_aplica__` con su razón cuando no hay nada que citar en un criterio
+no core. Medición real con Gemini (12 correos ficticios): las dudas descartadas
+eran datos ausentes que no cambiaban ningún veredicto («no se especifica a qué
+cuenta…»), y las evidencias vacías, criterios contestados «no» sin nada que
+citar. La tolerancia sigue en 0 y la evidencia vacía sigue rechazándose.
 
 **No combinar con Jev, Decisions, OpenRouter ni el evaluador nativo en la misma
 sesión.** Con varias capas activas, preguntar cuál usar antes de enviar datos;
