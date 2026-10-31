@@ -364,8 +364,7 @@ class TestComprobaciones(unittest.TestCase):
 
     def test_causa_de_cita_rechazada_sin_contenido_ni_relajar_la_aceptacion(self):
         base = {"resumen": "R", "comprobaciones": [COMPROBACION]}
-        casos = (("    x = `1`", "a.py", "difiere_en_espacios"),
-                 ("x = `", "a.py", "parcial"),
+        casos = (("x = `", "a.py", "parcial"),
                  ("x = `1`\ny = 2", "a.py", "multilinea"),
                  ("x = `1`", "otro.py", "archivo_sin_cambios"),
                  ("dato privado", "a.py", "sin_coincidencia"))
@@ -378,6 +377,16 @@ class TestComprobaciones(unittest.TestCase):
                 self.assertEqual(diagnostico, ["hallazgo_0_cita_fuera_del_diff(%s)" % causa])
                 self.assertNotIn("privado", str(diagnostico))
                 self.assertEqual(sin_verificar, [(h, causa)])
+
+    def test_cita_con_otra_sangria_cuenta_pero_no_el_texto_distinto(self):
+        base = {"resumen": "R", "comprobaciones": [COMPROBACION]}
+        for fragmento, valida in (("    x = `1`  ", True), ("x = `1`", True),
+                                  ("+x = `1`", True), ("x  = `1`", False),
+                                  ("x = `1`;", False), ("   ", False)):
+            with self.subTest(fragmento=fragmento):
+                texto = json.dumps(dict(base, hallazgos=[dict(HALLAZGO, fragmento=fragmento)]))
+                r = mr.interpretar(texto, TestMain.DIFF, True)
+                self.assertEqual(r is not None, valida)
 
     def test_cita_mala_no_borra_las_demas_ni_aprueba_el_check(self):
         malo = dict(HALLAZGO, fragmento="línea que no existe", problema="Defecto B")
