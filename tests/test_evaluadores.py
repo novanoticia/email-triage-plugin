@@ -482,7 +482,9 @@ class TestEvaluadores(unittest.TestCase):
         self.assertEqual(r['resultados'][0]['motivo'], 'principal_no_comparable')
         t.assert_not_called()
 
-    def test_no_aplica_no_habilita_scoring_incompleto_en_hibrido(self):
+    def test_no_aplica_se_puntua_como_su_opcion_a_cero_en_hibrido(self):
+        # v3.24.4 (medición real con Gemini): la exclusión de un no core con
+        # una sola opción a 0 puntos se puntúa así; mismo score y tier.
         def excluir(d):
             d['evaluaciones'][0]['criterios']['retorno_atencional'].update(
                 veredicto='__no_aplica__', evidencia='', razon_no_aplica='No corresponde.')
@@ -493,14 +495,37 @@ class TestEvaluadores(unittest.TestCase):
                     comparacion['resultados'][0]['propuesta']['criterios_sin_evaluar'])
                 r, _ = self.ejecutar(nombre, 'hibrido', excluir)
                 fila = r['resultados'][0]
+                self.assertIn(fila['motivo'], ('propuesta_validada', 'reevaluar_tier_o_umbral'))
+                self.assertEqual(fila['no_aplica_puntuado_como'], {'retorno_atencional': 'medio'})
+                self.assertEqual(fila['no_aplica'], {'retorno_atencional': 'No corresponde.'})
+                self.assertEqual(fila['payload_scoring']['verdicts']['retorno_atencional'], 'medio')
+                self.assertFalse(fila['propuesta'].get('criterios_sin_evaluar'))
+                self.assertEqual(fila['propuesta']['tier'],
+                                 comparacion['resultados'][0]['propuesta']['tier'])
+                self.assertEqual(fila['propuesta']['score'],
+                                 comparacion['resultados'][0]['propuesta']['score'])
+                self.assertEqual(r['cobertura']['propuestas_validadas'], 1)
+                self.assertFalse(r['permitir_movimientos'])
+
+    def test_no_aplica_sin_una_sola_opcion_a_cero_sigue_frenando(self):
+        def excluir(d):
+            d['evaluaciones'][0]['criterios']['retorno_atencional'].update(
+                veredicto='__no_aplica__', evidencia='', razon_no_aplica='No corresponde.')
+        cfg_original = self.cfg
+        self.cfg = copy.deepcopy(cfg_original)
+        self.cfg['criterios_epistemicos']['retorno_atencional']['alto'] = 0  # dos opciones a 0
+        self.addCleanup(setattr, self, 'cfg', cfg_original)
+        for nombre in PROVEEDORES:
+            with self.subTest(proveedor=nombre):
+                r, _ = self.ejecutar(nombre, 'hibrido', excluir)
+                fila = r['resultados'][0]
                 self.assertEqual(fila['motivo'], 'scoring_incompleto')
                 self.assertEqual(fila['no_aplica'], {'retorno_atencional': 'No corresponde.'})
                 self.assertTrue(fila['usar_principal'])
                 self.assertNotIn('payload_scoring', fila)
                 self.assertNotIn('propuesta', fila)
-                self.assertTrue(r['usar_principal'])
+                self.assertNotIn('no_aplica_puntuado_como', fila)
                 self.assertTrue(r['requiere_simulacion'])
-                self.assertFalse(r['permitir_movimientos'])
                 self.assertEqual(r['cobertura']['propuestas_validadas'], 0)
                 self.assertEqual(r['cobertura']['pendientes_principal'], 1)
 

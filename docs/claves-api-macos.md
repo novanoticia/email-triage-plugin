@@ -330,7 +330,7 @@ tests, que no viajan con el plugin instalado.
    |---|---|
    | `solo_comparacion` (en `comparar`) | Todo bien: el proveedor respondió y la respuesta pasó todas las validaciones. |
    | `propuesta_validada` o `reevaluar_tier_o_umbral` (en `hibrido`) | Todo bien. Lo segundo solo dice que el principal tendría que revisar ese tier. |
-   | `scoring_incompleto` (en `hibrido`) | Funciona: el modelo excluyó algún criterio no core con `__no_aplica__` y, por seguridad, esa fila vuelve al principal en vez de usarse. Pasó así en la prueba real con Gemini del 2026-10-31. |
+   | `scoring_incompleto` (en `hibrido`) | Funciona: el modelo excluyó algún criterio no core con `__no_aplica__` que no se podía puntuar sin cambiar el resultado y, por seguridad, esa fila vuelve al principal. Desde v3.24.4 las exclusiones equivalentes a la opción a 0 puntos se puntúan así (`no_aplica_puntuado_como`) y ya no frenan. |
    | `evaluador_con_dudas` | Funciona, pero el modelo anotó dudas sobre el correo ficticio. No es un fallo del adaptador. |
    | `credencial_ausente_o_invalida` (con `llamadas: 0`) | La clave no está cargada en esta Terminal: paso 4 de esta guía. |
    | `http_400` | En Gemini, casi siempre clave inválida; si la clave da `200` en el paso 4, es que Google no acepta la forma de la petición. Guarda el resultado: hay que revisar el adaptador. |

@@ -340,6 +340,39 @@ def _agregar_por_criterio(filas):
     return total
 
 
+def _no_aplica_a_cero(ident, control, verdicts, no_aplica, activos, cfg):
+    """`hibrido`: puntúa cada `__no_aplica__` como la única opción a 0 puntos.
+
+    Medición real (2026-10-31, Gemini, 12 correos ficticios): los mismos 6
+    criterios no core en `__no_aplica__` en 10 de 10 filas evaluadas, y todas
+    salían `scoring_incompleto` aunque excluirlos o contestar su opción a 0
+    no cambia nada (v3.22.21 ya trata `no`/`__no_aplica__` como equivalentes).
+    Solo convierte si TODOS los excluidos son no core con exactamente una
+    opción que vale 0, y si el scoring da el mismo score y tier con la
+    exclusión que con la conversión; si no, devuelve None y el freno
+    `scoring_incompleto` se mantiene. Devuelve (veredictos, convertidos,
+    propuesta).
+    """
+    convertidos = {}
+    for k in no_aplica:
+        opciones, core = activos.get(k, (set(), True))
+        c = cfg["criterios_epistemicos"].get(k) or {}
+        ceros = [o for o in sorted(opciones)
+                 if type(c.get(o)) in (int, float) and c.get(o) == 0]
+        if core or len(ceros) != 1:
+            return None
+        convertidos[k] = ceros[0]
+    if not convertidos:
+        return None
+    completos = dict(verdicts, **convertidos)
+    excluida = _scoring(ident, control, verdicts, cfg)
+    propuesta = _scoring(ident, control, completos, cfg)
+    if (propuesta.get("criterios_sin_evaluar") or propuesta["tier"] != excluida["tier"]
+            or propuesta["score"] != excluida["score"]):
+        return None
+    return completos, convertidos, propuesta
+
+
 def _scoring(ident, control, vs, cfg):
     r = th.cmd_scoring_dispatch(dict(control, id=ident, verdicts=vs), cfg)
     _exigir(r.get("ok") is not False and not r.get("ignorados")
@@ -701,7 +734,15 @@ def procesar(p, cfg, capa, transporte, modo, prov):
                     # no lo cubre y no es una propuesta validada (mismo freno que
                     # evaluadores.py, PR #149). La exclusión queda en `no_aplica`
                     # para que la resuelva el principal.
-                    _exigir(not propuesta.get("criterios_sin_evaluar"), "scoring_incompleto")
+                    veredictos = v["verdicts"]
+                    if propuesta.get("criterios_sin_evaluar"):
+                        # v3.24.4: si la exclusión equivale a la opción a 0
+                        # puntos (mismo score y tier), se puntúa así y consta.
+                        cero = _no_aplica_a_cero(e["id"], e["control"], veredictos,
+                                                 v["no_aplica"], activos, cfg)
+                        _exigir(cero is not None, "scoring_incompleto")
+                        veredictos, convertidos, propuesta = cero
+                        r.update(propuesta=propuesta, no_aplica_puntuado_como=convertidos)
                     # Mismas precauciones que la delegación nativa. Sin evidencia
                     # narrativa del proveedor: la revisión contra el extracto es obligatoria.
                     umbrales = cfg.get("tiers", {})
@@ -714,7 +755,7 @@ def procesar(p, cfg, capa, transporte, modo, prov):
                                  or bool(v["probabilidades_redondeadas"]))
                     r.update(usar_principal=reevaluar, revision_obligatoria=True,
                              motivo="reevaluar_tier_umbral_o_confianza" if reevaluar else "propuesta_validada",
-                             payload_scoring=dict(e["control"], id=e["id"], verdicts=v["verdicts"]))
+                             payload_scoring=dict(e["control"], id=e["id"], verdicts=veredictos))
                 else:
                     bases.append(base)
                 propuestas.append(propuesta)

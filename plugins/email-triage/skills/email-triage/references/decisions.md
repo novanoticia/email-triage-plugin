@@ -87,7 +87,9 @@ la capa:
    cambia nada.
 12. Mismo freno ante `__no_aplica__` en `hibrido` (punto 12 de
    `references/jev.md`, v3.24.1): `scoring_incompleto`, sin propuesta ni
-   `payload_scoring`, conservando `no_aplica` para el principal.
+   `payload_scoring`, conservando `no_aplica` para el principal; desde
+   v3.24.4, salvo que la exclusión equivalga a la única opción a 0 puntos
+   (`no_aplica_puntuado_como`, mismo punto).
 13. Mismos frenos de plantilla y de fallo a mitad de lote en `hibrido` (punto
    13 de `references/jev.md`, v3.24.3).
 
