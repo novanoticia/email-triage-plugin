@@ -381,12 +381,39 @@ class TestComprobaciones(unittest.TestCase):
     def test_cita_con_otra_sangria_cuenta_pero_no_el_texto_distinto(self):
         base = {"resumen": "R", "comprobaciones": [COMPROBACION]}
         for fragmento, valida in (("    x = `1`  ", True), ("x = `1`", True),
-                                  ("+x = `1`", True), ("x  = `1`", False),
-                                  ("x = `1`;", False), ("   ", False)):
+                                  ("+x = `1`", True), ("+   x = `1`", True),
+                                  ("x  = `1`", False), ("x = `1`;", False),
+                                  ("   ", False)):
             with self.subTest(fragmento=fragmento):
                 texto = json.dumps(dict(base, hallazgos=[dict(HALLAZGO, fragmento=fragmento)]))
                 r = mr.interpretar(texto, TestMain.DIFF, True)
                 self.assertEqual(r is not None, valida)
+
+    def test_cita_sin_letras_ni_numeros_no_prueba_nada(self):
+        diff = TestMain.DIFF + "@@ -3 +3 @@\n+    }\n+\n"
+        for fragmento in ("}", "+}", "+", " ) "):
+            with self.subTest(fragmento=fragmento):
+                diagnostico, sin_verificar = [], []
+                texto = json.dumps({"resumen": "R", "comprobaciones": [COMPROBACION],
+                                    "hallazgos": [dict(HALLAZGO, fragmento=fragmento)]})
+                self.assertIsNone(mr.interpretar(texto, diff, True, diagnostico=diagnostico,
+                                                 sin_verificar=sin_verificar))
+                self.assertEqual(diagnostico, ["hallazgo_0_cita_fuera_del_diff(sin_contenido)"])
+
+    def test_hallazgos_no_aceptados_se_publican_inertes(self):
+        malo = dict(HALLAZGO, archivo="x` @octocat [clic](https://evil.invalid) <img src=x> `",
+                    fragmento="no existe", problema="ver @octocat ![p](https://evil.invalid/p.png)",
+                    escenario="<details>", arreglo="[aquí](https://evil.invalid)")
+        texto = json.dumps({"resumen": "R", "hallazgos": [malo], "comprobaciones": [COMPROBACION]})
+        _, cuerpo = TestMain().ejecutar(texto)
+        seccion = cuerpo.split("sin aceptar", 1)[1]
+        self.assertIn("hallazgo_0", seccion)
+        for linea in seccion.splitlines():
+            for peligroso in ("@octocat", "](https", "<img", "<details>"):
+                if peligroso in linea:
+                    # Solo dentro de un span de código, que GitHub no interpreta.
+                    trozos = linea.split("`")
+                    self.assertTrue(all(peligroso not in t for t in trozos[0::2]), linea)
 
     def test_cita_mala_no_borra_las_demas_ni_aprueba_el_check(self):
         malo = dict(HALLAZGO, fragmento="línea que no existe", problema="Defecto B")

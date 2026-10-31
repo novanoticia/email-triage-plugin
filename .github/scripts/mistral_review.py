@@ -271,21 +271,26 @@ def llamar_mistral(mensajes, modelo, clave, json_mode=True):
 def cita_en(fragmento, lineas):
     """¿Es `fragmento` una línea completa de `lineas`, con o sin prefijo?
 
-    Se ignoran solo los espacios de los extremos (decisión del mantenedor,
-    PR #149: Mistral cita sin la sangría y el check fallaba siempre); el
-    resto debe coincidir carácter a carácter. Una cita que solo existe a
-    otra profundidad del mismo archivo también cuenta: es un riesgo menor
-    que perder todas las revisiones.
+    Se ignoran la sangría y los espacios de los extremos, también tras el
+    prefijo +, - o espacio (decisión del mantenedor, PR #149: Mistral cita sin
+    la sangría y el check fallaba siempre); el resto debe coincidir carácter
+    a carácter. Una cita sin letras ni números (`}`, `)`, `+`) no prueba
+    nada y no cuenta. Una cita que solo existe a otra profundidad del mismo
+    archivo sí cuenta: es un riesgo menor que perder todas las revisiones.
     """
     limpio = fragmento.strip()
-    return bool(limpio) and any(
-        limpio == linea[1:].strip() or limpio == linea.strip() for linea in lineas)
+    if not any(ch.isalnum() for ch in limpio):
+        return False
+    candidatos = {limpio}
+    if limpio[:1] in ("+", "-"):
+        candidatos.add(limpio[1:].strip())
+    return any(linea[1:].strip() in candidatos for linea in lineas)
 
 
 def causa_cita(fragmento, archivo, archivos):
     """Por qué una cita no coincide con el diff, como código sin contenido.
 
-    Solo diagnostica: la aceptación sigue exigiendo la línea literal.
+    Solo diagnostica; la aceptación la decide `cita_en`.
     """
     lineas = archivos.get(archivo)
     if lineas is None:
@@ -293,6 +298,8 @@ def causa_cita(fragmento, archivo, archivos):
     if "\n" in fragmento.strip():
         return "multilinea"
     limpio = fragmento.strip()
+    if not any(ch.isalnum() for ch in limpio):
+        return "sin_contenido"
     if any(limpio in linea for linea in lineas):
         return "parcial"
     if any(cita_en(fragmento, otras) for ruta, otras in archivos.items() if ruta != archivo):
@@ -374,18 +381,24 @@ def _linea(valor, limite=500):
     return " ".join(str(valor or "").split())[:limite]
 
 
-def _render_hallazgo(partes, i, h):
+def _codigo(valor, limite=500):
+    """Texto en un span de código: sin menciones, enlaces, imágenes ni HTML."""
+    return "`%s`" % _linea(valor, limite).replace("`", "'")
+
+
+def _render_hallazgo(partes, i, h, inerte=False):
+    """`inerte`: texto de una respuesta NO aceptada (PR #149), que puede venir
+    de una inyección en el diff; todo va en spans de código."""
     sev = str(h.get("severidad") or "").lower()
-    partes.append("%d. %s **%s** · `%s` — %s" % (
-        i, SEVERIDADES.get(sev, "⚪"), sev or "?",
-        _linea(h.get("archivo"), 200), _linea(h.get("problema"))))
+    texto = _codigo if inerte else _linea
+    partes.append("%d. %s **%s** · %s — %s" % (
+        i, SEVERIDADES.get(sev, "⚪"), sev if sev in SEVERIDADES else "?",
+        _codigo(h.get("archivo"), 200), texto(h.get("problema"))))
     for etiqueta, clave in (("Escenario", "escenario"),
                             ("Fragmento", "fragmento"),
                             ("Arreglo", "arreglo")):
         if h.get(clave):
-            valor = _linea(h[clave])
-            if clave == "fragmento":
-                valor = "`%s`" % valor.replace("`", "'")
+            valor = _codigo(h[clave]) if clave == "fragmento" else texto(h[clave])
             partes.append("   - %s: %s" % (etiqueta, valor))
 
 
@@ -415,8 +428,10 @@ def renderizar(resultado, modelo, diff_len, recortado, cabeza="", error=None,
             partes.append("Alguna cita no coincide con una línea del diff enviado. "
                           "Compruébalos contra el código: no son hallazgos confirmados "
                           "ni descartados, y el check sigue fallando.")
-            for i, (h, causa) in enumerate(sin_verificar, 1):
-                _render_hallazgo(partes, i, h)
+            for i, (h, causa) in enumerate(sin_verificar):
+                # Misma numeración que el diagnóstico (`hallazgo_<i>_...`).
+                partes.append("Índice del diagnóstico: `hallazgo_%d`." % i)
+                _render_hallazgo(partes, i + 1, h, inerte=True)
                 partes.append("   - Cita: %s" % (
                     "verificada en el diff" if causa is None
                     else "no verificada (`%s`)" % causa))

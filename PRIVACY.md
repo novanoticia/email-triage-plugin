@@ -36,8 +36,9 @@ To triage your mail, the plugin may read, for the messages it processes:
   En Claude Code/Cowork es la conexión de Claude que ya utiliza el usuario; en
   un cliente compatible de OpenAI, la conexión de ese cliente. Rigen los términos
   y controles de datos de la cuenta, plan y conexión usados.
-- **Local scripts.** Scoring and sanitization run locally. The optional Jev
-  adapter sends the data described below to TypeSafe only after explicit opt-in.
+- **Local scripts.** Scoring and sanitization run locally. The optional external
+  layers (Jev, Decisions, OpenRouter and the LLM evaluators) send the data
+  described below to their provider only after explicit opt-in.
 
 ## What is stored, and where
 
@@ -123,6 +124,24 @@ Comparación sin movimientos por defecto; híbrido solo explícito y revisado.
 Sin registros persistentes nuevos ni propuestas en aprendizaje.
 
 [Configuración y contrato](plugins/email-triage/skills/email-triage/references/openrouter.md).
+
+## Evaluadores LLM opcionales (OpenAI, Mistral o Gemini)
+
+Desactivados por defecto. Requieren `activo: true`, `acepta_envio_datos: true` y
+la clave del proveedor elegido (`OPENAI_API_KEY`, `MISTRAL_API_KEY` o
+`GEMINI_API_KEY`); un solo proveedor por sesión. Envían a ese proveedor asunto,
+remitente y extracto sanitizados, perfil mínimo y preguntas; sanitizar no
+anonimiza. No envían buzón, historial, carpetas, huellas, controles ni la
+evaluación del principal. OpenAI recibe `store: false`. **Gemini en su nivel
+gratuito**: Google puede usar lo enviado para mejorar sus productos; úsalo solo
+con correos ficticios o activa la facturación del proyecto. No se presuponen
+retención cero ni residencia europea en ningún proveedor: dependen de la cuenta
+de quien configure la capa. Facturación independiente. Comparación sin
+movimientos por defecto; híbrido solo explícito y revisado. Sin registros
+persistentes nuevos ni propuestas en aprendizaje.
+
+[Configuración, privacidad, costes y pruebas](plugins/email-triage/skills/email-triage/references/evaluadores.md) ·
+[Claves en el Llavero de macOS](docs/claves-api-macos.md).
 
 ## Changes and contact
 

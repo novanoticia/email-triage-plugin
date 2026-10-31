@@ -7,6 +7,8 @@ https://developers.openai.com/api/docs/pricing
 Chat Completions: una petición sin estado, sin herramientas ni historial;
 permite reutilizar el sobre de Mistral. Responses no aporta nada necesario aquí.
 """
+import re
+
 import clasificadores as nc
 from clasificadores import _exigir
 from evaluadores import extraer_chat
@@ -33,8 +35,14 @@ def extraer(respuesta):
 
 
 def modelo_efectivo(respuesta, solicitado):
-    _exigir(respuesta.get("model") == solicitado, "modelo_inesperado")
-    return solicitado
+    # Chat Completions puede devolver el snapshot fechado del alias pedido
+    # (`<modelo>-AAAA-MM-DD`); cualquier otro nombre es otro modelo.
+    efectivo = respuesta.get("model")
+    _exigir(isinstance(efectivo, str) and (
+        efectivo == solicitado
+        or re.fullmatch(re.escape(solicitado) + r"-[0-9]{4}-[0-9]{2}-[0-9]{2}", efectivo)),
+        "modelo_inesperado")
+    return efectivo
 
 
 def uso(respuesta):

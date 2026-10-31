@@ -28,6 +28,10 @@ DEFAULT = {"activo": False, "acepta_envio_datos": False, "modo": "comparar",
            "proveedor": "openai", "modelo": "", "max_llamadas": 5,
            "timeout_segundos": 30, "tolerancia_dudas": 0}
 ADAPTADORES = {"openai": "openai_so", "mistral": "mistral_so", "gemini": "gemini_so"}
+# Fallos de transporte (los de `nc.solicitar`): detienen el proveedor para el
+# resto del lote. Una respuesta truncada o mal formada solo descarta su correo.
+DETIENEN = ("http_", "fallo_red", "redireccion", "respuesta_http_inesperada",
+            "respuesta_excesiva", "respuesta_json_invalida")
 
 
 def proveedor(nombre):
@@ -66,7 +70,14 @@ def capa_desde_disco(ruta, canonica):
         # El helper compara `modelo`, pero no conoce `proveedor`: codificar los
         # dos en esa identidad impide cambiar de destinatario con una copia.
         return dict(c, modelo=c["proveedor"] + ":" + c["modelo"], confianza_minima=0)
-    return nc.capa_desde_disco(ruta, canonica, _yaml, comparable)
+    capa = nc.capa_desde_disco(ruta, canonica, _yaml, comparable)
+    distinta = (os.path.realpath(os.path.expanduser(ruta))
+                != os.path.realpath(os.path.expanduser(canonica)))
+    # El helper no compara el timeout: una copia tampoco puede ampliarlo.
+    if distinta and config(capa)["activo"]:
+        if config(capa)["timeout_segundos"] > config(_yaml(canonica))["timeout_segundos"]:
+            raise nc.ErrorCapaDisco("config_no_coincide_con_base")
+    return capa
 
 
 def preparar(p):
@@ -164,6 +175,15 @@ def procesar(p, cfg, capa, transporte=None, modo="comparar"):
         _exigir(c["acepta_envio_datos"], "envio_no_autorizado")
         filas, activos = nc._filas(p), nc._opciones(cfg)
         esq = esquema.generar(cfg)
+        fronteras = None
+        if modo == "hibrido":
+            # Antes de enviar nada: un config raro no puede costar una llamada
+            # ni culpar al proveedor. `tiers` nulo vale {}, como en el scoring.
+            umbrales = cfg.get("tiers") or {}
+            _exigir(isinstance(umbrales, dict), "umbrales_invalidos")
+            fronteras = [umbrales.get(k, valor) for k, valor in
+                         (("reply_needed", 10), ("review", 4), ("reading_later", 0))]
+            _exigir(all(nc._numero(x, -1e9, 1e9) for x in fronteras), "umbrales_invalidos")
         preparados = []
         for e in filas:
             claves = {"id", "estado", "huella", "s0", "control",
@@ -227,7 +247,8 @@ def procesar(p, cfg, capa, transporte=None, modo="comparar"):
                 efectivo = prov.modelo_efectivo(respuesta, c["modelo"])
                 r["modelo_efectivo"] = efectivo
                 _exigir(observado, "usage_invalido")
-                tarifa = prov.PRECIOS_MTOK.get(efectivo)
+                # El efectivo es el solicitado o su snapshot: se tarifa como él.
+                tarifa = prov.PRECIOS_MTOK.get(c["modelo"])
                 if tarifa is None or not prov.coste_conocido(respuesta):
                     salida["consumo"]["coste_total_desconocido"] = True
                 else:
@@ -253,10 +274,6 @@ def procesar(p, cfg, capa, transporte=None, modo="comparar"):
                     # El scoring no acepta exclusiones libres como cobertura.
                     # Conservamos no_aplica para que el principal lo resuelva.
                     _exigir(not propuesta.get("criterios_sin_evaluar"), "scoring_incompleto")
-                    umbrales = cfg.get("tiers", {})
-                    fronteras = [umbrales.get(k, valor) for k, valor in
-                                 (("reply_needed", 10), ("review", 4), ("reading_later", 0))]
-                    _exigir(all(nc._numero(x, -1e9, 1e9) for x in fronteras), "umbrales_invalidos")
                     reevaluar = (propuesta["tier"] in ("ARCHIVE", "REPLY_NEEDED")
                                  or any(abs(propuesta["score"] - x) <= 1 for x in fronteras))
                     r.update(usar_principal=reevaluar, revision_obligatoria=True,
@@ -271,7 +288,7 @@ def procesar(p, cfg, capa, transporte=None, modo="comparar"):
                 r.pop("payload_scoring", None)
                 if exc.detalle is not None:
                     r["motivo_detalle"] = exc.detalle
-                if str(exc).startswith(("http_", "fallo_red", "redireccion", "respuesta_")):
+                if str(exc).startswith(DETIENEN):
                     detenido = "proveedor_detenido"
                 # También una respuesta rechazada puede haber consumido crédito.
                 salida["consumo"]["coste_total_desconocido"] = True
@@ -302,7 +319,9 @@ def procesar(p, cfg, capa, transporte=None, modo="comparar"):
             "propuestas_comparadas" if modo == "comparar" else "propuestas_validadas": aceptadas}
         if modo == "hibrido":
             salida["cobertura"]["pendientes_principal"] = sum(r["usar_principal"] for r in salida["resultados"])
-            salida["requiere_simulacion"] = aceptadas != len(filas)
+            # Solo un lote sin nada pendiente del principal sale de simulación:
+            # una fila `reevaluar_tier_o_umbral` también es pendiente.
+            salida["requiere_simulacion"] = salida["cobertura"]["pendientes_principal"] > 0
         _consumo_final(salida)
         return salida
     except Exception as exc:
@@ -353,7 +372,9 @@ def main():
     except Exception as exc:
         salida = {"ok": False, "usar_principal": True, "permitir_movimientos": False,
                   "requiere_simulacion": True,
-                  "motivo": str(exc) if isinstance(exc, nc.ErrorCapaDisco) else "entrada_o_config_invalida"}
+                  # Códigos propios (sin datos); el resto, genérico.
+                  "motivo": (str(exc) if isinstance(exc, (nc.ErrorCapaDisco, nc.ErrorClasificador))
+                             else "entrada_o_config_invalida")}
     print(json.dumps(salida, ensure_ascii=False, allow_nan=False))
     return 0 if salida.get("ok") else 1
 

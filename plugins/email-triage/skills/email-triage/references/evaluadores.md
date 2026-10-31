@@ -137,11 +137,12 @@ del PASO 5 permiten mover, con simulación, revisión, registro y verificación 
 sesión. Los scripts no mueven ni escriben. No saltarse estos pasos por obtener
 `ok: true` del proveedor o del núcleo.
 
-Si una fila falla o queda pendiente por el límite, el lote híbrido conserva
-`requiere_simulacion: true`: no ejecutar movimientos de ese lote. El principal
+Si una fila falla, queda pendiente por el límite o debe reevaluarla el principal
+(`usar_principal: true`, también `reevaluar_tier_o_umbral`), el lote híbrido
+conserva `requiere_simulacion: true`: no ejecutar movimientos de ese lote. El principal
 resuelve los pendientes y sigue el proceso habitual de revisión/autorización.
-Un lote híbrido íntegramente aceptado puede devolver `requiere_simulacion:
-false`; esto tampoco concede permisos. Un modo o config ilegible nunca permite
+Solo un lote híbrido sin ninguna fila pendiente del principal puede devolver
+`requiere_simulacion: false`; esto tampoco concede permisos. Un modo o config ilegible nunca permite
 salir de simulación. El comportamiento híbrido previo de Jev, Decisions y
 OpenRouter no se modifica.
 
@@ -164,10 +165,11 @@ Solo se admite una evaluación y el id del correo solicitado.
 | Scoring con criterios sin evaluar en híbrido (incluido `__no_aplica__` sin cobertura en scoring) | `scoring_incompleto`; conserva `no_aplica` para resolución del principal, sin propuesta ni `payload_scoring`; requiere simulación. En `comparar` permanece como resultado informativo. |
 | Eco distinto o ausente (también sin `ancla_extracto` en el payload) | `eco_distinto`; sin propuesta |
 | Rechazo o contenido vacío | `proveedor_rehusa`; abstención del correo entero |
-| Salida truncada o llamada a herramientas | Rechazo; nunca reparar o completar veredictos |
-| Modelo diferente | `modelo_inesperado`; sin propuesta |
+| Salida truncada, sobre mal formado o llamada a herramientas | `respuesta_incompleta` o `respuesta_proveedor_invalida` solo para ese correo; el resto del lote sigue. Nunca reparar o completar veredictos |
+| Modelo diferente | `modelo_inesperado`; sin propuesta. OpenAI puede devolver el snapshot fechado del modelo pedido (`gpt-6-luna-AAAA-MM-DD`): se acepta y se tarifa como el pedido |
 | Consumo ausente/inválido | `usage_invalido`; coste total desconocido |
-| HTTP, timeout, redirección | Código local, proveedor detenido para el resto del lote, sin reintentos |
+| HTTP, timeout, redirección, respuesta excesiva o no JSON | Código local, proveedor detenido para el resto del lote, sin reintentos |
+| `tiers` del config no numéricos (híbrido) | `umbrales_invalidos` antes de enviar nada; `tiers: null` vale los umbrales por defecto, como en el scoring |
 | Error inesperado | Mensaje genérico sin entrada, cuerpo HTTP, traceback ni credencial |
 
 `ok: true` significa que se procesó el lote; **consultar cada `motivo` y la

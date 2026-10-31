@@ -68,16 +68,31 @@ class TestEvaluadores(unittest.TestCase):
     def test_opt_in_y_config_invalidos_no_envian_en_ambos_modos(self):
         for nombre in PROVEEDORES:
             for modo in ('comparar', 'hibrido'):
-                for cambio in ({'activo': False}, {'acepta_envio_datos': False},
-                               {'activo': 'true'}, {'modelo': 'inventado'}, {'modelo': []},
-                               {'proveedor': []}, {'endpoint': 'https://evil.invalid'},
-                               {'max_llamadas': True}, {'timeout_segundos': float('nan')},
-                               {'tolerancia_dudas': 1}, {'confianza_minima': 0}):
+                # Lote y config válidos: así el motivo sale de la capa y no de
+                # un payload vacío (antes el test pasaba con cualquier capa).
+                p = copy.deepcopy(self.p)
+                if modo == 'hibrido':
+                    for e in p['emails']:
+                        e.pop('principal')
+                        e['contexto_suficiente'] = True
+                for cambio, motivo in (
+                        ({'activo': False}, 'desactivado'),
+                        ({'acepta_envio_datos': False}, 'envio_no_autorizado'),
+                        ({'activo': 'true'}, 'activacion_invalida'),
+                        ({'modelo': 'inventado'}, 'modelo_no_verificado'),
+                        ({'modelo': []}, 'modelo_no_verificado'),
+                        ({'proveedor': []}, 'proveedor_no_admitido'),
+                        ({'endpoint': 'https://evil.invalid'}, 'config_evaluadores_invalida'),
+                        ({'max_llamadas': True}, 'limites_invalidos'),
+                        ({'timeout_segundos': float('nan')}, 'limites_invalidos'),
+                        ({'tolerancia_dudas': 1}, 'tolerancia_dudas_no_disponible'),
+                        ({'confianza_minima': 0}, 'config_evaluadores_invalida')):
                     capa = dict(ACTIVO, proveedor=nombre, modo=modo)
                     capa.update(cambio)
                     t = Mock()
-                    r = ev.procesar({}, {}, capa, t, modo)
+                    r = ev.procesar(copy.deepcopy(p), self.cfg, capa, t, modo)
                     t.assert_not_called()
+                    self.assertEqual(r['motivo'], motivo, (nombre, modo, cambio))
                     self.assertTrue(r['usar_principal'])
                     self.assertTrue(r['requiere_simulacion'])
                     self.assertFalse(r['permitir_movimientos'])
@@ -256,6 +271,89 @@ class TestEvaluadores(unittest.TestCase):
                     self.assertNotIn('payload_scoring', f)
                     self.assertTrue(f['usar_principal'])
 
+    def test_eco_de_otro_correo_no_cuenta(self):
+        # Lote con textos distintos: la respuesta del correo 2 repite el eco
+        # del correo 1 y debe rechazarse; el 1 sigue aceptado.
+        p = ev.preparar({"perfil_minimo": "Coordino una asociación cultural ficticia.",
+            "emails": [{"id": "1", "asunto": "Taller", "remitente": "ana@example.invalid",
+                        "cuerpo": "Quiero inscribirme al taller del sábado por la mañana, gracias."},
+                       {"id": "2", "asunto": "Factura", "remitente": "luis@example.invalid",
+                        "cuerpo": "Adjunto la factura de octubre del local de ensayo para su pago."}]})
+        anclas = [e.pop('ancla_extracto') for e in p['emails']]
+        self.assertNotEqual(anclas[0], anclas[1])
+        for e in p['emails']:
+            e['control'] = copy.deepcopy(self.p['emails'][0]['control'])
+            e['principal'] = copy.deepcopy(self.p['emails'][0]['principal'])
+        for nombre in PROVEEDORES:
+            with self.subTest(nombre=nombre):
+                t = Mock(side_effect=[sobre(nombre, self.cfg, '1', ancla=anclas[0]),
+                                      sobre(nombre, self.cfg, '2', ancla=anclas[0])])
+                r, _ = self.ejecutar(nombre, transporte=t, p=p)
+                self.assertEqual([f['motivo'] for f in r['resultados']],
+                                 ['solo_comparacion', 'eco_distinto'])
+
+    def test_truncado_o_respuesta_rara_solo_descartan_su_correo(self):
+        self.p, self.cfg = lote(2)
+        def truncar(c):
+            c['choices'][0]['finish_reason'] = 'length'
+        for mutar, motivo in ((truncar, 'respuesta_incompleta'),
+                              (lambda c: c.update(choices='x'), 'respuesta_proveedor_invalida')):
+            with self.subTest(motivo=motivo):
+                malo = sobre('openai', self.cfg, '1')
+                mutar(malo)
+                t = Mock(side_effect=[malo, sobre('openai', self.cfg, '2')])
+                r, _ = self.ejecutar('openai', transporte=t)
+                self.assertEqual([f['motivo'] for f in r['resultados']],
+                                 [motivo, 'solo_comparacion'])
+                self.assertEqual(r['llamadas'], 2)
+        # Un fallo de transporte sí detiene el resto del lote.
+        t = Mock(side_effect=nc.ErrorClasificador('http_503'))
+        r, _ = self.ejecutar('openai', transporte=t)
+        self.assertEqual([f['motivo'] for f in r['resultados']], ['http_503', 'proveedor_detenido'])
+
+    def test_umbrales_se_validan_antes_de_enviar(self):
+        nulos = dict(self.cfg, tiers=None)
+        t = Mock(return_value=sobre('openai', nulos))
+        r = ev.procesar(self._hibrido(), nulos, dict(ACTIVO, proveedor='openai', modo='hibrido'), t, 'hibrido')
+        self.assertTrue(r['ok'])
+        self.assertNotEqual(r['resultados'][0]['motivo'], 'respuesta_proveedor_invalida')
+        for tiers in ([1, 2], {'review': 'cuatro'}):
+            with self.subTest(tiers=tiers):
+                t = Mock()
+                r = ev.procesar(self._hibrido(), dict(self.cfg, tiers=tiers),
+                                dict(ACTIVO, proveedor='openai', modo='hibrido'), t, 'hibrido')
+                t.assert_not_called()
+                self.assertFalse(r['ok'])
+                self.assertEqual(r['motivo'], 'umbrales_invalidos')
+
+    def _hibrido(self):
+        p = copy.deepcopy(self.p)
+        for e in p['emails']:
+            e.pop('principal')
+            e['contexto_suficiente'] = True
+        return p
+
+    def test_snapshot_fechado_de_openai_se_acepta_y_se_tarifa(self):
+        respuesta = sobre('openai', self.cfg)
+        respuesta['model'] += '-2026-10-01'
+        r, _ = self.ejecutar('openai', transporte=Mock(return_value=respuesta))
+        f = r['resultados'][0]
+        self.assertEqual(f['motivo'], 'solo_comparacion')
+        self.assertEqual(f['modelo_efectivo'], respuesta['model'])
+        self.assertFalse(r['consumo']['coste_total_desconocido'])
+
+    def test_fila_a_reevaluar_mantiene_la_simulacion(self):
+        p = self._hibrido()
+        p['emails'][0]['control']['forzar_reply_needed'] = True
+        for nombre in PROVEEDORES:
+            with self.subTest(nombre=nombre):
+                r = ev.procesar(copy.deepcopy(p), self.cfg, dict(ACTIVO, proveedor=nombre, modo='hibrido'),
+                                Mock(return_value=sobre(nombre, self.cfg)), 'hibrido')
+                f = r['resultados'][0]
+                self.assertEqual(f['motivo'], 'reevaluar_tier_o_umbral')
+                self.assertTrue(f['usar_principal'])
+                self.assertTrue(r['requiere_simulacion'])
+
     def test_modelo_usage_refusal_vacio_truncado_en_ambos_modos(self):
         for nombre in PROVEEDORES:
             for modo in ('comparar', 'hibrido'):
@@ -429,6 +527,14 @@ class TestCLIEvaluadores(unittest.TestCase):
                 copia.write_text(json.dumps(dict(ACTIVO, **cambio)))
                 with self.assertRaisesRegex(nc.ErrorCapaDisco, 'config_no_coincide_con_base'):
                     ev.capa_desde_disco(str(copia), str(base))
+            # El timeout tampoco se puede ampliar con una copia; reducirlo, sí.
+            base.write_text(json.dumps(dict(ACTIVO, timeout_segundos=20)))
+            copia.write_text(json.dumps(dict(ACTIVO, timeout_segundos=60)))
+            with self.assertRaisesRegex(nc.ErrorCapaDisco, 'config_no_coincide_con_base'):
+                ev.capa_desde_disco(str(copia), str(base))
+            copia.write_text(json.dumps(dict(ACTIVO, timeout_segundos=10)))
+            self.assertEqual(ev.capa_desde_disco(str(copia), str(base))['timeout_segundos'], 10)
+            base.write_text(json.dumps(ACTIVO))
             copia.write_text(json.dumps(dict(ACTIVO, max_llamadas=1)))
             self.assertEqual(ev.capa_desde_disco(str(copia), str(base))['max_llamadas'], 1)
             base.unlink()
@@ -456,3 +562,9 @@ class TestCLIEvaluadores(unittest.TestCase):
             self.assertEqual(out['resultados'][0]['motivo'], 'credencial_ausente_o_invalida')
             self.assertEqual(out['llamadas'], 0)
             self.assertNotIn('Traceback', r.stderr)
+            self.assertEqual(r.returncode, 0)
+            # Un error de la capa conserva su código propio, sin datos.
+            (base / 'config-evaluadores.yaml').write_text(json.dumps(dict(ACTIVO, tolerancia_dudas=1)))
+            r = correr('comparar', p, str(base / 'config.yaml'))
+            self.assertEqual(json.loads(r.stdout)['motivo'], 'tolerancia_dudas_no_disponible')
+            self.assertEqual(r.returncode, 1)

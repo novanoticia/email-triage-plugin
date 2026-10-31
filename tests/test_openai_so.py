@@ -62,3 +62,16 @@ class TestOpenAIStructured(unittest.TestCase):
         self.assertIsNone(p.uso(r))
         with self.assertRaisesRegex(nc.ErrorClasificador, 'modelo_inesperado'):
             p.modelo_efectivo({'model': p.MODELO_POR_DEFECTO + '-inventado'}, p.MODELO_POR_DEFECTO)
+
+
+class TestModeloEfectivo(unittest.TestCase):
+    def test_acepta_el_snapshot_fechado_y_nada_mas(self):
+        import openai_so
+        pedido = openai_so.MODELO_POR_DEFECTO
+        for devuelto in (pedido, pedido + "-2026-10-01"):
+            self.assertEqual(openai_so.modelo_efectivo({"model": devuelto}, pedido), devuelto)
+        for devuelto in (pedido + "-mini", pedido + "-2026-10", "gpt-otro", None, 5,
+                         pedido + "-2026-10-01-extra"):
+            with self.subTest(devuelto=devuelto):
+                with self.assertRaisesRegex(Exception, "modelo_inesperado"):
+                    openai_so.modelo_efectivo({"model": devuelto}, pedido)
