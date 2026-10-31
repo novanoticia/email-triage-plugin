@@ -153,6 +153,14 @@ existente: para adoptar el alias cambia su campo a `modelo: jev-latest` o elimí
    `payload_scoring`, y conserva `no_aplica` para que lo resuelva el
    principal (mismo freno que los evaluadores LLM). En `comparar` no cambia:
    la propuesta sigue siendo informativa con sus `criterios_sin_evaluar`.
+   Desde v3.24.4 (medición real con Gemini: los mismos 6 criterios no core
+   en `__no_aplica__` en 10 de 10 correos ficticios, todos frenados), si cada
+   criterio excluido es no core y tiene **una sola** opción que vale 0
+   puntos, se puntúa con esa opción solo cuando el scoring da el mismo score
+   y tier que con la exclusión. La fila lo declara en
+   `no_aplica_puntuado_como` (`{criterio: opción}`), conserva `no_aplica` y
+   sigue la revisión obligatoria habitual. Si falta alguna de esas
+   condiciones, el freno `scoring_incompleto` se mantiene.
 13. Plantillas y fallos en `hibrido` (v3.24.3, mismos frenos que los
    evaluadores LLM). Una fila que el freno de plantillas marca `plantilla`
    vuelve al principal sin `propuesta` ni `payload_scoring` y no cuenta en

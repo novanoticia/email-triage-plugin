@@ -278,12 +278,20 @@ def procesar(p, cfg, capa, transporte=None, modo="comparar"):
                 if modo == "hibrido":
                     # El scoring no acepta exclusiones libres como cobertura.
                     # Conservamos no_aplica para que el principal lo resuelva.
-                    _exigir(not propuesta.get("criterios_sin_evaluar"), "scoring_incompleto")
+                    veredictos = v["verdicts"]
+                    if propuesta.get("criterios_sin_evaluar"):
+                        # v3.24.4: misma conversión que clasificadores (opción a
+                        # 0 puntos, mismo score y tier); si no, el freno sigue.
+                        cero = nc._no_aplica_a_cero(e["id"], e["control"], veredictos,
+                                                    v["no_aplica"], activos, cfg)
+                        _exigir(cero is not None, "scoring_incompleto")
+                        veredictos, convertidos, propuesta = cero
+                        r.update(propuesta=propuesta, no_aplica_puntuado_como=convertidos)
                     reevaluar = (propuesta["tier"] in ("ARCHIVE", "REPLY_NEEDED")
                                  or any(abs(propuesta["score"] - x) <= 1 for x in fronteras))
                     r.update(usar_principal=reevaluar, revision_obligatoria=True,
                              motivo="reevaluar_tier_o_umbral" if reevaluar else "propuesta_validada",
-                             payload_scoring=dict(e["control"], id=e["id"], verdicts=v["verdicts"]))
+                             payload_scoring=dict(e["control"], id=e["id"], verdicts=veredictos))
                 else:
                     bases.append(base)
                 propuestas.append(propuesta)
