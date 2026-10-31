@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.24.1
+# Email Triage Plugin v3.24.2
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,14 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.24.2
+
+Limpieza sin cambio de comportamiento en los evaluadores LLM: Gemini usa el
+transporte común (la clave sigue en `x-goog-api-key`, nunca en la URL) y el
+mensaje de sistema se monta una vez por lote, eligiendo la instrucción sin
+`__incierto__` al construir las preguntas en vez de reescribirla después. Los
+prompts y las peticiones enviadas son idénticos a los de v3.24.1.
 
 ## Novedades en v3.24.1
 
