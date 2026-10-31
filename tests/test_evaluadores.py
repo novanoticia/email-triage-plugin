@@ -433,6 +433,19 @@ class TestEvaluadores(unittest.TestCase):
         self.assertEqual(ms[1]['content'].count('</email-body-data>'), 1)
         self.assertEqual(json.loads(ms[1]['content'].split('\n')[1])['texto'], e['estado']['texto'])
 
+    def test_instruccion_sin_incierto_y_sistema_una_vez_por_lote(self):
+        # La frase de `__incierto__` se sustituye en origen, no con un replace
+        # que fallaría en silencio si cambiara la redacción (hallazgo 15).
+        texto = ev.sistema(self.cfg, 'Perfil ficticio')
+        self.assertNotIn(nc.INCIERTO, texto)
+        self.assertNotIn(nc.INSTRUCCION_OPCION, texto)
+        self.assertIn('expresa cualquier incertidumbre en dudas', texto)
+        p = copy.deepcopy(self.p)
+        p['emails'] = [dict(p['emails'][0], id=str(i + 1)) for i in range(3)]
+        with patch.object(ev, 'sistema', wraps=ev.sistema) as s:
+            self.ejecutar('openai', p=p)
+        self.assertEqual(s.call_count, 1)
+
     def test_capas_veloz_y_ensayo_conservan_esquema_y_cobertura(self):
         base = Path(DIR_SCRIPTS).parent
         for veloz in (False, True):

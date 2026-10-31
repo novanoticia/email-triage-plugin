@@ -50,7 +50,7 @@ class TestGeminiStructured(unittest.TestCase):
             p.extraer(r)
 
     def test_transporte_clave_en_cabecera_limites_y_sin_redirect(self):
-        with patch.object(p.urllib.request, 'build_opener') as op:
+        with patch.object(nc.urllib.request, 'build_opener') as op:
             r = op.return_value.open.return_value.__enter__.return_value
             r.status = 200
             r.geturl.return_value = p.ENDPOINT
@@ -76,7 +76,7 @@ class TestGeminiStructured(unittest.TestCase):
         for error, codigo in ((urllib.error.HTTPError(p.ENDPOINT, 403, 'SECRETO', {}, None), 'http_403'),
                               (OSError('SECRETO'), 'fallo_red_o_timeout'),
                               (ValueError('SECRETO'), 'respuesta_json_invalida')):
-            with patch.object(p.urllib.request, 'build_opener') as op:
+            with patch.object(nc.urllib.request, 'build_opener') as op:
                 op.return_value.open.side_effect = error
                 with self.assertRaisesRegex(nc.ErrorClasificador, '^' + codigo + '$'):
                     p.solicitar({}, 'ficticia', 1)
