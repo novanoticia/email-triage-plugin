@@ -62,8 +62,9 @@ simulación en el principal o pedir al usuario que cambie su capa.
 
 No pedir claves en el chat ni escribirlas en YAML/git, argumentos, logs o URLs.
 El host debe inyectar la variable correspondiente en el proceso. Una suscripción
-al asistente no sustituye el acceso a la API ni su facturación. Para OpenAI en
-macOS, ver [clave en el Llavero](https://github.com/novanoticia/email-triage-plugin/blob/main/docs/clave-openai-macos.md).
+al asistente no sustituye el acceso a la API ni su facturación. Para guardar
+`OPENAI_API_KEY`, `MISTRAL_API_KEY` o `GEMINI_API_KEY` en macOS y hacer una prueba
+ficticia real, ver [claves en el Llavero](https://github.com/novanoticia/email-triage-plugin/blob/main/docs/claves-api-macos.md).
 Se requiere Python 3.9+, PyYAML para los configs y acceso HTTPS al destino elegido.
 
 ## Protocolo común del orquestador
