@@ -199,7 +199,9 @@ con una clave falsa el 2026-10-31). Si la consulta de arriba da `400`, la clave
 está mal guardada o no existe: repite el paso 2. Si da `403`, la clave existe pero
 su proyecto no tiene activada la API de Gemini. `404` significaría que el modelo ya
 no existe con ese nombre. En `evaluadores.py`, cualquiera de ellos aparece como
-`http_400`, `http_403` o `http_404` y el triaje sigue con el principal.
+`http_400`, `http_403` o `http_404` y el triaje sigue con el principal. En
+**Mistral**, una clave inválida responde `401` (comprobado con una clave falsa el
+2026-10-31).
 
 Cada una debe responder **`200`**. Un **`401`** significa clave ausente o no válida
 (lo documenta [TypeSafe](https://docs.typesafe.ai/api/errors.md); en OpenAI se
@@ -328,6 +330,7 @@ tests, que no viajan con el plugin instalado.
    |---|---|
    | `solo_comparacion` (en `comparar`) | Todo bien: el proveedor respondió y la respuesta pasó todas las validaciones. |
    | `propuesta_validada` o `reevaluar_tier_o_umbral` (en `hibrido`) | Todo bien. Lo segundo solo dice que el principal tendría que revisar ese tier. |
+   | `scoring_incompleto` (en `hibrido`) | Funciona: el modelo excluyó algún criterio no core con `__no_aplica__` y, por seguridad, esa fila vuelve al principal en vez de usarse. Pasó así en la prueba real con Gemini del 2026-10-31. |
    | `evaluador_con_dudas` | Funciona, pero el modelo anotó dudas sobre el correo ficticio. No es un fallo del adaptador. |
    | `credencial_ausente_o_invalida` (con `llamadas: 0`) | La clave no está cargada en esta Terminal: paso 4 de esta guía. |
    | `http_400` | En Gemini, casi siempre clave inválida; si la clave da `200` en el paso 4, es que Google no acepta la forma de la petición. Guarda el resultado: hay que revisar el adaptador. |
