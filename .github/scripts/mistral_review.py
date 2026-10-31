@@ -267,13 +267,43 @@ def llamar_mistral(mensajes, modelo, clave, json_mode=True):
         time.sleep(espera)
 
 
+def causa_cita(fragmento, archivo, archivos):
+    """Por qué una cita no coincide con el diff, como código sin contenido.
+
+    Solo diagnostica: la aceptación sigue exigiendo la línea literal.
+    """
+    lineas = archivos.get(archivo)
+    if lineas is None:
+        return "archivo_sin_cambios"
+    if "\n" in fragmento.strip():
+        return "multilinea"
+    limpio = fragmento.strip()
+    if any(limpio == linea[1:].strip() or limpio == linea.strip() for linea in lineas):
+        return "difiere_en_espacios"
+    if any(limpio in linea for linea in lineas):
+        return "parcial"
+    if any(fragmento in (linea, linea[1:])
+           for ruta, otras in archivos.items() if ruta != archivo for linea in otras):
+        return "en_otro_archivo"
+    return "sin_coincidencia"
+
+
 def interpretar(texto, diff=None, exigir_comprobaciones=False,
-                rutas_comprobaciones=None, diagnostico=None):
-    """Valida esquema y, si se aporta diff, citas; devuelve resultado o None."""
+                rutas_comprobaciones=None, diagnostico=None, sin_verificar=None):
+    """Valida esquema y, si se aporta diff, citas; devuelve resultado o None.
+
+    Con `sin_verificar` (lista), si lo único que falla son citas, recibe
+    TODOS los hallazgos como (hallazgo, causa o None): siguen sin aceptarse
+    (devuelve None y el check falla), pero el informe puede mostrarlos para
+    revisarlos a mano en vez de perderlos (PR #149: un hallazgo con cita
+    válida se descartaba junto al que no la tenía).
+    """
     def rechazar(codigo):
         # Solo códigos propios e índices; nunca contenido devuelto por el modelo.
         if diagnostico is not None:
             diagnostico.append(codigo)
+        if sin_verificar is not None:
+            del sin_verificar[:]
         return None
 
     try:
@@ -304,16 +334,27 @@ def interpretar(texto, diff=None, exigir_comprobaciones=False,
     campos = ("severidad", "archivo", "fragmento", "problema", "escenario", "arreglo")
     hallazgos = datos["hallazgos"]
     archivos = indice_diff(diff) if diff is not None else None
+    citas = []
     for i, h in enumerate(hallazgos):
         if not isinstance(h, dict) or any(
                 not isinstance(h.get(c), str) or not h[c].strip() for c in campos):
             return rechazar("hallazgo_%d_campos_invalidos" % i)
         if h["severidad"] not in SEVERIDADES:
             return rechazar("hallazgo_%d_severidad_invalida" % i)
+        causa = None
         if archivos is not None:
             lineas = archivos.get(h["archivo"], set())
             if not any(h["fragmento"] in (linea, linea[1:]) for linea in lineas):
-                return rechazar("hallazgo_%d_cita_fuera_del_diff" % i)
+                causa = causa_cita(h["fragmento"], h["archivo"], archivos)
+        citas.append((h, causa))
+    fallidas = ["hallazgo_%d_cita_fuera_del_diff(%s)" % (i, causa)
+                for i, (_, causa) in enumerate(citas) if causa]
+    if fallidas:
+        if diagnostico is not None:
+            diagnostico.extend(fallidas)
+        if sin_verificar is not None:
+            sin_verificar[:] = citas
+        return None
     return datos["resumen"].strip(), hallazgos
 
 
@@ -321,8 +362,24 @@ def _linea(valor, limite=500):
     return " ".join(str(valor or "").split())[:limite]
 
 
+def _render_hallazgo(partes, i, h):
+    sev = str(h.get("severidad") or "").lower()
+    partes.append("%d. %s **%s** · `%s` — %s" % (
+        i, SEVERIDADES.get(sev, "⚪"), sev or "?",
+        _linea(h.get("archivo"), 200), _linea(h.get("problema"))))
+    for etiqueta, clave in (("Escenario", "escenario"),
+                            ("Fragmento", "fragmento"),
+                            ("Arreglo", "arreglo")):
+        if h.get(clave):
+            valor = _linea(h[clave])
+            if clave == "fragmento":
+                valor = "`%s`" % valor.replace("`", "'")
+            partes.append("   - %s: %s" % (etiqueta, valor))
+
+
 def renderizar(resultado, modelo, diff_len, recortado, cabeza="", error=None,
-               comprobaciones=None, ejecucion_url="", intento=""):
+               comprobaciones=None, ejecucion_url="", intento="",
+               sin_verificar=None):
     partes = [MARCA, "## Revisión de [Mistral AI (@mistralai)]"
               "(https://github.com/mistralai) (`%s`)" % modelo]
     if cabeza:
@@ -340,6 +397,17 @@ def renderizar(resultado, modelo, diff_len, recortado, cabeza="", error=None,
         partes.append("**Revisión no válida:** la respuesta no cumple el esquema "
                       "de hallazgos y comprobaciones o sus citas no corresponden al diff enviado. "
                       "No permite concluir que el PR esté libre de hallazgos.")
+        if sin_verificar:
+            # Se muestran para revisarlos a mano: ni confirmados ni descartados.
+            partes.append("### Hallazgos devueltos sin aceptar (%d)" % len(sin_verificar))
+            partes.append("Alguna cita no coincide con una línea del diff enviado. "
+                          "Compruébalos contra el código: no son hallazgos confirmados "
+                          "ni descartados, y el check sigue fallando.")
+            for i, (h, causa) in enumerate(sin_verificar, 1):
+                _render_hallazgo(partes, i, h)
+                partes.append("   - Cita: %s" % (
+                    "verificada en el diff" if causa is None
+                    else "no verificada (`%s`)" % causa))
     else:
         resumen, hallazgos = resultado
         if resumen:
@@ -359,18 +427,7 @@ def renderizar(resultado, modelo, diff_len, recortado, cabeza="", error=None,
         else:
             partes.append("### Hallazgos (%d)" % len(hallazgos))
             for i, h in enumerate(hallazgos, 1):
-                sev = str(h.get("severidad") or "").lower()
-                partes.append("%d. %s **%s** · `%s` — %s" % (
-                    i, SEVERIDADES.get(sev, "⚪"), sev or "?",
-                    _linea(h.get("archivo"), 200), _linea(h.get("problema"))))
-                for etiqueta, clave in (("Escenario", "escenario"),
-                                        ("Fragmento", "fragmento"),
-                                        ("Arreglo", "arreglo")):
-                    if h.get(clave):
-                        valor = _linea(h[clave])
-                        if clave == "fragmento":
-                            valor = "`%s`" % valor.replace("`", "'")
-                        partes.append("   - %s: %s" % (etiqueta, valor))
+                _render_hallazgo(partes, i, h)
     partes.append("")
     partes.append("<sub>Diff preparado: %d caracteres%s. Hallazgos de un modelo: "
                   "compruébalos antes de actuar.</sub>"
@@ -401,7 +458,7 @@ def main():
         pr = json.load(fh)["pull_request"]
     modelo = os.environ.get("MISTRAL_MODEL") or "codestral-latest"
     diff, recortado, resultado, error = "", False, None, None
-    comprobaciones = None
+    comprobaciones, sin_verificar = None, []
     try:
         diff = obtener_diff(pr["base"]["sha"], pr["head"]["sha"])
         if not diff.strip():
@@ -414,7 +471,8 @@ def main():
             diagnostico = []
             resultado = interpretar(texto, diff[:MAX_DIFF], exigir_comprobaciones=True,
                 rutas_comprobaciones=obtener_rutas_diff(
-                    pr["base"]["sha"], pr["head"]["sha"]), diagnostico=diagnostico)
+                    pr["base"]["sha"], pr["head"]["sha"]), diagnostico=diagnostico,
+                sin_verificar=sin_verificar)
             if diagnostico:
                 print("::error::Respuesta de Mistral rechazada: " + ", ".join(diagnostico))
             if resultado is not None:
@@ -437,7 +495,8 @@ def main():
     cuerpo = renderizar(resultado, modelo, len(diff), recortado,
                         cabeza=pr["head"]["sha"], error=error,
                         comprobaciones=comprobaciones,
-                        ejecucion_url=ejecucion_url, intento=intento)
+                        ejecucion_url=ejecucion_url, intento=intento,
+                        sin_verificar=sin_verificar if resultado is None else None)
     escribir_resumen(cuerpo)
     print(cuerpo)
     try:
