@@ -181,15 +181,18 @@ def procesar(p, cfg, capa, transporte=None, modo="comparar"):
                 _exigir(type(e["contexto_suficiente"]) is bool, "contexto_invalido")
                 if not e["contexto_suficiente"]:
                     bloqueo = bloqueo or "contexto_insuficiente"
+            # El eco se exige siempre: el ancla sale del `estado` que ya protege
+            # la huella. Si fuera opcional, omitir la clave saltaba el freno.
+            ancla = th.ancla_extracto(e["estado"]["texto"])
             if "ancla_extracto" in e:
-                _exigir(e["ancla_extracto"] == th.ancla_extracto(e["estado"]["texto"]), "ancla_invalida")
+                _exigir(e["ancla_extracto"] == ancla, "ancla_invalida")
             body = prov.cuerpo(c["modelo"], mensajes(cfg, p["perfil_minimo"], e), esq)
             _exigir(len(nc._json(body)) <= nc.MAX_PETICION, "peticion_excesiva")
-            preparados.append((e, base, bloqueo, body))
+            preparados.append((e, base, bloqueo, body, ancla))
         transporte = transporte or prov.solicitar
         detenido = None
         bases, propuestas = [], []
-        for e, base, bloqueo, body in preparados:
+        for e, base, bloqueo, body, ancla in preparados:
             r = {"id": e["id"], "proveedor": c["proveedor"], "usar_principal": True,
                  "modelo_solicitado": c["modelo"]}
             if modo == "comparar":
@@ -239,8 +242,7 @@ def procesar(p, cfg, capa, transporte=None, modo="comparar"):
                 v = evaluaciones[0]
                 motivo = modelos._validar_fila(v, activos)
                 _exigir(motivo is None, motivo)
-                if "ancla_extracto" in e:
-                    _exigir(th.eco_coincide(v["eco"], e["ancla_extracto"]), "eco_distinto")
+                _exigir(th.eco_coincide(v.get("eco"), ancla), "eco_distinto")
                 r["evaluacion_" + c["proveedor"]] = v
                 if modo == "comparar":
                     r["por_criterio"] = nc._por_criterio(e["principal"], dict(v, inciertos=[]), cfg)

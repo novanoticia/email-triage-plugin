@@ -21,14 +21,15 @@ import triage_helpers as th
 ACTIVO = {"activo": True, "acepta_envio_datos": True}
 PROVEEDORES = ("openai", "mistral", "gemini")
 CLAVE = "clave-ficticia-so"
+# Todos los correos de `lote()` comparten texto: este es el eco correcto.
+ANCLA = th.ancla_extracto(lote()[0]["emails"][0]["estado"]["texto"])
 
 
 def sobre(nombre, cfg, ident="1", mutar=None, ancla=None):
     contenido = _respuesta_esquema(cfg)
     fila = contenido["evaluaciones"][0]
     fila["id"] = ident
-    if ancla is not None:
-        fila["eco"] = ancla
+    fila["eco"] = ANCLA if ancla is None else ancla
     if mutar:
         mutar(contenido)
     texto = json.dumps(contenido)
@@ -230,12 +231,30 @@ class TestEvaluadores(unittest.TestCase):
                 t = Mock(return_value=sobre(nombre, self.cfg, ancla=e['ancla_extracto']))
                 r, _ = self.ejecutar(nombre, modo, transporte=t)
                 self.assertIn('propuesta', r['resultados'][0])
-                r, _ = self.ejecutar(nombre, modo)
+                t = Mock(return_value=sobre(nombre, self.cfg, ancla={'inicio': '', 'fin': ''}))
+                r, _ = self.ejecutar(nombre, modo, transporte=t)
                 self.assertEqual(r['resultados'][0]['motivo'], 'eco_distinto')
         e['ancla_extracto'] = {'inicio': 'ajeno', 'fin': 'ajeno'}
         r, t = self.ejecutar('openai')
         t.assert_not_called()
         self.assertEqual(r['motivo'], 'ancla_invalida')
+
+    def test_eco_se_exige_aunque_falte_el_ancla(self):
+        # Quitar `ancla_extracto` del payload no puede saltar el freno de eco:
+        # el ancla se recalcula del `estado` que protege la huella.
+        e = self.p['emails'][0]
+        e.pop('ancla_extracto', None)
+        ajeno = {'inicio': 'texto que no es del correo', 'fin': 'otro texto ajeno distinto'}
+        for nombre in PROVEEDORES:
+            for modo in ('comparar', 'hibrido'):
+                with self.subTest(nombre=nombre, modo=modo):
+                    t = Mock(return_value=sobre(nombre, self.cfg, ancla=ajeno))
+                    r, _ = self.ejecutar(nombre, modo, transporte=t)
+                    f = r['resultados'][0]
+                    self.assertEqual(f['motivo'], 'eco_distinto')
+                    self.assertNotIn('propuesta', f)
+                    self.assertNotIn('payload_scoring', f)
+                    self.assertTrue(f['usar_principal'])
 
     def test_modelo_usage_refusal_vacio_truncado_en_ambos_modos(self):
         for nombre in PROVEEDORES:

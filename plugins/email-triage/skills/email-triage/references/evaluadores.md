@@ -149,7 +149,10 @@ OpenRouter no se modifica.
 Se comprueba el lote entero antes de enviar. S0/caps, extracto alterado,
 config inválido o credencial ausente impiden la llamada correspondiente.
 Por respuesta: JSON estricto → `esquema.errores` → `esquema.normalizar` →
-`modelos._validar_fila` → `eco_coincide` si hay ancla → freno de dudas → scoring.
+`modelos._validar_fila` → `eco_coincide` → freno de dudas → scoring. El eco se
+exige siempre: el ancla se recalcula del `estado` protegido por la huella, así
+que omitir `ancla_extracto` no salta el freno; si viene, debe coincidir
+(`ancla_invalida`).
 Solo se admite una evaluación y el id del correo solicitado.
 
 | Condición | Motivo y consecuencia |
@@ -158,7 +161,7 @@ Solo se admite una evaluación y el id del correo solicitado.
 | Evidencia o justificación vacía | Motivo literal de `_validar_fila`, por ejemplo `evidencias_ausentes` |
 | Dudas no vacías | `evaluador_con_dudas`; sin propuesta ni `payload_scoring` |
 | Scoring con criterios sin evaluar en híbrido (incluido `__no_aplica__` sin cobertura en scoring) | `scoring_incompleto`; conserva `no_aplica` para resolución del principal, sin propuesta ni `payload_scoring`; requiere simulación. En `comparar` permanece como resultado informativo. |
-| Eco distinto | `eco_distinto`; sin propuesta |
+| Eco distinto o ausente (también sin `ancla_extracto` en el payload) | `eco_distinto`; sin propuesta |
 | Rechazo o contenido vacío | `proveedor_rehusa`; abstención del correo entero |
 | Salida truncada o llamada a herramientas | Rechazo; nunca reparar o completar veredictos |
 | Modelo diferente | `modelo_inesperado`; sin propuesta |
