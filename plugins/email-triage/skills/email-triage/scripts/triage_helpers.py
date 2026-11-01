@@ -882,9 +882,12 @@ def eco_coincide(eco, ancla) -> bool:
     descartados). La igualdad palabra a palabra era frágil: un modelo
     reescribe puntuación y símbolos. Ahora se comparan solo letras y
     números, y basta con que coincidan, en orden, 4 de las 6 palabras de
-    cada extremo (todas si el ancla tiene menos de 4). El eco no puede ser
-    mucho más largo que el ancla (4 tokens o 2 palabras de más, desde
-    v3.27.2): así no basta con devolver medio correo.
+    cada extremo (todas si el ancla tiene menos de 4).
+    v3.27.3 (medición 14, decisión del mantenedor): se compara solo el
+    PRINCIPIO del `inicio` y el FINAL del `fin` (ventanas de len(ancla)+2
+    tokens), sin tope de longitud. Gemini no cuenta palabras: copia trozos
+    de frase de 2 a 14 palabras, y un eco largo con los extremos correctos
+    se rechazaba. Copiar de más también prueba que recibió el texto.
     Sigue cazando lo que importa: texto ajeno al final, texto cortado y el
     extracto de otro correo."""
     if not (isinstance(eco, dict) and isinstance(ancla, dict)):
@@ -898,18 +901,13 @@ def eco_coincide(eco, ancla) -> bool:
             if te:
                 return False
             continue
-        # v3.27.2 (revisión Codex, PR #171): los evaluadores LLM piden ocho
-        # palabras y el ancla tiene seis. Con fechas u horas («2026-11-01
-        # 10:30») esas dos palabras de más son 5 tokens y el tope en tokens
-        # rechazaba un eco correcto. Basta con que no pase del tope en tokens
-        # O traiga como mucho 2 palabras más que el ancla: sigue sin valer
-        # medio correo.
-        if len(te) > len(ta) + 4 and \
-                len(_palabras_ancla(e)) > len(_palabras_ancla(a)) + 2:
-            return False
-        # En `fin` se mira el final del eco: un especialista que omite la
-        # marca y añade una palabra de más del cuerpo también vale.
-        tramo = te if clave == "inicio" else te[-(len(ta) + 2):]
+        # Cada extremo se mira en su sitio: el principio del `inicio` y el
+        # final del `fin`, con 2 tokens de margen (un especialista que omite
+        # la marca « [truncado]» o reescribe una fecha también vale). Lo que
+        # el eco traiga más allá de esa ventana no cuenta, ni a favor ni en
+        # contra (v3.27.3; antes, tope de longitud y `inicio` entero).
+        margen = len(ta) + 2
+        tramo = te[:margen] if clave == "inicio" else te[-margen:]
         if _subsecuencia(ta, tramo) < min(4, len(ta)):
             return False
     return True
