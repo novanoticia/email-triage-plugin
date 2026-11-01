@@ -2,7 +2,8 @@
 # Evaluadores LLM externos: comparación e híbrido opcionales
 
 Capa independiente `config-evaluadores.yaml`, desactivada por defecto. OpenAI,
-Mistral o Gemini reciben el mismo extracto sanitizado y perfil mínimo que el
+Mistral, Gemini o Apple (Foundation Models en Private Cloud Compute, vía
+`fm serve`, desde v3.25.0) reciben el mismo extracto sanitizado y perfil mínimo que el
 principal y devuelven veredictos **con evidencias, resumen, dudas y eco** mediante
 Structured Outputs. Es el primer consumidor externo de `esquema.py`.
 
@@ -42,6 +43,16 @@ Una respuesta cuyo modelo efectivo difiere del solicitado se descarta.
 | OpenAI | `gpt-6-luna` | `OPENAI_API_KEY` | `api.openai.com/v1/chat/completions` |
 | Mistral | `ministral-3b-2512` | `MISTRAL_API_KEY` | `api.mistral.ai/v1/chat/completions` |
 | Gemini | `gemini-3.5-flash-lite` | `GEMINI_API_KEY` | `generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent` |
+| Apple | `pcc` | ninguna | `http://127.0.0.1:8765/v1/chat/completions` (`fm serve` local; él envía a Private Cloud Compute) |
+
+Apple es el único destino que no es HTTPS ni externo: el plugin habla solo con
+`fm serve` en `127.0.0.1:8765`, sin clave y **sin el proxy del entorno**
+(`nc.solicitar` con `key=None` rechaza cualquier otro destino:
+`destino_no_permitido`). Antes de usarlo, en una Terminal en primer plano
+(macOS solo concede PCC así): `fm serve --host 127.0.0.1 --port 8765`. Si no
+está abierto, la fila sale `fallo_red_o_timeout` y el resto del lote se detiene.
+El modelo on-device `system` no se admite: tiene 4.096 tokens de contexto en
+total y nuestra petición ocupa unos 4.090 de entrada más unos 1.400 de salida.
 
 Límites: 1–50 llamadas por invocación, timeout 1–60 segundos, una petición por
 correo y hasta 8192 tokens de salida. Una petición demasiado grande se rechaza
@@ -209,9 +220,17 @@ Consultados el **30-10-2026**, sin llamadas reales:
   `generationConfig.responseFormat.text`, `mimeType: APPLICATION_JSON` y
   `schema` completo. Un test recorre el subconjunto admitido; la validación
   local sigue siendo obligatoria aunque el proveedor ignore restricciones.
+- Apple (2026-11-01): sin documentación pública del endpoint; contrato
+  **comprobado en un Mac con macOS 27** con un correo ficticio (`fm serve
+  --help`, `/v1/models` → `system` y `pcc`). Chat Completions con
+  `stream: false` (por defecto responde en streaming) y `response_format`
+  `json_schema` estricto, que `pcc` aceptó; devuelve `model: "pcc"` y `usage`
+  (4.087 tokens de entrada, unos 1.400 de salida, 13 s). Puede cambiar entre
+  versiones de macOS 27.
 
 Tarifas estándar de pago en USD por millón de tokens, entrada/salida:
-OpenAI 0,10/0,50; Mistral 0,10/0,10; Gemini 0,30/2,50. Gemini incluye los tokens
+OpenAI 0,10/0,50; Mistral 0,10/0,10; Gemini 0,30/2,50; Apple 0/0 (sin
+facturación por token). Gemini incluye los tokens
 de pensamiento en el consumo de salida. Son estimaciones sin descuentos de
 caché, tramos gratuitos ni recargos regionales/prioridad; no son cotas de gasto
 ni sustituyen la factura. Para OpenAI, si se informa caché o un nivel de servicio
@@ -234,7 +253,12 @@ Cada proveedor tiene sus propias condiciones: [OpenAI](https://developers.openai
 [Gemini](https://ai.google.dev/gemini-api/terms). No se presupone retención cero
 ni residencia europea; `store: false` tampoco lo garantiza. En Gemini, las
 condiciones de uso de datos difieren entre servicio gratuito y de pago. Verificar
-la cuenta y sus condiciones antes de enviar correos reales. El consentimiento
+la cuenta y sus condiciones antes de enviar correos reales. Con Apple, el
+plugin solo envía a `127.0.0.1`, pero `fm serve` reenvía la petición a
+[Private Cloud Compute](https://security.apple.com/blog/private-cloud-compute/):
+**los datos salen del Mac** hacia servidores de Apple, que declara no
+conservarlos; rige además la licencia de macOS que se acepta con
+`fm license`. El consentimiento
 para un proveedor no autoriza enviar a otro como alternativa automática.
 
 ## Prueba ficticia y revisión del cambio

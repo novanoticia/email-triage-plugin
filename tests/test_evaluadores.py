@@ -19,7 +19,8 @@ import modelos
 import triage_helpers as th
 
 ACTIVO = {"activo": True, "acepta_envio_datos": True}
-PROVEEDORES = ("openai", "mistral", "gemini")
+PROVEEDORES = ("openai", "mistral", "gemini", "apple")
+CON_CLAVE = tuple(n for n in PROVEEDORES if ev.proveedor(n).VARIABLE_CLAVE)
 CLAVE = "clave-ficticia-so"
 # Todos los correos de `lote()` comparten texto: este es el eco correcto.
 ANCLA = th.ancla_extracto(lote()[0]["emails"][0]["estado"]["texto"])
@@ -45,7 +46,7 @@ def sobre(nombre, cfg, ident="1", mutar=None, ancla=None):
 class TestEvaluadores(unittest.TestCase):
     def setUp(self):
         self.p, self.cfg = lote()
-        env = patch.dict(os.environ, {ev.proveedor(n).VARIABLE_CLAVE: CLAVE for n in PROVEEDORES})
+        env = patch.dict(os.environ, {ev.proveedor(n).VARIABLE_CLAVE: CLAVE for n in CON_CLAVE})
         env.start()
         self.addCleanup(env.stop)
 
@@ -108,7 +109,7 @@ class TestEvaluadores(unittest.TestCase):
             t.assert_not_called()
 
     def test_clave_solo_del_proveedor_y_validada(self):
-        for nombre in PROVEEDORES:
+        for nombre in CON_CLAVE:
             for modo in ('comparar', 'hibrido'):
                 for clave in ('', 'a\nb', 'clave con espacios', 'é', 'a' * 4097):
                     with patch.dict(os.environ, {ev.proveedor(nombre).VARIABLE_CLAVE: clave}):
@@ -175,7 +176,7 @@ class TestEvaluadores(unittest.TestCase):
             self.assertEqual(sin, esquema.generar(self.cfg))
             for prohibido in ('control', 'huella', 'hard_rules', 'carpetas', 'cuerpo', CLAVE):
                 self.assertNotIn(prohibido, json.dumps(body))
-            self.assertEqual(clave, CLAVE)
+            self.assertEqual(clave, CLAVE if ev.proveedor(nombre).VARIABLE_CLAVE else None)
             self.assertEqual(timeout, 30)
 
     def test_dudas_siempre_frenan_incluso_texto_igual_a_un_id(self):

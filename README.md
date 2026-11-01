@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.24.5
+# Email Triage Plugin v3.25.0
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,16 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.25.0
+
+Nuevo proveedor de los evaluadores LLM: **Apple Foundation Models** a través de
+`fm serve` (macOS 27), con el modelo `pcc` de Private Cloud Compute. No necesita
+clave: el plugin solo habla con `127.0.0.1`, sin proxy, y `fm serve` reenvía la
+petición a Apple, así que los correos salen del Mac y requiere el mismo doble
+consentimiento. El modelo local `system` no se admite porque la petición no cabe
+en sus 4.096 tokens. Contrato comprobado en un Mac real con un correo ficticio;
+desactivado por defecto. [Cómo activarlo](docs/claves-api-macos.md).
 
 ## Novedades en v3.24.5
 

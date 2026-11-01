@@ -253,7 +253,41 @@ ficticios, sin movimientos». El modelo inicial es
 compatible con Decisions. Activarlo autoriza enviar los extractos a OpenRouter
 y al proveedor que sirva ese modelo.
 
-## Prueba ficticia de los evaluadores LLM (Gemini, Mistral u OpenAI)
+## Apple Foundation Models (sin clave, macOS 27)
+
+Apple no necesita clave ni Llavero: el plugin habla con `fm serve`, un servidor
+que macOS 27 trae de serie y que solo escucha en tu propio Mac. Ese servidor
+reenvía la petición a **Apple Private Cloud Compute** (modelo `pcc`): los correos
+**salen del Mac** hacia Apple, igual que con los demás proveedores. El modelo que
+nunca sale del Mac (`system`) no se admite: la petición no cabe en sus 4.096
+tokens.
+
+1. **Acepta la licencia y comprueba los modelos** (solo la primera vez):
+
+   ```bash
+   sudo fm license
+   fm models
+   ```
+
+   Debe aparecer `✓ pcc (AFM 3 Cloud)`.
+2. **Abre el servidor en una ventana de Terminal y déjala abierta** mientras
+   uses el plugin. macOS solo permite `pcc` a un `fm serve` en primer plano:
+
+   ```bash
+   fm serve --host 127.0.0.1 --port 8765
+   ```
+
+3. **En tu `~/.email-triage/config-evaluadores.yaml`**, pon
+   `proveedor: apple` y deja `modelo: ""` (equivale a `pcc`), con `activo` y
+   `acepta_envio_datos` en `true`.
+4. Para cerrar el servidor, en su ventana: **Ctrl+C**. Si el plugin lo
+   necesita y está cerrado, la fila sale `fallo_red_o_timeout` y el resto del
+   lote se detiene; no se envía nada a otro sitio.
+
+En la prueba ficticia de abajo, usa `PROVEEDOR = "apple"` y salta el paso 3
+(no hay clave que comprobar).
+
+## Prueba ficticia de los evaluadores LLM (Gemini, Mistral, OpenAI o Apple)
 
 Sirve para comprobar, **con un correo inventado**, que el proveedor acepta la
 petición, que el modelo responde con el nombre esperado y que la respuesta pasa
@@ -286,7 +320,7 @@ tests, que no viajan con el plugin instalado.
    ```
 
 4. **Ejecuta la prueba.** Copia el bloque entero, pégalo en Terminal y pulsa
-   Enter. Para otro proveedor, cambia `"gemini"` por `"mistral"` u `"openai"` en
+   Enter. Para otro proveedor, cambia `"gemini"` por `"mistral"`, `"openai"` o `"apple"` en
    la línea `PROVEEDOR`:
 
    ```bash
