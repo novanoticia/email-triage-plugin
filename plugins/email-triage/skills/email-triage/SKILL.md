@@ -130,9 +130,9 @@ Resuelve la base de estado según las reglas de este PASO, también para esta ca
 **Evaluadores externos.** Ante petición o capa activa, lee antes de cualquier fase:
 Jev (`config-jev.yaml`): `references/jev.md`; OpenAI Decisions
 (`config-decisions.yaml`): `references/decisions.md`; OpenRouter
-(`config-openrouter.yaml`): `references/openrouter.md`; decisión local con Ollama
-(`config-decision-local.yaml`, sin clave): `references/decision-local.md`; LLM
-OpenAI/Mistral/Gemini/Apple/Ollama (`config-evaluadores.yaml`): `references/evaluadores.md`.
+(`config-openrouter.yaml`): `references/openrouter.md`; Ollama
+(`config-decision-local.yaml`): `references/decision-local.md`; LLM
+(`config-evaluadores.yaml`): `references/evaluadores.md`.
 Desactivados por defecto; exigen clave propia y consentimiento de envío al
 proveedor elegido. Decisions usa `OPENAI_API_KEY`. `comparar` fuerza simulación;
 `hibrido` explícito permite veredictos revisados, sin nuevos permisos de movimiento.
