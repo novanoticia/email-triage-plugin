@@ -108,15 +108,21 @@ DESCRIPCION_DUDAS = ("Solo lo que impide elegir la opción de algún criterio; "
 # precisa el campo y el número; la comprobación no se relaja. Un cuerpo
 # muy corto llega con `texto` vacío y ancla vacía: entonces el eco va vacío
 # (revisión de Mistral, PR #159), no copiado del asunto.
+# v3.27.1 (medición real, Gemini, 40 correos: 6 `eco_distinto`, todos con el
+# `inicio` bien y el `fin` cortado unas palabras antes del final: «se renovará
+# con una subida» por «con una subida del 8 %.»). Se pide que `fin` acabe en
+# la última palabra del texto; la comprobación no cambia.
 INSTRUCCION_ECO = (
     "En eco copia las seis primeras y las seis últimas palabras del campo texto, "
     "nunca del asunto ni del remitente: seis exactas por extremo, en su orden. "
-    "Si texto está vacío, deja inicio y fin vacíos.")
+    "fin termina en la última palabra del texto, con su puntuación: no te "
+    "detengas antes. Si texto está vacío, deja inicio y fin vacíos.")
 DESCRIPCIONES_ECO = {
     "inicio": "Las seis primeras palabras del campo texto (no del asunto), copiadas "
               "tal cual: exactamente seis; vacío si texto está vacío.",
     "fin": "Las seis últimas palabras del campo texto (no del asunto), copiadas "
-           "tal cual: exactamente seis; vacío si texto está vacío.",
+           "tal cual y terminando en la última palabra del texto: exactamente "
+           "seis; vacío si texto está vacío.",
 }
 
 

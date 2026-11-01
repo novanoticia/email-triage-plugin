@@ -484,6 +484,11 @@ class TestEvaluadores(unittest.TestCase):
         self.assertFalse(th.eco_coincide(
             {'inicio': 'Boletín de noviembre Novedades del mes:', 'fin': ancla['fin']}, ancla))
         self.assertFalse(th.eco_coincide({'inicio': 'Novedades del', 'fin': ancla['fin']}, ancla))
+        # v3.27.1 (Gemini): el `fin` se quedaba unas palabras antes del final.
+        for frase in (ev.INSTRUCCION_ECO, ev.DESCRIPCIONES_ECO["fin"]):
+            self.assertIn('última palabra del texto', frase)
+        self.assertFalse(th.eco_coincide(
+            {'inicio': ancla['inicio'], 'fin': 'diez artículos sobre jardinería urbana y'}, ancla))
         # Cuerpo muy corto: `texto` llega vacío y el eco debe ir vacío, no
         # copiado del asunto (revisión de Mistral, PR #159).
         for frase in (ev.INSTRUCCION_ECO, *ev.DESCRIPCIONES_ECO.values()):

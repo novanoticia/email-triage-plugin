@@ -117,7 +117,9 @@ campo `texto`**, nunca del asunto ni del remitente: el ancla sale solo de
 `eco_distinto`): unos 11 ecos empezaban por el asunto y unos 8 traían 2-3
 palabras, menos de las 4 de 6 que exige `eco_coincide`. Si `texto` llega vacío
 (cuerpo muy corto), se pide el eco vacío, que es lo que da el ancla. La
-comprobación no cambia.
+comprobación no cambia. Desde v3.27.1 se pide además que `fin` termine en la
+última palabra del texto, con su puntuación: en la medición de Gemini con v3.25.1,
+los 6 ecos fallidos tenían el `inicio` bien y el `fin` cortado antes del final.
 
 **No combinar con Jev, Decisions, OpenRouter ni el evaluador nativo en la misma
 sesión.** Con varias capas activas, preguntar cuál usar antes de enviar datos;
