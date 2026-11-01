@@ -169,11 +169,17 @@ class TestEvaluadores(unittest.TestCase):
             enviado = (body['generationConfig']['responseFormat']['text']['schema'] if nombre == 'gemini'
                        else body['response_format']['json_schema']['schema'])
             self.assertEqual(enviado, ev.esquema_evaluador(self.cfg))
-            # Igual al esquema común salvo la descripción de `dudas` (v3.24.5).
-            sin = copy.deepcopy(enviado)
-            dudas = sin['properties']['evaluaciones']['items']['properties']['dudas']
-            self.assertEqual(dudas.pop('description'), ev.DESCRIPCION_DUDAS)
-            self.assertEqual(sin, esquema.generar(self.cfg))
+            # Igual al esquema común salvo las descripciones de `dudas` (v3.24.5)
+            # y de los extremos del `eco` (v3.25.1).
+            sin, comun = copy.deepcopy(enviado), esquema.generar(self.cfg)
+            fila = sin['properties']['evaluaciones']['items']['properties']
+            fila_comun = comun['properties']['evaluaciones']['items']['properties']
+            self.assertEqual(fila['dudas'].pop('description'), ev.DESCRIPCION_DUDAS)
+            fila_comun['dudas'].pop('description', None)
+            for extremo, descripcion in ev.DESCRIPCIONES_ECO.items():
+                self.assertEqual(fila['eco']['properties'][extremo].pop('description'), descripcion)
+                fila_comun['eco']['properties'][extremo].pop('description')
+            self.assertEqual(sin, comun)
             for prohibido in ('control', 'huella', 'hard_rules', 'carpetas', 'cuerpo', CLAVE):
                 self.assertNotIn(prohibido, json.dumps(body))
             self.assertEqual(clave, CLAVE if ev.proveedor(nombre).VARIABLE_CLAVE else None)
@@ -450,6 +456,28 @@ class TestEvaluadores(unittest.TestCase):
         r, _ = self.ejecutar('gemini', 'hibrido', lambda d: d['evaluaciones'][0].update(
             dudas=['Una duda cualquiera.']))
         self.assertEqual(r['resultados'][0]['motivo'], 'evaluador_con_dudas')
+
+    def test_instruccion_de_eco_nombra_el_campo_texto_y_seis_palabras(self):
+        # v3.25.1 (medición real con Apple `pcc`): el ancla sale solo de
+        # `estado.texto`; el eco empezaba por el asunto o traía 2-3 palabras.
+        texto = ev.sistema(self.cfg, 'Perfil ficticio')
+        self.assertIn(ev.INSTRUCCION_ECO, texto)
+        for frase in (ev.INSTRUCCION_ECO, *ev.DESCRIPCIONES_ECO.values()):
+            self.assertIn('campo texto', frase)
+            self.assertIn('asunto', frase)
+            self.assertIn('seis', frase)
+        # El campo se llama así en el mensaje que recibe el proveedor.
+        p = ev.preparar({'perfil_minimo': 'x', 'emails': [
+            {'id': '1', 'asunto': 'A', 'remitente': 'r@example.invalid', 'cuerpo': 'Hola'}]})
+        usuario = ev.mensajes(self.cfg, 'x', p['emails'][0])[-1]['content']
+        self.assertIn('"texto":', usuario)
+        # La comprobación no se relaja: un eco que empieza por el asunto sigue fuera.
+        import triage_helpers as th
+        ancla = th.ancla_extracto('Novedades del mes: diez artículos sobre jardinería urbana y una receta de otoño.')
+        self.assertTrue(th.eco_coincide(dict(ancla), ancla))
+        self.assertFalse(th.eco_coincide(
+            {'inicio': 'Boletín de noviembre Novedades del mes:', 'fin': ancla['fin']}, ancla))
+        self.assertFalse(th.eco_coincide({'inicio': 'Novedades del', 'fin': ancla['fin']}, ancla))
 
     def test_instruccion_sin_incierto_y_sistema_una_vez_por_lote(self):
         # La frase de `__incierto__` se sustituye en origen, no con un replace
