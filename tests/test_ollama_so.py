@@ -261,6 +261,25 @@ class TestPreflightOllama(unittest.TestCase):
             ev.procesar(lote_, cfg, dict(capa, modo="hibrido"), Mock(), "hibrido")
         llamado.assert_not_called()
 
+    def test_solo_cuentan_las_peticiones_que_se_enviaran(self):
+        # Revisión Codex (PR #163): un correo bloqueado o fuera de
+        # `max_llamadas` nunca se envía; no puede frenar a los demás.
+        visto = {}
+
+        def pre(modelo, bodies, timeout):
+            visto["n"] = len(bodies)
+            return {}
+
+        lote_, cfg = lote(3)
+        for e in lote_["emails"]:
+            e.pop("principal", None)
+            e["contexto_suficiente"] = True
+        lote_["emails"][0]["contexto_suficiente"] = False
+        capa = dict(te.ACTIVO, proveedor="ollama", modo="hibrido", max_llamadas=1)
+        with patch.object(p, "preflight", pre):
+            ev.procesar(lote_, cfg, capa, Mock(return_value={}), "hibrido")
+        self.assertEqual(visto["n"], 1)
+
     def test_otros_proveedores_no_declaran_preflight(self):
         for nombre in ("openai", "mistral", "gemini", "apple"):
             with self.subTest(proveedor=nombre):
