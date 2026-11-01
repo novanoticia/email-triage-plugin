@@ -122,9 +122,13 @@ comprobación no cambia. Desde v3.27.1 se pide además que `fin` termine en la
 los 6 ecos fallidos tenían el `inicio` bien y el `fin` cortado antes del final.
 Desde v3.27.2 se piden **ocho** palabras por extremo, con una instrucción más
 corta: con seis, Gemini daba 2-3 en `fin` y en un correo copió parte de la
-instrucción dentro del eco (medición 13). `eco_coincide` no cambia: sigue
-exigiendo 4 de las 6 palabras del ancla, en orden; ya admitía hasta 4 de más y,
-en `fin`, mira las 8 últimas.
+instrucción dentro del eco (medición 13). `eco_coincide` sigue exigiendo 4 de
+las 6 palabras del ancla, en orden, y en `fin` mira las 8 últimas. Su tope de
+longitud admite ahora 4 tokens **o** 2 palabras de más que el ancla: con fechas u
+horas («2026-11-01 10:30»), las dos palabras pedidas de más eran 5 tokens y un eco
+correcto salía `eco_distinto` (revisión de Codex). La descripción del objeto `eco`
+del esquema también dice ocho: la del esquema común, que sigue en seis para la
+delegación nativa, pedía seis y ocho a la vez.
 
 **No combinar con Jev, Decisions, OpenRouter ni el evaluador nativo en la misma
 sesión.** Con varias capas activas, preguntar cuál usar antes de enviar datos;

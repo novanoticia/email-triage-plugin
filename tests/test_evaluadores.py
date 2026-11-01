@@ -176,12 +176,14 @@ class TestEvaluadores(unittest.TestCase):
                        else body['response_format']['json_schema']['schema'])
             self.assertEqual(enviado, ev.esquema_evaluador(self.cfg))
             # Igual al esquema común salvo las descripciones de `dudas` (v3.24.5)
-            # y de los extremos del `eco` (v3.25.1).
+            # y del `eco`: sus extremos (v3.25.1) y el objeto (v3.27.2).
             sin, comun = copy.deepcopy(enviado), esquema.generar(self.cfg)
             fila = sin['properties']['evaluaciones']['items']['properties']
             fila_comun = comun['properties']['evaluaciones']['items']['properties']
             self.assertEqual(fila['dudas'].pop('description'), ev.DESCRIPCION_DUDAS)
             fila_comun['dudas'].pop('description', None)
+            self.assertEqual(fila['eco'].pop('description'), ev.DESCRIPCION_ECO)
+            fila_comun['eco'].pop('description')
             for extremo, descripcion in ev.DESCRIPCIONES_ECO.items():
                 self.assertEqual(fila['eco']['properties'][extremo].pop('description'), descripcion)
                 fila_comun['eco']['properties'][extremo].pop('description')
@@ -499,6 +501,19 @@ class TestEvaluadores(unittest.TestCase):
             {'inicio': ' '.join(palabras[:8]), 'fin': ' '.join(palabras[-8:])}, ancla))
         self.assertFalse(th.eco_coincide(
             {'inicio': ' '.join(palabras[:8]), 'fin': 'hacer nada.'}, ancla))
+        # Revisión Codex (PR #171): con fechas u horas, las dos palabras de más
+        # superaban el tope en tokens; ocho palabras exactas deben pasar.
+        texto = 'Te confirmo nuestra próxima reunión para 2026-11-01 10:30 en la sala grande del local.'
+        ancla, palabras = th.ancla_extracto(texto), texto.split()
+        self.assertTrue(th.eco_coincide(
+            {'inicio': ' '.join(palabras[:8]), 'fin': ' '.join(palabras[-8:])}, ancla))
+        # Sigue sin valer un eco mucho más largo que el ancla.
+        self.assertFalse(th.eco_coincide(
+            {'inicio': ' '.join(palabras[:12]), 'fin': ancla['fin']}, ancla))
+        # Y el esquema no pide seis en ningún sitio del eco de los evaluadores.
+        eco = ev.esquema_evaluador(self.cfg)['properties']['evaluaciones']['items']['properties']['eco']
+        self.assertNotIn('seis', json.dumps(eco, ensure_ascii=False))
+        self.assertIn('Ocho', eco['description'])
         # La instrucción ya no empieza una frase por «fin», que Gemini copió.
         self.assertNotIn('fin termina', ev.INSTRUCCION_ECO)
         # Cuerpo muy corto: `texto` llega vacío y el eco debe ir vacío, no

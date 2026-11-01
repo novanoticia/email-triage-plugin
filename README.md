@@ -94,8 +94,9 @@ relue par un humain. / Traducción generada por una IA, sin revisión humana.
 Evaluadores LLM: el `eco` pide ahora **ocho** palabras por extremo en vez de
 seis, con una instrucción más corta. Con seis, Gemini devolvía 2-3 en el final
 y en un correo llegó a copiar la propia instrucción dentro del eco (8 de 40
-filas volvían al principal por eso). La comprobación del eco no cambia: sigue
-pidiendo 4 de las 6 palabras de referencia, en orden.
+filas volvían al principal por eso). La comprobación del eco sigue pidiendo 4
+de las 6 palabras de referencia, en orden; solo admite ahora esas 2 palabras de
+más aunque sean fechas u horas.
 [Mediciones](docs/mediciones-evaluadores.md).
 
 ## Novedades en v3.27.1

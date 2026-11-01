@@ -190,7 +190,8 @@ diseño. En la práctica, hoy `hibrido` solo propone por su cuenta filas `REVIEW
 y `READING_LATER`.
 
 → **v3.27.2**: el eco pide ocho palabras por extremo, con una instrucción más
-corta que no empieza por «fin». `eco_coincide` no cambia. Pendiente de medir.
+corta que no empieza por «fin». `eco_coincide` sigue en 4 de 6; su tope de
+longitud admite 2 palabras de más aunque sean fechas u horas. Pendiente de medir.
 
 
 

@@ -120,6 +120,11 @@ INSTRUCCION_ECO = (
     "En eco copia del campo texto, nunca del asunto ni del remitente, las ocho "
     "primeras palabras en inicio y las ocho últimas, hasta la última palabra del "
     "texto, en fin. Si texto está vacío, deja los dos vacíos.")
+# El objeto `eco` del esquema común dice «seis palabras» (delegación nativa);
+# los evaluadores lo sustituyen para no pedir seis y ocho a la vez (revisión
+# Codex, PR #171).
+DESCRIPCION_ECO = ("Ocho palabras por extremo del campo texto, no el texto entero; "
+                   "cadenas vacías si texto está vacío.")
 DESCRIPCIONES_ECO = {
     "inicio": "Las ocho primeras palabras del campo texto (no del asunto), copiadas "
               "tal cual; vacío si texto está vacío.",
@@ -137,6 +142,7 @@ def esquema_evaluador(cfg):
     esq = esquema.generar(cfg)
     fila = esq["properties"]["evaluaciones"]["items"]["properties"]
     fila["dudas"] = dict(fila["dudas"], description=DESCRIPCION_DUDAS)
+    fila["eco"] = dict(fila["eco"], description=DESCRIPCION_ECO)
     extremos = fila["eco"]["properties"]
     for extremo, descripcion in DESCRIPCIONES_ECO.items():
         extremos[extremo] = dict(extremos[extremo], description=descripcion)
