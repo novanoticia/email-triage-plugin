@@ -62,7 +62,7 @@ ESPERADOS = [
     ("REVIEW", "D"),             # 2 factura: pagar, no responder
     ("REPLY_NEEDED", "PDF"),     # 3 decidir antes del viernes
     ("ARCHIVE", "B"),            # 4 promoción
-    ("REVIEW", "B"),             # 5 contraseña: solo si no fuiste tú
+    ("REVIEW", ""),              # 5 aviso de seguridad: sin B (medición 13)
     ("ARCHIVE", "B"),            # 6 encuesta ritual
     ("REVIEW", "D"),             # 7 subvención, plazo lejano
     ("REPLY_NEEDED", "PF"),      # 8 un socio espera respuesta
