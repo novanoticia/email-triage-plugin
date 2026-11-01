@@ -289,6 +289,10 @@ En la prueba ficticia de abajo, usa `PROVEEDOR = "apple"` y salta el paso 3
 
 ## Prueba ficticia de los evaluadores LLM (Gemini, Mistral, OpenAI o Apple)
 
+> Para medir con 40 correos inventados cuántas filas llegan a propuesta y por
+> qué vuelven las demás, usa `scripts/medir_evaluadores.py`. Los resultados de
+> cada medición están en [`mediciones-evaluadores.md`](mediciones-evaluadores.md).
+
 Sirve para comprobar, **con un correo inventado**, que el proveedor acepta la
 petición, que el modelo responde con el nombre esperado y que la respuesta pasa
 todas las validaciones, en `comparar` y en `hibrido`. No toca tu
