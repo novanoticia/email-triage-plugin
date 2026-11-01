@@ -58,8 +58,8 @@ Debe aparecer `qwen3.5:latest`.
 `/v1/systemone`, pero en la sonda de un correo eligieron `__incierto__` en 25 y
 7 de 30 criterios, respectivamente, con confianza mediana 0,13 y 0,24: en modo
 `hibrido` no darían ninguna propuesta (el freno pide 0 inciertos y confianza
-de al menos 0,8 en los 30 criterios). No hay adaptador para ellos. Solo hacen
-falta para la sonda de decisión del paso 5:
+de al menos 0,8 en los 30 criterios). Desde v3.27.0 tienen adaptador propio
+(`config-decision-local.yaml`, ver el paso 6), útil para `comparar`:
 
 ```bash
 ollama pull tev1:4b
@@ -158,6 +158,30 @@ python3 scripts/sonda_decision_local.py
 
 Ninguno de los tres toca tu `~/.email-triage/`, lee el buzón ni mueve nada. Los
 resultados se registran en [`mediciones-evaluadores.md`](mediciones-evaluadores.md).
+
+## 6. Modelos de decisión en el plugin (v3.27.0)
+
+`d1` y `tev1:4b` se usan con su propia capa, separada de la del evaluador LLM.
+En tu `~/.email-triage/config-decision-local.yaml` (si no existe, copia la
+plantilla `config-decision-local.yaml` del plugin):
+
+```yaml
+activo: true
+acepta_envio_datos: true
+modo: comparar        # en hibrido, hoy, cada fila vuelve al principal
+modelo: d1:latest     # o tev1:4b
+max_llamadas: 5
+timeout_segundos: 60
+confianza_minima: 0.8
+tolerancia_dudas: 0
+```
+
+Sin clave. Con `ollama serve` abierto como en el paso 3, pide al plugin que
+compare con el modelo de decisión local. Resultado de la sonda con 12 correos
+inventados: `d1` tarda 3-4 s por correo y `tev1:4b` 12-16 s, pero **ninguna fila
+pasa el freno de confianza**. Sirve para comparar con el principal en local y
+sin coste, no para delegar el triaje. No actives esta capa a la vez que la de
+evaluadores: el plugin te preguntará cuál usar.
 
 ## Problemas frecuentes
 
