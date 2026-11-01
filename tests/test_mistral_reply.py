@@ -484,6 +484,22 @@ class TestWorkflowMistralReply(unittest.TestCase):
         checkout = next(p for p in trabajo["steps"] if p.get("uses", "").startswith("actions/checkout@"))
         self.assertEqual(checkout["with"]["ref"], "${{ github.event.repository.default_branch }}")
         self.assertFalse(checkout["with"]["persist-credentials"])
+        paso = next(p for p in trabajo["steps"] if "mistral_reply.py" in p.get("run", ""))
+        self.assertEqual(paso["env"]["MISTRAL_REPLY_MODEL"], "${{ vars.MISTRAL_REPLY_MODEL }}")
+        self.assertEqual(paso["env"]["MISTRAL_MODEL"], "${{ vars.MISTRAL_MODEL }}")
+
+
+class TestModeloContraste(unittest.TestCase):
+    def test_variable_propia_manda_y_sin_ella_todo_sigue_igual(self):
+        casos = (({}, "codestral-latest"),
+                 ({"MISTRAL_MODEL": "mistral-large-latest"}, "mistral-large-latest"),
+                 ({"MISTRAL_MODEL": "mistral-large-latest", "MISTRAL_REPLY_MODEL": ""},
+                  "mistral-large-latest"),  # variable creada pero vacía
+                 ({"MISTRAL_MODEL": "mistral-large-latest",
+                   "MISTRAL_REPLY_MODEL": "codestral-latest"}, "codestral-latest"))
+        for entorno, esperado in casos:
+            with self.subTest(entorno=entorno), mock.patch.dict(os.environ, entorno, clear=True):
+                self.assertEqual(reply.modelo_contraste(), esperado)
 
 
 if __name__ == "__main__":
