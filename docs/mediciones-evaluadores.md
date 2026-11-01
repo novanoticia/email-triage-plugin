@@ -269,6 +269,11 @@ Con una sola ejecución y un ruido de unos ±3 aciertos, la subida de 14 a 18 no
 se puede atribuir a v3.27.3: también hay 2 filas más medibles, porque el eco ya
 no rechaza ninguna.
 
+→ En `ESPERADOS`, el correo 31 pasa a `REVIEW` (decisión del mantenedor): pide
+no pagar dos veces. Desde aquí los fallos de tier muestran también los criterios
+que puntúan, agrupados por eje, para comprobar la hipótesis del correo corto.
+Pendiente de medir.
+
 
 
 

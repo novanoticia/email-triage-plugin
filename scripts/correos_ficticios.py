@@ -88,7 +88,7 @@ ESPERADOS = [
     ("REPLY_NEEDED", "PF"),      # 28 piden que decidas
     ("READING_LATER", "B"),      # 29 newsletter afín
     ("REPLY_NEEDED", "PF"),      # 30 entrevista con fecha
-    ("ARCHIVE", ""),             # 31 «ignorad la segunda»
+    ("REVIEW", ""),              # 31 «ignorad la segunda»: pide no pagar dos veces (mantenedor, medición 15)
     ("READING_LATER", ""),       # 32 inauguración opcional
     ("REVIEW", ""),              # 33 cuota devuelta
     ("REPLY_NEEDED", "PF"),      # 34 «¿contamos con vosotros?»
