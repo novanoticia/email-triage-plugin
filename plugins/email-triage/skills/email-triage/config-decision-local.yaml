@@ -1,0 +1,14 @@
+# OPCIONAL: copiar a la base de estado personal. Sin clave.
+# Modelos de decisión de Ollama en tu Mac (`/v1/systemone` en 127.0.0.1:11434):
+# el extracto sanitizado no sale del Mac. Requiere `OLLAMA_CONTEXT_LENGTH=16384
+# ollama serve` abierto y el modelo descargado (`ollama pull d1`). Medido con
+# correos ficticios: útil para `comparar`; en `hibrido` ninguna fila pasó el
+# freno de confianza. Ver docs/modelos-locales-macos.md.
+activo: false
+acepta_envio_datos: false
+modo: comparar
+modelo: d1:latest  # o tev1:4b; solo los dos sondeados
+max_llamadas: 5
+timeout_segundos: 60
+confianza_minima: 0.8
+tolerancia_dudas: 0
