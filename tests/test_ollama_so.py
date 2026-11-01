@@ -29,8 +29,21 @@ class TestOllamaSO(unittest.TestCase):
         body = p.cuerpo("qwen3.5:latest", [{"role": "user", "content": "x"}], esquema.generar(cfg))
         self.assertIs(body["stream"], False)
         self.assertEqual(body["reasoning_effort"], "none")
+        # v3.26.2: tope de salida = margen del preflight (nunca más de lo comprobado).
+        self.assertEqual(body["max_tokens"], p.MARGEN_SALIDA)
+        self.assertGreaterEqual(p.MAX_SALIDA, p.SALIDA_MAXIMA_OBSERVADA)
         self.assertEqual(body["response_format"]["type"], "json_schema")
         self.assertTrue(body["response_format"]["json_schema"]["strict"])
+
+    def test_respuesta_cortada_por_el_tope_solo_descarta_su_correo(self):
+        # Con `max_tokens`, un correo que se enreda acaba `finish_reason:
+        # length`; no es un fallo de transporte y el lote sigue.
+        cortada = {"model": p.MODELO_POR_DEFECTO, "choices": [{"finish_reason": "length",
+                   "message": {"role": "assistant", "content": '{"evaluaciones": ['}}],
+                   "usage": {"prompt_tokens": 4144, "completion_tokens": p.MAX_SALIDA}}
+        with self.assertRaisesRegex(nc.ErrorClasificador, "^respuesta_incompleta$"):
+            p.extraer(cortada)
+        self.assertFalse("respuesta_incompleta".startswith(ev.DETIENEN))
 
     def test_solo_modelos_sondeados(self):
         self.assertEqual(ev.config({"proveedor": "ollama"})["modelo"], "qwen3.5:latest")

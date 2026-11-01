@@ -43,11 +43,19 @@ TIMEOUT_PS = 10  # `/api/ps` no genera: responde al momento o no responde
 CARACTERES_POR_TOKEN = 3
 SALIDA_MAXIMA_OBSERVADA = 2300
 MARGEN_SALIDA = math.ceil(SALIDA_MAXIMA_OBSERVADA * 1.5)
+# v3.26.2 (medición real del 2026-11-01, contexto 16.384 comprobado con
+# `ollama ps`): sin tope, el correo 2 generó más de 300 s, el lote se detuvo
+# y Ollama siguió generando la respuesta abandonada, así que la ejecución
+# siguiente falló en el correo 1. `max_tokens` = el margen que reserva el
+# preflight: la salida nunca supera lo que se comprobó que cabe, y a ~18
+# tokens/s acaba en unos 190 s, por debajo de los 300 recomendados. Una
+# respuesta cortada sale `respuesta_incompleta` y solo descarta su correo.
+MAX_SALIDA = MARGEN_SALIDA
 
 
 def cuerpo(modelo, mensajes, esquema):
     return {"model": modelo, "messages": mensajes, "stream": False,
-            "reasoning_effort": "none",
+            "reasoning_effort": "none", "max_tokens": MAX_SALIDA,
             "response_format": {"type": "json_schema", "json_schema": {
                 "name": "evaluacion_correo", "strict": True, "schema": esquema}}}
 
