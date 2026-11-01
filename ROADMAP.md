@@ -186,6 +186,18 @@ No propongas trabajo en estas líneas salvo petición expresa del mantenedor:
 - Excepción autorizada el 2026-10-30: evaluadores LLM con Structured Outputs
   (OpenAI, Mistral y Gemini), opt-in tanto en comparar como en híbrido. Doble
   consentimiento, revisión y freno ante cualquier duda; sin permisos de movimiento.
+- Excepción autorizada el 2026-11-01 (v3.25.0): Apple Foundation Models como
+  cuarto evaluador LLM, vía `fm serve` (macOS 27) y solo con el modelo `pcc`
+  (Private Cloud Compute): los datos salen del Mac; mismas garantías.
+  - **Descartado** (2026-11-01): Gemini Nano (Android, AICore/ML Kit). Solo es
+    accesible desde una app Android y su Prompt API admite menos de 4.000
+    tokens de entrada y salidas cortas; la petición del evaluador no cabe.
+  - **Apuntado, sin implementar**: proveedor `local` para un servidor
+    compatible con Chat Completions en `127.0.0.1` (Ollama, LM Studio), con
+    puerto y modelo configurables, sobre la vía sin clave ni proxy de v3.25.0.
+    Sería la única opción en la que el correo no sale del Mac. Antes de
+    escribirlo: sonda en un Mac real (contexto, esquema estricto) y medición
+    con los 40 correos ficticios, como con Apple.
 - Cambios de licencia, distribución o marketplace.
 - Rediseños de la interfaz de revisión que no respondan a P1 o P2.
 
@@ -223,6 +235,8 @@ la que más informa a P2 y al resto de P3.
 
 | Fecha | Hito | Versión |
 |---|---|---|
+| 2026-11-01 | Apple Foundation Models (`pcc`) como evaluador LLM; contrato comprobado en un Mac real | 3.25.0 |
+| 2026-10-31 | Evaluadores LLM medidos con Gemini y 40 correos ficticios en híbrido: 28 de 40 propuestas tras v3.24.4–v3.24.5; freno restante, el eco (12 de 40) | 3.24.5 |
 | 2026-10-30 | Evaluadores LLM estructurados, comparación e híbrido opt-in; pruebas simuladas, pendiente de validación real | 3.24.0 |
 | 2026-10-30 | OpenRouter Decisions implementado, opt-in; pruebas simuladas, pendiente de validación real | 3.23.0 |
 | — | Redacción inicial de este ROADMAP | 3.17.x |
