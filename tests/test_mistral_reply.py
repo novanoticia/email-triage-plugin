@@ -268,6 +268,92 @@ class TestLecturaGitMistral(unittest.TestCase):
         self.assertIn("no se dispone de su base histórica", mensajes[1]["content"])
 
 
+class TestCitasPR157(unittest.TestCase):
+    """Los tres rechazos `sin_coincidencia` del PR #157, reconstruidos.
+
+    Un archivo nuevo de 153 líneas: el diff las enseña todas, pero la ventana
+    enviada como código solo va de la 61 a la 153."""
+
+    DIFF = ("diff --git a/m.py b/m.py\nnew file mode 100644\n--- /dev/null\n+++ b/m.py\n"
+            "@@ -0,0 +1,3 @@\n+import evaluadores as ev\n+v = f.get(\"evaluacion_\" + P) or {}\n"
+            "+con_dudas += 1\n")
+    VENTANA = {"desde": 2, "hasta": 3, "texto": "...",
+               "lineas": {'v = f.get("evaluacion_" + P) or {}', "con_dudas += 1"},
+               "todas": {"import evaluadores as ev", 'v = f.get("evaluacion_" + P) or {}',
+                         "con_dudas += 1"}}
+
+    def construir(self, original_commit_id):
+        fuente = dict(FUENTE, path="m.py", line=3, original_line=3,
+                      original_commit_id=original_commit_id)
+        with mock.patch.object(mr, "obtener_diff", return_value=self.DIFF), \
+                mock.patch.object(mr, "leer_guia", return_value=(None, "")), \
+                mock.patch.object(reply, "fragmento_git",
+                                  side_effect=lambda *a: copy.deepcopy(self.VENTANA)):
+            return reply.construir_mensajes([fuente], {"base": {"sha": "b" * 40},
+                                                       "head": {"sha": SHA}})[1]
+
+    def interpretar(self, evidencias, version, fragmento):
+        diagnostico = []
+        r = dict(RESPUESTA, evidencia=[{"archivo": "m.py", "version": version,
+                                        "fragmento": fragmento}])
+        fuente = dict(FUENTE, path="m.py")
+        return reply.interpretar_respuestas(json.dumps({"respuestas": [r]}), [fuente],
+                                            evidencias, diagnostico), diagnostico
+
+    def test_mismo_commit_la_linea_del_diff_cuenta_como_original(self):
+        # Intentos 1 y 2: el hallazgo se hizo sobre la cabeza actual.
+        evidencias = self.construir(SHA)
+        aceptadas, diagnostico = self.interpretar(evidencias, "original", "import evaluadores as ev")
+        self.assertIsNotNone(aceptadas)
+        self.assertEqual(diagnostico, [])
+
+    def test_commit_distinto_no_mezcla_versiones_y_lo_diagnostica(self):
+        evidencias = self.construir("c" * 40)
+        self.assertNotIn("import evaluadores as ev", evidencias["12"]["original"]["m.py"])
+        aceptadas, diagnostico = self.interpretar(evidencias, "original", "import evaluadores as ev")
+        self.assertIsNone(aceptadas)
+        self.assertEqual(diagnostico, ["respuesta_0_cita_0_original(fuera_de_ventana)"])
+
+    def test_comillas_escapadas_se_diagnostican_y_siguen_rechazadas(self):
+        # Intento 3: la línea original solo llegaba dentro del JSON (`\"`).
+        evidencias = self.construir("c" * 40)
+        aceptadas, diagnostico = self.interpretar(
+            evidencias, "original", 'v = f.get(\\"evaluacion_\\" + P) or {}')
+        self.assertIsNone(aceptadas)
+        self.assertEqual(diagnostico, ["respuesta_0_cita_0_original(escapado)"])
+
+    def test_linea_de_otra_version_se_diagnostica_y_sigue_rechazada(self):
+        evidencias = {"12": {"original": {"m.py": {"return False"}},
+                             "cabeza": {"m.py": {"return True"}}}}
+        aceptadas, diagnostico = self.interpretar(evidencias, "original", "return True")
+        self.assertIsNone(aceptadas)
+        self.assertEqual(diagnostico, ["respuesta_0_cita_0_original(otra_version)"])
+
+    def test_completo_solo_diagnostica_nunca_acepta(self):
+        evidencias = {"12": {"original": {}, "cabeza": {"m.py": {"x = 1"}},
+                             "completo": {"original": {}, "cabeza": {"m.py": {"x = 1", "y = 2"}}}}}
+        aceptadas, diagnostico = self.interpretar(evidencias, "cabeza", "y = 2")
+        self.assertIsNone(aceptadas)
+        self.assertEqual(diagnostico, ["respuesta_0_cita_0_cabeza(fuera_de_ventana)"])
+        # Una versión que no se llegó a enviar tampoco se rellena desde `completo`.
+        aceptadas, _ = self.interpretar(evidencias, "original", "x = 1")
+        self.assertIsNone(aceptadas)
+
+    def test_texto_ajeno_sigue_siendo_sin_coincidencia(self):
+        aceptadas, diagnostico = self.interpretar(self.construir("c" * 40), "original",
+                                                  "no está en ninguna versión")
+        self.assertIsNone(aceptadas)
+        self.assertEqual(diagnostico, ["respuesta_0_cita_0_original(sin_coincidencia)"])
+
+    def test_left_con_el_mismo_sha_no_se_fusiona(self):
+        izquierda = dict(FUENTE, path="m.py", side="LEFT", original_line=3, original_commit_id=SHA)
+        with mock.patch.object(mr, "obtener_diff", return_value=self.DIFF), \
+                mock.patch.object(mr, "leer_guia", return_value=(None, "")):
+            evidencias = reply.construir_mensajes([izquierda], {"base": {"sha": "b" * 40},
+                                                                "head": {"sha": SHA}})[1]
+        self.assertEqual(evidencias["12"]["original"], {})
+
+
 class TestMainMistralReply(unittest.TestCase):
     def test_sin_fuentes_no_hay_api_modelo_ni_publicacion(self):
         with mock.patch.dict(os.environ, {"GITHUB_EVENT_PATH": "evento.json",

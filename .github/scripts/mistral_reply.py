@@ -162,8 +162,10 @@ def fragmento_git(sha, ruta, linea):
             break
         elegidas.append(linea_texto)
         longitud += len(linea_texto) + 1
+    # `todas` solo sirve para diagnosticar una cita rechazada
+    # (`fuera_de_ventana`); nunca para aceptarla: no se envió al modelo.
     return {"desde": inicio + 1, "hasta": inicio + len(elegidas),
-            "texto": "\n".join(elegidas), "lineas": set(elegidas)}
+            "texto": "\n".join(elegidas), "lineas": set(elegidas), "todas": set(lineas)}
 
 
 def construir_mensajes(fuentes, pr):
@@ -178,6 +180,7 @@ def construir_mensajes(fuentes, pr):
         identificador = str(f["id"])
         codigo, indice = {}, {"original": {}, "cabeza": {
             ruta: set(lineas) for ruta, lineas in lineas_cabeza.items()}}
+        completo = {"original": {}, "cabeza": {}}
         ruta = f.get("path")
         # Una posición LEFT pertenece a la base del diff original, no al
         # original_commit_id (que es cabeza). Sin esa base histórica, no
@@ -190,7 +193,24 @@ def construir_mensajes(fuentes, pr):
                 fragmento = fragmento_git(sha, ruta, linea)
                 if fragmento:
                     indice[version].setdefault(ruta, set()).update(fragmento.pop("lineas"))
+                    completo[version][ruta] = fragmento.pop("todas")
                     codigo[version] = {"sha": sha, "archivo": ruta, **fragmento}
+            # Mismo commit, mismo contenido: si el hallazgo se hizo sobre la
+            # cabeza actual, «original» y «cabeza» son la misma versión y lo
+            # que vale para una vale para la otra (PR #157: una línea del diff
+            # citada como «original» se rechazaba por estar fuera de la ventana).
+            # No aplica a LEFT (arriba): ahí «original» sería la base del diff.
+            if (f.get("original_commit_id") or f.get("commit_id")) == pr["head"]["sha"]:
+                for tabla in (indice, completo):
+                    union = {}
+                    for version in ("original", "cabeza"):
+                        for otra_ruta, lineas in tabla[version].items():
+                            union.setdefault(otra_ruta, set()).update(lineas)
+                    tabla["original"] = {r: set(l) for r, l in union.items()}
+                    tabla["cabeza"] = union
+        # `completo` no es un índice de aceptación: `interpretar_respuestas`
+        # solo valida contra «original» y «cabeza».
+        indice["completo"] = completo
         evidencias[identificador] = indice
         datos.append({"id": identificador, "autor": f["user"]["login"],
             "comentario": f["body"][:MAX_COMENTARIO],
@@ -213,12 +233,39 @@ def cita_valida(fragmento, lineas):
     return isinstance(fragmento, str) and mr.cita_en(fragmento, {" " + l for l in lineas})
 
 
-def causa_cita(fragmento, archivo, archivos):
-    """Por qué falla una cita, como código sin contenido (ver `mr.causa_cita`)."""
+def _sin_escapes_json(fragmento):
+    """El fragmento tal como sería si el modelo no hubiera arrastrado los
+    escapes del JSON en que se le envió el código (`\\"`, `\\\\`)."""
+    return fragmento.replace('\\\\', '\\').replace('\\"', '"')
+
+
+def causa_cita(fragmento, archivo, version="cabeza", evidencia=None):
+    """Por qué falla una cita, como código sin contenido (ver `mr.causa_cita`).
+
+    Solo diagnostica: la cita sigue rechazada. Si `mr.causa_cita` no sabe
+    más que `sin_coincidencia`, se afina con `evidencia` (la entrada de esa
+    fuente en `evidencias`), en este orden: `escapado` (coincidiría sin los
+    escapes JSON), `fuera_de_ventana` (está en el archivo de esa versión,
+    pero no en lo enviado: la etiqueta era correcta) y `otra_version` (solo
+    está en la otra versión). PR #157: tres rechazos `sin_coincidencia` sin saber cuál era.
+    """
     if not isinstance(fragmento, str) or not fragmento.strip():
         return "sin_contenido"
-    return mr.causa_cita(fragmento, archivo,
-                         {ruta: {" " + l for l in lineas} for ruta, lineas in archivos.items()})
+    evidencia = evidencia or {}
+    archivos = evidencia.get(version, {})
+    causa = mr.causa_cita(fragmento, archivo,
+                          {ruta: {" " + l for l in lineas} for ruta, lineas in archivos.items()})
+    if causa != "sin_coincidencia":
+        return causa
+    sin_escapes = _sin_escapes_json(fragmento)
+    if sin_escapes != fragmento and cita_valida(sin_escapes, archivos.get(archivo, set())):
+        return "escapado"
+    if cita_valida(fragmento, evidencia.get("completo", {}).get(version, {}).get(archivo, set())):
+        return "fuera_de_ventana"
+    otra = "original" if version == "cabeza" else "cabeza"
+    if cita_valida(fragmento, evidencia.get(otra, {}).get(archivo, set())):
+        return "otra_version"
+    return causa
 
 
 def interpretar_respuestas(texto, fuentes, evidencias, diagnostico=None):
@@ -273,7 +320,8 @@ def interpretar_respuestas(texto, fuentes, evidencias, diagnostico=None):
             archivos = evidencias[identificador].get(c["version"], {})
             if not cita_valida(c["fragmento"], archivos.get(c["archivo"], set())):
                 fallidas.append("respuesta_%d_cita_%d_%s(%s)" % (
-                    i, j, c["version"], causa_cita(c["fragmento"], c["archivo"], archivos)))
+                    i, j, c["version"], causa_cita(c["fragmento"], c["archivo"], c["version"],
+                               evidencias[identificador])))
             versiones.add(c["version"])
         if fallidas:
             if diagnostico is not None:

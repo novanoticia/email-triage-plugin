@@ -91,7 +91,14 @@ mantenedor. El token tiene `contents: read` y `pull-requests: write`.
   Si lo que falla es la validación, el aviso incluye el diagnóstico: códigos
   propios con el índice de la respuesta y de la cita, y la causa de cada cita
   rechazada (`parcial`, `sin_coincidencia`, `archivo_sin_cambios`…), sin
-  texto devuelto por el modelo.
+  texto devuelto por el modelo. Un `sin_coincidencia` se afina, solo como
+  diagnóstico (la cita sigue rechazada): `escapado` si coincidiría sin los
+  escapes JSON con que se envió el código (`\"`), `fuera_de_ventana` si la
+  línea está en el archivo de esa versión pero no en el fragmento enviado, y
+  `otra_version` si solo está en la otra versión. Si el hallazgo se hizo
+  sobre la cabeza actual (mismo commit), «original» y «cabeza» son la misma
+  versión y una cita vale para ambas; no se aplica a los comentarios LEFT.
+  Origen: los tres rechazos del PR #157 eran `sin_coincidencia` sin más.
 - **Rechazo del modelo ≠ fallo.** Que la respuesta no supere la validación
   (sin JSON válido, citas sin coincidencia, fuentes desconocidas…) es el freno
   funcionando, no algo roto en el PR: el job emite `::warning::`, publica el
