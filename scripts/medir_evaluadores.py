@@ -24,6 +24,11 @@ Desde la medición 13 cada correo lleva los controles que pondría el principal
 con el esperado. Los aciertos se cuentan aparte en los correos sin F: con F
 el tier es `REPLY_NEEDED` lo diga quien lo diga, y ahí no se mide al
 evaluador. CONTROLES=vacios reproduce las mediciones 1-12.
+
+Desde la medición 15 cada propuesta muestra su score y sus ejes, y si el tier
+falla, a cuántos puntos queda del rango del esperado (rangos de `tiers` en el
+config): así se distingue un umbral mal puesto (a 1-2 puntos) de unos
+veredictos que no encajan (muy lejos).
 """
 import collections
 import os
@@ -134,6 +139,26 @@ print("tiers de las propuestas que quedan:", dict(tiers))
 print("controles:", "vacíos (como las mediciones 1-12)" if VACIOS else "los de ESPERADOS")
 
 
+T = cfg["tiers"]
+RANGOS = {"REVIEW": (T["review"], T["reply_needed"]),
+          "READING_LATER": (T["reading_later"], T["review"]),
+          "ARCHIVE": (None, T["reading_later"])}  # [desde, hasta)
+
+
+def distancia(score, esperado):
+    """Puntos que faltan (+) o sobran (-) para entrar en el rango del tier
+    esperado; 0 si ya está dentro. None si no tiene rango (REPLY_NEEDED, que
+    solo se alcanza con F)."""
+    if esperado not in RANGOS:
+        return None
+    desde, hasta = RANGOS[esperado]
+    if desde is not None and score < desde:
+        return desde - score
+    if hasta is not None and score >= hasta:
+        return -(score - hasta + 1)
+    return 0
+
+
 def aciertos(con_f):
     filas = [(f["propuesta"]["tier"], ESPERADOS[int(f["id"]) - 1][0]) for f in r["resultados"]
              if f.get("propuesta") and ("F" in ESPERADOS[int(f["id"]) - 1][1]) == con_f]
@@ -149,6 +174,13 @@ confusion = collections.Counter(
 print("esperado -> propuesto (sin F):")
 for (esperado, propuesto), n in sorted(confusion.items()):
     print("   %-14s -> %-14s %d%s" % (esperado, propuesto, n, "" if esperado == propuesto else "  ✗"))
+fallos = [(f["id"], ESPERADOS[int(f["id"]) - 1][0], f["propuesta"]["score"]) for f in r["resultados"]
+          if f.get("propuesta") and "F" not in ESPERADOS[int(f["id"]) - 1][1]
+          and f["propuesta"]["tier"] != ESPERADOS[int(f["id"]) - 1][0]]
+if fallos:
+    print("fallos de tier (sin F): id, esperado, score, puntos hasta el rango esperado (+ faltan, - sobran):")
+    for ident, esperado, score in fallos:
+        print("   [%s] %-14s score %5s  %+g" % (ident, esperado, score, distancia(score, esperado)))
 
 print()
 print("=== detalle por correo (inventados) ===")
@@ -161,10 +193,14 @@ for f in r["resultados"]:
                     and not str(c.get("evidencia", "")).strip())
     salida, segundos = medidas.get(f["id"], (None, None))
     esperado = ESPERADOS[int(f["id"]) - 1][0]
-    tier = (f.get("propuesta") or {}).get("tier")
+    prop = f.get("propuesta") or {}
+    tier = prop.get("tier")
     print("[%s] %s -> %s%s%s" % (f["id"], asuntos.get(f["id"]), f.get("motivo"),
-          "" if tier is None else " | %s (esperado %s%s)" % (tier, esperado, "" if tier == esperado else " ✗"),
+          "" if tier is None else " | %s (esperado %s%s) score %s" % (
+              tier, esperado, "" if tier == esperado else " ✗", prop.get("score")),
           "" if segundos is None else "  (%s tokens de salida, %d s)" % (salida, segundos)))
+    if tier is not None and tier != esperado:
+        print("     ejes:", prop.get("ejes"), "| reglas:", prop.get("hard_puntos"))
     for d in fila.get("dudas") or []:
         print("     duda:", str(d)[:220])
     if vacias:

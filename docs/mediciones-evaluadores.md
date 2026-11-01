@@ -224,7 +224,10 @@ principal), 3 tienen el tier equivocado (12, 36 y 39). Entre ejecuciones cambian
 → **v3.27.3** (opción A del mantenedor): `eco_coincide` mira el principio del
 `inicio` y el final del `fin` (8 tokens), sin tope de longitud. Con los ecos de
 esta medición, los 4 largos pasarían y los 2 cortos seguirían fallando.
-Pendiente de medir.
+Pendiente de medir. Desde aquí `medir_evaluadores.py` imprime el score y los
+ejes de cada propuesta y, en los fallos de tier, cuántos puntos la separan del
+rango esperado: así se ve si los `READING_LATER` hundidos están a 1-2 puntos
+(umbral) o muy lejos (veredictos).
 
 
 
