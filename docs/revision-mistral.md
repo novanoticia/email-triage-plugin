@@ -92,6 +92,13 @@ mantenedor. El token tiene `contents: read` y `pull-requests: write`.
   propios con el índice de la respuesta y de la cita, y la causa de cada cita
   rechazada (`parcial`, `sin_coincidencia`, `archivo_sin_cambios`…), sin
   texto devuelto por el modelo.
+- **Rechazo del modelo ≠ fallo.** Que la respuesta no supere la validación
+  (sin JSON válido, citas sin coincidencia, fuentes desconocidas…) es el freno
+  funcionando, no algo roto en el PR: el job emite `::warning::`, publica el
+  aviso con el diagnóstico y termina con **0** (sin cruz roja). Solo los fallos
+  de infraestructura —error de la API de Mistral, de GitHub al leer o publicar,
+  de `git fetch`— emiten `::error::` y terminan con **1**. La validación de
+  citas no cambia: un contraste rechazado sigue sin contar como dictamen.
 - Solo se procesan automáticamente PR abiertos del propio repositorio. Como
   límite de coste, se omiten revisiones con más de seis fuentes y se explica
   en Actions; pueden contrastarse sus hallazgos individualmente de forma manual.

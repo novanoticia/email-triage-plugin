@@ -364,11 +364,16 @@ def main():
     diagnostico = []
     respuestas = interpretar_respuestas(texto, fuentes, evidencias, diagnostico)
     if respuestas is None:
-        print("::error::Contraste de Mistral rechazado: " + ", ".join(diagnostico))
+        # Rechazo del modelo, no fallo del PR ni de la infraestructura: el
+        # freno ya actuó (no hay dictamen ni marca) y el aviso con el
+        # diagnóstico queda publicado. Por eso se sale con 0 y `::warning::`;
+        # un `::error::` dejaría una cruz roja sin nada roto en el PR. Los
+        # fallos de API, GitHub o lectura siguen saliendo con 1.
+        print("::warning::Contraste de Mistral rechazado: " + ", ".join(diagnostico))
         avisar_fallo(repo, numero, fuentes, cabeza,
                      "La respuesta no supera la validación de fuentes, formato o citas",
                      diagnostico)
-        return 1
+        return 0
     # No atribuir el contexto antiguo al HEAD si hubo un push durante la API.
     if api("repos/%s/pulls/%d" % (repo, numero))["head"]["sha"] != cabeza:
         mr.escribir_resumen("Contraste no publicado: cambió la cabeza del PR durante el análisis.")
