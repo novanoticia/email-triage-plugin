@@ -53,6 +53,7 @@ propuesta, para que la revise).
 | 2026-11-01 | Apple `pcc` | 3.25.1 | 40 | **22** | `eco_distinto` (16) |
 | 2026-11-01 | Gemini | 3.25.1 | 40 | **34** | `eco_distinto` (6) |
 | 2026-11-01 | Gemini | 3.27.1 | 40 | **35** | `eco_distinto` (5) |
+| 2026-11-01 | Gemini, con controles y tiers esperados | 3.27.1 | 40 | 32 (aciertos 14 de 20 sin forzar) | `eco_distinto` (8) |
 | 2026-11-01 | Ollama `qwen3.5` | 3.26.0 | 40 | 0 | `fallo_red_o_timeout` en el correo 2 |
 | 2026-11-01 | Ollama `qwen3.5` | 3.26.2 | 40 | 3 | `evidencias_ausentes` (16) |
 
@@ -157,7 +158,37 @@ que enviaba los controles vacíos (sin `forzar_reply_needed`, el scoring capa
 control: ese tier depende solo del score.
 
 → Tiers esperados y controles por correo en `correos_ficticios.py`, y recuento
-de aciertos en `medir_evaluadores.py`. Pendiente de medir.
+de aciertos en `medir_evaluadores.py`. Medido en la 13.
+
+### 13. Gemini, 40 correos, v3.27.1, con controles — 32 de 40, 14 de 20 aciertos
+
+Primera medición con los controles y tiers de `ESPERADOS`. `reevaluar_tier_o_umbral`
+24, `propuesta_validada` 8, `eco_distinto` 8, 0 dudas. Tiers propuestos: 12
+`REPLY_NEEDED`, 10 `REVIEW`, 9 `ARCHIVE` y 1 `READING_LATER`.
+
+**Aciertos de tier.** 14 de 20 propuestas en los correos sin forzar (los que
+miden al evaluador); 12 de 12 en los forzados, que no cuentan (el control fija
+el tier). Los 6 fallos:
+
+| Esperado → propuesto | Correos | Lectura |
+|---|---|---|
+| `READING_LATER` → `ARCHIVE` | 22 foto, 29 newsletter, 32 inauguración | Hipótesis de la medición 12 confirmada en 3 de 4 (el 10 acierta) |
+| `ARCHIVE` → `REVIEW` | 12 notificación de envío, 39 confirmación de reserva | Sobrevalora avisos informativos |
+| `REVIEW` → `ARCHIVE` | 5 contraseña cambiada | Probablemente pesa el −4 del control B, que es nuestro, no del evaluador |
+
+El −4 de B también puede contribuir en el 29. En 22 y 32 no hay B: ahí el score
+bajo es del evaluador.
+
+**El eco** sube de 5 a 8 con el mismo prompt (los controles no lo afectan): el
+orden de magnitud de la medición 12, con ruido. Los 8 fallan en `fin`, que trae
+2-3 palabras, todas finales y en su orden salvo una. En el correo 26 el `fin`
+acaba en «fin termina en la»: Gemini copió **nuestra instrucción** en el eco.
+
+**Lo que deja `hibrido`.** Con controles realistas, `propuesta_validada` cae de
+22 a 8: las propuestas `REPLY_NEEDED` y `ARCHIVE` vuelven al principal por
+diseño. En la práctica, hoy `hibrido` solo propone por su cuenta filas `REVIEW`
+y `READING_LATER`.
+
 
 
 ### 9. Ollama `qwen3.5`, 40 correos, v3.26.0 — 0 de 40 (lote detenido)
