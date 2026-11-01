@@ -28,7 +28,7 @@ DEFAULT = {"activo": False, "acepta_envio_datos": False, "modo": "comparar",
            "proveedor": "openai", "modelo": "", "max_llamadas": 5,
            "timeout_segundos": 30, "tolerancia_dudas": 0}
 ADAPTADORES = {"openai": "openai_so", "mistral": "mistral_so", "gemini": "gemini_so",
-               "apple": "apple_so"}
+               "apple": "apple_so", "ollama": "ollama_so"}
 # Fallos de transporte (los de `nc.solicitar`): detienen el proveedor para el
 # resto del lote. Una respuesta truncada o mal formada solo descarta su correo.
 DETIENEN = ("http_", "fallo_red", "redireccion", "respuesta_http_inesperada",
@@ -48,7 +48,8 @@ def config(capa):
     c["modelo"] = c["modelo"] or prov.MODELO_POR_DEFECTO
     # Adaptación local al validador existente, sin exponer una confianza ficticia.
     c = nc.config_capa(dict(c, confianza_minima=0), dict(DEFAULT, confianza_minima=0),
-                       lambda m: m in prov.MODELOS, "evaluadores")
+                       lambda m: m in prov.MODELOS, "evaluadores",
+                       getattr(prov, "TIMEOUT_MAXIMO", 60))
     _exigir(c["tolerancia_dudas"] == 0, "tolerancia_dudas_no_disponible")
     c.pop("confianza_minima")
     return c
