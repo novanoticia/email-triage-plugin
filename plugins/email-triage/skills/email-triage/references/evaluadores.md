@@ -70,6 +70,14 @@ no core. Medición real con Gemini (12 correos ficticios): las dudas descartadas
 eran datos ausentes que no cambiaban ningún veredicto («no se especifica a qué
 cuenta…»), y las evidencias vacías, criterios contestados «no» sin nada que
 citar. La tolerancia sigue en 0 y la evidencia vacía sigue rechazándose.
+Desde v3.25.1 el prompt (`INSTRUCCION_ECO`) y las descripciones de `eco.inicio`
+y `eco.fin` en `esquema_evaluador` piden seis palabras exactas por extremo **del
+campo `texto`**, nunca del asunto ni del remitente: el ancla sale solo de
+`estado.texto`. Medición real con Apple `pcc` (40 correos ficticios, 21
+`eco_distinto`): unos 11 ecos empezaban por el asunto y unos 8 traían 2-3
+palabras, menos de las 4 de 6 que exige `eco_coincide`. Si `texto` llega vacío
+(cuerpo muy corto), se pide el eco vacío, que es lo que da el ancla. La
+comprobación no cambia.
 
 **No combinar con Jev, Decisions, OpenRouter ni el evaluador nativo en la misma
 sesión.** Con varias capas activas, preguntar cuál usar antes de enviar datos;

@@ -39,6 +39,7 @@ propuesta, para que la revise).
 | 2026-10-31 | Gemini | 3.24.4 | 12 | 5 | dudas genéricas, evidencias vacías |
 | 2026-10-31 | Gemini | 3.24.5 | 40 | **28** | `eco_distinto` (12) |
 | 2026-11-01 | Apple `pcc` (`fm serve`) | 3.25.0 | 40 | 15 | `eco_distinto` (22) |
+| 2026-11-01 | Apple `pcc`, recuento corregido | 3.25.0 | 40 | 14 | `eco_distinto` (21) |
 
 ## Detalle y qué se cambió por cada una
 
@@ -78,25 +79,49 @@ dudas y 0 evidencias vacías**: el cambio de prompt funcionó. Queda el eco.
 distintos) y sus 3 dudas vuelven a ser genéricas («sin datos verificables»):
 sigue peor la instrucción de v3.24.5. Unos 13 s por correo; sin coste por token.
 
+### 6. Apple `pcc`, 40 correos, v3.25.0, recuento corregido — 14 de 40
+
+`eco_distinto` 21, `propuesta_validada` 8, `reevaluar_tier_o_umbral` 6,
+`evaluador_con_dudas` 5. Con el recuento sobre la respuesta antes de validarla,
+**11 filas de 40 traen dudas** (antes se veían 3), casi todas genéricas («¿Es la
+universidad real?», «sin indicación clara de impacto»). Seis criterios salen
+`__no_aplica__` en los 40 correos (`motivated_continuation`,
+`motivated_stopping`, `retorno_atencional`, `confusion_productiva`,
+`true_rejection`, `ruido_social`): no es juicio caso a caso.
+
+El eco esperado frente al recibido resuelve la hipótesis: **dos causas**. Unos
+11 empiezan por el asunto («Boletín de noviembre Novedades del mes:…») y unos 8
+traen 2-3 palabras («Adjuntamos la factura» / «día 15.»), por debajo de las 4 de
+6 que exige `eco_coincide`; un par mezclan los extremos.
+
+→ **v3.25.1**: el prompt y el esquema piden el eco del campo `texto`, nunca del
+asunto, con seis palabras exactas. Pendiente de medir.
+
 ## Sondas de contrato (antes de escribir un adaptador)
 
 - **Apple `fm serve`** (`scripts/sonda_fm.py`, 2026-11-01): `system` (on-device)
   tiene 4.096 tokens de contexto en total y nuestra petición ocupa unos 4.090 de
   entrada más ~1.400 de salida: no cabe. `pcc` acepta `response_format`
   `json_schema` estricto. `fm serve` responde en streaming salvo `stream: false`.
-- **Ollama** (`scripts/sonda_ollama.py`): pendiente de ejecutar en un Mac real.
-  Con menos de 24 GB, Ollama usa 4.096 tokens por defecto: arrancar con
-  `OLLAMA_CONTEXT_LENGTH=16384 ollama serve`.
+- **Ollama 0.40.13** (`scripts/sonda_ollama.py`, 2026-11-01, MacBook Pro de
+  16 GB, `OLLAMA_CONTEXT_LENGTH=16384 ollama serve`; con menos de 24 GB Ollama
+  usa 4.096 tokens por defecto). Un correo ficticio, dos ejecuciones:
+  - `qwen3.5` por Chat Completions: cumple el esquema estricto, 0 dudas, 4.144
+    tokens de entrada y 1.900-2.300 de salida (más que Apple: puede que siga
+    razonando con `reasoning_effort: none`), **105-119 s por correo**. Eco
+    incorrecto, como Apple.
+  - Modelos de decisión por `/v1/systemone` (mismo contrato que Jev, respuesta
+    válida): `tev1:4b` elige `__incierto__` en 25 de 30 criterios (confianza
+    mediana 0,13); `d1`, 7 inciertos y 13 `__no_aplica__` (mediana 0,24). En
+    `hibrido` ninguno daría propuesta: antes de un adaptador, probar sin
+    `__incierto__` y con instrucciones en inglés.
 
-## Pendiente: el eco
+## El eco
 
-El eco es ya el freno principal en los dos proveedores (30 % en Gemini, 55 % en
-Apple). Hipótesis por comprobar: en la sonda de Apple, el eco empezaba por el
-**asunto** del correo («¿Podemos vernos el jueves? Necesito»), mientras que el
-ancla esperada sale solo del **cuerpo** (`estado.texto`). Si se confirma con la
-salida de `medir_evaluadores.py` (que ya muestra esperado y recibido), el
-arreglo es precisar en el prompt de qué campo copiar, no relajar la
-comprobación.
+Era el freno principal en los dos proveedores (30 % en Gemini, 55 % en Apple).
+La medición 6 confirmó la hipótesis del asunto y encontró una segunda causa, los
+ecos cortos; v3.25.1 precisa el prompt sin relajar la comprobación. Falta medir
+el efecto con Gemini, Apple y `qwen3.5`.
 
 ---
 
