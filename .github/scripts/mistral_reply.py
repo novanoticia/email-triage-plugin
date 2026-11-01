@@ -373,6 +373,14 @@ def avisar_fallo(repo, numero, fuentes, cabeza, motivo, diagnostico=()):
     mr.publicar(repo, numero, cuerpo)
 
 
+def modelo_contraste():
+    """Modelo del contraste: `MISTRAL_REPLY_MODEL` permite probar otro solo
+    aquí sin cambiar el de la revisión; sin ella, el mismo `MISTRAL_MODEL`
+    que la revisión, y sin ninguna, `codestral-latest` (como antes)."""
+    return (os.environ.get("MISTRAL_REPLY_MODEL") or os.environ.get("MISTRAL_MODEL")
+            or "codestral-latest")
+
+
 def main():
     with open(os.environ["GITHUB_EVENT_PATH"], encoding="utf-8") as fh:
         evento = json.load(fh)
@@ -403,7 +411,7 @@ def main():
     subprocess.run(["git", "fetch", "--no-tags", "origin", "refs/pull/%d/head" % numero],
                    check=True, capture_output=True)
     mensajes, evidencias = construir_mensajes(fuentes, pr)
-    modelo = os.environ.get("MISTRAL_MODEL") or "codestral-latest"
+    modelo = modelo_contraste()
     try:
         texto = mr.llamar_mistral(mensajes, modelo, clave)
     except (ValueError, OSError, urllib.error.URLError):

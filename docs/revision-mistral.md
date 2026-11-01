@@ -106,6 +106,10 @@ mantenedor. El token tiene `contents: read` y `pull-requests: write`.
   de infraestructura —error de la API de Mistral, de GitHub al leer o publicar,
   de `git fetch`— emiten `::error::` y terminan con **1**. La validación de
   citas no cambia: un contraste rechazado sigue sin contar como dictamen.
+- El contraste usa el mismo modelo que la revisión (`MISTRAL_MODEL`), salvo
+  que exista la variable de Actions `MISTRAL_REPLY_MODEL`: entonces usa esa
+  solo aquí, para probar otro modelo (p. ej. `codestral-latest`) sin tocar la
+  revisión. El título del contraste publicado muestra el modelo usado.
 - Solo se procesan automáticamente PR abiertos del propio repositorio. Como
   límite de coste, se omiten revisiones con más de seis fuentes y se explica
   en Actions; pueden contrastarse sus hallazgos individualmente de forma manual.
