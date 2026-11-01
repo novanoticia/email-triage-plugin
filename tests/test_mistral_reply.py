@@ -282,7 +282,8 @@ class TestMainMistralReply(unittest.TestCase):
         llamar.assert_not_called()
         publicar.assert_not_called()
 
-    def ejecutar(self, cabeza_final=SHA, comentarios_finales=None, respuesta=None):
+    def ejecutar(self, cabeza_final=SHA, comentarios_finales=None, respuesta=None,
+                 error_api=None):
         pr = {"state": "open", "head": {"sha": SHA, "repo": {"full_name": "o/r"}}}
         final = copy.deepcopy(pr)
         final["head"]["sha"] = cabeza_final
@@ -294,11 +295,12 @@ class TestMainMistralReply(unittest.TestCase):
                 mock.patch.object(reply, "api", side_effect=[pr, [], final, comentarios_finales or []]), \
                 mock.patch.object(reply.subprocess, "run") as run, \
                 mock.patch.object(reply, "construir_mensajes", return_value=([], EVIDENCIAS)), \
-                mock.patch.object(mr, "llamar_mistral", return_value=respuesta or json.dumps(
-                    {"respuestas": [RESPUESTA]})), \
+                mock.patch.object(mr, "llamar_mistral", side_effect=error_api,
+                    return_value=respuesta or json.dumps({"respuestas": [RESPUESTA]})), \
                 mock.patch.object(mr, "publicar") as publicar, \
-                mock.patch.object(mr, "escribir_resumen"), mock.patch("builtins.print"):
+                mock.patch.object(mr, "escribir_resumen"), mock.patch("builtins.print") as imprimir:
             codigo = reply.main()
+        self.impreso = "\n".join(" ".join(map(str, c.args)) for c in imprimir.call_args_list)
         # El único comando Git permitido en el recorrido es obtener objetos.
         run.assert_called_once_with(["git", "fetch", "--no-tags", "origin", "refs/pull/7/head"],
                                     check=True, capture_output=True)
@@ -324,9 +326,13 @@ class TestMainMistralReply(unittest.TestCase):
         self.assertEqual(codigo, 0)
         self.assertEqual(llamadas, [])
 
-    def test_respuesta_invalida_falla_sin_publicar_dictamen(self):
+    def test_respuesta_invalida_avisa_sin_publicar_dictamen_ni_poner_rojo(self):
+        # Rechazo del modelo: el freno actúa (sin dictamen ni marca), pero
+        # el job no falla: nada está roto en el PR.
         codigo, llamadas = self.ejecutar(respuesta="no json")
-        self.assertEqual(codigo, 1)
+        self.assertEqual(codigo, 0)
+        self.assertIn("::warning::Contraste de Mistral rechazado", self.impreso)
+        self.assertNotIn("::error::", self.impreso)
         self.assertEqual(len(llamadas), 1)
         self.assertIn("no completado", llamadas[0].args[2])
         self.assertIn(FUENTE["html_url"], llamadas[0].args[2])
@@ -336,9 +342,49 @@ class TestMainMistralReply(unittest.TestCase):
     def test_respuesta_invalida_publica_su_diagnostico(self):
         codigo, llamadas = self.ejecutar(respuesta=json.dumps({"respuestas": [
             dict(RESPUESTA, evidencia=[dict(CITA, fragmento="no está en el código")])]}))
-        self.assertEqual(codigo, 1)
+        self.assertEqual(codigo, 0)
+        self.assertIn("::warning::", self.impreso)
+        self.assertIn("respuesta_0_cita_0_cabeza(sin_coincidencia)", self.impreso)
+        self.assertNotIn("::error::", self.impreso)
         self.assertIn("`respuesta_0_cita_0_cabeza(sin_coincidencia)`", llamadas[0].args[2])
         self.assertNotIn("no está en el código", llamadas[0].args[2])
+
+    def test_fallo_de_api_de_mistral_sigue_en_rojo(self):
+        # Infraestructura, no rechazo del modelo: salida 1 y aviso sin dictamen.
+        codigo, llamadas = self.ejecutar(error_api=OSError("HTTP 503"))
+        self.assertEqual(codigo, 1)
+        self.assertEqual(len(llamadas), 1)
+        self.assertIn("Falló la API", llamadas[0].args[2])
+        self.assertNotIn("::warning::", self.impreso)
+
+
+class TestSalidaScriptMistralReply(unittest.TestCase):
+    """El bloque `__main__` convierte los fallos de infraestructura en rojo."""
+
+    def lanzar(self, efecto):
+        ruta = _RAIZ / ".github/scripts/mistral_reply.py"
+        espacio = dict(vars(reply), __name__="__main__")
+        espacio["main"] = mock.Mock(side_effect=efecto)
+        # Re-ejecutar el módulo redefiniría `main`; solo se ejecuta su bloque final.
+        bloque = ruta.read_text(encoding="utf-8").split('if __name__ == "__main__":', 1)[1]
+        with mock.patch.object(mr, "escribir_resumen"), mock.patch("builtins.print") as imprimir, \
+                self.assertRaises(SystemExit) as salida:
+            exec(compile("if True:" + bloque, str(ruta), "exec"), espacio)
+        impreso = "\n".join(" ".join(map(str, c.args)) for c in imprimir.call_args_list)
+        return salida.exception.code, impreso
+
+    def test_fallo_de_github_al_publicar_sale_con_error(self):
+        for efecto in (OSError("HTTP 502"), reply.urllib.error.URLError("sin red"),
+                       subprocess.CalledProcessError(128, ["git", "fetch"])):
+            with self.subTest(efecto=type(efecto).__name__):
+                codigo, impreso = self.lanzar(efecto)
+                self.assertEqual(codigo, 1)
+                self.assertIn("::error::", impreso)
+
+    def test_rechazo_del_modelo_sale_con_cero(self):
+        codigo, impreso = self.lanzar([0])
+        self.assertEqual(codigo, 0)
+        self.assertNotIn("::error::", impreso)
 
 
 @unittest.skipUnless(yaml, "PyYAML no instalado")
