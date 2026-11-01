@@ -221,6 +221,11 @@ principal), 3 tienen el tier equivocado (12, 36 y 39). Entre ejecuciones cambian
 2-3 tiers del mismo correo, así que la cifra de aciertos tiene un ruido de unos
 ±3.
 
+→ **v3.27.3** (opción A del mantenedor): `eco_coincide` mira el principio del
+`inicio` y el final del `fin` (8 tokens), sin tope de longitud. Con los ecos de
+esta medición, los 4 largos pasarían y los 2 cortos seguirían fallando.
+Pendiente de medir.
+
 
 
 
