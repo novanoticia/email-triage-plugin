@@ -192,6 +192,8 @@ y `READING_LATER`.
 → **v3.27.2**: el eco pide ocho palabras por extremo, con una instrucción más
 corta que no empieza por «fin». `eco_coincide` sigue en 4 de 6; su tope de
 longitud admite 2 palabras de más aunque sean fechas u horas. Pendiente de medir.
+En `ESPERADOS`, el correo 5 (contraseña cambiada) pierde la B: un aviso de
+seguridad no es correo masivo, y el −4 lo hundía a `ARCHIVE`.
 
 
 
