@@ -117,6 +117,9 @@ seis criterios siguen en `__no_aplica__` en los 40 correos.
 las últimas palabras: se queda unas palabras antes del final («se renovará con
 una subida» por «con una subida del 8 %.»).
 
+→ **v3.27.1**: el prompt y la descripción de `eco.fin` piden que termine en la
+última palabra del texto, con su puntuación. Pendiente de medir.
+
 ### 9. Ollama `qwen3.5`, 40 correos, v3.26.0 — 0 de 40 (lote detenido)
 
 El correo 1 llegó con eco distinto (copiado del asunto); el 2 tardó más de 300 s
