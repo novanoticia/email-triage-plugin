@@ -120,6 +120,11 @@ palabras, menos de las 4 de 6 que exige `eco_coincide`. Si `texto` llega vacío
 comprobación no cambia. Desde v3.27.1 se pide además que `fin` termine en la
 última palabra del texto, con su puntuación: en la medición de Gemini con v3.25.1,
 los 6 ecos fallidos tenían el `inicio` bien y el `fin` cortado antes del final.
+Desde v3.27.2 se piden **ocho** palabras por extremo, con una instrucción más
+corta: con seis, Gemini daba 2-3 en `fin` y en un correo copió parte de la
+instrucción dentro del eco (medición 13). `eco_coincide` no cambia: sigue
+exigiendo 4 de las 6 palabras del ancla, en orden; ya admitía hasta 4 de más y,
+en `fin`, mira las 8 últimas.
 
 **No combinar con Jev, Decisions, OpenRouter ni el evaluador nativo en la misma
 sesión.** Con varias capas activas, preguntar cuál usar antes de enviar datos;
