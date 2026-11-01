@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.26.0
+# Email Triage Plugin v3.26.1
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,18 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.26.1
+
+Evaluador local `ollama`: antes del primer correo, el plugin pregunta a Ollama
+(`/api/ps`, solo lectura y solo en `127.0.0.1`) con cuánto contexto tiene
+cargado `qwen3.5` y calcula cuánto necesita la petición. Si no basta —el caso
+típico es que la app de la barra de menús arrancó su propio servidor con 4.096
+tokens— se detiene con `contexto_insuficiente` **sin enviar ningún correo**, en
+vez de recortar la petición en silencio o acabar en `fallo_red_o_timeout`. Si el
+modelo no está cargado, `modelo_no_cargado`: cárgalo antes con
+`ollama run qwen3.5:latest ""`. Los demás proveedores no cambian.
+[Guía de Ollama](docs/modelos-locales-macos.md).
 
 ## Novedades en v3.26.0
 
