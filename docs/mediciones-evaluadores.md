@@ -42,6 +42,7 @@ propuesta, para que la revise).
 | 2026-11-01 | Apple `pcc`, recuento corregido | 3.25.0 | 40 | 14 | `eco_distinto` (21) |
 | 2026-11-01 | Apple `pcc` | 3.25.1 | 40 | **22** | `eco_distinto` (16) |
 | 2026-11-01 | Gemini | 3.25.1 | 40 | **34** | `eco_distinto` (6) |
+| 2026-11-01 | Gemini | 3.27.1 | 40 | **35** | `eco_distinto` (5) |
 | 2026-11-01 | Ollama `qwen3.5` | 3.26.0 | 40 | 0 | `fallo_red_o_timeout` en el correo 2 |
 | 2026-11-01 | Ollama `qwen3.5` | 3.26.2 | 40 | 3 | `evidencias_ausentes` (16) |
 
@@ -118,7 +119,28 @@ las últimas palabras: se queda unas palabras antes del final («se renovará co
 una subida» por «con una subida del 8 %.»).
 
 → **v3.27.1**: el prompt y la descripción de `eco.fin` piden que termine en la
-última palabra del texto, con su puntuación. Pendiente de medir.
+última palabra del texto, con su puntuación. Medido en la 12.
+
+### 12. Gemini, 40 correos, v3.27.1 — 35 de 40
+
+`propuesta_validada` 22, `reevaluar_tier_o_umbral` 13, `eco_distinto` 5, 0
+dudas. Los 5 fallos están en `fin`; los `inicio` traen 5-6 palabras y pasan (la
+comprobación pide 4 de 6). El cambio hizo lo que pedía: en 4 de los 5 el `fin`
+ya acaba en la última palabra del texto. Pero trae solo **3 palabras**
+(«apuntarse al taller.», «hablarlo esta semana.»), y 3 no llegan a las 4
+exigidas. El quinto devuelve las palabras finales desordenadas («hacer nada. No
+tienes que» por «no tienes que hacer nada.»). Gemini no cuenta palabras: el
+prompt ya dice «seis exactas» y entrega la mitad.
+
+Los 13 `reevaluar_tier_o_umbral` no son un fallo del evaluador. Es el freno de
+`evaluadores.py`: toda propuesta `ARCHIVE` o `REPLY_NEEDED`, o a 1 punto o menos
+de una frontera, vuelve al principal. Aquí son las 12 `ARCHIVE` más una cerca de
+un umbral. Otra cosa llama la atención: las 35 propuestas son `REVIEW` (23) o
+`ARCHIVE` (12), sin `REPLY_NEEDED` ni `READING_LATER`, incluso en «¿Podemos
+vernos el jueves?» o «Necesito el certificado de voluntariado». El script no
+sabe qué tier *debería* tener cada correo inventado: mide cuántas filas pasan
+los frenos, no si aciertan.
+
 
 ### 9. Ollama `qwen3.5`, 40 correos, v3.26.0 — 0 de 40 (lote detenido)
 
@@ -200,7 +222,9 @@ ecos cortos; v3.25.1 precisa el prompt sin relajar la comprobación. Efecto
 medido: Gemini pasa de 12 a 6 ecos fallidos y Apple de 21 a 16, y el asunto
 desaparece en los dos. Lo que queda es distinto en cada uno: Apple devuelve
 extremos cortos; Gemini, un `fin` que no llega al final. Ninguno de los dos se
-arregla nombrando el campo. En `qwen3.5` el eco es solo uno de sus problemas (medición 10).
+arregla nombrando el campo. v3.27.1 consiguió que el `fin` de Gemini acabe en su
+sitio (medición 12), pero sigue corto: 3 palabras en vez de 6. Por prompt queda
+poco que ganar. En `qwen3.5` el eco es solo uno de sus problemas (medición 10).
 
 ---
 
