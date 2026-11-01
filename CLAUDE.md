@@ -468,7 +468,15 @@ a Private Cloud Compute y requieren el mismo doble consentimiento. Desde v3.25.1
 palabras exactas: `eco_coincide` no se relaja. Desde v3.26.0 `ollama_so.py`
 (`qwen3.5:latest` en `127.0.0.1:11434`, misma vía sin clave ni proxy): el correo
 no sale del Mac, pero el doble consentimiento se exige igual; es el único que
-declara `TIMEOUT_MAXIMO` (600) en `config_capa`, el resto sigue en 60. No combinar proveedores en una sesión. Comparar implica simulación
+declara `TIMEOUT_MAXIMO` (600) en `config_capa`, el resto sigue en 60. Desde
+v3.26.1 un adaptador puede declarar `preflight(modelo, bodies, timeout)`, que
+`evaluadores.py` invoca antes del primer envío (solo si alguna fila se envía):
+un fallo detiene el lote entero con su motivo, sin enviar nada. Solo Ollama lo
+declara: `GET /api/ps` vía `nc.solicitar(..., body=None)` (GET solo a
+loopback, misma guarda) y `contexto_insuficiente` si el `context_length` del
+modelo cargado es menor que el calculado (mensajes / 3 + 3.450);
+`modelo_no_cargado` si no está en memoria (`/api/show` no da el contexto real).
+La API no expone un servidor ocupado. No combinar proveedores en una sesión. Comparar implica simulación
 y no alimenta aprendizaje con desacuerdos entre modelos. Los controles de scoring
 vienen del principal, nunca de la respuesta delegada. Las pruebas sintéticas
 validan mecanismos, no la calidad de los modelos ni compatibilidad real del host.

@@ -49,6 +49,12 @@ class TestEvaluadores(unittest.TestCase):
         env = patch.dict(os.environ, {ev.proveedor(n).VARIABLE_CLAVE: CLAVE for n in CON_CLAVE})
         env.start()
         self.addCleanup(env.stop)
+        # v3.26.1: el preflight de Ollama (`/api/ps`) tiene sus tests en
+        # test_ollama_so; aquí se prueban los mecanismos comunes sin red.
+        pre = patch.object(ev.proveedor("ollama"), "preflight",
+                           return_value={"contexto_necesario": 1, "contexto_servidor": 16384})
+        pre.start()
+        self.addCleanup(pre.stop)
 
     def ejecutar(self, nombre, modo="comparar", mutar=None, cambio=None, transporte=None, p=None):
         p = copy.deepcopy(self.p if p is None else p)

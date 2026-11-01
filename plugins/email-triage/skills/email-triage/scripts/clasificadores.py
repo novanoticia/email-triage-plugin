@@ -536,12 +536,16 @@ def solicitar(endpoint, body, key, timeout, cabecera_clave=None):
     (`key is None`) solo se admite un destino `http://127.0.0.1:` (Apple
     `fm serve`): sin cabecera de autorización y sin proxy del entorno, para
     que la petición no salga hacia un proxy en vez de al servicio local.
+    `body=None` (v3.26.1) hace una lectura GET, solo hacia ese mismo destino
+    local: el `preflight` de Ollama (`/api/ps`) pasa por esta misma guarda.
     """
     local = key is None
     _exigir(local == endpoint.startswith(LOOPBACK), "destino_no_permitido")
+    _exigir(body is not None or local, "destino_no_permitido")
     autorizacion = ({} if local else {cabecera_clave: key} if cabecera_clave
                     else {"Authorization": "Bearer " + key})
-    req = urllib.request.Request(endpoint, data=_json(body), method="POST", headers=dict(
+    req = urllib.request.Request(endpoint, data=None if body is None else _json(body),
+                                 method="GET" if body is None else "POST", headers=dict(
         autorizacion, **{"Content-Type": "application/json", "Accept": "application/json"}))
     manejadores = [_SinRedireccion()] + ([urllib.request.ProxyHandler({})] if local else [])
     try:

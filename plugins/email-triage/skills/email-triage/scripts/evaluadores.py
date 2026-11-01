@@ -264,6 +264,21 @@ def procesar(p, cfg, capa, transporte=None, modo="comparar"):
             preparados.append((e, base, bloqueo, body, ancla))
         transporte = transporte or prov.solicitar
         detenido = None
+        # v3.26.1: gancho opcional del adaptador, antes del primer envío y
+        # solo si alguna fila se va a enviar. Lo declara Ollama (contexto del
+        # servidor local); los demás no. Un fallo detiene el lote entero con
+        # su motivo: ningún correo sale. Solo cuentan las peticiones que se
+        # enviarían (sin bloqueo y dentro de `max_llamadas`): un correo que
+        # nunca sale no puede frenar a los demás (revisión Codex, PR #163).
+        preflight = getattr(prov, "preflight", None)
+        enviables = [body for _, _, b, body, _ in preparados if not b][:c["max_llamadas"]]
+        if preflight is not None and enviables:
+            try:
+                salida["preflight"] = preflight(c["modelo"], enviables, c["timeout_segundos"])
+            except nc.ErrorClasificador as exc:
+                detenido = str(exc)
+                if exc.detalle is not None:
+                    salida["preflight"] = exc.detalle
         bases, propuestas = [], []
         for e, base, bloqueo, body, ancla in preparados:
             r = {"id": e["id"], "proveedor": c["proveedor"], "usar_principal": True,
