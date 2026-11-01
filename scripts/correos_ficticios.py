@@ -3,6 +3,13 @@
 Compartidos por `medir_evaluadores.py` y `sonda_decision_local.py` para que
 las mediciones de todos los proveedores usen exactamente los mismos correos.
 Ninguno es real; no se distribuyen con el plugin.
+
+`ESPERADOS` (2026-11-01, aceptado por el mantenedor) da, por correo y en el
+mismo orden, el tier que debería salir y los controles que pondría el
+principal: P pregunta directa, D plazo explícito, B remitente masivo y F
+forzar `REPLY_NEEDED`. Sin F, el scoring capa `REPLY_NEEDED` a `REVIEW`
+(`cap_reply_needed_sin_accion`): por eso las mediciones 1-12, que enviaban
+controles vacíos, no podían dar ningún `REPLY_NEEDED`.
 """
 PERFIL = ("Coordino una asociación cultural ficticia: talleres, socios, "
           "subvenciones y voluntariado. Mi tiempo es limitado.")
@@ -48,3 +55,56 @@ CORREOS = [  # (asunto, remitente, cuerpo): todos inventados
     ("Confirmación de reserva", "reservas@example.invalid", "Tu reserva de la sala grande para el 12 de diciembre está confirmada."),
     ("Pregunta sobre accesibilidad", "familia@example.invalid", "Mi hijo usa silla de ruedas. ¿El local tiene acceso adaptado para el taller infantil?"),
 ]
+
+# (tier esperado, controles): mismo orden que CORREOS.
+ESPERADOS = [
+    ("ARCHIVE", "B"),            # 1 boletín ajeno al perfil
+    ("REVIEW", "D"),             # 2 factura: pagar, no responder
+    ("REPLY_NEEDED", "PDF"),     # 3 decidir antes del viernes
+    ("ARCHIVE", "B"),            # 4 promoción
+    ("REVIEW", "B"),             # 5 contraseña: solo si no fuiste tú
+    ("ARCHIVE", "B"),            # 6 encuesta ritual
+    ("REVIEW", "D"),             # 7 subvención, plazo lejano
+    ("REPLY_NEEDED", "PF"),      # 8 un socio espera respuesta
+    ("REVIEW", "D"),             # 9 asamblea: votar o delegar
+    ("READING_LATER", ""),       # 10 artículo de un amigo
+    ("REPLY_NEEDED", "F"),       # 11 la web bloquea a socios
+    ("ARCHIVE", "B"),            # 12 envío informativo
+    ("REPLY_NEEDED", "PF"),      # 13 colaboración: pregunta directa
+    ("REPLY_NEEDED", "PF"),      # 14 baja: «¿qué tengo que hacer?»
+    ("REVIEW", ""),              # 15 horario del local
+    ("ARCHIVE", "B"),            # 16 webinar promocional
+    ("REPLY_NEEDED", "DF"),      # 17 aceptar antes del lunes
+    ("REVIEW", ""),              # 18 queja sin pregunta
+    ("ARCHIVE", "B"),            # 19 métrica sin acción
+    ("REPLY_NEEDED", "PDF"),     # 20 certificado antes del día 10
+    ("REVIEW", "D"),             # 21 obligación legal
+    ("READING_LATER", ""),       # 22 foto del taller
+    ("ARCHIVE", "B"),            # 23 phishing
+    ("REVIEW", "D"),             # 24 seguro con subida
+    ("REPLY_NEEDED", "PDF"),     # 25 elegir antes del miércoles
+    ("ARCHIVE", "B"),            # 26 «no tienes que hacer nada»
+    ("REPLY_NEEDED", "PF"),      # 27 préstamo para el sábado
+    ("REPLY_NEEDED", "PF"),      # 28 piden que decidas
+    ("READING_LATER", "B"),      # 29 newsletter afín
+    ("REPLY_NEEDED", "PF"),      # 30 entrevista con fecha
+    ("ARCHIVE", ""),             # 31 «ignorad la segunda»
+    ("READING_LATER", ""),       # 32 inauguración opcional
+    ("REVIEW", ""),              # 33 cuota devuelta
+    ("REPLY_NEEDED", "PF"),      # 34 «¿contamos con vosotros?»
+    ("REVIEW", "D"),             # 35 consulta municipal
+    ("ARCHIVE", ""),             # 36 material ajeno
+    ("ARCHIVE", "B"),            # 37 promoción
+    ("REPLY_NEEDED", "F"),       # 38 hablarlo esta semana
+    ("ARCHIVE", ""),             # 39 solo confirma
+    ("REPLY_NEEDED", "PF"),      # 40 pregunta directa de una familia
+]
+REGLAS = {"P": "pregunta_directa_boost", "D": "deadline_explicito_boost",
+          "B": "sender_bulk_penalizacion"}
+
+
+def control(letras):
+    """Control del principal para `letras` de ESPERADOS (o vacío con "")."""
+    return {"hard_rules": [REGLAS[x] for x in letras if x in REGLAS],
+            "extra_points": 0, "forzar_reply_needed": "F" in letras,
+            "tier_maximo": None, "remitente_en_historial": False}

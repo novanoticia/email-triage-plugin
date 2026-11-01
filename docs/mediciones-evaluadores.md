@@ -24,6 +24,16 @@ rechazadas, sobre todo en Apple, con 22 ecos fallidos. Los motivos por fila sí
 son exactos. Desde entonces se cuentan sobre la respuesta capturada antes de
 validarla.
 
+**Tiers esperados (desde la medición 13).** Cada correo inventado tiene un tier
+esperado y los controles que pondría el principal (pregunta directa, plazo,
+remitente masivo, forzar `REPLY_NEEDED`), en `ESPERADOS` de
+`scripts/correos_ficticios.py`. El script envía esos controles y cuenta los
+aciertos de tier aparte en los 26 correos sin forzar: en los 14 forzados el
+tier lo fija el control, no el evaluador. `CONTROLES=vacios` reproduce las
+mediciones 1-12, que enviaban controles vacíos y por eso **no podían dar
+ningún `REPLY_NEEDED`**: sin `forzar_reply_needed`, el scoring lo capa a
+`REVIEW` (`cap_reply_needed_sin_accion`).
+
 **Cómo leer los números.** Con 12 o 40 correos y modelos que no responden igual
 en cada ejecución, las diferencias de 1-3 filas son ruido. Valen los órdenes de
 magnitud y los patrones que se repiten. «Propuestas» suma `propuesta_validada` y
@@ -140,6 +150,14 @@ un umbral. Otra cosa llama la atención: las 35 propuestas son `REVIEW` (23) o
 vernos el jueves?» o «Necesito el certificado de voluntariado». El script no
 sabe qué tier *debería* tener cada correo inventado: mide cuántas filas pasan
 los frenos, no si aciertan.
+
+Revisado después: la ausencia de `REPLY_NEEDED` la causaba el propio script,
+que enviaba los controles vacíos (sin `forzar_reply_needed`, el scoring capa
+`REPLY_NEEDED` a `REVIEW`). La falta de `READING_LATER` no la explica el
+control: ese tier depende solo del score.
+
+→ Tiers esperados y controles por correo en `correos_ficticios.py`, y recuento
+de aciertos en `medir_evaluadores.py`. Pendiente de medir.
 
 
 ### 9. Ollama `qwen3.5`, 40 correos, v3.26.0 — 0 de 40 (lote detenido)

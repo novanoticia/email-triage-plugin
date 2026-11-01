@@ -18,6 +18,12 @@ docs/mediciones-evaluadores.md):
 
 PAUSA (segundos entre llamadas, 4.5 por defecto) evita el límite por minuto
 del nivel gratuito de Gemini.
+
+Desde la medición 13 cada correo lleva los controles que pondría el principal
+(`ESPERADOS` en correos_ficticios.py) y el script compara el tier propuesto
+con el esperado. Los aciertos se cuentan aparte en los correos sin F: con F
+el tier es `REPLY_NEEDED` lo diga quien lo diga, y ahí no se mide al
+evaluador. CONTROLES=vacios reproduce las mediciones 1-12.
 """
 import collections
 import os
@@ -32,15 +38,16 @@ import yaml  # noqa: E402
 import evaluadores as ev  # noqa: E402
 import triage_helpers as th  # noqa: E402
 
-from correos_ficticios import CORREOS, PERFIL  # noqa: E402
+from correos_ficticios import CORREOS, ESPERADOS, PERFIL, control  # noqa: E402
+
+VACIOS = os.environ.get("CONTROLES", "") == "vacios"
 
 cfg = yaml.safe_load(open("plugins/email-triage/skills/email-triage/config.yaml", encoding="utf-8"))
 p = ev.preparar({"perfil_minimo": PERFIL, "emails": [
     {"id": str(i + 1), "asunto": a, "remitente": r, "cuerpo": c}
     for i, (a, r, c) in enumerate(CORREOS)]})
 for e in p["emails"]:
-    e["control"] = {"hard_rules": [], "extra_points": 0, "forzar_reply_needed": False,
-                    "tier_maximo": None, "remitente_en_historial": False}
+    e["control"] = control("" if VACIOS else ESPERADOS[int(e["id"]) - 1][1])
     e["contexto_suficiente"] = True
 
 capa = {"activo": True, "acepta_envio_datos": True, "modo": "hibrido",
@@ -124,6 +131,24 @@ print("filas con dudas anotadas (también las rechazadas):", con_dudas, "de", le
 print("propuestas (validadas + a reevaluar):", sum("propuesta" in f for f in r["resultados"]), "de", len(CORREOS))
 print("criterios en __no_aplica__ (veces, también en filas rechazadas):", dict(no_aplica.most_common()))
 print("tiers de las propuestas que quedan:", dict(tiers))
+print("controles:", "vacíos (como las mediciones 1-12)" if VACIOS else "los de ESPERADOS")
+
+
+def aciertos(con_f):
+    filas = [(f["propuesta"]["tier"], ESPERADOS[int(f["id"]) - 1][0]) for f in r["resultados"]
+             if f.get("propuesta") and ("F" in ESPERADOS[int(f["id"]) - 1][1]) == con_f]
+    return sum(a == b for a, b in filas), len(filas)
+
+
+for con_f, nombre in ((False, "sin F (mide al evaluador)"), (True, "con F (lo fija el control)")):
+    ok, n = aciertos(con_f)
+    print("aciertos de tier, %s: %d de %d propuestas" % (nombre, ok, n))
+confusion = collections.Counter(
+    (ESPERADOS[int(f["id"]) - 1][0], f["propuesta"]["tier"]) for f in r["resultados"]
+    if f.get("propuesta") and "F" not in ESPERADOS[int(f["id"]) - 1][1])
+print("esperado -> propuesto (sin F):")
+for (esperado, propuesto), n in sorted(confusion.items()):
+    print("   %-14s -> %-14s %d%s" % (esperado, propuesto, n, "" if esperado == propuesto else "  ✗"))
 
 print()
 print("=== detalle por correo (inventados) ===")
@@ -135,7 +160,10 @@ for f in r["resultados"]:
                     and c.get("veredicto") != "__no_aplica__"
                     and not str(c.get("evidencia", "")).strip())
     salida, segundos = medidas.get(f["id"], (None, None))
-    print("[%s] %s -> %s%s" % (f["id"], asuntos.get(f["id"]), f.get("motivo"),
+    esperado = ESPERADOS[int(f["id"]) - 1][0]
+    tier = (f.get("propuesta") or {}).get("tier")
+    print("[%s] %s -> %s%s%s" % (f["id"], asuntos.get(f["id"]), f.get("motivo"),
+          "" if tier is None else " | %s (esperado %s%s)" % (tier, esperado, "" if tier == esperado else " ✗"),
           "" if segundos is None else "  (%s tokens de salida, %d s)" % (salida, segundos)))
     for d in fila.get("dudas") or []:
         print("     duda:", str(d)[:220])
