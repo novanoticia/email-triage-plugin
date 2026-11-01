@@ -507,9 +507,10 @@ class TestEvaluadores(unittest.TestCase):
         ancla, palabras = th.ancla_extracto(texto), texto.split()
         self.assertTrue(th.eco_coincide(
             {'inicio': ' '.join(palabras[:8]), 'fin': ' '.join(palabras[-8:])}, ancla))
-        # Sigue sin valer un eco mucho más largo que el ancla.
-        self.assertFalse(th.eco_coincide(
-            {'inicio': ' '.join(palabras[:12]), 'fin': ancla['fin']}, ancla))
+        # v3.27.3 (medición 14): un eco largo con los extremos correctos vale;
+        # Gemini daba 11-14 palabras en `fin` al pedirle ocho.
+        self.assertTrue(th.eco_coincide(
+            {'inicio': ' '.join(palabras[:12]), 'fin': ' '.join(palabras[-12:])}, ancla))
         # Y el esquema no pide seis en ningún sitio del eco de los evaluadores.
         eco = ev.esquema_evaluador(self.cfg)['properties']['evaluaciones']['items']['properties']['eco']
         self.assertNotIn('seis', json.dumps(eco, ensure_ascii=False))

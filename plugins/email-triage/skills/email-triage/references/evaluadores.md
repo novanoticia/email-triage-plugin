@@ -129,6 +129,10 @@ horas («2026-11-01 10:30»), las dos palabras pedidas de más eran 5 tokens y u
 correcto salía `eco_distinto` (revisión de Codex). La descripción del objeto `eco`
 del esquema también dice ocho: la del esquema común, que sigue en seis para la
 delegación nativa, pedía seis y ocho a la vez.
+Desde v3.27.3 `eco_coincide` compara solo el principio del `inicio` y el final
+del `fin` (ventanas de 8 tokens) y ya no tiene tope de longitud: con ocho, Gemini
+devolvía 11-14 palabras con los extremos correctos (medición 14). Sigue
+exigiendo 4 de 6 en orden; un eco corto o con texto ajeno en un extremo falla.
 
 **No combinar con Jev, Decisions, OpenRouter ni el evaluador nativo en la misma
 sesión.** Con varias capas activas, preguntar cuál usar antes de enviar datos;

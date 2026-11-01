@@ -81,9 +81,21 @@ class TestEcoTolerante(unittest.TestCase):
         for eco in (ajeno, cortado, otro):
             self.assertFalse(th.eco_coincide(eco, self.ancla), eco)
 
-    def test_devolver_medio_correo_no_vale(self):
+    def test_un_eco_largo_vale_solo_si_sus_extremos_coinciden(self):
+        # v3.27.3 (medición 14, decisión del mantenedor): sin tope de
+        # longitud. Antes «devolver medio correo no vale»; ahora se miran el
+        # principio del `inicio` y el final del `fin`, y copiar de más
+        # también prueba que el texto llegó.
         largo = {"inicio": self.texto, "fin": self.texto}
-        self.assertFalse(th.eco_coincide(largo, self.ancla))
+        self.assertTrue(th.eco_coincide(largo, self.ancla))
+        # Lo largo no cuela un extremo ajeno: texto de otro correo delante
+        # del `inicio` o detrás del `fin` sigue fallando.
+        delante = {"inicio": "Correo 41: oferta especial solo hoy. " + self.texto,
+                   "fin": self.ancla["fin"]}
+        detras = {"inicio": self.ancla["inicio"],
+                  "fin": self.texto + " Correo 41: oferta especial solo hoy."}
+        for eco in (delante, detras):
+            self.assertFalse(th.eco_coincide(eco, self.ancla), eco)
 
     def test_validar_acepta_el_eco_reescrito(self):
         p = lote()
