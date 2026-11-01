@@ -42,6 +42,7 @@ propuesta, para que la revise).
 | 2026-11-01 | Apple `pcc`, recuento corregido | 3.25.0 | 40 | 14 | `eco_distinto` (21) |
 | 2026-11-01 | Apple `pcc` | 3.25.1 | 40 | **22** | `eco_distinto` (16) |
 | 2026-11-01 | Gemini | 3.25.1 | 40 | **34** | `eco_distinto` (6) |
+| 2026-11-01 | Ollama `qwen3.5` | 3.26.0 | 40 | 0 | `fallo_red_o_timeout` en el correo 2 |
 
 ## Detalle y qué se cambió por cada una
 
@@ -115,6 +116,18 @@ seis criterios siguen en `__no_aplica__` en los 40 correos.
 las últimas palabras: se queda unas palabras antes del final («se renovará con
 una subida» por «con una subida del 8 %.»).
 
+### 9. Ollama `qwen3.5`, 40 correos, v3.26.0 — 0 de 40 (lote detenido)
+
+El correo 1 llegó con eco distinto (copiado del asunto); el 2 tardó más de 300 s
+(`fallo_red_o_timeout`) y detuvo los 38 restantes. Una segunda ejecución
+inmediata falló ya en el correo 1. Contexto comprobado después con `ollama ps`:
+16.384, así que no fue un recorte. Causa probable: sin tope de salida, el modelo
+siguió generando, y Ollama no abandona la respuesta cuando el cliente deja de
+esperar, de modo que la siguiente petición quedó en cola.
+
+→ **v3.26.2**: `max_tokens` = 3.450 (el margen del preflight de v3.26.1).
+Pendiente de repetir.
+
 ## Sondas de contrato (antes de escribir un adaptador)
 
 - **Apple `fm serve`** (`scripts/sonda_fm.py`, 2026-11-01): `system` (on-device)
@@ -142,7 +155,7 @@ ecos cortos; v3.25.1 precisa el prompt sin relajar la comprobación. Efecto
 medido: Gemini pasa de 12 a 6 ecos fallidos y Apple de 21 a 16, y el asunto
 desaparece en los dos. Lo que queda es distinto en cada uno: Apple devuelve
 extremos cortos; Gemini, un `fin` que no llega al final. Ninguno de los dos se
-arregla nombrando el campo. Falta medir `qwen3.5` (v3.26.0).
+arregla nombrando el campo. `qwen3.5` aún no tiene medición completa (ver 9).
 
 ---
 

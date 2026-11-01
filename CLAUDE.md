@@ -476,7 +476,9 @@ declara: `GET /api/ps` vía `nc.solicitar(..., body=None)` (GET solo a
 loopback, misma guarda) y `contexto_insuficiente` si el `context_length` del
 modelo cargado es menor que el calculado (mensajes / 3 + 3.450);
 `modelo_no_cargado` si no está en memoria (`/api/show` no da el contexto real).
-La API no expone un servidor ocupado. No combinar proveedores en una sesión. Comparar implica simulación
+La API no expone un servidor ocupado. Desde v3.26.2 el cuerpo de Ollama
+lleva `max_tokens` = `MARGEN_SALIDA` del preflight: la salida nunca supera lo
+que se comprobó que cabe (prueba real: sin tope, más de 300 s en un correo). No combinar proveedores en una sesión. Comparar implica simulación
 y no alimenta aprendizaje con desacuerdos entre modelos. Los controles de scoring
 vienen del principal, nunca de la respuesta delegada. Las pruebas sintéticas
 validan mecanismos, no la calidad de los modelos ni compatibilidad real del host.

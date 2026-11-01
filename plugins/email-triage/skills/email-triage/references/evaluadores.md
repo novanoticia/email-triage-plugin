@@ -59,8 +59,12 @@ Ollama (v3.26.0) usa la misma vía sin clave ni proxy, en `127.0.0.1:11434`, y
 es el único proveedor en el que **el correo no sale del Mac**. Solo se admite
 `qwen3.5:latest`, el modelo sondeado. Hay que arrancarlo con
 `OLLAMA_CONTEXT_LENGTH=16384 ollama serve`: con menos de 24 GB usa 4.096 tokens
-y recortaría la petición sin avisar. El cuerpo lleva `stream: false` y
-`reasoning_effort: "none"`.
+y recortaría la petición sin avisar. El cuerpo lleva `stream: false`,
+`reasoning_effort: "none"` y, desde v3.26.2, `max_tokens` igual al margen de
+salida del preflight (3.450): sin tope, un correo generó más de 300 s, detuvo el
+lote y dejó a Ollama generando la respuesta abandonada. Una respuesta cortada
+sale `respuesta_incompleta` y solo descarta su correo. Apple no lleva tope: su
+servidor no se ha sondeado con `max_tokens`.
 
 **Preflight de contexto (v3.26.1).** Antes del primer correo, y solo si alguno
 se va a enviar, el adaptador declara `preflight` y `evaluadores.py` lo invoca:

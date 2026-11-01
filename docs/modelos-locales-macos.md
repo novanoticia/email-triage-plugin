@@ -143,7 +143,7 @@ resultados se registran en [`mediciones-evaluadores.md`](mediciones-evaluadores.
 | Síntoma | Causa probable | Qué hacer |
 |---|---|---|
 | `fallo_red_o_timeout` en todas las filas y `llamadas: 0` | `ollama serve` no está abierto (la comprobación previa no llegó a `/api/ps`) | Abre el paso 3 |
-| `fallo_red_o_timeout` en una fila y el resto detenido | El correo tardó más que `timeout_segundos`, u Ollama seguía generando una petición abandonada (la API no permite detectarlo) | Sube `timeout_segundos` hasta 600; si acabas de cortar una ejecución, espera a que `ollama ps` se calme o reinicia `ollama serve` |
+| `fallo_red_o_timeout` en una fila y el resto detenido | El correo tardó más que `timeout_segundos`, u Ollama seguía generando una petición abandonada (la API no permite detectarlo) | Desde v3.26.2 cada respuesta tiene un tope de 3.450 tokens (unos 190 s), así que no debería repetirse con `timeout_segundos: 300`; si pasa, súbelo hasta 600. Si acabas de cortar una ejecución, reinicia `ollama serve` (Ctrl+C y vuelve a lanzarlo) antes de la siguiente |
 | `contexto_insuficiente` en todas las filas | El modelo está cargado con menos contexto del necesario (la salida trae `preflight` con las dos cifras). Suele ser la app de la barra de menús, que arrancó su propio servidor con 4.096 | Cierra la app (*Quit Ollama*) y vuelve al paso 3 |
 | `modelo_no_cargado` en todas las filas | `qwen3.5:latest` no está en memoria (no se cargó, o pasaron 5 minutos sin uso) | `ollama run qwen3.5:latest ""` y repite |
 | `contexto_no_verificable` | Tu versión de Ollama no informa del contexto en `/api/ps` | Actualiza Ollama |
