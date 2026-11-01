@@ -125,7 +125,7 @@ Sin registros persistentes nuevos ni propuestas en aprendizaje.
 
 [Configuración y contrato](plugins/email-triage/skills/email-triage/references/openrouter.md).
 
-## Evaluadores LLM opcionales (OpenAI, Mistral, Gemini o Apple)
+## Evaluadores LLM opcionales (OpenAI, Mistral, Gemini, Apple u Ollama)
 
 Desactivados por defecto. Requieren `activo: true`, `acepta_envio_datos: true` y
 la clave del proveedor elegido (`OPENAI_API_KEY`, `MISTRAL_API_KEY` o
@@ -138,7 +138,10 @@ con correos ficticios o activa la facturación del proyecto. **Apple** no usa
 clave: el plugin envía solo a `fm serve` en tu propio Mac (`127.0.0.1`), pero
 este lo reenvía a Apple Private Cloud Compute, así que los datos salen del Mac;
 Apple declara no conservarlos. El modelo que nunca sale del Mac (`system`) no se
-admite porque la petición no cabe en su contexto. No se presuponen
+admite porque la petición no cabe en su contexto. **Ollama** tampoco usa
+clave y es la única opción en la que **los datos no salen del Mac**: el plugin
+envía solo a `ollama serve` en `127.0.0.1:11434` y el modelo (`qwen3.5`) corre
+en local; se exige igualmente el doble consentimiento. No se presuponen
 retención cero ni residencia europea en ningún proveedor: dependen de la cuenta
 de quien configure la capa. Facturación independiente. Comparación sin
 movimientos por defecto; híbrido solo explícito y revisado. Sin registros

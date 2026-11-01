@@ -192,12 +192,14 @@ No propongas trabajo en estas líneas salvo petición expresa del mantenedor:
   - **Descartado** (2026-11-01): Gemini Nano (Android, AICore/ML Kit). Solo es
     accesible desde una app Android y su Prompt API admite menos de 4.000
     tokens de entrada y salidas cortas; la petición del evaluador no cabe.
-  - **Apuntado, sin implementar**: proveedor `local` para un servidor
-    compatible con Chat Completions en `127.0.0.1` (Ollama, LM Studio), con
-    puerto y modelo configurables, sobre la vía sin clave ni proxy de v3.25.0.
-    Sería la única opción en la que el correo no sale del Mac. Antes de
-    escribirlo: sonda en un Mac real (contexto, esquema estricto) y medición
-    con los 40 correos ficticios, como con Apple.
+  - **Implementado** (v3.26.0): proveedor `ollama` (`qwen3.5:latest` en
+    `127.0.0.1:11434`), sobre la vía sin clave ni proxy de v3.25.0; la única
+    opción en la que el correo no sale del Mac. Sonda en un Mac de 16 GB
+    hecha; falta la medición con los 40 correos ficticios.
+  - **Apuntado, sin implementar**: LM Studio (`127.0.0.1:1234`), pendiente de
+    su propia sonda; y los modelos de decisión locales (`tev1:4b`, `d1`), que
+    en la sonda eligieron `__incierto__` en 25 y 7 de 30 criterios: antes de
+    un adaptador, probar sin `__incierto__` y con instrucciones en inglés.
 - Cambios de licencia, distribución o marketplace.
 - Rediseños de la interfaz de revisión que no respondan a P1 o P2.
 
@@ -236,6 +238,7 @@ la que más informa a P2 y al resto de P3.
 | Fecha | Hito | Versión |
 |---|---|---|
 | 2026-11-01 | Apple Foundation Models (`pcc`) como evaluador LLM; contrato comprobado en un Mac real | 3.25.0 |
+| 2026-11-01 | Ollama (`qwen3.5`) como evaluador LLM local; el correo no sale del Mac | 3.26.0 |
 | 2026-10-31 | Evaluadores LLM medidos con Gemini y 40 correos ficticios en híbrido: 28 de 40 propuestas tras v3.24.4–v3.24.5; freno restante, el eco (12 de 40) | 3.24.5 |
 | 2026-10-30 | Evaluadores LLM estructurados, comparación e híbrido opt-in; pruebas simuladas, pendiente de validación real | 3.24.0 |
 | 2026-10-30 | OpenRouter Decisions implementado, opt-in; pruebas simuladas, pendiente de validación real | 3.23.0 |

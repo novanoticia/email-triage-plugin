@@ -287,7 +287,13 @@ tokens.
 En la prueba ficticia de abajo, usa `PROVEEDOR = "apple"` y salta el paso 3
 (no hay clave que comprobar).
 
-## Prueba ficticia de los evaluadores LLM (Gemini, Mistral, OpenAI o Apple)
+## Ollama (sin clave, sin salir del Mac)
+
+Ollama no necesita clave ni Llavero y el correo no sale del Mac. Instalación,
+descarga de modelos, arranque con contexto ampliado y configuración:
+[`modelos-locales-macos.md`](modelos-locales-macos.md).
+
+## Prueba ficticia de los evaluadores LLM (Gemini, Mistral, OpenAI, Apple u Ollama)
 
 > Para medir con 40 correos inventados cuántas filas llegan a propuesta y por
 > qué vuelven las demás, usa `scripts/medir_evaluadores.py`. Los resultados de
