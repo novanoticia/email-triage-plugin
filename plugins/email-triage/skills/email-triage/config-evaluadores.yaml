@@ -4,10 +4,13 @@
 # OPENAI_API_KEY / MISTRAL_API_KEY / GEMINI_API_KEY, solo en el entorno.
 # apple: sin clave; requiere `fm serve --host 127.0.0.1 --port 8765` abierto
 # (macOS 27) y envía a Apple Private Cloud Compute (`modelo` pcc).
+# ollama: sin clave y sin salir del Mac; requiere `OLLAMA_CONTEXT_LENGTH=16384
+# ollama serve` abierto y `ollama pull qwen3.5`; tarda ~110 s por correo, así
+# que sube timeout_segundos a 300 (tope 600 solo aquí). docs/modelos-locales-macos.md
 activo: false
 acepta_envio_datos: false
 modo: comparar  # hibrido: veredictos revisados en el flujo real, sin permisos nuevos
-proveedor: openai  # openai, mistral, gemini o apple; solo uno por sesión
+proveedor: openai  # openai, mistral, gemini, apple u ollama; solo uno por sesión
 modelo: ""  # vacío = modelo verificado por defecto del adaptador
 max_llamadas: 5
 timeout_segundos: 30

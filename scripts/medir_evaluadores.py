@@ -14,6 +14,7 @@ docs/mediciones-evaluadores.md):
 
     PROVEEDOR=gemini python3 scripts/medir_evaluadores.py
     PROVEEDOR=apple PAUSA=0 python3 scripts/medir_evaluadores.py  # con fm serve
+    PROVEEDOR=ollama PAUSA=0 python3 scripts/medir_evaluadores.py  # ~75 min
 
 PAUSA (segundos entre llamadas, 4.5 por defecto) evita el límite por minuto
 del nivel gratuito de Gemini.
@@ -84,7 +85,9 @@ for e in p["emails"]:
     e["contexto_suficiente"] = True
 
 capa = {"activo": True, "acepta_envio_datos": True, "modo": "hibrido",
-        "proveedor": PROVEEDOR, "max_llamadas": len(CORREOS), "timeout_segundos": 60}
+        "proveedor": PROVEEDOR, "max_llamadas": len(CORREOS),
+        # Ollama tarda unos 110 s por correo en un Mac de 16 GB (tope 600).
+        "timeout_segundos": int(os.environ.get("TIMEOUT", "300" if PROVEEDOR == "ollama" else "60"))}
 prov = ev.proveedor(PROVEEDOR)
 crudas = {}  # id -> respuesta estructurada tal como llegó (antes de validarla)
 

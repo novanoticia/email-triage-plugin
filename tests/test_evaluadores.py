@@ -19,7 +19,7 @@ import modelos
 import triage_helpers as th
 
 ACTIVO = {"activo": True, "acepta_envio_datos": True}
-PROVEEDORES = ("openai", "mistral", "gemini", "apple")
+PROVEEDORES = ("openai", "mistral", "gemini", "apple", "ollama")
 CON_CLAVE = tuple(n for n in PROVEEDORES if ev.proveedor(n).VARIABLE_CLAVE)
 CLAVE = "clave-ficticia-so"
 # Todos los correos de `lote()` comparten texto: este es el eco correcto.

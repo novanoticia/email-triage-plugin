@@ -44,6 +44,7 @@ Una respuesta cuyo modelo efectivo difiere del solicitado se descarta.
 | Mistral | `ministral-3b-2512` | `MISTRAL_API_KEY` | `api.mistral.ai/v1/chat/completions` |
 | Gemini | `gemini-3.5-flash-lite` | `GEMINI_API_KEY` | `generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent` |
 | Apple | `pcc` | ninguna | `http://127.0.0.1:8765/v1/chat/completions` (`fm serve` local; él envía a Private Cloud Compute) |
+| Ollama | `qwen3.5:latest` | ninguna | `http://127.0.0.1:11434/v1/chat/completions` (`ollama serve` local; no sale del Mac) |
 
 Apple es el único destino que no es HTTPS ni externo: el plugin habla solo con
 `fm serve` en `127.0.0.1:8765`, sin clave y **sin el proxy del entorno**
@@ -54,7 +55,16 @@ está abierto, la fila sale `fallo_red_o_timeout` y el resto del lote se detiene
 El modelo on-device `system` no se admite: tiene 4.096 tokens de contexto en
 total y nuestra petición ocupa unos 4.090 de entrada más unos 1.400 de salida.
 
-Límites: 1–50 llamadas por invocación, timeout 1–60 segundos, una petición por
+Ollama (v3.26.0) usa la misma vía sin clave ni proxy, en `127.0.0.1:11434`, y
+es el único proveedor en el que **el correo no sale del Mac**. Solo se admite
+`qwen3.5:latest`, el modelo sondeado. Hay que arrancarlo con
+`OLLAMA_CONTEXT_LENGTH=16384 ollama serve`: con menos de 24 GB usa 4.096 tokens
+y recortaría la petición sin avisar (el plugin no puede comprobarlo). El cuerpo
+lleva `stream: false` y `reasoning_effort: "none"`. Instalación y modelos:
+[`docs/modelos-locales-macos.md`](https://github.com/novanoticia/email-triage-plugin/blob/main/docs/modelos-locales-macos.md).
+
+Límites: 1–50 llamadas por invocación, timeout 1–60 segundos (1–600 con
+Ollama, que tarda unos 110 s por correo en un Mac de 16 GB), una petición por
 correo y hasta 8192 tokens de salida. Una petición demasiado grande se rechaza
 antes de enviar. El presupuesto por ejecución no limita el gasto de una sesión
 si el orquestador ejecuta varias veces: no repetir para eludirlo.
@@ -235,9 +245,15 @@ Consultados el **30-10-2026**, sin llamadas reales:
   `json_schema` estricto, que `pcc` aceptó; devuelve `model: "pcc"` y `usage`
   (4.087 tokens de entrada, unos 1.400 de salida, 13 s). Puede cambiar entre
   versiones de macOS 27.
+- Ollama (2026-11-01): contrato **comprobado en un Mac de 16 GB** con
+  `scripts/sonda_ollama.py` (Ollama 0.40.13, un correo ficticio, dos
+  ejecuciones). `qwen3.5:latest` aceptó `json_schema` estricto y su respuesta
+  lo cumplió, sin dudas; devuelve `model` igual al pedido y `usage` (4.144
+  tokens de entrada, 1.900-2.300 de salida, 105-119 s). `ollama ps` confirmó
+  16.384 tokens de contexto con la variable.
 
 Tarifas estándar de pago en USD por millón de tokens, entrada/salida:
-OpenAI 0,10/0,50; Mistral 0,10/0,10; Gemini 0,30/2,50; Apple 0/0 (sin
+OpenAI 0,10/0,50; Mistral 0,10/0,10; Gemini 0,30/2,50; Apple 0/0 y Ollama 0/0 (sin
 facturación por token). Gemini incluye los tokens
 de pensamiento en el consumo de salida. Son estimaciones sin descuentos de
 caché, tramos gratuitos ni recargos regionales/prioridad; no son cotas de gasto
@@ -266,7 +282,9 @@ plugin solo envía a `127.0.0.1`, pero `fm serve` reenvía la petición a
 [Private Cloud Compute](https://security.apple.com/blog/private-cloud-compute/):
 **los datos salen del Mac** hacia servidores de Apple, que declara no
 conservarlos; rige además la licencia de macOS que se acepta con
-`fm license`. El consentimiento
+`fm license`. Con Ollama el plugin solo envía a `127.0.0.1:11434` y
+el servidor corre en el propio Mac; aun así se exige el doble consentimiento,
+porque el plugin no puede saber si ese puerto reenvía a otro sitio. El consentimiento
 para un proveedor no autoriza enviar a otro como alternativa automática.
 
 ## Prueba ficticia y revisión del cambio

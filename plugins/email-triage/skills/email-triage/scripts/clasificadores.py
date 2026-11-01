@@ -593,7 +593,10 @@ def capa_desde_disco(ruta, canonica, cargar, validar):
     return capa
 
 
-def config_capa(capa, default, modelo_valido, etiqueta):
+def config_capa(capa, default, modelo_valido, etiqueta, timeout_maximo=60):
+    """`timeout_maximo` (v3.26.0) solo lo amplía un adaptador local cuyo
+    modelo tarda más de 60 s por correo en un Mac (Ollama); los remotos
+    conservan el tope de 60 s."""
     _exigir(isinstance(capa, dict) and not set(capa) - set(default),
             "config_%s_invalida" % etiqueta)
     c = dict(default, **capa)
@@ -604,7 +607,7 @@ def config_capa(capa, default, modelo_valido, etiqueta):
     # Hasta 50 (v3.22.4): el mismo tope que el lote de `_filas`, para poder
     # comparar una sesión completa en una invocación. El defecto sigue en 5.
     _exigir(type(c["max_llamadas"]) is int and 1 <= c["max_llamadas"] <= MAX_LOTE
-            and _numero(c["timeout_segundos"], 1, 60)
+            and _numero(c["timeout_segundos"], 1, timeout_maximo)
             and _numero(c["confianza_minima"], 0, 1), "limites_invalidos")
     _exigir(type(c["tolerancia_dudas"]) is int
             and 0 <= c["tolerancia_dudas"] <= MAX_TOLERANCIA_DUDAS, "tolerancia_dudas_invalida")

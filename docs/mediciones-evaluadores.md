@@ -40,6 +40,8 @@ propuesta, para que la revise).
 | 2026-10-31 | Gemini | 3.24.5 | 40 | **28** | `eco_distinto` (12) |
 | 2026-11-01 | Apple `pcc` (`fm serve`) | 3.25.0 | 40 | 15 | `eco_distinto` (22) |
 | 2026-11-01 | Apple `pcc`, recuento corregido | 3.25.0 | 40 | 14 | `eco_distinto` (21) |
+| 2026-11-01 | Apple `pcc` | 3.25.1 | 40 | **22** | `eco_distinto` (16) |
+| 2026-11-01 | Gemini | 3.25.1 | 40 | **34** | `eco_distinto` (6) |
 
 ## Detalle y qué se cambió por cada una
 
@@ -95,7 +97,23 @@ traen 2-3 palabras («Adjuntamos la factura» / «día 15.»), por debajo de las
 6 que exige `eco_coincide`; un par mezclan los extremos.
 
 → **v3.25.1**: el prompt y el esquema piden el eco del campo `texto`, nunca del
-asunto, con seis palabras exactas. Pendiente de medir.
+asunto, con seis palabras exactas.
+
+### 7. Apple `pcc`, 40 correos, v3.25.1 — 22 de 40
+
+`eco_distinto` 16 (antes 21), `reevaluar_tier_o_umbral` 13,
+`propuesta_validada` 9, `evaluador_con_dudas` 2; 4 filas con dudas (antes 11).
+**Ningún eco empieza ya por el asunto.** Los 16 que quedan son cortos: 2-4
+palabras por extremo («El formulario» / «al taller.»), y en dos el `fin` llega
+vacío. Apple no cuenta palabras; precisar el campo no lo arregla. Los mismos
+seis criterios siguen en `__no_aplica__` en los 40 correos.
+
+### 8. Gemini, 40 correos, v3.25.1 — 34 de 40
+
+`propuesta_validada` 21, `reevaluar_tier_o_umbral` 13, `eco_distinto` 6 (antes
+12), 0 dudas. En los 6 ecos fallidos el `inicio` es correcto y el `fin` no son
+las últimas palabras: se queda unas palabras antes del final («se renovará con
+una subida» por «con una subida del 8 %.»).
 
 ## Sondas de contrato (antes de escribir un adaptador)
 
@@ -120,8 +138,11 @@ asunto, con seis palabras exactas. Pendiente de medir.
 
 Era el freno principal en los dos proveedores (30 % en Gemini, 55 % en Apple).
 La medición 6 confirmó la hipótesis del asunto y encontró una segunda causa, los
-ecos cortos; v3.25.1 precisa el prompt sin relajar la comprobación. Falta medir
-el efecto con Gemini, Apple y `qwen3.5`.
+ecos cortos; v3.25.1 precisa el prompt sin relajar la comprobación. Efecto
+medido: Gemini pasa de 12 a 6 ecos fallidos y Apple de 21 a 16, y el asunto
+desaparece en los dos. Lo que queda es distinto en cada uno: Apple devuelve
+extremos cortos; Gemini, un `fin` que no llega al final. Ninguno de los dos se
+arregla nombrando el campo. Falta medir `qwen3.5` (v3.26.0).
 
 ---
 
