@@ -17,6 +17,13 @@ El script usa el `config.yaml` plantilla, no toca `~/.email-triage`, no lee el
 buzón ni mueve nada. Solo imprime motivos, criterios, tiers y, por correo
 inventado, las dudas, las evidencias vacías y el eco esperado frente al recibido.
 
+**Ojo con las mediciones 1-5.** Hasta el PR que añadió este documento, el
+script contaba dudas y `__no_aplica__` solo en las filas que pasaban el eco y la
+validación (revisión de Codex): esos recuentos se quedan cortos en las filas
+rechazadas, sobre todo en Apple, con 22 ecos fallidos. Los motivos por fila sí
+son exactos. Desde entonces se cuentan sobre la respuesta capturada antes de
+validarla.
+
 **Cómo leer los números.** Con 12 o 40 correos y modelos que no responden igual
 en cada ejecución, las diferencias de 1-3 filas son ruido. Valen los órdenes de
 magnitud y los patrones que se repiten. «Propuestas» suma `propuesta_validada` y

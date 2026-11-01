@@ -116,9 +116,13 @@ no_aplica = collections.Counter()
 con_dudas = 0
 tiers = collections.Counter()
 for f in r["resultados"]:
-    v = f.get("evaluacion_" + PROVEEDOR) or {}
-    no_aplica.update(list(v.get("no_aplica") or ()))  # claves: nombres de criterio
-    con_dudas += bool(v.get("dudas"))
+    # Desde la respuesta capturada ANTES de validarla: `evaluacion_<proveedor>`
+    # solo existe si la fila pasa el eco y la validación, y contar desde ahí
+    # ocultaría las dudas y exclusiones de las filas rechazadas.
+    crit = (crudas.get(f["id"]) or {}).get("criterios") or {}
+    no_aplica.update(k for k, c in crit.items()
+                     if isinstance(c, dict) and c.get("veredicto") == "__no_aplica__")
+    con_dudas += bool((crudas.get(f["id"]) or {}).get("dudas"))
     if f.get("propuesta"):
         tiers[f["propuesta"]["tier"]] += 1
 
@@ -128,9 +132,9 @@ print("cobertura:", r.get("cobertura"))
 print("motivos por fila:")
 for m, n in motivos.most_common():
     print("   %-36s %d" % (m, n))
-print("filas con dudas anotadas:", con_dudas, "de", len(CORREOS))
+print("filas con dudas anotadas (también las rechazadas):", con_dudas, "de", len(CORREOS))
 print("propuestas (validadas + a reevaluar):", sum("propuesta" in f for f in r["resultados"]), "de", len(CORREOS))
-print("criterios en __no_aplica__ (veces):", dict(no_aplica.most_common()))
+print("criterios en __no_aplica__ (veces, también en filas rechazadas):", dict(no_aplica.most_common()))
 print("tiers de las propuestas que quedan:", dict(tiers))
 
 print()
