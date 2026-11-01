@@ -43,6 +43,7 @@ propuesta, para que la revise).
 | 2026-11-01 | Apple `pcc` | 3.25.1 | 40 | **22** | `eco_distinto` (16) |
 | 2026-11-01 | Gemini | 3.25.1 | 40 | **34** | `eco_distinto` (6) |
 | 2026-11-01 | Ollama `qwen3.5` | 3.26.0 | 40 | 0 | `fallo_red_o_timeout` en el correo 2 |
+| 2026-11-01 | Ollama `qwen3.5` | 3.26.2 | 40 | 3 | `evidencias_ausentes` (16) |
 
 ## Detalle y qué se cambió por cada una
 
@@ -126,7 +127,24 @@ siguió generando, y Ollama no abandona la respuesta cuando el cliente deja de
 esperar, de modo que la siguiente petición quedó en cola.
 
 → **v3.26.2**: `max_tokens` = 3.450 (el margen del preflight de v3.26.1).
-Pendiente de repetir.
+
+### 10. Ollama `qwen3.5`, 40 correos, v3.26.2 — 3 de 40
+
+**Los 40 correos llegan al final**: el tope de salida resolvió los bloqueos. La
+calidad, no: `evidencias_ausentes` 16, `respuesta_incompleta` 9 (llega al tope
+de 3.450; en la sonda gastó 1.900-2.300), `eco_distinto` 8,
+`reevaluar_tier_o_umbral` 3, `ids_inesperados` 2 y
+`criterio_core_omitido_o_sin_justificacion` 2. Deja vacías las evidencias de
+decenas de criterios en vez de usar `__no_aplica__` (no sigue la instrucción de
+v3.24.5), inventa texto en el eco («peligro y fraude ocultos en la
+solicitud», «renewamos») y sus dudas se salen del tema. Los frenos paran
+alucinaciones reales: relajarlos metería ruido en el triaje.
+
+Conclusión: con 16 GB, `qwen3.5` (7,6 GB en memoria) no sirve para `hibrido`.
+Queda como opción experimental para probar en local. Pendiente: saber si las
+respuestas cortadas son razonamiento oculto pese a `reasoning_effort: none` o
+pura verbosidad; desde esta medición `medir_evaluadores.py` imprime los tokens
+de salida y el tiempo de cada correo.
 
 ## Sondas de contrato (antes de escribir un adaptador)
 
@@ -155,7 +173,7 @@ ecos cortos; v3.25.1 precisa el prompt sin relajar la comprobación. Efecto
 medido: Gemini pasa de 12 a 6 ecos fallidos y Apple de 21 a 16, y el asunto
 desaparece en los dos. Lo que queda es distinto en cada uno: Apple devuelve
 extremos cortos; Gemini, un `fin` que no llega al final. Ninguno de los dos se
-arregla nombrando el campo. `qwen3.5` aún no tiene medición completa (ver 9).
+arregla nombrando el campo. En `qwen3.5` el eco es solo uno de sus problemas (medición 10).
 
 ---
 

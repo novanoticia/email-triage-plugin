@@ -9,6 +9,13 @@ El precio es la lentitud. En un MacBook Pro de 16 GB, `qwen3.5` tarda **unos
 110 segundos por correo**, así que 40 correos son unos 75 minutos. Sirve para
 lotes que dejas corriendo, no para un triaje interactivo.
 
+> **Hoy es experimental.** En la medición con 40 correos inventados (2026-11-01,
+> v3.26.2) `qwen3.5` solo dio **3 propuestas de 40** (Gemini, 34; Apple, 22):
+> deja evidencias vacías, inventa ecos y a veces llega al tope de salida. Los
+> frenos del plugin hacen bien en pararlo. Úsalo para probar y comparar en
+> local, no para el triaje `hibrido`. Detalle en
+> [`mediciones-evaluadores.md`](mediciones-evaluadores.md).
+
 Lo que dice esta guía está **comprobado en un Mac real** el 2026-11-01 (Ollama
 0.40.13, 16 GB, `scripts/sonda_ollama.py` con un correo inventado). Lo que no
 está comprobado se marca como tal.
@@ -48,9 +55,11 @@ Debe aparecer `qwen3.5:latest`.
 
 **Modelos de decisión (opcionales, todavía sin uso en el plugin).** `tev1:4b`
 (4,4 GB) y `d1` (3,7 GB) responden con el mismo contrato que Jev en
-`/v1/systemone`, pero en la sonda eligieron `__incierto__` en 25 y 7 de 30
-criterios, respectivamente: en modo `hibrido` no darían ninguna propuesta. No
-hay adaptador para ellos. Solo hacen falta si quieres repetir la sonda:
+`/v1/systemone`, pero en la sonda de un correo eligieron `__incierto__` en 25 y
+7 de 30 criterios, respectivamente, con confianza mediana 0,13 y 0,24: en modo
+`hibrido` no darían ninguna propuesta (el freno pide 0 inciertos y confianza
+de al menos 0,8 en los 30 criterios). No hay adaptador para ellos. Solo hacen
+falta para la sonda de decisión del paso 5:
 
 ```bash
 ollama pull tev1:4b
@@ -72,10 +81,14 @@ recortaría sin avisar.
 2. En una ventana de Terminal, déjalo abierto con contexto ampliado:
 
    ```bash
-   OLLAMA_CONTEXT_LENGTH=16384 ollama serve
+   OLLAMA_CONTEXT_LENGTH=16384 OLLAMA_KEEP_ALIVE=30m ollama serve
    ```
 
    Deja esa ventana abierta mientras uses el plugin. Para pararlo: **Ctrl+C**.
+   `OLLAMA_KEEP_ALIVE=30m` mantiene el modelo en memoria 30 minutos sin uso
+   (por defecto, 5), así no se descarga entre que lo cargas y lanzas el lote.
+   Es una variable del servidor; el plugin no la envía en cada petición
+   porque no se ha comprobado que la ruta compatible con OpenAI la acepte.
 3. **Carga el modelo** desde otra ventana de Terminal (no contesta nada; solo
    lo sube a memoria):
 
@@ -135,7 +148,15 @@ python3 scripts/sonda_ollama.py                          # 1 correo, ~2 min
 PROVEEDOR=ollama PAUSA=0 python3 scripts/medir_evaluadores.py   # 40 correos, ~75 min
 ```
 
-Ninguno de los dos toca tu `~/.email-triage/`, lee el buzón ni mueve nada. Los
+Para los modelos de decisión (`tev1:4b`, `d1`), la sonda prueba 12 correos con
+tres variantes de las preguntas: tal cual, sin la opción `__incierto__`, y sin
+ella y en inglés. Unos minutos:
+
+```bash
+python3 scripts/sonda_decision_local.py
+```
+
+Ninguno de los tres toca tu `~/.email-triage/`, lee el buzón ni mueve nada. Los
 resultados se registran en [`mediciones-evaluadores.md`](mediciones-evaluadores.md).
 
 ## Problemas frecuentes
