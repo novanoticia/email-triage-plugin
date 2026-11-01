@@ -189,6 +189,9 @@ acaba en «fin termina en la»: Gemini copió **nuestra instrucción** en el eco
 diseño. En la práctica, hoy `hibrido` solo propone por su cuenta filas `REVIEW`
 y `READING_LATER`.
 
+→ **v3.27.2**: el eco pide ocho palabras por extremo, con una instrucción más
+corta que no empieza por «fin». `eco_coincide` no cambia. Pendiente de medir.
+
 
 
 ### 9. Ollama `qwen3.5`, 40 correos, v3.26.0 — 0 de 40 (lote detenido)
