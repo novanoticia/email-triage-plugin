@@ -29,6 +29,10 @@ Desde la medición 15 cada propuesta muestra su score y sus ejes, y si el tier
 falla, a cuántos puntos queda del rango del esperado (rangos de `tiers` en el
 config): así se distingue un umbral mal puesto (a 1-2 puntos) de unos
 veredictos que no encajan (muy lejos).
+
+Desde la medición 16 los fallos de tier muestran también los criterios que
+puntúan distinto de 0, agrupados por eje: el eje dice dónde se hunde el
+correo; el criterio, qué veredicto lo hunde.
 """
 import collections
 import os
@@ -182,6 +186,24 @@ if fallos:
     for ident, esperado, score in fallos:
         print("   [%s] %-14s score %5s  %+g" % (ident, esperado, score, distancia(score, esperado)))
 
+
+
+def criterios_por_eje(prop):
+    """Líneas «eje (suma): criterio=veredicto ±puntos, ...» con los criterios
+    que puntúan distinto de 0, el eje que más resta primero. La suma es antes
+    de recortar el eje a su tope, así que puede no coincidir con `ejes`."""
+    por_eje = collections.defaultdict(list)
+    for c in prop.get("criterios") or []:
+        if isinstance(c, dict) and c.get("puntos"):
+            por_eje[c.get("eje")].append(c)
+    lineas = []
+    for eje, cs in sorted(por_eje.items(), key=lambda x: sum(c["puntos"] for c in x[1])):
+        cs.sort(key=lambda c: c["puntos"])
+        lineas.append("%s (%+g): %s" % (eje, sum(c["puntos"] for c in cs), ", ".join(
+            "%s=%s %+g" % (c.get("criterio"), c.get("veredicto"), c["puntos"]) for c in cs)))
+    return lineas
+
+
 print()
 print("=== detalle por correo (inventados) ===")
 asuntos = {str(i + 1): a for i, (a, _, _) in enumerate(CORREOS)}
@@ -201,6 +223,8 @@ for f in r["resultados"]:
           "" if segundos is None else "  (%s tokens de salida, %d s)" % (salida, segundos)))
     if tier is not None and tier != esperado:
         print("     ejes:", prop.get("ejes"), "| reglas:", prop.get("hard_puntos"))
+        for linea in criterios_por_eje(prop):
+            print("       " + linea)
     for d in fila.get("dudas") or []:
         print("     duda:", str(d)[:220])
     if vacias:
