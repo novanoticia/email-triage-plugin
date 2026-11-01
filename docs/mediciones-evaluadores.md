@@ -272,7 +272,58 @@ no rechaza ninguna.
 → En `ESPERADOS`, el correo 31 pasa a `REVIEW` (decisión del mantenedor): pide
 no pagar dos veces. Desde aquí los fallos de tier muestran también los criterios
 que puntúan, agrupados por eje, para comprobar la hipótesis del correo corto.
-Pendiente de medir.
+Medido en la 16.
+
+### 16. Gemini, 40 correos, v3.27.3, criterios por eje — 39 de 40, 18 de 25 aciertos
+
+`reevaluar_tier_o_umbral` 27, `propuesta_validada` 12, `eco_distinto` 1, 0 dudas.
+
+**Eco.** Un fallo (correo 16): `fin` trae 3 palabras, «socios. Plazas
+limitadas.». Es el fallo corto que ya se veía en la 14; el largo no ha vuelto.
+
+**Aciertos de tier.** 18 de 25 sin forzar. El 31, ya como `REVIEW`, acierta y
+sale validado. Los fallos son los mismos correos que en la 15, salvo el 31:
+
+| Esperado → propuesto | Correo: score (distancia) |
+|---|---|
+| `ARCHIVE` → `REVIEW` | 12: 4 (−5), 36: 13 (−14), 39: 15 (−16) |
+| `READING_LATER` → `ARCHIVE` | 22: −4 (+4), 29: −15 (+15), 32: −14 (+14) |
+| `REVIEW` → `ARCHIVE` | 35: −5 (+9) |
+
+**Correo corto e informativo (22, 29, 32, 35): no son veredictos absurdos, es la
+aritmética.** Lo que muestra el desglose:
+
+- `valor_decisional` suma **−12** en 22, 29 y 32, siempre con los mismos cuatro
+  veredictos (`cambia_algo_concreto=no`, `cambio_predicciones=no`,
+  `retorno_atencional=bajo`, `hug_the_query=tangencial`). Pero ese eje va de 0 a
+  10 y el recorte lo deja en 0, así que no es lo que los hunde.
+- Lo que resta es `calidad_epistemica` (−4 a −12, recortado a −10) y
+  `riesgo_manipulacion` (−3/−4). Se repiten `sorpresa_bayesiana=baja` y
+  `densidad_informativa=baja` en los cuatro, `cached_thought=enlatado` y
+  `evidencia_filtrada=newsletter_marketing_burocratico` en tres, y
+  `ruido_social=ritual` y `argument_screens_off_authority=solo_autoridad` en dos.
+- Los veredictos son defendibles: una newsletter **es**
+  `newsletter_marketing_burocratico`, que es una opción del propio criterio.
+  La hipótesis de la 15 («leen la falta de evidencia como mala calidad») se
+  cumple a medias: el evaluador aplica bien unos criterios que, por diseño,
+  castigan este tipo de correo.
+
+**Lo estructural** (verificado con los rangos de `ejes` del config, no con la
+medición): `valor_decisional` y `presion_accion` no bajan de 0, y
+`riesgo_manipulacion` y `coste_cognitivo` no suben de 0. En un correo sin valor
+de decisión ni presión, el score es `calidad_epistemica` menos riesgo, menos
+coste, más las reglas. Para llegar a `READING_LATER` (0 a 3) una newsletter con
+la B (−4) y `evidencia_filtrada` (−3) necesita `calidad_epistemica` ≥ 7. Con
+este config, `READING_LATER` para un correo corto agradable es casi
+inalcanzable, lo evalúe quien lo evalúe.
+
+**Avisos breves sobrevalorados (12, 36, 39).** `valor_decisional` suma +15/+22
+(recortado a 10) con `cambia_algo_concreto=si`, `cambio_predicciones=si` y
+`hug_the_query=directo`: Gemini cuenta como cambio una confirmación de lo que ya
+se esperaba («tu reserva está confirmada»). Aquí el veredicto sí falla la
+pregunta contrafáctica del criterio («¿leer esto cambiaría algo concreto que vaya
+a hacer?»). El 12 baja a 4 (a 5 puntos) y el 36 y el 39 salen validados con el
+tier equivocado: 2 de 12.
 
 
 
