@@ -76,8 +76,14 @@ recortaría sin avisar.
    ```
 
    Deja esa ventana abierta mientras uses el plugin. Para pararlo: **Ctrl+C**.
-3. **Comprueba el contexto** después de la primera petición, desde otra
-   ventana:
+3. **Carga el modelo** desde otra ventana de Terminal (no contesta nada; solo
+   lo sube a memoria):
+
+   ```bash
+   ollama run qwen3.5:latest ""
+   ```
+
+4. **Comprueba el contexto**:
 
    ```bash
    ollama ps
@@ -85,6 +91,12 @@ recortaría sin avisar.
 
    La columna de contexto debe decir **16384**. Si dice 4096, Ollama no se
    arrancó con la variable: vuelve al punto 1.
+
+Desde v3.26.1 el plugin hace esa misma comprobación antes del primer correo
+(consulta `/api/ps`, solo lectura, solo en `127.0.0.1`) y **no envía ninguno**
+si el modelo no está cargado o su contexto no basta. Por eso el paso 3 es
+necesario: Ollama solo dice el contexto de un modelo ya cargado, y lo descarga
+tras 5 minutos sin uso. Si pasa ese tiempo, repite el paso 3.
 
 > **No comprobado:** la app de Ollama tiene un ajuste de longitud de contexto
 > en su configuración que haría innecesario el paso 2. Si lo usas, verifica
@@ -130,7 +142,11 @@ resultados se registran en [`mediciones-evaluadores.md`](mediciones-evaluadores.
 
 | Síntoma | Causa probable | Qué hacer |
 |---|---|---|
-| `fallo_red_o_timeout` en la primera fila y el resto detenido | `ollama serve` no está abierto, o el correo tardó más que `timeout_segundos` | Abre el paso 3; sube `timeout_segundos` hasta 600 |
+| `fallo_red_o_timeout` en todas las filas y `llamadas: 0` | `ollama serve` no está abierto (la comprobación previa no llegó a `/api/ps`) | Abre el paso 3 |
+| `fallo_red_o_timeout` en una fila y el resto detenido | El correo tardó más que `timeout_segundos`, u Ollama seguía generando una petición abandonada (la API no permite detectarlo) | Sube `timeout_segundos` hasta 600; si acabas de cortar una ejecución, espera a que `ollama ps` se calme o reinicia `ollama serve` |
+| `contexto_insuficiente` en todas las filas | El modelo está cargado con menos contexto del necesario (la salida trae `preflight` con las dos cifras). Suele ser la app de la barra de menús, que arrancó su propio servidor con 4.096 | Cierra la app (*Quit Ollama*) y vuelve al paso 3 |
+| `modelo_no_cargado` en todas las filas | `qwen3.5:latest` no está en memoria (no se cargó, o pasaron 5 minutos sin uso) | `ollama run qwen3.5:latest ""` y repite |
+| `contexto_no_verificable` | Tu versión de Ollama no informa del contexto en `/api/ps` | Actualiza Ollama |
 | `modelo_no_verificado` | `modelo` distinto de `qwen3.5:latest` | Déjalo vacío |
 | `modelo_inesperado` | Ollama respondió con otro modelo | `ollama list`; vuelve a hacer `ollama pull qwen3.5` |
 | `esquema_no_conforme` o respuestas cortadas | Contexto de 4.096 | `ollama ps`; vuelve al paso 3 |

@@ -59,8 +59,34 @@ Ollama (v3.26.0) usa la misma vía sin clave ni proxy, en `127.0.0.1:11434`, y
 es el único proveedor en el que **el correo no sale del Mac**. Solo se admite
 `qwen3.5:latest`, el modelo sondeado. Hay que arrancarlo con
 `OLLAMA_CONTEXT_LENGTH=16384 ollama serve`: con menos de 24 GB usa 4.096 tokens
-y recortaría la petición sin avisar (el plugin no puede comprobarlo). El cuerpo
-lleva `stream: false` y `reasoning_effort: "none"`. Instalación y modelos:
+y recortaría la petición sin avisar. El cuerpo lleva `stream: false` y
+`reasoning_effort: "none"`.
+
+**Preflight de contexto (v3.26.1).** Antes del primer correo, y solo si alguno
+se va a enviar, el adaptador declara `preflight` y `evaluadores.py` lo invoca:
+un `GET /api/ps` por la misma guarda que el envío (`nc.solicitar` con
+`body=None`: solo `http://127.0.0.1:`, sin proxy ni redirecciones). Calcula el
+contexto necesario de cada petición (caracteres de los mensajes / 3, más 3.450
+tokens de margen de salida = 1,5 × los 2.300 observados) y lo compara con el
+`context_length` con el que el servidor cargó el modelo. Si cualquier motivo lo
+frena, **ningún correo sale** y todas las filas llevan ese motivo:
+
+- `contexto_insuficiente`: el modelo está cargado con menos contexto del
+  necesario (típicamente 4.096, o la app de la barra de menús arrancó su
+  propio servidor sin la variable).
+- `modelo_no_cargado`: `/api/ps` no lista `qwen3.5:latest`. `/api/show` no
+  sirve para decidir: da el máximo entrenado del modelo, no el contexto que
+  usará el servidor. Hay que cargarlo antes (`ollama run qwen3.5:latest ""`);
+  se descarga tras 5 minutos sin uso.
+- `contexto_no_verificable`: la fila no trae `context_length` entero (Ollama
+  antiguo); `respuesta_ps_invalida`: la respuesta no tiene `models`.
+- `/api/ps` inaccesible: el mismo motivo de transporte que el envío
+  (`fallo_red_o_timeout`, `http_<código>`, `redireccion_rechazada`).
+
+La salida lleva `preflight` con `contexto_necesario` y `contexto_servidor`.
+La API de Ollama **no expone** si un modelo está generando: un servidor
+ocupado con una petición abandonada no se detecta y sigue saliendo
+`fallo_red_o_timeout`. Instalación y modelos:
 [`docs/modelos-locales-macos.md`](https://github.com/novanoticia/email-triage-plugin/blob/main/docs/modelos-locales-macos.md).
 
 Límites: 1–50 llamadas por invocación, timeout 1–60 segundos (1–600 con

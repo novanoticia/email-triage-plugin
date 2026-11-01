@@ -9,10 +9,11 @@ import threading
 import unittest
 import urllib.error
 import urllib.request
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from tests import DIR_SCRIPTS  # noqa: F401  (añade los scripts al path)
 from tests.test_jev import lote
+from tests import test_evaluadores as te
 import clasificadores as nc
 import esquema
 import evaluadores as ev
@@ -108,6 +109,162 @@ class TestOllamaSO(unittest.TestCase):
             r = nc.solicitar(destino, {"stream": False}, None, 5)
         self.assertEqual(r["model"], "qwen3.5:latest")
         self.assertIsNone(recibido["auth"])
+
+
+
+class TestPreflightOllama(unittest.TestCase):
+    """v3.26.1: `GET /api/ps` antes del primer correo, con un servidor real
+    en 127.0.0.1:0 que responde a la vez a `/api/ps` y al chat."""
+
+    def servidor(self, ps=None, estado_ps=200, redirigir=False):
+        visto = {"gets": 0, "posts": 0}
+
+        class Manejador(http.server.BaseHTTPRequestHandler):
+            def log_message(self, *a):
+                pass
+
+            def responder(self, codigo, datos, cabeceras=()):
+                datos = json.dumps(datos).encode()
+                self.send_response(codigo)
+                for k, v in cabeceras:
+                    self.send_header(k, v)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(datos)))
+                self.end_headers()
+                self.wfile.write(datos)
+
+            def do_GET(self):
+                visto["gets"] += 1
+                visto["ruta_get"] = self.path
+                if redirigir:
+                    return self.responder(302, {}, [("Location", "http://127.0.0.1:9/x")])
+                self.responder(estado_ps, ps)
+
+            def do_POST(self):
+                visto["posts"] += 1
+                self.rfile.read(int(self.headers["Content-Length"]))
+                self.responder(200, te.sobre("ollama", lote()[1]))
+
+        srv = http.server.HTTPServer(("127.0.0.1", 0), Manejador)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        self.addCleanup(srv.server_close)
+        self.addCleanup(srv.shutdown)
+        base = nc.LOOPBACK + "%d" % srv.server_port
+        for nombre, ruta in (("PS", "/api/ps"), ("ENDPOINT", "/v1/chat/completions")):
+            parche = patch.object(p, nombre, base + ruta)
+            parche.start()
+            self.addCleanup(parche.stop)
+        entorno = patch.dict(os.environ, {"http_proxy": "http://proxy.invalid:9",
+                                          "HTTP_PROXY": "http://proxy.invalid:9", "no_proxy": ""})
+        entorno.start()
+        self.addCleanup(entorno.stop)
+        return visto
+
+    def procesar(self):
+        lote_, cfg = lote()
+        capa = dict(te.ACTIVO, proveedor="ollama", timeout_segundos=30)
+        return ev.procesar(lote_, cfg, capa, None, "comparar")
+
+    @staticmethod
+    def ps(contexto, nombre="qwen3.5:latest"):
+        fila = {"name": nombre, "model": nombre, "size_vram": 1}
+        if contexto is not None:
+            fila["context_length"] = contexto
+        return {"models": [fila]}
+
+    def test_contexto_suficiente_sigue(self):
+        visto = self.servidor(self.ps(16384))
+        r = self.procesar()
+        self.assertEqual(visto["ruta_get"], "/api/ps")
+        self.assertEqual(r["preflight"]["contexto_servidor"], 16384)
+        self.assertLess(r["preflight"]["contexto_necesario"], 16384)
+        self.assertGreater(visto["posts"], 0)
+        self.assertEqual(r["llamadas"], visto["posts"])
+        self.assertNotIn(r["resultados"][0]["motivo"], ("contexto_insuficiente", "fallo_red_o_timeout"))
+
+    def test_contexto_insuficiente_no_envia_ningun_correo(self):
+        visto = self.servidor(self.ps(4096))
+        r = self.procesar()
+        self.assertEqual(visto["posts"], 0)
+        self.assertEqual(r["llamadas"], 0)
+        self.assertEqual(r["preflight"]["contexto_servidor"], 4096)
+        self.assertGreater(r["preflight"]["contexto_necesario"], 4096)
+        self.assertTrue(r["resultados"])
+        for fila in r["resultados"]:
+            self.assertEqual(fila["motivo"], "contexto_insuficiente")
+            self.assertNotIn("propuesta", fila)
+
+    def test_ps_inaccesible_da_el_motivo_de_transporte(self):
+        visto = self.servidor()
+        parche = patch.object(p, "PS", nc.LOOPBACK + "9/api/ps")  # puerto cerrado
+        parche.start()
+        self.addCleanup(parche.stop)
+        r = self.procesar()
+        self.assertEqual(visto["posts"], 0)
+        self.assertEqual({f["motivo"] for f in r["resultados"]}, {"fallo_red_o_timeout"})
+
+    def test_ps_con_error_http_o_redireccion(self):
+        for kw, motivo in (({"estado_ps": 500}, "http_500"),
+                           ({"redirigir": True}, "redireccion_rechazada")):
+            with self.subTest(motivo=motivo):
+                visto = self.servidor(**kw)
+                r = self.procesar()
+                self.assertEqual(visto["posts"], 0)
+                self.assertEqual({f["motivo"] for f in r["resultados"]}, {motivo})
+
+    def test_modelo_no_cargado_o_sin_contexto_declarado(self):
+        for ps, motivo in ((self.ps(16384, "llama3:latest"), "modelo_no_cargado"),
+                           ({"models": []}, "modelo_no_cargado"),
+                           (self.ps(None), "contexto_no_verificable"),
+                           (self.ps("16384"), "contexto_no_verificable"),
+                           ({"modelos": []}, "respuesta_ps_invalida")):
+            with self.subTest(motivo=motivo, ps=ps):
+                visto = self.servidor(ps)
+                r = self.procesar()
+                self.assertEqual(visto["posts"], 0)
+                self.assertEqual({f["motivo"] for f in r["resultados"]}, {motivo})
+
+    def test_contexto_necesario_calculado_con_la_sonda(self):
+        # El correo de `sonda_ollama.py` midió 4.144 tokens de entrada: la
+        # estimación queda por encima (nunca corta) y de 4.096 no pasa.
+        import yaml
+        cfg = yaml.safe_load(open(os.path.join(os.path.dirname(ev.__file__), os.pardir, "config.yaml"),
+                                  encoding="utf-8"))
+        perfil = "Coordino una asociación cultural ficticia."
+        correo = {"id": "1", "asunto": "¿Podemos vernos el jueves?", "remitente": "lucia@example.invalid",
+                  "cuerpo": "Necesito que decidamos antes del viernes si renovamos el convenio. ¿Te va el jueves?"}
+        e = ev.preparar({"perfil_minimo": perfil, "emails": [correo]})["emails"][0]
+        body = p.cuerpo(p.MODELO_POR_DEFECTO, ev.mensajes(cfg, perfil, e), ev.esquema_evaluador(cfg))
+        necesario = p.contexto_necesario(body)
+        self.assertGreaterEqual(necesario - p.MARGEN_SALIDA, 4144)
+        self.assertGreater(necesario, 4096)
+        self.assertLessEqual(necesario, 16384)
+
+    def test_la_lectura_get_solo_va_a_loopback(self):
+        for destino, clave in (("https://api.example.invalid/api/ps", None),
+                               ("https://api.example.invalid/api/ps", "k"),
+                               (nc.LOOPBACK + "11434/api/ps", "k")):
+            with self.subTest(destino=destino, clave=clave), \
+                    patch.object(nc.urllib.request, "build_opener") as op:
+                with self.assertRaisesRegex(nc.ErrorClasificador, "^destino_no_permitido$"):
+                    nc.solicitar(destino, None, clave, 1)
+                op.assert_not_called()
+
+    def test_sin_filas_que_enviar_no_consulta(self):
+        llamado = Mock()
+        with patch.object(p, "preflight", llamado):
+            lote_, cfg = lote()
+            capa = dict(te.ACTIVO, proveedor="ollama", max_llamadas=1)
+            for e in lote_["emails"]:
+                e["contexto_suficiente"] = False
+                e.pop("principal", None)
+            ev.procesar(lote_, cfg, dict(capa, modo="hibrido"), Mock(), "hibrido")
+        llamado.assert_not_called()
+
+    def test_otros_proveedores_no_declaran_preflight(self):
+        for nombre in ("openai", "mistral", "gemini", "apple"):
+            with self.subTest(proveedor=nombre):
+                self.assertFalse(hasattr(ev.proveedor(nombre), "preflight"))
 
 
 if __name__ == "__main__":
