@@ -125,6 +125,18 @@ Sin registros persistentes nuevos ni propuestas en aprendizaje.
 
 [Configuración y contrato](plugins/email-triage/skills/email-triage/references/openrouter.md).
 
+## Modelos de decisión locales (Ollama) opcional
+
+Desactivado por defecto. Requiere `activo: true` y `acepta_envio_datos: true`;
+no usa clave. Envía asunto, remitente y extracto sanitizados, perfil mínimo y
+preguntas solo a `ollama serve` en tu propio Mac (`127.0.0.1:11434`), sin
+proxy: **los datos no salen del Mac**. Se exige igualmente el doble
+consentimiento, porque el plugin no puede saber qué escucha en ese puerto.
+Comparación sin movimientos por defecto; híbrido solo explícito y revisado.
+Sin registros persistentes nuevos ni propuestas en aprendizaje.
+
+[Configuración y contrato](plugins/email-triage/skills/email-triage/references/decision-local.md).
+
 ## Evaluadores LLM opcionales (OpenAI, Mistral, Gemini, Apple u Ollama)
 
 Desactivados por defecto. Requieren `activo: true`, `acepta_envio_datos: true` y

@@ -16,11 +16,11 @@ compatibility: >
   Claude Code, Claude Cowork y ChatGPT.
 license: Apache-2.0
 metadata:
-  version: "3.26.2"
+  version: "3.27.0"
   author: novanoticia
 ---
 
-# Email Triage v3.26 — Filtrado epistémico por valor diferencial
+# Email Triage v3.27 — Filtrado epistémico por valor diferencial
 
 ## Qué hace este skill
 
@@ -130,7 +130,8 @@ Resuelve la base de estado según las reglas de este PASO, también para esta ca
 **Evaluadores externos.** Ante petición o capa activa, lee antes de cualquier fase:
 Jev (`config-jev.yaml`): `references/jev.md`; OpenAI Decisions
 (`config-decisions.yaml`): `references/decisions.md`; OpenRouter
-(`config-openrouter.yaml`): `references/openrouter.md`; LLM OpenAI/Mistral/Gemini
+(`config-openrouter.yaml`): `references/openrouter.md`; Ollama
+(`config-decision-local.yaml`): `references/decision-local.md`; LLM
 (`config-evaluadores.yaml`): `references/evaluadores.md`.
 Desactivados por defecto; exigen clave propia y consentimiento de envío al
 proveedor elegido. Decisions usa `OPENAI_API_KEY`. `comparar` fuerza simulación;

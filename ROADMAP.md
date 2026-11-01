@@ -197,9 +197,11 @@ No propongas trabajo en estas líneas salvo petición expresa del mantenedor:
     opción en la que el correo no sale del Mac. Sonda en un Mac de 16 GB
     hecha; falta la medición con los 40 correos ficticios.
   - **Apuntado, sin implementar**: LM Studio (`127.0.0.1:1234`), pendiente de
-    su propia sonda; y los modelos de decisión locales (`tev1:4b`, `d1`), que
-    en la sonda eligieron `__incierto__` en 25 y 7 de 30 criterios: antes de
-    un adaptador, probar sin `__incierto__` y con instrucciones en inglés.
+    su propia sonda.
+  - **Implementado** (v3.27.0): modelos de decisión locales (`d1`, `tev1:4b`)
+    por `/v1/systemone`, a petición del mantenedor tras la sonda de 12
+    correos: ninguna variante (con o sin `__incierto__`, español o inglés)
+    pasa el freno de `hibrido`; útil para `comparar` en local.
 - Cambios de licencia, distribución o marketplace.
 - Rediseños de la interfaz de revisión que no respondan a P1 o P2.
 
@@ -239,6 +241,7 @@ la que más informa a P2 y al resto de P3.
 |---|---|---|
 | 2026-11-01 | Apple Foundation Models (`pcc`) como evaluador LLM; contrato comprobado en un Mac real | 3.25.0 |
 | 2026-11-01 | Ollama (`qwen3.5`) como evaluador LLM local; el correo no sale del Mac | 3.26.0 |
+| 2026-11-01 | Modelos de decisión locales de Ollama (`d1`, `tev1:4b`), sin clave | 3.27.0 |
 | 2026-10-31 | Evaluadores LLM medidos con Gemini y 40 correos ficticios en híbrido: 28 de 40 propuestas tras v3.24.4–v3.24.5; freno restante, el eco (12 de 40) | 3.24.5 |
 | 2026-10-30 | Evaluadores LLM estructurados, comparación e híbrido opt-in; pruebas simuladas, pendiente de validación real | 3.24.0 |
 | 2026-10-30 | OpenRouter Decisions implementado, opt-in; pruebas simuladas, pendiente de validación real | 3.23.0 |

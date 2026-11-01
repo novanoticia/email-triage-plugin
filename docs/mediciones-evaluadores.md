@@ -146,6 +146,30 @@ respuestas cortadas son razonamiento oculto pese a `reasoning_effort: none` o
 pura verbosidad; desde esta medición `medir_evaluadores.py` imprime los tokens
 de salida y el tiempo de cada correo.
 
+### 11. Modelos de decisión locales, 12 correos, tres variantes — 0 de 12
+
+`scripts/sonda_decision_local.py` (2026-11-01). Freno de `hibrido`: 0 inciertos
+y confianza de al menos 0,8 en los 30 criterios.
+
+| Modelo · variante | s/correo | Inciertos (med.) | `__no_aplica__` (med.) | Conf. mín. (med.) | Conf. mediana | Pasan |
+|---|---|---|---|---|---|---|
+| `tev1:4b` · es | 15,6 | 13 | 5,5 | 0,005 | 0,109 | 0 |
+| `tev1:4b` · es sin incierto | 12,2 | 0 | 14 | 0,004 | 0,100 | 0 |
+| `tev1:4b` · en sin incierto | 12,1 | 0 | 15 | 0,001 | 0,120 | 0 |
+| `d1` · es | 3,8 | 3 | 13 | 0,184 | 0,459 | 0 |
+| `d1` · es sin incierto | 3,3 | 0 | 15 | 0,213 | 0,570 | 0 |
+| `d1` · en sin incierto | 3,1 | 0 | 15 | 0,139 | 0,462 | 0 |
+
+Quitar `__incierto__` no aporta seguridad: los inciertos pasan a
+`__no_aplica__` (de 5,5 a 14-15 en `tev1:4b`) y la confianza apenas cambia. El
+inglés no ayuda. `d1` sin incierto es lo más prometedor (mediana 0,57; en
+`semantic_stopsigns`, 12 de 12 por encima de 0,8), pero ninguna fila llega al
+umbral en los 30 criterios a la vez.
+
+→ **v3.27.0**: adaptador `decision_local` con las preguntas de siempre (con
+`__incierto__`), a petición del mantenedor. Útil para `comparar`; en `hibrido`
+todo vuelve al principal. El freno no se relaja.
+
 ## Sondas de contrato (antes de escribir un adaptador)
 
 - **Apple `fm serve`** (`scripts/sonda_fm.py`, 2026-11-01): `system` (on-device)

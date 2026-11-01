@@ -678,9 +678,15 @@ def procesar(p, cfg, capa, transporte, modo, prov):
             body = prov.cuerpo(c["modelo"], p["perfil_minimo"], e["estado"], preguntas)
             _exigir(len(_json(body)) <= MAX_PETICION, "peticion_excesiva")
             preparados.append((e, base, bloqueo, body))
-        key = os.environ.get(prov.variable_clave, "")
-        clave_valida = (bool(key) and len(key) <= 4096 and key.isascii()
-                        and all(33 <= ord(ch) <= 126 for ch in key))
+        if prov.variable_clave is None:
+            # v3.27.0: proveedor local sin clave (decision_local). `nc.solicitar`
+            # con `key=None` solo admite `http://127.0.0.1:` y sin proxy, así que
+            # no declarar clave nunca abre un destino externo.
+            key, clave_valida = None, True
+        else:
+            key = os.environ.get(prov.variable_clave, "")
+            clave_valida = (bool(key) and len(key) <= 4096 and key.isascii()
+                            and all(33 <= ord(ch) <= 126 for ch in key))
         transporte = transporte or prov.transporte
         detenido = None
         bases, propuestas, bases_sf, propuestas_sf = [], [], [], []
