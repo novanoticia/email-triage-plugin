@@ -466,7 +466,9 @@ nada que citar; la tolerancia de dudas sigue en 0. Desde v3.25.0 `apple_so.py`
 a Private Cloud Compute y requieren el mismo doble consentimiento. Desde v3.25.1 el prompt (`INSTRUCCION_ECO`) y
 `esquema_evaluador` piden el eco del campo `texto` (no del asunto) con seis
 palabras exactas: `eco_coincide` no se relaja (desde v3.27.1, también que `fin`
-acabe en la última palabra: Gemini lo cortaba antes). Desde v3.26.0 `ollama_so.py`
+acabe en la última palabra: Gemini lo cortaba antes; desde v3.27.2 pide ocho
+palabras con una instrucción más corta, y la comprobación sigue en 4 de 6; su tope
+de longitud admite 4 tokens o 2 palabras de más, por las fechas y horas). Desde v3.26.0 `ollama_so.py`
 (`qwen3.5:latest` en `127.0.0.1:11434`, misma vía sin clave ni proxy): el correo
 no sale del Mac, pero el doble consentimiento se exige igual; es el único que
 declara `TIMEOUT_MAXIMO` (600) en `config_capa`, el resto sigue en 60. Desde

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.27.1).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.27.2).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -883,7 +883,8 @@ def eco_coincide(eco, ancla) -> bool:
     reescribe puntuación y símbolos. Ahora se comparan solo letras y
     números, y basta con que coincidan, en orden, 4 de las 6 palabras de
     cada extremo (todas si el ancla tiene menos de 4). El eco no puede ser
-    mucho más largo que el ancla: así no basta con devolver medio correo.
+    mucho más largo que el ancla (4 tokens o 2 palabras de más, desde
+    v3.27.2): así no basta con devolver medio correo.
     Sigue cazando lo que importa: texto ajeno al final, texto cortado y el
     extracto de otro correo."""
     if not (isinstance(eco, dict) and isinstance(ancla, dict)):
@@ -897,7 +898,14 @@ def eco_coincide(eco, ancla) -> bool:
             if te:
                 return False
             continue
-        if len(te) > len(ta) + 4:
+        # v3.27.2 (revisión Codex, PR #171): los evaluadores LLM piden ocho
+        # palabras y el ancla tiene seis. Con fechas u horas («2026-11-01
+        # 10:30») esas dos palabras de más son 5 tokens y el tope en tokens
+        # rechazaba un eco correcto. Basta con que no pase del tope en tokens
+        # O traiga como mucho 2 palabras más que el ancla: sigue sin valer
+        # medio correo.
+        if len(te) > len(ta) + 4 and \
+                len(_palabras_ancla(e)) > len(_palabras_ancla(a)) + 2:
             return False
         # En `fin` se mira el final del eco: un especialista que omite la
         # marca y añade una palabra de más del cuerpo también vale.

@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.27.1
+# Email Triage Plugin v3.27.2
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,16 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.27.2
+
+Evaluadores LLM: el `eco` pide ahora **ocho** palabras por extremo en vez de
+seis, con una instrucción más corta. Con seis, Gemini devolvía 2-3 en el final
+y en un correo llegó a copiar la propia instrucción dentro del eco (8 de 40
+filas volvían al principal por eso). La comprobación del eco sigue pidiendo 4
+de las 6 palabras de referencia, en orden; solo admite ahora esas 2 palabras de
+más aunque sean fechas u horas.
+[Mediciones](docs/mediciones-evaluadores.md).
 
 ## Novedades en v3.27.1
 

@@ -176,12 +176,14 @@ class TestEvaluadores(unittest.TestCase):
                        else body['response_format']['json_schema']['schema'])
             self.assertEqual(enviado, ev.esquema_evaluador(self.cfg))
             # Igual al esquema común salvo las descripciones de `dudas` (v3.24.5)
-            # y de los extremos del `eco` (v3.25.1).
+            # y del `eco`: sus extremos (v3.25.1) y el objeto (v3.27.2).
             sin, comun = copy.deepcopy(enviado), esquema.generar(self.cfg)
             fila = sin['properties']['evaluaciones']['items']['properties']
             fila_comun = comun['properties']['evaluaciones']['items']['properties']
             self.assertEqual(fila['dudas'].pop('description'), ev.DESCRIPCION_DUDAS)
             fila_comun['dudas'].pop('description', None)
+            self.assertEqual(fila['eco'].pop('description'), ev.DESCRIPCION_ECO)
+            fila_comun['eco'].pop('description')
             for extremo, descripcion in ev.DESCRIPCIONES_ECO.items():
                 self.assertEqual(fila['eco']['properties'][extremo].pop('description'), descripcion)
                 fila_comun['eco']['properties'][extremo].pop('description')
@@ -463,7 +465,7 @@ class TestEvaluadores(unittest.TestCase):
             dudas=['Una duda cualquiera.']))
         self.assertEqual(r['resultados'][0]['motivo'], 'evaluador_con_dudas')
 
-    def test_instruccion_de_eco_nombra_el_campo_texto_y_seis_palabras(self):
+    def test_instruccion_de_eco_nombra_el_campo_texto_y_ocho_palabras(self):
         # v3.25.1 (medición real con Apple `pcc`): el ancla sale solo de
         # `estado.texto`; el eco empezaba por el asunto o traía 2-3 palabras.
         texto = ev.sistema(self.cfg, 'Perfil ficticio')
@@ -471,7 +473,8 @@ class TestEvaluadores(unittest.TestCase):
         for frase in (ev.INSTRUCCION_ECO, *ev.DESCRIPCIONES_ECO.values()):
             self.assertIn('campo texto', frase)
             self.assertIn('asunto', frase)
-            self.assertIn('seis', frase)
+            # v3.27.2 (medición 13): se piden ocho; con seis Gemini daba 2-3.
+            self.assertIn('ocho', frase)
         # El campo se llama así en el mensaje que recibe el proveedor.
         p = ev.preparar({'perfil_minimo': 'x', 'emails': [
             {'id': '1', 'asunto': 'A', 'remitente': 'r@example.invalid', 'cuerpo': 'Hola'}]})
@@ -489,6 +492,30 @@ class TestEvaluadores(unittest.TestCase):
             self.assertIn('última palabra del texto', frase)
         self.assertFalse(th.eco_coincide(
             {'inicio': ancla['inicio'], 'fin': 'diez artículos sobre jardinería urbana y'}, ancla))
+        # v3.27.2: lo que se pide (ocho por extremo) lo acepta la comprobación,
+        # que no se relaja: sigue exigiendo 4 de las 6 del ancla en orden.
+        texto = 'Hemos mejorado el rendimiento y corregido errores menores en la app. No tienes que hacer nada.'
+        ancla = th.ancla_extracto(texto)
+        palabras = texto.split()
+        self.assertTrue(th.eco_coincide(
+            {'inicio': ' '.join(palabras[:8]), 'fin': ' '.join(palabras[-8:])}, ancla))
+        self.assertFalse(th.eco_coincide(
+            {'inicio': ' '.join(palabras[:8]), 'fin': 'hacer nada.'}, ancla))
+        # Revisión Codex (PR #171): con fechas u horas, las dos palabras de más
+        # superaban el tope en tokens; ocho palabras exactas deben pasar.
+        texto = 'Te confirmo nuestra próxima reunión para 2026-11-01 10:30 en la sala grande del local.'
+        ancla, palabras = th.ancla_extracto(texto), texto.split()
+        self.assertTrue(th.eco_coincide(
+            {'inicio': ' '.join(palabras[:8]), 'fin': ' '.join(palabras[-8:])}, ancla))
+        # Sigue sin valer un eco mucho más largo que el ancla.
+        self.assertFalse(th.eco_coincide(
+            {'inicio': ' '.join(palabras[:12]), 'fin': ancla['fin']}, ancla))
+        # Y el esquema no pide seis en ningún sitio del eco de los evaluadores.
+        eco = ev.esquema_evaluador(self.cfg)['properties']['evaluaciones']['items']['properties']['eco']
+        self.assertNotIn('seis', json.dumps(eco, ensure_ascii=False))
+        self.assertIn('Ocho', eco['description'])
+        # La instrucción ya no empieza una frase por «fin», que Gemini copió.
+        self.assertNotIn('fin termina', ev.INSTRUCCION_ECO)
         # Cuerpo muy corto: `texto` llega vacío y el eco debe ir vacío, no
         # copiado del asunto (revisión de Mistral, PR #159).
         for frase in (ev.INSTRUCCION_ECO, *ev.DESCRIPCIONES_ECO.values()):
