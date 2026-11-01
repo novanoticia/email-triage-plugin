@@ -463,7 +463,9 @@ evaluadores LLM pide dudas solo si impiden elegir y `__no_aplica__` donde no hay
 nada que citar; la tolerancia de dudas sigue en 0. Desde v3.25.0 `apple_so.py`
 (Apple Foundation Models vía `fm serve`, modelo `pcc`): sin clave, solo
 `http://127.0.0.1:` y sin proxy (`nc.solicitar` con `key=None`); los datos salen
-a Private Cloud Compute y requieren el mismo doble consentimiento. No combinar proveedores en una sesión. Comparar implica simulación
+a Private Cloud Compute y requieren el mismo doble consentimiento. Desde v3.25.1 el prompt (`INSTRUCCION_ECO`) y
+`esquema_evaluador` piden el eco del campo `texto` (no del asunto) con seis
+palabras exactas: `eco_coincide` no se relaja. No combinar proveedores en una sesión. Comparar implica simulación
 y no alimenta aprendizaje con desacuerdos entre modelos. Los controles de scoring
 vienen del principal, nunca de la respuesta delegada. Las pruebas sintéticas
 validan mecanismos, no la calidad de los modelos ni compatibilidad real del host.
