@@ -54,6 +54,7 @@ propuesta, para que la revise).
 | 2026-11-01 | Gemini | 3.25.1 | 40 | **34** | `eco_distinto` (6) |
 | 2026-11-01 | Gemini | 3.27.1 | 40 | **35** | `eco_distinto` (5) |
 | 2026-11-01 | Gemini, con controles y tiers esperados | 3.27.1 | 40 | 32 (aciertos 14 de 20 sin forzar) | `eco_distinto` (8) |
+| 2026-11-01 | Gemini, eco de ocho palabras | 3.27.2 | 40 | 34 (aciertos 14 de 24 sin forzar) | `eco_distinto` (6) |
 | 2026-11-01 | Ollama `qwen3.5` | 3.26.0 | 40 | 0 | `fallo_red_o_timeout` en el correo 2 |
 | 2026-11-01 | Ollama `qwen3.5` | 3.26.2 | 40 | 3 | `evidencias_ausentes` (16) |
 
@@ -193,7 +194,33 @@ y `READING_LATER`.
 corta que no empieza por «fin». `eco_coincide` sigue en 4 de 6; su tope de
 longitud admite 2 palabras de más aunque sean fechas u horas. Pendiente de medir.
 En `ESPERADOS`, el correo 5 (contraseña cambiada) pierde la B: un aviso de
-seguridad no es correo masivo, y el −4 lo hundía a `ARCHIVE`.
+seguridad no es correo masivo, y el −4 lo hundía a `ARCHIVE`. Medido en la 14.
+
+### 14. Gemini, 40 correos, v3.27.2, eco de ocho palabras — 34 de 40, 14 de 24 aciertos
+
+`reevaluar_tier_o_umbral` 25, `propuesta_validada` 9, `eco_distinto` 6, 0 dudas.
+
+**El eco cambia de fallo, no de cifra.** Con seis palabras, Gemini daba 2-3 en
+`fin`; con ocho, en 4 de los 6 fallos da **11-14** (correos 3, 18, 20 y 30:
+«convenio con el ayuntamiento. ¿Te va el jueves a las 18?»), y el tope de
+longitud lo rechaza. Los otros 2 siguen cortos (2-3 palabras). Gemini no cuenta
+palabras: copia trozos de frase. En los 4 largos los extremos son correctos y
+llegan hasta la última palabra.
+
+**Aciertos de tier.** 14 de 24 sin forzar (10 de 10 forzados, que no cuentan):
+
+| Esperado → propuesto | Correos | Lectura |
+|---|---|---|
+| `READING_LATER` → `ARCHIVE` | 10, 22, 29, 32 | 4 de 4; en la 13 fueron 3 de 4: patrón estable |
+| `ARCHIVE` → `REVIEW` | 12, 36, 39 | Avisos informativos sobrevalorados; los tres salen `propuesta_validada` |
+| `REVIEW` → `ARCHIVE` | 5, 35 | El 5 sigue en `ARCHIVE` **sin** la B: la hipótesis de la 13 era errónea, es del evaluador |
+| `REVIEW` → `READING_LATER` | 21 | En la 13 acertó: variación entre ejecuciones |
+
+De las 9 `propuesta_validada` (las que `hibrido` propone sin devolver al
+principal), 3 tienen el tier equivocado (12, 36 y 39). Entre ejecuciones cambian
+2-3 tiers del mismo correo, así que la cifra de aciertos tiene un ruido de unos
+±3.
+
 
 
 
