@@ -224,10 +224,50 @@ principal), 3 tienen el tier equivocado (12, 36 y 39). Entre ejecuciones cambian
 → **v3.27.3** (opción A del mantenedor): `eco_coincide` mira el principio del
 `inicio` y el final del `fin` (8 tokens), sin tope de longitud. Con los ecos de
 esta medición, los 4 largos pasarían y los 2 cortos seguirían fallando.
-Pendiente de medir. Desde aquí `medir_evaluadores.py` imprime el score y los
+Medido en la 15. Desde aquí `medir_evaluadores.py` imprime el score y los
 ejes de cada propuesta y, en los fallos de tier, cuántos puntos la separan del
 rango esperado: así se ve si los `READING_LATER` hundidos están a 1-2 puntos
 (umbral) o muy lejos (veredictos).
+
+### 15. Gemini, 40 correos, v3.27.3, eco por extremos — 40 de 40, 18 de 26 aciertos
+
+`reevaluar_tier_o_umbral` 28, `propuesta_validada` 12, `eco_distinto` **0**, 0 dudas.
+
+**El eco queda resuelto en esta medición.** Ningún fallo; se esperaban 2 (los
+cortos de la 14), así que esta vez Gemini no los cortó. Es una sola ejecución:
+el cambio deja pasar los largos, pero los cortos siguen dependiendo de la suerte.
+Las 28 `reevaluar` son las 14 `REPLY_NEEDED` y las 12 `ARCHIVE`, que vuelven al
+principal por diseño, más 2 cerca de la frontera.
+
+**Aciertos de tier.** 18 de 26 sin forzar (14 de 14 forzados, que no cuentan).
+Con el score a la vista, solo un fallo es de umbral:
+
+| Esperado → propuesto | Correo: score (distancia) | Eje que lo mueve |
+|---|---|---|
+| `ARCHIVE` → `REVIEW` | 12: 9 (−10), 31: 16 (−17), 36: 11 (−12), 39: 16 (−17) | `valor_decisional` 8-10 en avisos de una línea |
+| `READING_LATER` → `ARCHIVE` | 22: −3 (+3), 29: −16 (+16), 32: −14 (+14) | `calidad_epistemica` −3/−9/−10; en 29 y 32, también `riesgo_manipulacion` −3/−4 |
+| `REVIEW` → `ARCHIVE` | 35: −6 (+10) | `calidad_epistemica` −6 y `riesgo_manipulacion` −4; la D (+4) no compensa |
+
+**Lectura.** Solo el 22 está a 3 puntos de su rango. Los otros 7 fallan por
+10-17 puntos: no se arreglan moviendo umbrales sino viendo qué veredictos los
+empujan. Los ejes muestran dos patrones:
+
+- **Avisos breves sobrevalorados.** Envío, factura duplicada, material
+  olvidado y reserva confirmada sacan un `valor_decisional` de 8-10. Es el
+  mismo patrón que en la 14 (12, 36 y 39 repiten). Dos de ellos (31 y 39) salen
+  `propuesta_validada`: 2 de las 12 que `hibrido` propone por su cuenta tienen
+  el tier equivocado. El 31 («ignorad la segunda») es discutible como
+  `ARCHIVE`; tocar `ESPERADOS` es decisión del mantenedor.
+- **Correo corto e informativo castigado.** Una newsletter, una invitación y una
+  consulta pública pierden 6-14 puntos entre `calidad_epistemica` y
+  `riesgo_manipulacion`. Hipótesis sin verificar: criterios pensados para
+  textos con argumentos leen la falta de evidencia como mala calidad, en vez de
+  como `__no_aplica__`. Para comprobarlo hace falta el desglose por criterio,
+  que la medición aún no imprime.
+
+Con una sola ejecución y un ruido de unos ±3 aciertos, la subida de 14 a 18 no
+se puede atribuir a v3.27.3: también hay 2 filas más medibles, porque el eco ya
+no rechaza ninguna.
 
 
 
