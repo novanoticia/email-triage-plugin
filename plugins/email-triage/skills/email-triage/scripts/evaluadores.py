@@ -27,7 +27,8 @@ from clasificadores import _exigir
 DEFAULT = {"activo": False, "acepta_envio_datos": False, "modo": "comparar",
            "proveedor": "openai", "modelo": "", "max_llamadas": 5,
            "timeout_segundos": 30, "tolerancia_dudas": 0}
-ADAPTADORES = {"openai": "openai_so", "mistral": "mistral_so", "gemini": "gemini_so"}
+ADAPTADORES = {"openai": "openai_so", "mistral": "mistral_so", "gemini": "gemini_so",
+               "apple": "apple_so"}
 # Fallos de transporte (los de `nc.solicitar`): detienen el proveedor para el
 # resto del lote. Una respuesta truncada o mal formada solo descarta su correo.
 DETIENEN = ("http_", "fallo_red", "redireccion", "respuesta_http_inesperada",
@@ -257,9 +258,11 @@ def procesar(p, cfg, capa, transporte=None, modo="comparar"):
                 continue
             # Misma comprobación que procesar de clasificadores, justo antes
             # del envío. No persistir ni interpolar la credencial en una URL.
-            key = os.environ.get(prov.VARIABLE_CLAVE, "")
-            if not (bool(key) and len(key) <= 4096 and key.isascii()
-                    and all(33 <= ord(ch) <= 126 for ch in key)):
+            # Apple `fm serve` no usa clave (VARIABLE_CLAVE None): key None y
+            # `nc.solicitar` solo admite entonces el destino de loopback.
+            key = os.environ.get(prov.VARIABLE_CLAVE, "") if prov.VARIABLE_CLAVE else None
+            if key is not None and not (bool(key) and len(key) <= 4096 and key.isascii()
+                                        and all(33 <= ord(ch) <= 126 for ch in key)):
                 r["motivo"] = "credencial_ausente_o_invalida"
                 continue
             inicio = time.monotonic()

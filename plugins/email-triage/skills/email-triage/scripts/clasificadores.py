@@ -525,18 +525,27 @@ class _SinRedireccion(urllib.request.HTTPRedirectHandler):
         raise ErrorClasificador("redireccion_rechazada")
 
 
+LOOPBACK = "http://127.0.0.1:"
+
+
 def solicitar(endpoint, body, key, timeout, cabecera_clave=None):
     """Destino fijo HTTPS; TLS y proxy del entorno; sin redirect ni reintentos.
 
     La clave va en `Authorization: Bearer` o, con `cabecera_clave`, sola en
-    esa cabecera (Gemini: `x-goog-api-key`); nunca en la URL.
+    esa cabecera (Gemini: `x-goog-api-key`); nunca en la URL. Sin clave
+    (`key is None`) solo se admite un destino `http://127.0.0.1:` (Apple
+    `fm serve`): sin cabecera de autorización y sin proxy del entorno, para
+    que la petición no salga hacia un proxy en vez de al servicio local.
     """
-    autorizacion = ({cabecera_clave: key} if cabecera_clave
+    local = key is None
+    _exigir(local == endpoint.startswith(LOOPBACK), "destino_no_permitido")
+    autorizacion = ({} if local else {cabecera_clave: key} if cabecera_clave
                     else {"Authorization": "Bearer " + key})
     req = urllib.request.Request(endpoint, data=_json(body), method="POST", headers=dict(
         autorizacion, **{"Content-Type": "application/json", "Accept": "application/json"}))
+    manejadores = [_SinRedireccion()] + ([urllib.request.ProxyHandler({})] if local else [])
     try:
-        with urllib.request.build_opener(_SinRedireccion()).open(req, timeout=timeout) as resp:
+        with urllib.request.build_opener(*manejadores).open(req, timeout=timeout) as resp:
             _exigir(resp.status == 200 and resp.geturl() == endpoint, "respuesta_http_inesperada")
             raw = resp.read(MAX_JSON + 1)
             _exigir(len(raw) <= MAX_JSON, "respuesta_excesiva")
