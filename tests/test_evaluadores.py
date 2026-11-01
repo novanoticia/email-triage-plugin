@@ -478,6 +478,17 @@ class TestEvaluadores(unittest.TestCase):
         self.assertFalse(th.eco_coincide(
             {'inicio': 'Boletín de noviembre Novedades del mes:', 'fin': ancla['fin']}, ancla))
         self.assertFalse(th.eco_coincide({'inicio': 'Novedades del', 'fin': ancla['fin']}, ancla))
+        # Cuerpo muy corto: `texto` llega vacío y el eco debe ir vacío, no
+        # copiado del asunto (revisión de Mistral, PR #159).
+        for frase in (ev.INSTRUCCION_ECO, *ev.DESCRIPCIONES_ECO.values()):
+            self.assertIn('vací', frase)
+        p = ev.preparar({'perfil_minimo': 'x', 'emails': [
+            {'id': '1', 'asunto': 'Asunto largo de prueba aquí', 'remitente': 'r@example.invalid',
+             'cuerpo': 'hola mundo'}]})
+        vacia = th.ancla_extracto(p['emails'][0]['estado']['texto'])
+        self.assertEqual(vacia, {'inicio': '', 'fin': ''})
+        self.assertTrue(th.eco_coincide({'inicio': '', 'fin': ''}, vacia))
+        self.assertFalse(th.eco_coincide({'inicio': 'Asunto largo de prueba aquí', 'fin': ''}, vacia))
 
     def test_instruccion_sin_incierto_y_sistema_una_vez_por_lote(self):
         # La frase de `__incierto__` se sustituye en origen, no con un replace

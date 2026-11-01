@@ -75,8 +75,9 @@ y `eco.fin` en `esquema_evaluador` piden seis palabras exactas por extremo **del
 campo `texto`**, nunca del asunto ni del remitente: el ancla sale solo de
 `estado.texto`. Medición real con Apple `pcc` (40 correos ficticios, 21
 `eco_distinto`): unos 11 ecos empezaban por el asunto y unos 8 traían 2-3
-palabras, menos de las 4 de 6 que exige `eco_coincide`. La comprobación no
-cambia.
+palabras, menos de las 4 de 6 que exige `eco_coincide`. Si `texto` llega vacío
+(cuerpo muy corto), se pide el eco vacío, que es lo que da el ancla. La
+comprobación no cambia.
 
 **No combinar con Jev, Decisions, OpenRouter ni el evaluador nativo en la misma
 sesión.** Con varias capas activas, preguntar cuál usar antes de enviar datos;

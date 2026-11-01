@@ -104,15 +104,18 @@ DESCRIPCION_DUDAS = ("Solo lo que impide elegir la opción de algún criterio; "
 # El ancla sale solo del campo `texto`, pero el mensaje lleva también asunto y
 # remitente, y «el extracto recibido» era ambiguo: unos 11 ecos empezaban por
 # el asunto y unos 8 traían 2-3 palabras (`eco_coincide` pide 4 de 6). Se
-# precisa el campo y el número; la comprobación no se relaja.
+# precisa el campo y el número; la comprobación no se relaja. Un cuerpo
+# muy corto llega con `texto` vacío y ancla vacía: entonces el eco va vacío
+# (revisión de Mistral, PR #159), no copiado del asunto.
 INSTRUCCION_ECO = (
     "En eco copia las seis primeras y las seis últimas palabras del campo texto, "
-    "nunca del asunto ni del remitente: seis exactas por extremo, en su orden.")
+    "nunca del asunto ni del remitente: seis exactas por extremo, en su orden. "
+    "Si texto está vacío, deja inicio y fin vacíos.")
 DESCRIPCIONES_ECO = {
     "inicio": "Las seis primeras palabras del campo texto (no del asunto), copiadas "
-              "tal cual: exactamente seis.",
+              "tal cual: exactamente seis; vacío si texto está vacío.",
     "fin": "Las seis últimas palabras del campo texto (no del asunto), copiadas "
-           "tal cual: exactamente seis.",
+           "tal cual: exactamente seis; vacío si texto está vacío.",
 }
 
 
