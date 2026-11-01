@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.25.1
+# Email Triage Plugin v3.26.0
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,17 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.26.0
+
+Nuevo evaluador LLM **local**: `ollama`, con el modelo `qwen3.5`. Es la única
+opción del plugin en la que el correo **no sale del Mac**: el plugin habla solo
+con `ollama serve` en `127.0.0.1:11434`, sin clave y sin proxy, y no hay coste
+por token. Es lento: unos 110 s por correo en un Mac de 16 GB, por eso este
+proveedor admite `timeout_segundos` de hasta 600 (los demás siguen en 60). Hay
+que arrancarlo con `OLLAMA_CONTEXT_LENGTH=16384` o recortaría la petición.
+Contrato comprobado en un Mac real con un correo ficticio; desactivado por
+defecto. [Instalación, modelos y configuración](docs/modelos-locales-macos.md).
 
 ## Novedades en v3.25.1
 
