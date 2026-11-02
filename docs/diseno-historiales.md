@@ -1,7 +1,8 @@
 # Diseño: aprender de «Archivados», de los VIP de Mail y de «Conservar»
 
-Estado: **aprobado el 2026-11-02**, con D1–D4 aceptadas y D5 rechazada (ver
-«Decisiones del mantenedor»). Fase 0 en curso: `scripts/sonda_vip.py`.
+Estado: **aparcado tras la fase 0** (2026-11-02, decisión del mantenedor).
+D1–D4 aceptadas y D5 rechazada (ver «Decisiones del mantenedor»); resultado
+de la sonda y preguntas abiertas en «Fase 0: resultado y puntos abiertos».
 Redactada el 2026-11-02 a partir de su descripción de cómo usa las carpetas.
 
 ## El problema
@@ -144,3 +145,34 @@ D5 rechazada.**
   tener suelo `READING_LATER`? Es lo más cercano a «priorízame newsletters como
   las que me gustan» sin leer contenido. Propuesta: sí, en la fase 3.
   **Rechazada:** la fase 3 solo amplía la atenuación de la B, sin suelo.
+
+## Fase 0: resultado y puntos abiertos
+
+`scripts/sonda_vip.py`, ejecutada por el mantenedor el 2026-11-02 en su Mac:
+
+- **Diccionario AppleScript:** `sdef` falló (código 1); no se pudo comprobar.
+- **Buzones con «VIP» por AppleScript:** 0. AppleScript no expone el buzón
+  inteligente de VIP.
+- **`~/Library/Mail/V10/MailData/VIPs.plist`: 27 direcciones**, que cuadran
+  con los 27 VIP del mantenedor. Ninguna bajo una clave «VIP»: el fichero
+  entero es la lista. `VIPMailboxes.plist` está vacío; las preferencias de
+  Mail tienen 2 claves con «VIP» y una dirección (probablemente de una cuenta).
+
+**Conclusión:** los VIP se pueden leer, pero por una vía **no documentada**
+(Apple puede cambiar el fichero o la carpeta `V10`) y que exige **Acceso
+total al disco**. A Terminal ya se le había dado; dárselo a la app de Claude
+abriría todo el disco al triaje, también las licencias y claves, y no se
+recomienda.
+
+**Preguntas abiertas para cuando se retome:**
+
+1. ¿La lista de importantes se genera con un **comando manual en Terminal**
+   (propuesta: `triage_helpers.py importantes --vip`, que escribe solo
+   direcciones normalizadas en `remitentes_importantes.json`), de modo que el
+   plugin nunca lea `~/Library/Mail`?
+2. ¿«Archivados» se exporta también con ese comando (propuesta: sí, todo lo
+   «importante» en un sitio y revisable antes de tener efecto) o se lee
+   dentro del triaje con AppleScript, como «Conservar»?
+3. El lector de `VIPs.plist` no debe depender de su estructura interna:
+   recoger toda cadena con forma de dirección, como la sonda, y si el fichero
+   desaparece seguir como hoy.
