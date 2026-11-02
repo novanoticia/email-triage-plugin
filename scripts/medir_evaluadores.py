@@ -69,18 +69,28 @@ CORREOS = CORREOS[:N]  # los ids siguen siendo 1..N: ESPERADOS se indexa igual
 
 
 def _ids(texto):
-    """«5,49,81-84» -> {5, 49, 81, 82, 83, 84}. Vacío: todos."""
+    """«5,49,81-84» -> {5, 49, 81, 82, 83, 84}. Vacío: todos. Un trozo que no
+    es número o rango creciente lanza ValueError: una selección mal escrita
+    nunca debe acabar enviando el banco entero (revisión de Codex, PR #187)."""
     ids = set()
     for parte in filter(None, (x.strip() for x in texto.split(","))):
         desde, _, hasta = parte.partition("-")
-        ids.update(range(int(desde), int(hasta or desde) + 1))
+        desde, hasta = int(desde), int(hasta or desde)
+        if desde < 1 or hasta < desde:
+            raise ValueError("rango no válido: %r" % parte)
+        ids.update(range(desde, hasta + 1))
     return ids
 
 
-IDS = _ids(os.environ.get("IDS", ""))
+try:
+    IDS = _ids(os.environ.get("IDS", ""))
+except ValueError as e:
+    sys.exit("IDS no válido (%s); ejemplo: IDS=5,49,81-84" % e)
 REPETIR = max(1, int(os.environ.get("REPETIR", "1")))
 # (id, asunto, remitente, cuerpo): los ids son los del banco, aunque se elijan sueltos.
 SELECCION = [(i + 1, a, rm, c) for i, (a, rm, c) in enumerate(CORREOS) if not IDS or i + 1 in IDS]
+if os.environ.get("IDS", "").strip() and not SELECCION:
+    sys.exit("IDS no selecciona ningún correo del banco (1-%d)." % len(CORREOS))
 
 VACIOS = os.environ.get("CONTROLES", "") == "vacios"
 
@@ -158,8 +168,14 @@ print("Enviando %d correos inventados a %s%s (unos %d s)..." % (
     int(len(SELECCION) * REPETIR * PAUSA)))
 # Cada repetición evalúa una copia de los lotes: `evaluar` no debe ver el
 # estado que dejó la anterior. El informe completo es el de la última.
-repeticiones = [[ev.evaluar(copy.deepcopy(pl), cfg, capa, capturar) for pl in lotes]
-                for _ in range(REPETIR)]
+# `crudas` y `medidas` se vacían al empezar cada una: si no, una respuesta
+# rechazada en la última dejaría a la vista dudas, exclusiones y ecos de otra
+# pasada (revisión de Codex, PR #187).
+repeticiones = []
+for _ in range(REPETIR):
+    crudas.clear()
+    medidas.clear()
+    repeticiones.append([ev.evaluar(copy.deepcopy(pl), cfg, capa, capturar) for pl in lotes])
 parciales = repeticiones[-1]
 
 
