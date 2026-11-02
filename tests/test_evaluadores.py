@@ -477,6 +477,19 @@ class TestEvaluadores(unittest.TestCase):
         # Va con las reglas de veredicto, antes de la del eco.
         self.assertLess(texto.index(ev.INSTRUCCION_CONTRAFACTICA), texto.index(ev.INSTRUCCION_ECO))
 
+    def test_instruccion_contrafactica_no_toma_un_aviso_de_cuenta_por_confirmacion(self):
+        # v3.27.5 (mediciones 18-21): «tu contraseña se ha cambiado… si no
+        # fuiste tú» salía «no cambia nada» en 4 de 5 pasadas: el evaluador
+        # suponía que el cambio lo pidió el destinatario. Regla general, sin
+        # nombrar criterios ni el correo de prueba.
+        regla = ev.INSTRUCCION_CONTRAFACTICA
+        for frase in ('de un acceso a sus cuentas', 'no es una confirmación',
+                      'si pudo no ser él, sí cambia algo'):
+            self.assertIn(frase, regla)
+        self.assertNotIn('contraseña', regla)
+        # La regla original sigue delante: lo esperado no cambia nada.
+        self.assertLess(regla.index('no cambia nada'), regla.index('no es una confirmación'))
+
     def test_instruccion_de_eco_nombra_el_campo_texto_y_ocho_palabras(self):
         # v3.25.1 (medición real con Apple `pcc`): el ancla sale solo de
         # `estado.texto`; el eco empezaba por el asunto o traía 2-3 palabras.
