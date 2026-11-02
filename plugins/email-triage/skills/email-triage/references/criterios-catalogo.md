@@ -29,7 +29,7 @@ Evalúa cada criterio aplicable. Los criterios están organizados en 4 grupos:
 | 6 | **Retorno atencional** | ¿Es buena inversión de mis próximos 2 minutos? | SUBE/BAJA |
 | 7 | **Confusión productiva** | ¿Revela una discrepancia importante entre lo esperado y lo real? | SUBE |
 | 8 | **Impacto causal real** | Si actúo, ¿cuánto cambia realmente el resultado? | SUBE |
-| 9 | **Ruido social** | ¿Es señal real o ritual social/burocrático? | BAJA |
+| 9 | **Ruido social** | ¿Es señal real o ritual social (cortesía, saludo, felicitación)? | BAJA |
 | 10 | **Apertura de opciones** | ¿Abre una opción valiosa futura que antes no tenía? | SUBE |
 | 11 | **Distancia inferencial** | ¿Cuánto trabajo mental cuesta entenderlo de verdad? | BAJA |
 | 12 | **Agente estratégico** | ¿El remitente optimiza para verdad o para influirme? | BAJA |

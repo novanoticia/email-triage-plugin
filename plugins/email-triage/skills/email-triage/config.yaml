@@ -459,7 +459,7 @@ criterios_epistemicos:
     activo: true
     core: false
     weight: -3
-    question: "¿Es señal real o ritual social/burocrático?"
+    question: "¿Es señal real o ritual social (cortesía, saludo, felicitación)?"
     senal_real: 0
     mixto: -1
     ritual: -3
