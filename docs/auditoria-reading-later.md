@@ -1,6 +1,8 @@
 # Auditoría: por qué `READING_LATER` casi no se alcanza
 
-Estado: **diagnóstico; la opción 1 se aplicó en v3.27.6** (pendiente de medir). Redactada el 2026-11-02 tras las
+Estado: **la opción 1 se aplicó en v3.27.6 y se midió** (medición 24:
+`READING_LATER` de 3 a 6 de 17, todos sin B; con B, 0 de 8). Ver «Tras la
+medición 24» al final. Redactada el 2026-11-02 tras las
 mediciones 18 y 19 (`docs/mediciones-evaluadores.md`). Cualquier cambio de
 pesos, rangos o redacción de criterios que salga de aquí toca el scoring: va
 en un PR propio, con tests, y nace sin cambiar nada a quien no toque su config
@@ -76,7 +78,7 @@ está escrito; el texto dice más de lo que quería decir, que era el ritual
   medirlo, pero la aritmética del primer hallazgo vale para cualquier
   evaluador.
 
-## Opciones (ninguna aplicada)
+## Opciones (la 1 aplicada en v3.27.6)
 
 Ordenadas de menor a mayor alcance. Todas son cambios del scoring.
 
@@ -111,3 +113,23 @@ Con el banco de 120 correos (17 esperan `READING_LATER`, 8 de ellos nuevos,
 81-120): una medición antes del cambio y otra después, mismo proveedor. El
 dato que importa es cuántos `READING_LATER` esperados se alcanzan sin que
 suban los falsos `READING_LATER` en los `ARCHIVE` (promociones, sociales).
+
+## Tras la medición 24
+
+- **La opción 1 cumplió:** `ruido_social` desaparece de los boletines y
+  `READING_LATER` pasa de 3 a 6 de 17 sin falsos positivos de publicidad.
+- **La opción 2 no merece la pena todavía.** Simulada sobre los fallos,
+  rescata 2 (88 y 93) y aleja otros 2 (56 y 92, a `REVIEW` con 9 y 12). El
+  balance real depende de los aciertos, cuyo desglose la medición no imprime.
+- **El resto es de remitente, no de texto.** Los ocho fallos con B quedan a
+  4-18 puntos y Gemini los evalúa igual que una promoción. Eximir la B
+  (`remitentes_sin_penalizacion_masiva`) solo suma 4: el 29 seguiría en −9.
+  Lo que sí los lleva a `READING_LATER` es el suelo de prioritarios
+  (`suelo_prioritarios`), que ya existe y es por remitente: es la opción 4, y
+  el sitio natural donde encajaría la fase de historiales aparcada
+  (`docs/diseno-historiales.md`).
+
+**Siguiente paso propuesto:** que `medir_evaluadores.py` pueda guardar los
+veredictos de una pasada (solo de los correos inventados) para simular
+cualquier cambio de pesos o de ejes sin volver a llamar al proveedor, y medir
+así la opción 2 con todos los correos, no solo con los fallos.
