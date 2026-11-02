@@ -529,6 +529,37 @@ como acuse de una petición.
 el 36 (material olvidado, `REVIEW`). El eco falla 5 veces: cuatro por el `fin`
 corto de siempre y el 85 por un `fin` tomado de la mitad del texto.
 
+### 21. Gemini, avisos de seguridad repetidos, v3.27.4 — punto de partida
+
+`IDS=5,49,81-84 REPETIR=5` (30 evaluaciones), antes de tocar la instrucción.
+Por correo, tier esperado `REVIEW`:
+
+| Correo | Aciertos | Pasadas |
+|---|---|---|
+| 5 contraseña cambiada | 1 de 5 | `ARCHIVE` −3, `REVIEW` 27, `ARCHIVE` −9, −7, −5 |
+| 49 inicio de sesión nuevo | 3 de 5 | `REVIEW` 27 ×3, sin propuesta, `ARCHIVE` −5 |
+| 81 correo de recuperación | 5 de 5 | `REVIEW` 24-27 |
+| 82 dos pasos desactivada | 5 de 5 | `REVIEW` 27 |
+| 83 teléfono nuevo en el banco | 3 de 5 | `REVIEW` 24-27, 2 sin propuesta |
+| 84 restablecer contraseña | 1 de 5 | `REVIEW` 27, 4 sin propuesta |
+
+De las 23 propuestas, **5 fallan, todas hacia `ARCHIVE`**, y todas con el
+mismo desglose: `cambia_algo_concreto=no` y `cambio_predicciones=no`. El 5
+falla 4 de 5, peor que en la 18-20: no era una mala racha. Los 81 y 82, que
+dicen el riesgo de forma explícita («tu cuenta es ahora más vulnerable»),
+aciertan siempre; fallan los que se parecen a un acuse («se ha cambiado»,
+«hemos recibido una solicitud»).
+
+**El 84 no se puede juzgar todavía:** 4 de 5 pasadas sin propuesta por
+`eco_distinto`, el `fin` corto de siempre («intentando entrar.»). Es el
+problema de eco que queda, no el de la instrucción.
+
+En v3.27.5 la instrucción contrafáctica añade que un aviso de cambio o de
+acceso a una cuenta no es una confirmación si el correo no muestra que lo hizo
+el destinatario. La medición de después debe repetir exactamente este comando
+y, aparte, una completa de 120 para ver si mueve otros correos (sobre todo las
+confirmaciones 41-46 y 97-99, que deben seguir en `ARCHIVE`).
+
 ### El banco de 80 correos
 
 `correos_ficticios.py` pasa de 40 a 80. Los 40 primeros no cambian, así que

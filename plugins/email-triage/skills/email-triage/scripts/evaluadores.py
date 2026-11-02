@@ -109,7 +109,9 @@ INSTRUCCION_CONTRAFACTICA = (
     "Cuando un criterio pregunte si el correo cambia algo, compáralo con lo que el "
     "destinatario ya sabía o esperaba: confirmar algo que él mismo pidió o avisar de "
     "un trámite en curso no cambia nada; un dato nuevo que le obligue o le permita "
-    "actuar de otra forma, sí.")
+    "actuar de otra forma, sí. Un aviso de un cambio o de un acceso a sus cuentas "
+    "no es una confirmación si el correo no muestra que lo hizo él: si pudo no ser "
+    "él, sí cambia algo, porque tendría que actuar.")
 DESCRIPCION_DUDAS = ("Solo lo que impide elegir la opción de algún criterio; "
                      "vacío si nada lo impide.")
 # v3.25.1 (medición real, Apple `pcc`, 40 correos inventados: 21 `eco_distinto`).

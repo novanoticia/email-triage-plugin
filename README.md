@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.27.4
+# Email Triage Plugin v3.27.5
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,16 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.27.5
+
+La instrucción contrafáctica de los evaluadores externos (v3.27.4) ya no trata
+como confirmación un aviso de cambio o de acceso a tus cuentas («tu contraseña
+se ha cambiado; si no fuiste tú…»): si pudo no ser la persona, el aviso sí
+cambia algo. En las mediciones 18 a 21, Gemini mandaba ese aviso a
+`ARCHIVE` o `READING_LATER` en 4 de cada 5 pasadas. No cambian los pesos, los
+umbrales ni el triaje sin evaluador externo.
+[Mediciones](docs/mediciones-evaluadores.md).
 
 ## Novedades en v3.27.4
 
