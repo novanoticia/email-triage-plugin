@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.27.5
+# Email Triage Plugin v3.27.6
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,22 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.27.6
+
+Dos cambios medidos con el banco de 120 correos inventados:
+
+- **El eco acepta un final corto si es exacto.** Con los evaluadores externos,
+  el `fin` del eco también vale si sus tres últimas palabras son exactamente
+  las tres últimas del texto. Gemini copiaba solo el final de la frase y se
+  perdía un 7 % de las filas. Dos palabras no bastan y el `inicio` sigue
+  exigiendo 4 de 6 (decisión del mantenedor).
+- **`ruido_social` ya no castiga lo «burocrático».** La pregunta queda en
+  «¿Es señal real o ritual social (cortesía, saludo, felicitación)?». Los
+  boletines y las normativas ya los penalizan `evidencia_filtrada` y la regla
+  de remitente masivo. Si tu `~/.email-triage/config.yaml` es una copia
+  antigua de la plantilla, cambia esa línea a mano para tener el efecto en tu
+  triaje. [Auditoría](docs/auditoria-reading-later.md).
 
 ## Novedades en v3.27.5
 
