@@ -329,8 +329,38 @@ tier equivocado: 2 de 12.
 (confirmar lo esperado no cambia nada; un dato que obligue o permita actuar de
 otra forma, sí). Sin pesos ni umbrales nuevos. El correo corto informativo no
 cambia con esto: es aritmética del config, pendiente de decisión del mantenedor.
-Pendiente de medir; a vigilar que el 5 (contraseña cambiada) y el 15 (cambio de
-horario) sigan en `REVIEW`.
+Medido en la 17: el 5 (contraseña cambiada) y el 15 (cambio de horario) siguen
+en `REVIEW`.
+
+### 17. Gemini, 40 correos, v3.27.4, instrucción contrafáctica — 38 de 40, 19 de 26 aciertos
+
+`reevaluar_tier_o_umbral` 25, `propuesta_validada` 13, `eco_distinto` 2, 0 dudas.
+
+**Eco.** Dos fallos. En el 8, `fin` trae 3 palabras, el fallo corto de siempre.
+En el 20, `fin` copia la penúltima frase («las horas que hice el verano
+pasado.») y no la última: es un eco que no coincide de verdad, y el rechazo es
+correcto.
+
+**La instrucción contrafáctica, en 1 de 3.** El 39 (reserva confirmada) pasa a
+`cambia_algo_concreto=no` y `cambio_predicciones=no`: `valor_decisional` baja de
++22 a −6 (recortado a 0) y el score de 15 a 0. Cae en `READING_LATER` y no en
+`ARCHIVE`, porque el umbral de `READING_LATER` es 0 inclusive (ver abajo). El 12
+(envío) y el 36 (material olvidado) siguen con `cambia_algo_concreto=si`, y
+ahora los dos salen validados: 2 de las 13 `propuesta_validada` con el tier
+equivocado, igual que en la 16. **No hay sobrecorrección**: el 5 (13) y el 15
+(21) siguen en `REVIEW`. Con una sola ejecución, 1 de 3 no se distingue del
+ruido.
+
+**El correo corto, ahora a 2 puntos.** `READING_LATER` → `ARCHIVE` en 4 de 4:
+10 (−2), 22 (−2), 32 (−5) y 29 (−17). El 10 y el 22 quedan a 2 puntos y caen
+por un `calidad_epistemica` de −2. Se repiten `sorpresa_bayesiana=baja` y
+`densidad_informativa=baja`.
+
+**Lo estructural, visto en el 39.** Un correo con todos los ejes en 0 saca 0 y
+cae en `READING_LATER`; uno con `calidad_epistemica` −2 saca −2 y cae en
+`ARCHIVE`. En un correo sin valor de decisión, la frontera entre los dos tiers
+la decide solo el signo de `calidad_epistemica`. Con los rangos de los ejes,
+esa es la única variable que queda.
 
 
 
