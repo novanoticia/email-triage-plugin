@@ -605,6 +605,47 @@ de 23 a 0 de 26) sin mover las confirmaciones. Las dos ejecuciones completas
 (20 y 23) dan casi el mismo total (67 y 66): el resto de cambios entra en la
 variación normal de una medición a otra.
 
+### 24. Gemini, 120 correos, v3.27.6 — 117 de 120, 72 de 87 aciertos
+
+Primera medición con el `fin` de tres palabras exactas y `ruido_social` sin
+«burocrático» (opción 1 de
+[`auditoria-reading-later.md`](auditoria-reading-later.md)). Frente a la 23:
+
+- **Eco: de 8 fallos a 3** (44, 85 y 101), y ninguno es un falso negativo:
+  el 44 se inventa el final («No mensaje.»), el 85 copia una frase de otro
+  sitio y el 101 da dos palabras («muy bien.»), que la decisión del
+  mantenedor deja fuera a propósito. Las filas medibles pasan de 83 a 87.
+- **`ruido_social` ya no aparece** en el desglose de ningún boletín ni
+  normativa: la redacción hace lo que se buscaba.
+- **`READING_LATER`: de 3 a 6 de 17** (10, 32, 59, 79, 89 y 90). La partición
+  es nítida: **sin B, 6 de 9; con B, 0 de 8** (29, 51, 52, 53, 86, 87, 88 y
+  91, todos a `ARCHIVE`). Las recomendaciones 56 y 92 suben a `REVIEW` (7 y 9)
+  y la 93 cae a `ARCHIVE` (−2).
+- **Falsos `READING_LATER`: 2** (39, reserva, y 62, crónica del mercadillo,
+  ambos con 2). Ninguna promoción.
+- **`REVIEW`: 34 de 34** sin F, incluidos 5 y 81-84 (seguridad, 27).
+- **Oscilan como siempre** el 12 y el 36 (`ARCHIVE` esperado, `REVIEW` con 13:
+  Gemini les da `cambia_algo_concreto=si`).
+
+**Qué falta en los boletines con B.** A los cinco peores (29, 51, 53, 86 y 87)
+les faltan de 11 a 18 puntos: `valor_decisional` en 0 (−12 recortado),
+`evidencia_filtrada` −3, B −4 y `calidad_epistemica` negativa. Gemini no les
+da ni `relevancia_longitudinal` ni `abre_opciones`. Ningún cambio de pesos
+razonable cubre esa distancia sin dejar pasar la publicidad, que recibe los
+mismos veredictos.
+
+**Simulación de la opción 2** (sacar `relevancia_longitudinal` y
+`abre_opciones` del eje recortado a `calidad_epistemica`, con los veredictos de
+esta medición; solo se puede hacer con los fallos, que son los que imprimen
+desglose): rescata el 88 (−4 → 0) y el 93 (−2 → 2); el 52 se queda en −2; el
+56 y el 92 suben a 9 y 12, más lejos aún de `READING_LATER`. Sin el desglose
+de los aciertos no se sabe cuántos de ellos, ni de los `ARCHIVE`, se moverían.
+
+**Conclusión.** La opción 1 y el eco funcionan: +5 filas medibles, +6 aciertos,
+`READING_LATER` se duplica y no entra publicidad. Lo que queda es un boletín de
+remitente masivo, que en el texto es indistinguible de una promoción: lo que lo
+hace interesante es quién lo manda y si la persona lo conserva, no lo que dice.
+
 ### El banco de 80 correos
 
 `correos_ficticios.py` pasa de 40 a 80. Los 40 primeros no cambian, así que
