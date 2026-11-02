@@ -1,7 +1,7 @@
 # Diseño: aprender de «Archivados», de los VIP de Mail y de «Conservar»
 
-Estado: **propuesta, sin código.** El mantenedor debe aprobarla antes de
-implementarla, y las decisiones marcadas como **[D1]** a **[D5]** son suyas.
+Estado: **aprobado el 2026-11-02**, con D1–D4 aceptadas y D5 rechazada (ver
+«Decisiones del mantenedor»). Fase 0 en curso: `scripts/sonda_vip.py`.
 Redactada el 2026-11-02 a partir de su descripción de cómo usa las carpetas.
 
 ## El problema
@@ -102,17 +102,18 @@ La regla es la de `prioritario` y vive en un solo sitio.
 
 ## Fases (un PR cada una)
 
-0. **Sonda en el Mac del mantenedor.** Comprobar si el diccionario AppleScript
-   de Mail.app expone la lista de VIP. *No está verificado:* si no la expone,
-   la alternativa es leer el buzón inteligente «VIP», o descartar los VIP y
-   quedarse con «Archivados».
+0. **Sonda en el Mac del mantenedor** (`scripts/sonda_vip.py`, solo cuenta).
+   Comprobar si el diccionario AppleScript de Mail.app expone la lista de VIP,
+   si hay buzones con «VIP» visibles por AppleScript, o si los datos de Mail la
+   guardan en un plist legible. *No está verificado:* si ninguna vía funciona,
+   se descartan los VIP y queda solo «Archivados».
 1. **Leer y guardar, sin efecto.** `remitente_importante` sale en el scoring y
    en el informe como dato **informativo**, sin suelo. Permite ver en triajes
    reales cuántos correos tocaría antes de que cambie nada.
 2. **Activar el suelo** (opt-in) con el tier de [D1].
 3. **Ampliar «Conservar»**: leer más de 100 correos y usar todos los remitentes,
-   no solo los 10 primeros, para la atenuación de la B. Opcionalmente, un suelo
-   `READING_LATER` para remitentes conservados varias veces **[D5]**.
+   no solo los 10 primeros, para la atenuación de la B. Sin suelo nuevo: el
+   mantenedor rechazó D5.
 
 Cada fase lleva sus tests, que fijan el comportamiento:
 
@@ -123,6 +124,9 @@ Cada fase lleva sus tests, que fijan el comportamiento:
 - remitente suplantado.
 
 ## Decisiones del mantenedor
+
+Respondidas el 2026-11-02: **D1, D2, D3 y D4 aceptadas tal como se proponían;
+D5 rechazada.**
 
 - **[D1]** Tier mínimo de un remitente de «Archivados»: `REVIEW` (siempre lo ves)
   o `READING_LATER` (nunca se archiva, pero no reclama atención). Propuesta:
@@ -139,3 +143,4 @@ Cada fase lleva sus tests, que fijan el comportamiento:
 - **[D5]** ¿Los remitentes de «Conservar» con 3 o más correos conservados deben
   tener suelo `READING_LATER`? Es lo más cercano a «priorízame newsletters como
   las que me gustan» sin leer contenido. Propuesta: sí, en la fase 3.
+  **Rechazada:** la fase 3 solo amplía la atenuación de la B, sin suelo.
