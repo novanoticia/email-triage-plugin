@@ -392,7 +392,8 @@ con −5, 170.
 - **`READING_LATER` no está vacío con correo real: un 19 %.** La conclusión de
   las mediciones 16 y 17 («casi inalcanzable para un correo corto») vale para
   los 40 correos ficticios, de una sola línea, no para el buzón real. Era un
-  sesgo del banco de pruebas.
+  sesgo del banco de pruebas. *Corregido en la 18: con correos largos falla
+  igual; ver allí los tres factores que confunden la comparación.*
 - **Los `ARCHIVE` cerca del umbral casi siempre tienen otras penalizaciones**:
   58 de 62 en el tramo de −2 o más, y 93 de 108 en el siguiente. Bajar el
   umbral rescataría sobre todo correo masivo o con riesgo, no correo corto
@@ -404,7 +405,49 @@ con −5, 170.
   real lo haya alcanzado sugiere que el principal no está marcando la F en el
   triaje real. Pendiente de investigar; es otro asunto.
 
-### 18. Banco de 80 correos (pendiente de medir)
+### 18. Gemini, 80 correos, v3.27.4 — 77 de 80, 42 de 57 aciertos
+
+El banco de 80 correos se describe al final de esta sección.
+
+`reevaluar_tier_o_umbral` 56, `propuesta_validada` 21, `eco_distinto` 3, 0
+dudas. Aciertos sin forzar: 17 de 25 en los correos 1-40 y 25 de 32 en los
+41-80 (20 de 20 forzados).
+
+**Eco.** Tres fallos (16, 53 y 75), los tres el mismo: `fin` con 3 palabras.
+Es el único fallo de eco que queda, en un 3-4 % de los correos.
+
+**Avisos: la distinción contrafáctica funciona con texto real.** Las 6
+confirmaciones (41-46) salen `ARCHIVE` y los 4 avisos que piden algo (47-50)
+salen `REVIEW`, los 4 validados. El 39 (reserva) acierta otra vez. Siguen
+fallando el 12 (envío) y el 36 (material olvidado), los dos de una línea, y
+aparece una **sobrecorrección**: el 5 (contraseña cambiada) da
+`cambia_algo_concreto=no` y cae a `READING_LATER` con score 0, cuando en la 17
+sacó 13. Su gemelo largo, el 49 (inicio de sesión raro), acierta con 27. Es
+una sola ejecución, pero conviene vigilarlo.
+
+**`READING_LATER`: 2 de 13, también con correos largos.** Fallan 10 de 13, casi
+todos hacia `ARCHIVE`, y los nuevos (51, 52, 60, 61, 63 y 79) fallan igual que
+los viejos: **no era el largo del correo.** El desglose repite los mismos
+criterios: `ruido_social=ritual` (−3, en 7 de los 10), `sorpresa_bayesiana=baja`,
+`densidad_informativa=baja` y `forward_backward_flow=backward`, más
+`evidencia_filtrada=newsletter_marketing_burocratico` y la B en los boletines.
+Gemini aplica los criterios tal como están escritos: un agradecimiento o una
+felicitación **son** ritual social y no cambian ninguna decisión.
+
+**Por qué no cuadra con el 19 % real.** La comparación con los 1.058 correos
+reales mezcla tres cosas distintas:
+
+1. **Evaluador.** En el triaje real evalúa Claude como principal; aquí evalúa
+   Gemini. Puede ser cosa de Gemini.
+2. **Población.** El mantenedor pasa a mano la mayoría de correos a «Leer
+   Después» y hace el triaje desde ahí. El correo real ya llega preseleccionado,
+   y probablemente eso explica también los 0 `REPLY_NEEDED`: lo que pide
+   respuesta se atiende en la bandeja de entrada.
+3. **Expectativa.** Con la pregunta del plugin («¿leer esto cambiaría algo?»),
+   una felicitación en `ARCHIVE` es coherente. Que deba ir a `READING_LATER`
+   es una decisión de diseño, no un error del evaluador.
+
+### El banco de 80 correos
 
 `correos_ficticios.py` pasa de 40 a 80. Los 40 primeros no cambian, así que
 con `N=40` se pueden comparar con las mediciones 1-17. Los 40 nuevos (41-80)
