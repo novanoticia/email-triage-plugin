@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Mide por qué las filas de `hibrido` vuelven al principal (evaluadores LLM).
 
-Herramienta de desarrollo (no se distribuye con el plugin). Envía 40 correos
+Herramienta de desarrollo (no se distribuye con el plugin). Envía 80 correos
 INVENTADOS (nunca reales) al proveedor elegido en modo `hibrido`, con el
 config plantilla del repo, y cuenta los motivos por fila, los criterios en
 `__no_aplica__` y los tiers de las propuestas. Por correo muestra solo lo que
@@ -14,7 +14,8 @@ docs/mediciones-evaluadores.md):
 
     PROVEEDOR=gemini python3 scripts/medir_evaluadores.py
     PROVEEDOR=apple PAUSA=0 python3 scripts/medir_evaluadores.py  # con fm serve
-    PROVEEDOR=ollama PAUSA=0 python3 scripts/medir_evaluadores.py  # ~75 min
+    PROVEEDOR=ollama PAUSA=0 python3 scripts/medir_evaluadores.py  # ~150 min
+    N=40 PROVEEDOR=gemini python3 scripts/medir_evaluadores.py      # solo los 40 primeros
 
 PAUSA (segundos entre llamadas, 4.5 por defecto) evita el límite por minuto
 del nivel gratuito de Gemini.
@@ -29,6 +30,10 @@ Desde la medición 15 cada propuesta muestra su score y sus ejes, y si el tier
 falla, a cuántos puntos queda del rango del esperado (rangos de `tiers` en el
 config): así se distingue un umbral mal puesto (a 1-2 puntos) de unos
 veredictos que no encajan (muy lejos).
+
+Desde la medición 18 hay 80 correos: los 40 de siempre y 40 más largos,
+cargados hacia los casos dudosos. N=40 repite solo los primeros, para
+comparar con las mediciones 1-17, y los aciertos salen también por bloque.
 
 Desde la medición 16 los fallos de tier muestran también los criterios que
 puntúan distinto de 0, agrupados por eje: el eje dice dónde se hunde el
@@ -49,18 +54,29 @@ import triage_helpers as th  # noqa: E402
 
 from correos_ficticios import CORREOS, ESPERADOS, PERFIL, control  # noqa: E402
 
+N = int(os.environ.get("N", str(len(CORREOS))))
+CORREOS = CORREOS[:N]  # los ids siguen siendo 1..N: ESPERADOS se indexa igual
+
 VACIOS = os.environ.get("CONTROLES", "") == "vacios"
 
 cfg = yaml.safe_load(open("plugins/email-triage/skills/email-triage/config.yaml", encoding="utf-8"))
-p = ev.preparar({"perfil_minimo": PERFIL, "emails": [
-    {"id": str(i + 1), "asunto": a, "remitente": r, "cuerpo": c}
-    for i, (a, r, c) in enumerate(CORREOS)]})
-for e in p["emails"]:
-    e["control"] = control("" if VACIOS else ESPERADOS[int(e["id"]) - 1][1])
-    e["contexto_suficiente"] = True
+# El núcleo admite como mucho `MAX_LOTE` (50) correos por invocación y por
+# `max_llamadas`: es un freno del plugin, no se toca. Con 80 se mide en lotes
+# de 40 (los dos bloques de ESPERADOS) y se juntan los resultados.
+LOTE = 40
+lotes = []
+for desde in range(0, len(CORREOS), LOTE):
+    pl = ev.preparar({"perfil_minimo": PERFIL, "emails": [
+        {"id": str(i + 1), "asunto": a, "remitente": r, "cuerpo": c}
+        for i, (a, r, c) in enumerate(CORREOS) if desde <= i < desde + LOTE]})
+    for e in pl["emails"]:
+        e["control"] = control("" if VACIOS else ESPERADOS[int(e["id"]) - 1][1])
+        e["contexto_suficiente"] = True
+    lotes.append(pl)
+p = {"emails": [e for pl in lotes for e in pl["emails"]]}  # para el detalle del eco
 
 capa = {"activo": True, "acepta_envio_datos": True, "modo": "hibrido",
-        "proveedor": PROVEEDOR, "max_llamadas": len(CORREOS),
+        "proveedor": PROVEEDOR, "max_llamadas": min(LOTE, len(CORREOS)),
         # Ollama tarda unos 110 s por correo en un Mac de 16 GB (tope 600).
         "timeout_segundos": int(os.environ.get("TIMEOUT", "300" if PROVEEDOR == "ollama" else "60"))}
 prov = ev.proveedor(PROVEEDOR)
@@ -113,7 +129,23 @@ def capturar(body, key, timeout):
 
 capturar.llamadas = 0
 print("Enviando %d correos inventados a %s (unos %d s)..." % (len(CORREOS), PROVEEDOR, int(len(CORREOS) * PAUSA)))
-r = ev.evaluar(p, cfg, capa, capturar)
+parciales = [ev.evaluar(pl, cfg, capa, capturar) for pl in lotes]
+
+
+def _sumar(valores):
+    """Suma de importes; None si alguno falta (coste desconocido)."""
+    return None if any(v is None for v in valores) else round(sum(valores), 7)
+
+
+r = {"ok": all(x.get("ok") for x in parciales),
+     "motivo": next((x["motivo"] for x in parciales if x.get("motivo")), "-"),
+     "llamadas": sum(x.get("llamadas") or 0 for x in parciales),
+     "consumo": {"coste_estimado_usd": _sumar([(x.get("consumo") or {}).get("coste_estimado_usd")
+                                               for x in parciales])},
+     "cobertura": dict(sum((collections.Counter({k: v for k, v in (x.get("cobertura") or {}).items()
+                                                 if isinstance(v, int)}) for x in parciales),
+                           collections.Counter())),
+     "resultados": [f for x in parciales for f in x["resultados"]]}
 
 motivos = collections.Counter(f.get("motivo") for f in r["resultados"])
 no_aplica = collections.Counter()
@@ -172,6 +204,12 @@ def aciertos(con_f):
 for con_f, nombre in ((False, "sin F (mide al evaluador)"), (True, "con F (lo fija el control)")):
     ok, n = aciertos(con_f)
     print("aciertos de tier, %s: %d de %d propuestas" % (nombre, ok, n))
+if len(CORREOS) > 40:
+    for desde, hasta in ((1, 40), (41, len(CORREOS))):
+        filas = [(f["propuesta"]["tier"], ESPERADOS[int(f["id"]) - 1][0]) for f in r["resultados"]
+                 if f.get("propuesta") and desde <= int(f["id"]) <= hasta
+                 and "F" not in ESPERADOS[int(f["id"]) - 1][1]]
+        print("   correos %d-%d, sin F: %d de %d" % (desde, hasta, sum(a == b for a, b in filas), len(filas)))
 confusion = collections.Counter(
     (ESPERADOS[int(f["id"]) - 1][0], f["propuesta"]["tier"]) for f in r["resultados"]
     if f.get("propuesta") and "F" not in ESPERADOS[int(f["id"]) - 1][1])

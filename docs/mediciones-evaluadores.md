@@ -365,6 +365,65 @@ el riesgo, el coste y las reglas (el 29: −3 de riesgo y −4 de la B), como en
 la 16: con calidad +2 y riesgo −3 el score es −1 y el correo cae en `ARCHIVE`
 (revisión de Codex, PR #179).
 
+### Contraste con correos reales (2026-11-02): el umbral no es el problema
+
+`scripts/distribucion_tiers.py` sobre los desgloses reales del mantenedor (21
+sesiones, 1.058 correos, solo recuentos, sin texto):
+
+| Tier | Correos |
+|---|---|
+| `REPLY_NEEDED` | 0 (0 %) |
+| `REVIEW` | 380 (36 %) |
+| `READING_LATER` | 203 (19 %) |
+| `ARCHIVE` | 475 (45 %) |
+
+| `ARCHIVE` por score | Correos | Con riesgo, coste o reglas |
+|---|---|---|
+| −2 o más | 62 | 58 |
+| −5 a −2 (sin el −2) | 108 | 93 |
+| −10 a −5 (sin el −5) | 127 | 127 |
+| menos de −10 | 178 | 178 |
+
+Con umbral −1 pasarían a `READING_LATER` 27 correos; con −2, 62; con −3, 92, y
+con −5, 170.
+
+**Lectura.**
+
+- **`READING_LATER` no está vacío con correo real: un 19 %.** La conclusión de
+  las mediciones 16 y 17 («casi inalcanzable para un correo corto») vale para
+  los 40 correos ficticios, de una sola línea, no para el buzón real. Era un
+  sesgo del banco de pruebas.
+- **Los `ARCHIVE` cerca del umbral casi siempre tienen otras penalizaciones**:
+  58 de 62 en el tramo de −2 o más, y 93 de 108 en el siguiente. Bajar el
+  umbral rescataría sobre todo correo masivo o con riesgo, no correo corto
+  agradable. Con −5, `READING_LATER` casi se duplicaría (de 203 a 373).
+- **No se toca el umbral de la plantilla.** Lo que había que corregir era el
+  banco de pruebas: de ahí los 40 correos nuevos de la medición 18.
+- **`REPLY_NEEDED`: 0 de 1.058.** Sin `forzar_reply_needed`, el scoring capa
+  `REPLY_NEEDED` a `REVIEW` (`cap_reply_needed_sin_accion`). Que ningún correo
+  real lo haya alcanzado sugiere que el principal no está marcando la F en el
+  triaje real. Pendiente de investigar; es otro asunto.
+
+### 18. Banco de 80 correos (pendiente de medir)
+
+`correos_ficticios.py` pasa de 40 a 80. Los 40 primeros no cambian, así que
+con `N=40` se pueden comparar con las mediciones 1-17. Los 40 nuevos (41-80)
+tienen cuerpos de 2-4 frases y se cargan hacia los casos dudosos:
+
+- 6 avisos que confirman lo esperado (`ARCHIVE`) frente a 4 avisos que piden
+  algo (`REVIEW`);
+- 3 boletines afines (`READING_LATER`) frente a 2 ajenos (`ARCHIVE`);
+- 2 invitaciones sin compromiso y 4 correos sociales (`READING_LATER`) frente
+  a 1 invitación con plazo (`REVIEW`) y 1 feria comercial (`ARCHIVE`);
+- 6 `REPLY_NEEDED` con pregunta directa, y 5 de spam o phishing, más un cierre
+  de hilo, en `ARCHIVE`.
+
+En total: 14 `ARCHIVE`, 10 `REVIEW`, 10 `READING_LATER` y 6 `REPLY_NEEDED`.
+Los tiers esperados de 41-80 son un borrador que tiene que aceptar el
+mantenedor. Como el núcleo admite como mucho 50 correos por lote
+(`MAX_LOTE`, un freno que no se toca), `medir_evaluadores.py` mide en dos
+lotes de 40 y da los aciertos también por bloque.
+
 
 
 
