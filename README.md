@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.27.3
+# Email Triage Plugin v3.27.4
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,16 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.27.4
+
+El prompt de los evaluadores externos (`hibrido` y `comparar` con Gemini,
+OpenAI y el resto) recuerda la pregunta contrafáctica: confirmar algo que la
+persona ya esperaba no cambia nada, y un dato nuevo que obligue o permita actuar
+de otra forma, sí. En las mediciones 15 y 16, Gemini mandaba a `REVIEW` avisos
+de una línea («tu reserva está confirmada»), y dos de ellos salían como
+propuesta validada. No cambian los pesos, los umbrales ni el triaje sin
+evaluador externo. [Mediciones](docs/mediciones-evaluadores.md).
 
 ## Novedades en v3.27.3
 

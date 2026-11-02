@@ -325,6 +325,13 @@ pregunta contrafáctica del criterio («¿leer esto cambiaría algo concreto que
 a hacer?»). El 12 baja a 4 (a 5 puntos) y el 36 y el 39 salen validados con el
 tier equivocado: 2 de 12.
 
+→ **v3.27.4**: el sistema de los evaluadores lleva `INSTRUCCION_CONTRAFACTICA`
+(confirmar lo esperado no cambia nada; un dato que obligue o permita actuar de
+otra forma, sí). Sin pesos ni umbrales nuevos. El correo corto informativo no
+cambia con esto: es aritmética del config, pendiente de decisión del mantenedor.
+Pendiente de medir; a vigilar que el 5 (contraseña cambiada) y el 15 (cambio de
+horario) sigan en `REVIEW`.
+
 
 
 
