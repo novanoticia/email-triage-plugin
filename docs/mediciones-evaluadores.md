@@ -560,6 +560,51 @@ el destinatario. La medición de después debe repetir exactamente este comando
 y, aparte, una completa de 120 para ver si mueve otros correos (sobre todo las
 confirmaciones 41-46 y 97-99, que deben seguir en `ARCHIVE`).
 
+### 22. Gemini, avisos de seguridad repetidos, v3.27.5 — 26 de 26
+
+Mismo comando que la 21 (`IDS=5,49,81-84 REPETIR=5`), con la instrucción
+ampliada. **Las 26 propuestas aciertan (`REVIEW`, casi todas con 27)**, frente
+a 18 de 23 en la 21:
+
+| Correo | 21 (antes) | 22 (después) |
+|---|---|---|
+| 5 contraseña cambiada | 1 de 5 | **5 de 5** |
+| 49 inicio de sesión nuevo | 3 de 4 | 2 de 2 (3 sin propuesta) |
+| 81 correo de recuperación | 5 de 5 | 5 de 5 |
+| 82 dos pasos desactivada | 5 de 5 | 4 de 4 (1 sin propuesta) |
+| 83 teléfono nuevo en el banco | 3 de 3 | 5 de 5 |
+| 84 restablecer contraseña | 1 de 1 | **5 de 5** |
+
+Ningún fallo hacia `ARCHIVE`. Las 4 filas sin propuesta son todas
+`eco_distinto` (el `fin` corto del 49, y en el 82 un `fin` con texto repetido).
+
+### 23. Gemini, 120 correos, v3.27.5 — 112 de 120, 66 de 83 aciertos
+
+Para ver si la instrucción ampliada mueve otros correos. Frente a la 20:
+
+- **Las confirmaciones no se resienten:** 41-46 y 97-99 siguen en `ARCHIVE`
+  (−2 a −12). El 39 (reserva) también.
+- **Seguridad:** 5 y 81-84 en `REVIEW` con 24-27; el 49 falla el eco.
+- **`REVIEW`: 30 de 30**, el mejor resultado hasta ahora. Aciertan por primera
+  vez el 21 (reglamento, 8) y el 35 (encuesta municipal, 17), que llevaban
+  varias mediciones fallando. Que sea efecto de la instrucción es posible pero
+  no está probado: los dos piden actuar a la asociación.
+- **El 12 vuelve a `REVIEW`** (9) tras acertar en la 20: oscila de una
+  medición a otra, como antes del cambio.
+- **`READING_LATER`: 3 de 17** (59, 79 y 89). Con B, 0 de 8 otra vez. Las
+  recomendaciones personales 90, 92 y 93 suben a `REVIEW` (4 a 9); en la 20
+  dos de ellas acertaban con 1. Sigue siendo el frente abierto de
+  [`auditoria-reading-later.md`](auditoria-reading-later.md).
+- **Eco: 8 fallos** (16, 23, 31, 49, 63, 103, 107 y 112). Seis son el `fin`
+  corto de siempre (2-4 palabras del final, que no llegan a las 4 de 6 que
+  exige `eco_coincide`); el 63 copia un `fin` de la mitad y el 107 lo da en
+  desorden. Es ya la mayor causa de filas perdidas: un 7 %.
+
+**Conclusión.** La instrucción ampliada arregla lo que buscaba (de 5 fallos
+de 23 a 0 de 26) sin mover las confirmaciones. Las dos ejecuciones completas
+(20 y 23) dan casi el mismo total (67 y 66): el resto de cambios entra en la
+variación normal de una medición a otra.
+
 ### El banco de 80 correos
 
 `correos_ficticios.py` pasa de 40 a 80. Los 40 primeros no cambian, así que
