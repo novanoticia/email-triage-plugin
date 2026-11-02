@@ -400,6 +400,13 @@ con −5, 170.
   agradable. Con −5, `READING_LATER` casi se duplicaría (de 203 a 373).
 - **No se toca el umbral de la plantilla.** Lo que había que corregir era el
   banco de pruebas: de ahí los 40 correos nuevos de la medición 18.
+- **Los 1.058 no son el correo diario del mantenedor** (aclarado por él,
+  2026-11-02). La mayoría pasa antes a mano a «Leer Después», una carpeta que
+  usa como almacén de pruebas; los resultados («ARCHIVE-TRIAGE», «Urgentes
+  Claude») se reutilizan a veces, así que hay correos repetidos entre
+  sesiones; y lo importante de verdad («Archivados») nunca entra en el
+  triaje. Las cifras describen esa población preseleccionada y reutilizada,
+  no un buzón típico: no sirven para fijar umbrales ni proporciones de tier.
 - **`REPLY_NEEDED`: 0 de 1.058.** Sin `forzar_reply_needed`, el scoring capa
   `REPLY_NEEDED` a `REVIEW` (`cap_reply_needed_sin_accion`). Que ningún correo
   real lo haya alcanzado sugiere que el principal no está marcando la F en el
@@ -447,6 +454,13 @@ reales mezcla tres cosas distintas:
    una felicitación en `ARCHIVE` es coherente. Que deba ir a `READING_LATER`
    es una decisión de diseño, no un error del evaluador.
 
+*Decidido después (2026-11-02):* el mantenedor fija la expectativa en
+`ARCHIVE` para los cinco correos sociales sin nada que hacer (22 y 60-63). Las
+mediciones 1-18 se puntuaron con `READING_LATER`; desde la 19, los aciertos se
+cuentan con la expectativa nueva y no son comparables uno a uno. Hay que
+**vigilar el 5** (contraseña cambiada): si en la 19 vuelve a `READING_LATER`,
+la sobrecorrección de la instrucción contrafáctica deja de ser anecdótica.
+
 ### El banco de 80 correos
 
 `correos_ficticios.py` pasa de 40 a 80. Los 40 primeros no cambian, así que
@@ -462,6 +476,9 @@ tienen cuerpos de 2-4 frases y se cargan hacia los casos dudosos:
   de hilo, en `ARCHIVE`.
 
 En total: 14 `ARCHIVE`, 10 `REVIEW`, 10 `READING_LATER` y 6 `REPLY_NEEDED`.
+Desde el 2026-11-02, con los sociales (22 y 60-63) en `ARCHIVE`, el banco
+completo queda en 30 `ARCHIVE`, 21 `REVIEW`, 9 `READING_LATER` y 20
+`REPLY_NEEDED`.
 Los tiers esperados de 41-80 son un borrador que tiene que aceptar el
 mantenedor. Como el núcleo admite como mucho 50 correos por lote
 (`MAX_LOTE`, un freno que no se toca), `medir_evaluadores.py` mide en dos

@@ -10,6 +10,12 @@ principal: P pregunta directa, D plazo explícito, B remitente masivo y F
 forzar `REPLY_NEEDED`. Sin F, el scoring capa `REPLY_NEEDED` a `REVIEW`
 (`cap_reply_needed_sin_accion`): por eso las mediciones 1-12, que enviaban
 controles vacíos, no podían dar ningún `REPLY_NEEDED`.
+
+Desde el 2026-11-02 (decisión del mantenedor) los correos sociales sin nada
+que hacer (22 y 60-63: foto, agradecimiento, felicitación, crónica, saludo)
+esperan `ARCHIVE`, no `READING_LATER`: con la pregunta del plugin («¿leer esto
+cambiaría algo?») no cambian ninguna decisión. Las mediciones 1-18 se hicieron
+con la expectativa anterior.
 """
 PERFIL = ("Coordino una asociación cultural ficticia: talleres, socios, "
           "subvenciones y voluntariado. Mi tiempo es limitado.")
@@ -123,7 +129,7 @@ ESPERADOS = [
     ("ARCHIVE", "B"),            # 19 métrica sin acción
     ("REPLY_NEEDED", "PDF"),     # 20 certificado antes del día 10
     ("REVIEW", "D"),             # 21 obligación legal
-    ("READING_LATER", ""),       # 22 foto del taller
+    ("ARCHIVE", ""),             # 22 foto del taller (social, 2026-11-02)
     ("ARCHIVE", "B"),            # 23 phishing
     ("REVIEW", "D"),             # 24 seguro con subida
     ("REPLY_NEEDED", "PDF"),     # 25 elegir antes del miércoles
@@ -162,10 +168,10 @@ ESPERADOS = [
     ("REVIEW", "D"),             # 57 jornada: inscribirse antes del 20
     ("ARCHIVE", "B"),            # 58 feria comercial masiva
     ("READING_LATER", ""),       # 59 concierto de vecinos, entrada libre
-    ("READING_LATER", ""),       # 60 agradecimiento de una familia
-    ("READING_LATER", ""),       # 61 felicitación de cumpleaños
-    ("READING_LATER", ""),       # 62 crónica del mercadillo
-    ("READING_LATER", ""),       # 63 saludo de una antigua socia
+    ("ARCHIVE", ""),             # 60 agradecimiento de una familia (social, 2026-11-02)
+    ("ARCHIVE", ""),             # 61 felicitación de cumpleaños (social, 2026-11-02)
+    ("ARCHIVE", ""),             # 62 crónica del mercadillo (social, 2026-11-02)
+    ("ARCHIVE", ""),             # 63 saludo de una antigua socia (social, 2026-11-02)
     ("REVIEW", "D"),             # 64 cambio de IVA antes de fijar precios
     ("REVIEW", "D"),             # 65 alegaciones en diez días
     ("REVIEW", ""),              # 66 descuadre de 300 euros
