@@ -491,6 +491,44 @@ desglose muestra una causa aritmética, no del evaluador: el recorte de
 lo mismo en los boletines. Diagnóstico completo en
 [`auditoria-reading-later.md`](auditoria-reading-later.md).
 
+### 20. Gemini, 120 correos, v3.27.4, sin cambios — 114 de 120, 67 de 84 aciertos
+
+Punto de partida antes de tocar el correo 5: mismo plugin que la 19 y 40
+correos nuevos. `reevaluar_tier_o_umbral` 83, `propuesta_validada` 31,
+`eco_distinto` 5, `evidencias_ausentes` 1 (el 23), 0 dudas. Aciertos sin
+forzar: 18 de 24 en 1-40, 28 de 32 en 41-80 y 21 de 28 en 81-120 (30 de 30
+forzados).
+
+**El 5 acierta sin haber tocado nada: `REVIEW` con 27.** En la 18 y la 19 sacó
+0. El mismo correo salta 27 puntos de una ejecución a otra: el veredicto de
+`cambia_algo_concreto` es bimodal (sí +5 / no −5) y arrastra a los demás. **Una
+ejecución no basta para decir si un arreglo funciona**: de ahí `IDS` y
+`REPETIR` en `medir_evaluadores.py`, para medir varias veces solo los correos
+que importan.
+
+**Avisos de seguridad nuevos (81-84): 3 de 4.** 81, 82 y 83 dan `REVIEW` con
+27. El 84 («hemos recibido una solicitud para restablecer tu contraseña… si
+no la has pedido…») cae a `READING_LATER` con 0, con el desglose idéntico al
+del 5 en la 18 y la 19: lo lee como confirmación de algo pedido. La
+sobrecorrección existe y no es del 5: aparece cuando el aviso está redactado
+como acuse de una petición.
+
+**`READING_LATER`: 4 de 17**, y el reparto confirma la auditoría
+([`auditoria-reading-later.md`](auditoria-reading-later.md)):
+
+- **Con B (remitente masivo): 0 de 8** (29, 51, 52, 53, 86, 87, 88 y 91), de
+  −2 a −18. Los boletines afines nuevos (86, 87) se hunden igual que los
+  viejos, con la misma triple penalización.
+- **Sin B: 4 de 9** (59, 79, 90 y 93 aciertan, con 1-2 puntos). Las
+  recomendaciones personales pueden llegar; el 89 se queda en −1 y el 10 en −3.
+- El 92 (puertas abiertas) y el 56 (presentación) salen `REVIEW` con 22 y 11:
+  Gemini los lee como una opción que tomar. La expectativa es discutible.
+
+**Otros.** El 12 acierta por primera vez (`ARCHIVE`, −4). Siguen fallando el
+21 (reglamento, `READING_LATER` con 1), el 35 (encuesta municipal, `ARCHIVE`) y
+el 36 (material olvidado, `REVIEW`). El eco falla 5 veces: cuatro por el `fin`
+corto de siempre y el 85 por un `fin` tomado de la mitad del texto.
+
 ### El banco de 80 correos
 
 `correos_ficticios.py` pasa de 40 a 80. Los 40 primeros no cambian, así que

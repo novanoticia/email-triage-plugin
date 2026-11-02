@@ -36,11 +36,20 @@ cargados hacia los casos dudosos. N=40 repite solo los primeros, para
 comparar con las mediciones 1-17, y los aciertos salen también por bloque.
 Desde la medición 20 son 120 (tres bloques de 40); N=80 repite la 18 y la 19.
 
+Desde la medición 21, IDS elige correos sueltos (sin renumerar) y REPETIR los
+mide varias veces seguidas, con un resumen por correo de los tiers que salen:
+una sola ejecución no basta para saber si un arreglo funciona cuando el mismo
+correo cambia de tier de una vez a otra (el 5 sacó 0 en la 18 y la 19, y 27 en
+la 20, sin tocar nada).
+
+    IDS=5,49,81-84 REPETIR=5 PROVEEDOR=gemini python3 scripts/medir_evaluadores.py
+
 Desde la medición 16 los fallos de tier muestran también los criterios que
 puntúan distinto de 0, agrupados por eje: el eje dice dónde se hunde el
 correo; el criterio, qué veredicto lo hunde.
 """
 import collections
+import copy
 import os
 import re
 import sys
@@ -58,6 +67,21 @@ from correos_ficticios import CORREOS, ESPERADOS, PERFIL, control  # noqa: E402
 N = int(os.environ.get("N", str(len(CORREOS))))
 CORREOS = CORREOS[:N]  # los ids siguen siendo 1..N: ESPERADOS se indexa igual
 
+
+def _ids(texto):
+    """«5,49,81-84» -> {5, 49, 81, 82, 83, 84}. Vacío: todos."""
+    ids = set()
+    for parte in filter(None, (x.strip() for x in texto.split(","))):
+        desde, _, hasta = parte.partition("-")
+        ids.update(range(int(desde), int(hasta or desde) + 1))
+    return ids
+
+
+IDS = _ids(os.environ.get("IDS", ""))
+REPETIR = max(1, int(os.environ.get("REPETIR", "1")))
+# (id, asunto, remitente, cuerpo): los ids son los del banco, aunque se elijan sueltos.
+SELECCION = [(i + 1, a, rm, c) for i, (a, rm, c) in enumerate(CORREOS) if not IDS or i + 1 in IDS]
+
 VACIOS = os.environ.get("CONTROLES", "") == "vacios"
 
 cfg = yaml.safe_load(open("plugins/email-triage/skills/email-triage/config.yaml", encoding="utf-8"))
@@ -66,10 +90,10 @@ cfg = yaml.safe_load(open("plugins/email-triage/skills/email-triage/config.yaml"
 # (los bloques de ESPERADOS) y se juntan los resultados.
 LOTE = 40
 lotes = []
-for desde in range(0, len(CORREOS), LOTE):
+for desde in range(0, len(SELECCION), LOTE):
     pl = ev.preparar({"perfil_minimo": PERFIL, "emails": [
-        {"id": str(i + 1), "asunto": a, "remitente": r, "cuerpo": c}
-        for i, (a, r, c) in enumerate(CORREOS) if desde <= i < desde + LOTE]})
+        {"id": str(i), "asunto": a, "remitente": rm, "cuerpo": c}
+        for i, a, rm, c in SELECCION[desde:desde + LOTE]]})
     for e in pl["emails"]:
         e["control"] = control("" if VACIOS else ESPERADOS[int(e["id"]) - 1][1])
         e["contexto_suficiente"] = True
@@ -77,7 +101,7 @@ for desde in range(0, len(CORREOS), LOTE):
 p = {"emails": [e for pl in lotes for e in pl["emails"]]}  # para el detalle del eco
 
 capa = {"activo": True, "acepta_envio_datos": True, "modo": "hibrido",
-        "proveedor": PROVEEDOR, "max_llamadas": min(LOTE, len(CORREOS)),
+        "proveedor": PROVEEDOR, "max_llamadas": min(LOTE, len(SELECCION)),
         # Ollama tarda unos 110 s por correo en un Mac de 16 GB (tope 600).
         "timeout_segundos": int(os.environ.get("TIMEOUT", "300" if PROVEEDOR == "ollama" else "60"))}
 prov = ev.proveedor(PROVEEDOR)
@@ -129,8 +153,14 @@ def capturar(body, key, timeout):
 
 
 capturar.llamadas = 0
-print("Enviando %d correos inventados a %s (unos %d s)..." % (len(CORREOS), PROVEEDOR, int(len(CORREOS) * PAUSA)))
-parciales = [ev.evaluar(pl, cfg, capa, capturar) for pl in lotes]
+print("Enviando %d correos inventados a %s%s (unos %d s)..." % (
+    len(SELECCION), PROVEEDOR, "" if REPETIR == 1 else ", %d veces" % REPETIR,
+    int(len(SELECCION) * REPETIR * PAUSA)))
+# Cada repetición evalúa una copia de los lotes: `evaluar` no debe ver el
+# estado que dejó la anterior. El informe completo es el de la última.
+repeticiones = [[ev.evaluar(copy.deepcopy(pl), cfg, capa, capturar) for pl in lotes]
+                for _ in range(REPETIR)]
+parciales = repeticiones[-1]
 
 
 def _sumar(valores):
@@ -169,8 +199,8 @@ print("cobertura:", r.get("cobertura"))
 print("motivos por fila:")
 for m, n in motivos.most_common():
     print("   %-36s %d" % (m, n))
-print("filas con dudas anotadas (también las rechazadas):", con_dudas, "de", len(CORREOS))
-print("propuestas (validadas + a reevaluar):", sum("propuesta" in f for f in r["resultados"]), "de", len(CORREOS))
+print("filas con dudas anotadas (también las rechazadas):", con_dudas, "de", len(SELECCION))
+print("propuestas (validadas + a reevaluar):", sum("propuesta" in f for f in r["resultados"]), "de", len(SELECCION))
 print("criterios en __no_aplica__ (veces, también en filas rechazadas):", dict(no_aplica.most_common()))
 print("tiers de las propuestas que quedan:", dict(tiers))
 print("controles:", "vacíos (como las mediciones 1-12)" if VACIOS else "los de ESPERADOS")
@@ -205,12 +235,23 @@ def aciertos(con_f):
 for con_f, nombre in ((False, "sin F (mide al evaluador)"), (True, "con F (lo fija el control)")):
     ok, n = aciertos(con_f)
     print("aciertos de tier, %s: %d de %d propuestas" % (nombre, ok, n))
-if len(CORREOS) > LOTE:
+if len(CORREOS) > LOTE and not IDS:
     for desde, hasta in ((d + 1, min(d + LOTE, len(CORREOS))) for d in range(0, len(CORREOS), LOTE)):
         filas = [(f["propuesta"]["tier"], ESPERADOS[int(f["id"]) - 1][0]) for f in r["resultados"]
                  if f.get("propuesta") and desde <= int(f["id"]) <= hasta
                  and "F" not in ESPERADOS[int(f["id"]) - 1][1]]
         print("   correos %d-%d, sin F: %d de %d" % (desde, hasta, sum(a == b for a, b in filas), len(filas)))
+if REPETIR > 1:
+    print("por correo en %d repeticiones (tier score; - = sin propuesta):" % REPETIR)
+    for ident, asunto, _, _ in SELECCION:
+        vistas = []
+        for rep in repeticiones:
+            fila = next((f for x in rep for f in x["resultados"] if f["id"] == str(ident)), {})
+            prop = fila.get("propuesta")
+            vistas.append("%s %s" % (prop["tier"], prop["score"]) if prop else "-")
+        esperado = ESPERADOS[ident - 1][0]
+        bien = sum(v.split(" ")[0] == esperado for v in vistas)
+        print("   [%s] esperado %-14s %d de %d | %s" % (ident, esperado, bien, REPETIR, ", ".join(vistas)))
 confusion = collections.Counter(
     (ESPERADOS[int(f["id"]) - 1][0], f["propuesta"]["tier"]) for f in r["resultados"]
     if f.get("propuesta") and "F" not in ESPERADOS[int(f["id"]) - 1][1])
