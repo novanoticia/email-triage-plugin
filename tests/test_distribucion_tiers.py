@@ -32,11 +32,20 @@ class TestDistribucion(unittest.TestCase):
         self.assertEqual(d["ignorados"], 1)
         self.assertEqual(d["tiers"]["ARCHIVE"], 4)
         tramos = {t["tramo"]: t for t in d["tramos_archive"]}
-        self.assertEqual(tramos[(-2, -1)]["correos"], 2)
-        self.assertEqual(tramos[(-2, -1)]["con_otras_penalizaciones"], 1)
-        self.assertEqual(tramos[(-5, -3)]["correos"], 1)
-        self.assertEqual(tramos[(None, -11)]["correos"], 1)
+        self.assertEqual(tramos[(-2, None)]["correos"], 2)
+        self.assertEqual(tramos[(-2, None)]["con_otras_penalizaciones"], 1)
+        self.assertEqual(tramos[(-5, -2)]["correos"], 1)
+        self.assertEqual(tramos[(None, -10)]["correos"], 1)
         self.assertEqual(d["pasarian_a_reading_later"], {-1: 1, -2: 2, -3: 2, -5: 3})
+
+    def test_scores_decimales_caen_en_algun_tramo(self):
+        # Revisión de Codex (PR #180): el motor admite decimales; con tramos
+        # de enteros, -0.5 o -2.5 no caían en ninguno.
+        rs = [fila(i, s, "ARCHIVE") for i, s in enumerate((-0.5, -2.5, -5.5, -10.5, -10))]
+        d = dt.distribucion(rs, 0)
+        self.assertEqual(sum(t["correos"] for t in d["tramos_archive"]), len(rs))
+        tramos = {t["tramo"]: t["correos"] for t in d["tramos_archive"]}
+        self.assertEqual(tramos, {(-2, None): 1, (-5, -2): 1, (-10, -5): 2, (None, -10): 1})
 
     def test_riesgo_negativo_cuenta_como_otra_penalizacion(self):
         r = fila(1, -1, "ARCHIVE")
@@ -60,6 +69,22 @@ class TestDistribucion(unittest.TestCase):
             self.assertIn("correos: 1", texto)
             self.assertNotIn(secreto, texto)
             self.assertNotIn("REVIEW          1", texto)  # cuenta solo la última pasada
+
+
+    def test_desglose_demasiado_grande_se_omite_entero(self):
+        # Revisión de Codex (PR #180): leer solo el principio perdería las
+        # últimas pasadas y contaría tiers antiguos sin avisar.
+        with tempfile.TemporaryDirectory() as d:
+            ruta = os.path.join(d, "grande.jsonl")
+            with open(ruta, "w", encoding="utf-8") as fh:
+                fh.write(json.dumps({"ts": "x", "desglose": {"resultados": [fila(1, -1, "ARCHIVE")]}}) + "\n")
+            original = dt.th.MAX_INGESTA_BYTES
+            dt.th.MAX_INGESTA_BYTES = 20
+            try:
+                resultados, ilegibles, grandes = dt._leer([ruta])
+            finally:
+                dt.th.MAX_INGESTA_BYTES = original
+            self.assertEqual((resultados, ilegibles, grandes), ([], 0, 1))
 
 
 if __name__ == "__main__":

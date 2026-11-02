@@ -24,8 +24,10 @@ import sys
 sys.path.insert(0, "plugins/email-triage/skills/email-triage/scripts")
 import triage_helpers as th  # noqa: E402
 
-# Tramos de score dentro de ARCHIVE (desde, hasta), ambos inclusive.
-TRAMOS_ARCHIVE = ((-2, -1), (-5, -3), (-10, -6), (None, -11))
+# Tramos de score dentro de ARCHIVE, contiguos: desde <= score < hasta (None =
+# sin límite). El motor admite scores decimales (-0.5, -2.5), así que los
+# tramos no pueden dejar huecos entre enteros (revisión de Codex, PR #180).
+TRAMOS_ARCHIVE = ((-2, None), (-5, -2), (-10, -5), (None, -10))
 # Umbrales de READING_LATER que se simulan (el actual de la plantilla es 0).
 UMBRALES = (0, -1, -2, -3, -5)
 EJES_QUE_SOLO_RESTAN = ("riesgo_manipulacion", "coste_cognitivo")
@@ -37,7 +39,16 @@ def _num(x):
 
 def _en_tramo(score, tramo):
     desde, hasta = tramo
-    return (desde is None or score >= desde) and score <= hasta
+    return (desde is None or score >= desde) and (hasta is None or score < hasta)
+
+
+def _nombre_tramo(tramo):
+    desde, hasta = tramo
+    if hasta is None:
+        return "%s o más" % desde
+    if desde is None:
+        return "menos de %s" % hasta
+    return "%s a %s (sin el %s)" % (desde, hasta, hasta)
 
 
 def _otras_penalizaciones(r):
@@ -85,17 +96,24 @@ def _umbral_config():
 
 
 def _leer(rutas):
-    resultados, fallos = [], 0
+    """(resultados, ilegibles, demasiado_grandes). Un desglose que pasa de
+    MAX_INGESTA_BYTES se omite entero: leer solo su principio perdería las
+    últimas pasadas y contaría tiers antiguos (revisión de Codex, PR #180)."""
+    resultados, fallos, grandes = [], 0, 0
     for ruta in rutas:
         try:
             with open(ruta, encoding="utf-8") as fh:
-                doc = th._parsear_desglose(fh.read(th.MAX_INGESTA_BYTES))
+                texto = fh.read(th.MAX_INGESTA_BYTES + 1)
+            if len(texto.encode("utf-8")) > th.MAX_INGESTA_BYTES:
+                grandes += 1
+                continue
+            doc = th._parsear_desglose(texto)
         except (OSError, ValueError):
             fallos += 1
             continue
         pasadas = doc.get("pasadas") if isinstance(doc, dict) and "pasadas" in doc else [doc]
         resultados.extend(th._ultima_pasada(pasadas, ruta, []))
-    return resultados, fallos
+    return resultados, fallos, grandes
 
 
 def main(argv):
@@ -105,10 +123,12 @@ def main(argv):
               "(se escriben con scoring --desglose-append).")
         return 1
     umbral, origen = _umbral_config()
-    resultados, fallos = _leer(rutas)
+    resultados, fallos, grandes = _leer(rutas)
     d = distribucion(resultados, umbral)
-    print("desgloses leídos: %d (ilegibles: %d) | correos: %d (sin score o tier: %d)"
-          % (len(rutas) - fallos, fallos, d["correos"], d["ignorados"]))
+    print("desgloses leídos: %d (ilegibles: %d, omitidos por pasar de %d MB: %d) | "
+          "correos: %d (sin score o tier: %d)"
+          % (len(rutas) - fallos - grandes, fallos, th.MAX_INGESTA_BYTES // 2**20, grandes,
+             d["correos"], d["ignorados"]))
     print("umbral de READING_LATER: %s (%s)" % (umbral, origen))
     print("tiers:")
     for tier in ("REPLY_NEEDED", "REVIEW", "READING_LATER", "ARCHIVE"):
@@ -116,10 +136,8 @@ def main(argv):
         print("   %-14s %4d  (%.0f %%)" % (tier, n, 100.0 * n / d["correos"] if d["correos"] else 0))
     print("ARCHIVE por tramo de score (con otras penalizaciones = riesgo, coste o reglas):")
     for t in d["tramos_archive"]:
-        desde, hasta = t["tramo"]
-        nombre = "%s a %s" % (desde, hasta) if desde is not None else "%s o menos" % hasta
-        print("   %-12s %4d  (con otras penalizaciones: %d)"
-              % (nombre, t["correos"], t["con_otras_penalizaciones"]))
+        print("   %-22s %4d  (con otras penalizaciones: %d)"
+              % (_nombre_tramo(t["tramo"]), t["correos"], t["con_otras_penalizaciones"]))
     print("con otro umbral de READING_LATER pasarían de ARCHIVE a READING_LATER:")
     for u, n in sorted(d["pasarian_a_reading_later"].items(), reverse=True):
         print("   umbral %3s -> %4d" % (u, n))
