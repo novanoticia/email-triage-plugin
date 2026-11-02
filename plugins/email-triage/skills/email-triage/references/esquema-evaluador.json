@@ -232,7 +232,7 @@
                   "razon_no_aplica"
                 ],
                 "additionalProperties": false,
-                "description": "¿Es señal real o ritual social/burocrático?"
+                "description": "¿Es señal real o ritual social (cortesía, saludo, felicitación)?"
               },
               "abre_opciones": {
                 "type": "object",

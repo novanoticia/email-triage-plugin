@@ -1,6 +1,6 @@
 # Auditoría: por qué `READING_LATER` casi no se alcanza
 
-Estado: **diagnóstico, sin código.** Redactada el 2026-11-02 tras las
+Estado: **diagnóstico; la opción 1 se aplicó en v3.27.6** (pendiente de medir). Redactada el 2026-11-02 tras las
 mediciones 18 y 19 (`docs/mediciones-evaluadores.md`). Cualquier cambio de
 pesos, rangos o redacción de criterios que salga de aquí toca el scoring: va
 en un PR propio, con tests, y nace sin cambiar nada a quien no toque su config

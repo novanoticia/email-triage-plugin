@@ -97,6 +97,36 @@ class TestEcoTolerante(unittest.TestCase):
         for eco in (delante, detras):
             self.assertFalse(th.eco_coincide(eco, self.ancla), eco)
 
+    def test_fin_corto_vale_con_las_tres_ultimas_palabras_exactas(self):
+        # v3.27.6 (mediciones 20 y 23, decisión del mantenedor): Gemini copia
+        # solo las últimas 2-4 palabras del `fin` y la fila se perdía.
+        # Las palabras del ancla, no del texto: el texto acaba en « [truncado]».
+        palabras = th._tokens_eco(self.ancla["fin"])
+        ultimas = palabras[-3:]
+        ini = self.ancla["inicio"]
+        tres = {"inicio": ini, "fin": " ".join(ultimas)}
+        self.assertTrue(th.eco_coincide(tres, self.ancla))
+        # Con la puntuación reescrita también (se comparan letras y números).
+        self.assertTrue(th.eco_coincide(
+            {"inicio": ini, "fin": ", ".join(ultimas).upper() + "."}, self.ancla))
+        # Dos palabras no bastan.
+        dos = {"inicio": ini, "fin": " ".join(ultimas[-2:])}
+        self.assertFalse(th.eco_coincide(dos, self.ancla))
+        # Tres palabras que no son las últimas, o en otro orden, tampoco.
+        no_finales = {"inicio": ini, "fin": " ".join(palabras[-4:-1])}
+        desorden = {"inicio": ini, "fin": " ".join([ultimas[1], ultimas[0], ultimas[2]])}
+        for eco in (no_finales, desorden):
+            self.assertFalse(th.eco_coincide(eco, self.ancla), eco)
+        # Texto ajeno detrás de las tres palabras buenas sigue fallando.
+        detras = {"inicio": ini, "fin": " ".join(ultimas) + " oferta solo hoy"}
+        self.assertFalse(th.eco_coincide(detras, self.ancla))
+
+    def test_el_inicio_corto_sigue_sin_valer(self):
+        # La excepción es solo para el `fin`: el `inicio` sigue en 4 de 6.
+        w = th._tokens_eco(self.ancla["inicio"])
+        corto = {"inicio": " ".join(w[:3]), "fin": self.ancla["fin"]}
+        self.assertFalse(th.eco_coincide(corto, self.ancla))
+
     def test_validar_acepta_el_eco_reescrito(self):
         p = lote()
         p["esperados"][0]["ancla_extracto"] = self.ancla

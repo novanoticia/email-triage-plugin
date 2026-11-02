@@ -490,6 +490,15 @@ class TestEvaluadores(unittest.TestCase):
         # La regla original sigue delante: lo esperado no cambia nada.
         self.assertLess(regla.index('no cambia nada'), regla.index('no es una confirmación'))
 
+    def test_ruido_social_no_cubre_lo_burocratico(self):
+        # v3.27.6 (auditoria-reading-later.md, opción 1): «burocrático»
+        # extendía el criterio a boletines y normativas, que ya penalizan
+        # `evidencia_filtrada` y la B. La pregunta queda en lo social.
+        pregunta = self.cfg["criterios_epistemicos"]["ruido_social"]["question"]
+        self.assertNotIn("burocr", pregunta)
+        self.assertIn("ritual social", pregunta)
+        self.assertIn(pregunta, ev.sistema(self.cfg, "Perfil ficticio"))
+
     def test_instruccion_de_eco_nombra_el_campo_texto_y_ocho_palabras(self):
         # v3.25.1 (medición real con Apple `pcc`): el ancla sale solo de
         # `estado.texto`; el eco empezaba por el asunto o traía 2-3 palabras.
