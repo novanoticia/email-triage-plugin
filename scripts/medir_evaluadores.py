@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Mide por qué las filas de `hibrido` vuelven al principal (evaluadores LLM).
 
-Herramienta de desarrollo (no se distribuye con el plugin). Envía 80 correos
+Herramienta de desarrollo (no se distribuye con el plugin). Envía 120 correos
 INVENTADOS (nunca reales) al proveedor elegido en modo `hibrido`, con el
 config plantilla del repo, y cuenta los motivos por fila, los criterios en
 `__no_aplica__` y los tiers de las propuestas. Por correo muestra solo lo que
@@ -34,6 +34,7 @@ veredictos que no encajan (muy lejos).
 Desde la medición 18 hay 80 correos: los 40 de siempre y 40 más largos,
 cargados hacia los casos dudosos. N=40 repite solo los primeros, para
 comparar con las mediciones 1-17, y los aciertos salen también por bloque.
+Desde la medición 20 son 120 (tres bloques de 40); N=80 repite la 18 y la 19.
 
 Desde la medición 16 los fallos de tier muestran también los criterios que
 puntúan distinto de 0, agrupados por eje: el eje dice dónde se hunde el
@@ -61,8 +62,8 @@ VACIOS = os.environ.get("CONTROLES", "") == "vacios"
 
 cfg = yaml.safe_load(open("plugins/email-triage/skills/email-triage/config.yaml", encoding="utf-8"))
 # El núcleo admite como mucho `MAX_LOTE` (50) correos por invocación y por
-# `max_llamadas`: es un freno del plugin, no se toca. Con 80 se mide en lotes
-# de 40 (los dos bloques de ESPERADOS) y se juntan los resultados.
+# `max_llamadas`: es un freno del plugin, no se toca. Se mide en lotes de 40
+# (los bloques de ESPERADOS) y se juntan los resultados.
 LOTE = 40
 lotes = []
 for desde in range(0, len(CORREOS), LOTE):
@@ -204,8 +205,8 @@ def aciertos(con_f):
 for con_f, nombre in ((False, "sin F (mide al evaluador)"), (True, "con F (lo fija el control)")):
     ok, n = aciertos(con_f)
     print("aciertos de tier, %s: %d de %d propuestas" % (nombre, ok, n))
-if len(CORREOS) > 40:
-    for desde, hasta in ((1, 40), (41, len(CORREOS))):
+if len(CORREOS) > LOTE:
+    for desde, hasta in ((d + 1, min(d + LOTE, len(CORREOS))) for d in range(0, len(CORREOS), LOTE)):
         filas = [(f["propuesta"]["tier"], ESPERADOS[int(f["id"]) - 1][0]) for f in r["resultados"]
                  if f.get("propuesta") and desde <= int(f["id"]) <= hasta
                  and "F" not in ESPERADOS[int(f["id"]) - 1][1]]
