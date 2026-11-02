@@ -358,9 +358,12 @@ por un `calidad_epistemica` de −2. Se repiten `sorpresa_bayesiana=baja` y
 
 **Lo estructural, visto en el 39.** Un correo con todos los ejes en 0 saca 0 y
 cae en `READING_LATER`; uno con `calidad_epistemica` −2 saca −2 y cae en
-`ARCHIVE`. En un correo sin valor de decisión, la frontera entre los dos tiers
-la decide solo el signo de `calidad_epistemica`. Con los rangos de los ejes,
-esa es la única variable que queda.
+`ARCHIVE`. Cuando `valor_decisional` y `presion_accion` quedan en 0 y tampoco
+hay riesgo, coste ni reglas (el 39, el 10 y el 22), la frontera entre los dos
+tiers la decide el signo de `calidad_epistemica`. En los demás también restan
+el riesgo, el coste y las reglas (el 29: −3 de riesgo y −4 de la B), como en
+la 16: con calidad +2 y riesgo −3 el score es −1 y el correo cae en `ARCHIVE`
+(revisión de Codex, PR #179).
 
 
 
