@@ -1,4 +1,4 @@
-"""Perfil y 80 correos INVENTADOS para las mediciones de desarrollo.
+"""Perfil y 120 correos INVENTADOS para las mediciones de desarrollo.
 
 Compartidos por `medir_evaluadores.py` y `sonda_decision_local.py` para que
 las mediciones de todos los proveedores usen exactamente los mismos correos.
@@ -104,6 +104,54 @@ CORREOS = [  # (asunto, remitente, cuerpo): todos inventados
     ("Re: Acta de la reunión", "secretaria@example.invalid", "Perfecto, así queda aprobada. Gracias a todos."),
     ("Por si os interesa este curso", "socio12@example.invalid", "Me ha llegado esta información de un curso gratuito sobre restauración de muebles en el centro cívico. Yo no puedo ir, pero pensé que a alguien del grupo le podría gustar."),
     ("Una idea para el año que viene", "socio40@example.invalid", "Llevo tiempo pensando que podríamos abrir un taller de reparación de bicis con los jóvenes del barrio. Tengo herramientas y conozco a dos mecánicos dispuestos a echar una mano. Os lo cuento para que lo pensemos en la próxima reunión."),
+    # 81-120 (2026-11-02): seguridad sin confirmar, afines, promociones, sociales,
+    # avisos y respuestas; los 81-84 no se han visto antes de corregir el correo 5.
+    # 81-84: avisos de seguridad que el destinatario pudo no provocar (REVIEW).
+    ("Se ha cambiado tu correo de recuperación", "seguridad@example.invalid", "El correo de recuperación de tu cuenta de la asociación ahora es otro. Si has hecho tú el cambio, no tienes que hacer nada. Si no, restablece el acceso desde la página de ayuda."),
+    ("Verificación en dos pasos desactivada", "cuentas@example.invalid", "Se ha desactivado la verificación en dos pasos de la cuenta que usáis para la web. Tu cuenta es ahora más vulnerable. Si no lo has hecho tú, vuelve a activarla y cambia la contraseña."),
+    ("Nuevo dispositivo vinculado a la cuenta del banco", "avisos@banco.example.invalid", "Se ha vinculado un nuevo teléfono a la banca online de la asociación. Si reconoces este dispositivo, ignora este mensaje. Si no, llama a la oficina para bloquearlo."),
+    ("Solicitud para restablecer tu contraseña", "no-responder@plataforma.example.invalid", "Hemos recibido una solicitud para restablecer la contraseña de la plataforma de inscripciones. El enlace caduca en una hora. Si no la has pedido, alguien podría estar intentando entrar."),
+    # 85: recordatorio genérico de privacidad, masivo (ARCHIVE).
+    ("Revisa tus ajustes de privacidad", "privacidad@example.invalid", "Como cada año, te recordamos que puedes revisar en cualquier momento tus ajustes de privacidad. No hay cambios en nuestras condiciones."),
+    # 86-93: material afín sin nada que hacer (READING_LATER).
+    ("Boletín de gestión de voluntariado", "boletin@voluntariado.example.invalid", "Este mes: cómo repartir tareas sin que siempre carguen los mismos y una entrevista con una asociación vecinal que duplicó sus voluntarios. Lectura de diez minutos."),
+    ("Revista de cerámica contemporánea", "revista@ceramica.example.invalid", "En este número, técnicas de esmaltado a baja temperatura y un reportaje sobre talleres comunitarios en Portugal. Disponible en la web para suscriptores."),
+    ("Novedades del archivo de historia del barrio", "archivo@example.invalid", "Hemos digitalizado doscientas fotografías de las fiestas del barrio entre 1960 y 1985. Podéis consultarlas en línea cuando queráis."),
+    ("Un artículo sobre talleres intergeneracionales", "carmen@example.invalid", "Leí este estudio sobre talleres que juntan a mayores y niños y pensé en vuestra asociación. Tiene datos de participación muy interesantes. Sin prisa, por si os sirve."),
+    ("Te paso el podcast del que te hablé", "jorge@example.invalid", "Es el episodio sobre financiación de pequeñas entidades culturales. Dura cuarenta minutos y lo explican muy claro. Ya me contarás si te ha gustado."),
+    ("Ciclo de cine en la casa de cultura", "cultura@distrito.example.invalid", "Durante diciembre habrá un ciclo de cine documental sobre oficios artesanos, los viernes a las 19:00. Entrada libre hasta completar aforo."),
+    ("Jornada de puertas abiertas del taller de grabado", "grabado@example.invalid", "El sábado 14 abrimos el taller a quien quiera conocerlo. No hace falta inscribirse; pasad cuando os venga bien entre las 11 y las 14."),
+    ("Un libro que te va a gustar", "socio55@example.invalid", "Acabo de terminar un libro sobre la historia de las asociaciones de barrio en los años setenta. Te lo dejo en el local por si te apetece leerlo en vacaciones."),
+    # 94-101: promociones, confirmaciones y sociales (ARCHIVE).
+    ("Black Friday: todo al 50 %", "tienda@example.invalid", "Solo este fin de semana, todo nuestro catálogo de material de oficina a mitad de precio. Envío gratuito a partir de 30 euros."),
+    ("Nuevo curso online de marketing digital", "academia@example.invalid", "Aprende a vender por redes sociales con nuestro curso intensivo. Plazas limitadas. Matrícula con descuento hasta el domingo."),
+    ("Prueba gratis nuestro gestor de socios", "ventas@software.example.invalid", "Gestiona cuotas, altas y bajas desde una sola aplicación. Treinta días de prueba sin compromiso y sin tarjeta."),
+    ("Cita confirmada", "citas@ayuntamiento.example.invalid", "Tu cita para registrar la actividad del día 20 queda confirmada a las 10:30, como solicitaste. No es necesario que hagas nada más."),
+    ("Transferencia recibida", "banco@example.invalid", "Se ha recibido en vuestra cuenta la transferencia de la cuota anual de un socio por el importe habitual. Puedes consultar el detalle en la banca online."),
+    ("Tu pedido está en camino", "logistica@papeleria.example.invalid", "El pedido de cartulinas que hiciste el martes ha salido del almacén. Llegará en la fecha prevista."),
+    ("¡Qué buena tarde!", "socia12@example.invalid", "Solo quería decir que ayer lo pasé genial en la merienda de fin de curso. Da gusto formar parte de este grupo."),
+    ("Fotos de la excursión", "voluntario8@example.invalid", "Os dejo el enlace con las fotos de la excursión al museo del sábado. Salimos todos muy bien."),
+    # 102-110: hay algo que revisar o decidir, sin respuesta obligada (REVIEW).
+    ("Subida del alquiler del local", "propietario@example.invalid", "Os informo de que a partir de enero el alquiler del local subirá un 8 %, según el contrato. Si queréis hablar de las condiciones, podemos vernos este mes."),
+    ("Plazo para justificar la subvención", "subvenciones@example.invalid", "Recordamos que la justificación de la subvención de este año debe presentarse antes del 15 de diciembre. Sin ella habrá que devolver el importe."),
+    ("Cambio en la normativa de aforos", "distrito@example.invalid", "Desde el 1 de diciembre, los locales de actividades culturales deberán tener visible el aforo máximo. Las inspecciones empezarán en enero."),
+    ("Cargo duplicado en la cuenta", "banco@example.invalid", "Hemos detectado dos cargos iguales del proveedor de luz este mes. Si no corresponden, podéis reclamar en un plazo de ocho semanas."),
+    ("Avería en el horno de cerámica", "voluntario2@example.invalid", "El horno se apagó a mitad de la cocción del jueves y las piezas se han perdido. El técnico puede venir la semana que viene, pero el arreglo cuesta unos 400 euros."),
+    ("Queja de un vecino por las sillas", "vecino3@example.invalid", "Las sillas que dejáis en el portal después de los talleres impiden pasar con el carrito. Os pido que lo tengáis en cuenta."),
+    ("Resultado de la auditoría de cuentas", "gestoria@example.invalid", "Adjuntamos el informe de la revisión de cuentas del año. Hay dos gastos sin factura que conviene aclarar antes de la asamblea."),
+    ("Baja del patrocinador principal", "patrocinios@example.invalid", "Lamentamos comunicaros que el año que viene no podremos renovar el patrocinio de las fiestas. Os agradecemos estos años de colaboración."),
+    ("Cambio de responsable en el ayuntamiento", "cultura@example.invalid", "Desde la semana que viene, la persona de contacto para las actividades culturales será otra técnica del área. Sus datos están en la web municipal."),
+    # 111-120: alguien espera una respuesta (REPLY_NEEDED).
+    ("¿Nos prestáis el local el día 22?", "asociacion-vecinal@example.invalid", "Queremos hacer una reunión de vecinos el sábado 22 por la tarde y nuestro local está en obras. ¿Podríais dejarnos el vuestro? Necesitamos saberlo antes del jueves."),
+    ("Duda con la factura de noviembre", "proveedor-arcilla@example.invalid", "En la factura de noviembre aparece un pedido que creemos que no es vuestro. ¿Nos confirmáis si lo recibisteis?"),
+    ("Quiero apuntarme como voluntaria", "lucia.voluntaria@example.invalid", "He visto el cartel en la panadería y me gustaría colaborar los fines de semana. ¿Qué tengo que hacer para apuntarme?"),
+    ("Propuesta de fecha para la asamblea", "secretaria@example.invalid", "Para la asamblea de enero propongo el día 18 o el 25. ¿Cuál te viene mejor? Tengo que reservar la sala antes del viernes."),
+    ("Entrevista para la revista del barrio", "revista@barrio.example.invalid", "Estamos preparando un número sobre asociaciones y nos gustaría entrevistarte. ¿Tendrías media hora la semana que viene?"),
+    ("Mi hijo no puede venir al taller", "familia7@example.invalid", "Mi hijo está enfermo y no podrá venir al taller de los próximos dos sábados. ¿Se puede recuperar la plaza más adelante o perdemos la cuota?"),
+    ("Presupuesto para el escenario", "eventos@example.invalid", "Os enviamos el presupuesto del escenario para las fiestas: 1.200 euros con montaje. Necesitamos vuestra aceptación antes del día 5 para reservar la fecha."),
+    ("¿Hay plazas en el curso de encuadernación?", "interesado9@example.invalid", "Me han dicho que vais a abrir un curso de encuadernación en febrero. ¿Quedan plazas y cuánto cuesta?"),
+    ("Coordinación con el colegio", "direccion@colegio.example.invalid", "Nos gustaría organizar con vosotros una visita del alumnado de quinto al taller de cerámica. ¿Podéis decirnos qué días de marzo os vendrían bien?"),
+    ("Necesito la llave del almacén", "voluntario4@example.invalid", "Mañana a las nueve tengo que sacar el material para la feria y no tengo llave del almacén. ¿Quién me la puede dejar esta tarde?"),
 ]
 
 # (tier esperado, controles): mismo orden que CORREOS.
@@ -189,6 +237,47 @@ ESPERADOS = [
     ("ARCHIVE", ""),             # 78 cierre de hilo: «gracias a todos»
     ("READING_LATER", ""),       # 79 curso reenviado por un socio
     ("REVIEW", ""),              # 80 propuesta para la próxima reunión
+    # 81-120 (2026-11-02, borrador pendiente de que lo acepte el mantenedor).
+    ("REVIEW", ""),              # 81 correo de recuperación cambiado: pudo no ser él
+    ("REVIEW", ""),              # 82 verificación en dos pasos desactivada
+    ("REVIEW", ""),              # 83 teléfono nuevo en la banca online
+    ("REVIEW", ""),              # 84 restablecimiento de contraseña no pedido
+    ("ARCHIVE", "B"),            # 85 recordatorio de privacidad sin cambios
+    ("READING_LATER", "B"),      # 86 boletín afín de voluntariado
+    ("READING_LATER", "B"),      # 87 revista afín de cerámica
+    ("READING_LATER", "B"),      # 88 archivo del barrio: fotos digitalizadas
+    ("READING_LATER", ""),       # 89 artículo de una conocida, sin prisa
+    ("READING_LATER", ""),       # 90 podcast recomendado
+    ("READING_LATER", "B"),      # 91 ciclo de cine, entrada libre
+    ("READING_LATER", ""),       # 92 puertas abiertas sin inscripción
+    ("READING_LATER", ""),       # 93 libro prestado
+    ("ARCHIVE", "B"),            # 94 promoción
+    ("ARCHIVE", "B"),            # 95 curso comercial
+    ("ARCHIVE", "B"),            # 96 software en prueba
+    ("ARCHIVE", "B"),            # 97 cita confirmada como se pidió
+    ("ARCHIVE", "B"),            # 98 cuota habitual recibida
+    ("ARCHIVE", "B"),            # 99 pedido en camino, sin cambios
+    ("ARCHIVE", ""),             # 100 social: buena tarde
+    ("ARCHIVE", ""),             # 101 social: fotos de la excursión
+    ("REVIEW", ""),              # 102 subida del alquiler
+    ("REVIEW", "D"),             # 103 justificar la subvención antes del 15
+    ("REVIEW", "D"),             # 104 normativa de aforos con fecha
+    ("REVIEW", "D"),             # 105 cargo duplicado, ocho semanas
+    ("REVIEW", ""),              # 106 horno averiado: decidir el arreglo
+    ("REVIEW", ""),              # 107 queja de un vecino
+    ("REVIEW", ""),              # 108 auditoría: gastos sin factura
+    ("REVIEW", ""),              # 109 se va el patrocinador
+    ("REVIEW", ""),              # 110 nueva persona de contacto
+    ("REPLY_NEEDED", "PDF"),     # 111 local el día 22, antes del jueves
+    ("REPLY_NEEDED", "PF"),      # 112 factura con un pedido ajeno
+    ("REPLY_NEEDED", "PF"),      # 113 nueva voluntaria
+    ("REPLY_NEEDED", "PDF"),     # 114 elegir fecha de asamblea antes del viernes
+    ("REPLY_NEEDED", "PF"),      # 115 entrevista para la revista
+    ("REPLY_NEEDED", "PF"),      # 116 recuperar la plaza
+    ("REPLY_NEEDED", "PDF"),     # 117 aceptar presupuesto antes del día 5
+    ("REPLY_NEEDED", "PF"),      # 118 plazas del curso
+    ("REPLY_NEEDED", "PF"),      # 119 visita del colegio
+    ("REPLY_NEEDED", "PDF"),     # 120 llave del almacén esta tarde
 ]
 REGLAS = {"P": "pregunta_directa_boost", "D": "deadline_explicito_boost",
           "B": "sender_bulk_penalizacion"}
