@@ -129,7 +129,9 @@ suban los falsos `READING_LATER` en los `ARCHIVE` (promociones, sociales).
   el sitio natural donde encajaría la fase de historiales aparcada
   (`docs/diseno-historiales.md`).
 
-**Siguiente paso propuesto:** que `medir_evaluadores.py` pueda guardar los
-veredictos de una pasada (solo de los correos inventados) para simular
-cualquier cambio de pesos o de ejes sin volver a llamar al proveedor, y medir
-así la opción 2 con todos los correos, no solo con los fallos.
+**Siguiente paso:** `GUARDAR=RUTA` en `medir_evaluadores.py` guarda los
+veredictos de una pasada (solo de los correos inventados, sin texto) y
+`scripts/simular_scoring.py RUTA` los vuelve a puntuar con las variantes 2a
+(solo `relevancia_longitudinal`) y 2b (también `abre_opciones`), o con
+cualquier `--eje`/`--rango`, sin llamar al proveedor. Pendiente: una medición
+con `GUARDAR` para simular la opción 2 con todos los correos.
