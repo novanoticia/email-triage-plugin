@@ -26,7 +26,6 @@ La vía 2 abre Mail.app si está cerrado, y macOS puede pedir permiso para que
 Terminal controle Mail. La vía 3 puede necesitar «Acceso total al disco»; sin
 él informa «sin permiso» y sigue.
 """
-import glob
 import os
 import plistlib
 import re
@@ -35,6 +34,7 @@ import sys
 
 MAIL_APP = ("/System/Applications/Mail.app", "/Applications/Mail.app")
 MAX_PLIST_BYTES = 20 * 2**20
+SIN_PERMISO = "sin permiso (¿Acceso total al disco?)"
 _DIRECCION = re.compile(r"^[^@\s<>]+@[^@\s<>]+\.[^@\s<>]+$")
 _VIP = re.compile(r"vip", re.IGNORECASE)
 
@@ -96,27 +96,49 @@ def _leer_plist(ruta):
         with open(ruta, "rb") as fh:
             return plistlib.load(fh), ""
     except PermissionError:
-        return None, "sin permiso (¿Acceso total al disco?)"
+        return None, SIN_PERMISO
     except Exception:  # plist corrupto o formato inesperado: no se interpreta
         return None, "no es un plist legible"
 
 
 def candidatos(home):
     """Ficheros a mirar: los de MailData con «vip» en el nombre y las
-    preferencias de Mail (donde se buscan claves con «VIP»)."""
+    preferencias de Mail (donde se buscan claves con «VIP»).
+
+    Un directorio sin permiso se devuelve con su motivo en vez de omitirse:
+    `glob` y `os.path.exists` se tragan el PermissionError, y la sonda diría
+    «ninguno encontrado» cuando en realidad no pudo mirar (revisión de Codex,
+    PR #184)."""
     rutas = []
-    for d in glob.glob(os.path.join(home, "Library/Mail/V*/MailData")):
+    mail = os.path.join(home, "Library/Mail")
+    try:
+        versiones = sorted(n for n in os.listdir(mail) if re.match(r"^V\d+$", n))
+    except FileNotFoundError:
+        versiones = []
+    except OSError:
+        rutas.append((mail, SIN_PERMISO))
+        versiones = []
+    for v in versiones:
+        d = os.path.join(mail, v, "MailData")
         try:
             nombres = os.listdir(d)
+        except FileNotFoundError:
+            continue
         except OSError:
-            rutas.append((d, "sin permiso (¿Acceso total al disco?)"))
+            rutas.append((d, SIN_PERMISO))
             continue
         rutas.extend((os.path.join(d, n), "") for n in sorted(nombres) if _VIP.search(n))
     for p in ("Library/Containers/com.apple.mail/Data/Library/Preferences/com.apple.mail.plist",
               "Library/Preferences/com.apple.mail.plist"):
         ruta = os.path.join(home, p)
-        if os.path.exists(ruta):
-            rutas.append((ruta, ""))
+        try:
+            os.stat(ruta)
+        except FileNotFoundError:
+            continue
+        except OSError:
+            rutas.append((ruta, SIN_PERMISO))
+            continue
+        rutas.append((ruta, ""))
     return rutas
 
 

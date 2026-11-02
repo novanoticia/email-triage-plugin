@@ -64,6 +64,34 @@ class TestFicheros(unittest.TestCase):
             self.assertNotIn("universidad", texto)
             self.assertNotIn("otro.example", texto)
 
+    def test_sin_permiso_no_dice_ninguno(self):
+        """Sin Acceso total al disco, `listdir` falla: la sonda lo dice en vez
+        de informar «ninguno encontrado» (revisión de Codex, PR #184)."""
+        with tempfile.TemporaryDirectory() as home:
+            os.makedirs(os.path.join(home, "Library/Mail/V10/MailData"))
+            real = os.listdir
+
+            def denegar(ruta):
+                if ruta.endswith("Library/Mail"):
+                    raise PermissionError(1, "Operation not permitted")
+                return real(ruta)
+
+            with mock.patch.object(sv.os, "listdir", side_effect=denegar):
+                self.assertEqual(sv.candidatos(home),
+                                 [(os.path.join(home, "Library/Mail"), sv.SIN_PERMISO)])
+
+            def denegar_maildata(ruta):
+                if ruta.endswith("MailData"):
+                    raise PermissionError(1, "Operation not permitted")
+                return real(ruta)
+
+            with mock.patch.object(sv.os, "listdir", side_effect=denegar_maildata):
+                self.assertEqual([m for _, m in sv.candidatos(home)], [sv.SIN_PERMISO])
+
+    def test_sin_mail_no_hay_candidatos(self):
+        with tempfile.TemporaryDirectory() as home:
+            self.assertEqual(sv.candidatos(home), [])
+
     def test_plist_ilegible(self):
         with tempfile.TemporaryDirectory() as d:
             ruta = os.path.join(d, "vip.plist")
