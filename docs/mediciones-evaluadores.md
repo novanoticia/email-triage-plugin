@@ -461,6 +461,36 @@ cuentan con la expectativa nueva y no son comparables uno a uno. Hay que
 **vigilar el 5** (contraseña cambiada): si en la 19 vuelve a `READING_LATER`,
 la sobrecorrección de la instrucción contrafáctica deja de ser anecdótica.
 
+### 19. Gemini, 80 correos, v3.27.4, sociales a `ARCHIVE` — 75 de 80, 42 de 55 aciertos
+
+Primera con la expectativa nueva (sociales 22 y 60-63 en `ARCHIVE`), así que
+no es comparable uno a uno con la 18: al menos tres aciertos más (60, 61 y 63
+caían a `ARCHIVE` en la 18) vienen de cambiar la regla, no de un evaluador
+mejor. `reevaluar_tier_o_umbral` 55, `propuesta_validada` 20, `eco_distinto` 5,
+0 dudas. Aciertos sin forzar: 17 de 25 en 1-40 y 25 de 30 en 41-80 (20 de 20
+forzados).
+
+**Eco.** Cinco fallos (16, 53, 63, 75 y 79). Cuatro son el `fin` corto de
+siempre. El 63 es nuevo: Gemini mezcla dos trozos del texto («cerámica. Aquí he
+encontrado un abrazo todos.»), y el freno lo caza, que es para lo que está.
+
+**Sociales.** 22, 60 y 61 aciertan (`ARCHIVE`); el 62 (crónica) sale
+`READING_LATER` con score 2 y el 63 falla el eco.
+
+**El correo 5 repite la sobrecorrección.** Otra vez `READING_LATER` con score 0
+y el mismo desglose (`cambia_algo_concreto=no` −5, `cambio_predicciones=no`
+−3): lee el aviso como confirmación de algo pedido, que es lo que dice
+`INSTRUCCION_CONTRAFACTICA`, cuando en un aviso de seguridad no se sabe si lo
+pidió el destinatario. Su gemelo, el 49, acierta con 5, a un punto del límite
+de `REVIEW`. Dos ejecuciones seguidas: deja de ser anecdótico. Siguen fallando
+el 12 y el 36 (avisos de una línea a `REVIEW`).
+
+**`READING_LATER`: 0 de 7.** Seis a `ARCHIVE` y uno (56) a `REVIEW`. El
+desglose muestra una causa aritmética, no del evaluador: el recorte de
+`valor_decisional` anula los criterios de interés y tres penalizaciones miden
+lo mismo en los boletines. Diagnóstico completo en
+[`auditoria-reading-later.md`](auditoria-reading-later.md).
+
 ### El banco de 80 correos
 
 `correos_ficticios.py` pasa de 40 a 80. Los 40 primeros no cambian, así que
@@ -479,6 +509,16 @@ En total: 14 `ARCHIVE`, 10 `REVIEW`, 10 `READING_LATER` y 6 `REPLY_NEEDED`.
 Desde el 2026-11-02, con los sociales (22 y 60-63) en `ARCHIVE`, el banco
 completo queda en 30 `ARCHIVE`, 21 `REVIEW`, 9 `READING_LATER` y 20
 `REPLY_NEEDED`.
+
+Desde la medición 20 el banco tiene **120 correos** (tres bloques de 40;
+`N=80` repite la 18 y la 19). Los 40 nuevos (81-120): 4 avisos de seguridad
+que el destinatario pudo no provocar (`REVIEW`, no vistos antes de tocar el
+correo 5), 1 recordatorio de privacidad sin cambios y 8 promociones,
+confirmaciones y sociales (`ARCHIVE`), 8 materiales afines sin nada que hacer
+(`READING_LATER`), 9 avisos o decisiones (`REVIEW`) y 10 respuestas
+pendientes (`REPLY_NEEDED`). El banco completo: 39 `ARCHIVE`, 34 `REVIEW`, 17
+`READING_LATER` y 30 `REPLY_NEEDED`. Los tiers de 81-120 son un borrador que
+tiene que aceptar el mantenedor.
 Los tiers esperados de 41-80 son un borrador que tiene que aceptar el
 mantenedor. Como el núcleo admite como mucho 50 correos por lote
 (`MAX_LOTE`, un freno que no se toca), `medir_evaluadores.py` mide en dos
