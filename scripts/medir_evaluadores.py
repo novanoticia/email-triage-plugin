@@ -44,6 +44,13 @@ la 20, sin tocar nada).
 
     IDS=5,49,81-84 REPETIR=5 PROVEEDOR=gemini python3 scripts/medir_evaluadores.py
 
+Desde la medición 25, GUARDAR=RUTA escribe en RUTA (JSON) los veredictos y
+controles de cada correo con propuesta, de todas las repeticiones, sin texto
+de ningún correo. `scripts/simular_scoring.py RUTA` los vuelve a puntuar con
+otros pesos, ejes o rangos sin llamar al proveedor.
+
+    GUARDAR=/tmp/veredictos.json PROVEEDOR=gemini python3 scripts/medir_evaluadores.py
+
 Desde la medición 16 los fallos de tier muestran también los criterios que
 puntúan distinto de 0, agrupados por eje: el eje dice dónde se hunde el
 correo; el criterio, qué veredicto lo hunde.
@@ -93,6 +100,11 @@ if os.environ.get("IDS", "").strip() and not SELECCION:
     sys.exit("IDS no selecciona ningún correo del banco (1-%d)." % len(CORREOS))
 
 VACIOS = os.environ.get("CONTROLES", "") == "vacios"
+GUARDAR = os.environ.get("GUARDAR", "").strip()
+if GUARDAR and VACIOS:
+    sys.exit("GUARDAR no admite CONTROLES=vacios: el simulador compara con ESPERADOS.")
+if GUARDAR and not os.path.isdir(os.path.dirname(os.path.abspath(GUARDAR))):
+    sys.exit("GUARDAR: no existe la carpeta de %s" % GUARDAR)  # antes de gastar llamadas
 
 cfg = yaml.safe_load(open("plugins/email-triage/skills/email-triage/config.yaml", encoding="utf-8"))
 # El núcleo admite como mucho `MAX_LOTE` (50) correos por invocación y por
@@ -177,6 +189,10 @@ for _ in range(REPETIR):
     medidas.clear()
     repeticiones.append([ev.evaluar(copy.deepcopy(pl), cfg, capa, capturar) for pl in lotes])
 parciales = repeticiones[-1]
+if GUARDAR:
+    import simular_scoring  # noqa: E402
+    print("veredictos guardados en %s: %d filas" % (
+        GUARDAR, simular_scoring.guardar(GUARDAR, PROVEEDOR, repeticiones, ESPERADOS)))
 
 
 def _sumar(valores):
