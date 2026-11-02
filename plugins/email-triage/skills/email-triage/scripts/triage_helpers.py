@@ -889,7 +889,13 @@ def eco_coincide(eco, ancla) -> bool:
     de frase de 2 a 14 palabras, y un eco largo con los extremos correctos
     se rechazaba. Copiar de más también prueba que recibió el texto.
     Sigue cazando lo que importa: texto ajeno al final, texto cortado y el
-    extracto de otro correo."""
+    extracto de otro correo.
+    v3.27.6 (mediciones 20 y 23, decisión del mantenedor): el `fin` también
+    vale si sus TRES ÚLTIMAS palabras son exactamente las tres últimas del
+    ancla. Gemini copia solo el final de la frase («socios. Plazas
+    limitadas.») y perdía así un 7 % de las filas. Tres palabras finales
+    exactas siguen probando que el texto llegó entero hasta el final; con
+    dos no basta, y el `inicio` sigue exigiendo 4 de 6."""
     if not (isinstance(eco, dict) and isinstance(ancla, dict)):
         return False
     for clave in ("inicio", "fin"):
@@ -908,8 +914,11 @@ def eco_coincide(eco, ancla) -> bool:
         # contra (v3.27.3; antes, tope de longitud y `inicio` entero).
         margen = len(ta) + 2
         tramo = te[:margen] if clave == "inicio" else te[-margen:]
-        if _subsecuencia(ta, tramo) < min(4, len(ta)):
-            return False
+        if _subsecuencia(ta, tramo) >= min(4, len(ta)):
+            continue
+        if clave == "fin" and len(ta) >= 3 and len(te) >= 3 and te[-3:] == ta[-3:]:
+            continue  # v3.27.6: las tres últimas palabras, exactas y al final
+        return False
     return True
 
 
