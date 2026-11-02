@@ -469,7 +469,7 @@ palabras exactas: `eco_coincide` no se relaja (desde v3.27.1, también que `fin`
 acabe en la última palabra: Gemini lo cortaba antes; desde v3.27.2 pide ocho
 palabras con una instrucción más corta, y la comprobación sigue en 4 de 6; desde
 v3.27.3 mira solo el principio del `inicio` y el final del `fin`, sin tope de
-longitud: Gemini no cuenta palabras y copiaba trozos de 2 a 14). Desde v3.26.0 `ollama_so.py`
+longitud: Gemini no cuenta palabras y copiaba trozos de 2 a 14). Desde v3.27.4 `INSTRUCCION_CONTRAFACTICA` recuerda en el sistema que confirmar lo esperado no cambia nada (mediciones 15 y 16: avisos breves a `REVIEW`); sin pesos ni umbrales nuevos. Desde v3.26.0 `ollama_so.py`
 (`qwen3.5:latest` en `127.0.0.1:11434`, misma vía sin clave ni proxy): el correo
 no sale del Mac, pero el doble consentimiento se exige igual; es el único que
 declara `TIMEOUT_MAXIMO` (600) en `config_capa`, el resto sigue en 60. Desde

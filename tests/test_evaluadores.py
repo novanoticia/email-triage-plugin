@@ -465,6 +465,18 @@ class TestEvaluadores(unittest.TestCase):
             dudas=['Una duda cualquiera.']))
         self.assertEqual(r['resultados'][0]['motivo'], 'evaluador_con_dudas')
 
+    def test_instruccion_contrafactica_en_el_sistema(self):
+        # v3.27.4 (mediciones 15 y 16): confirmaciones de lo esperado salían
+        # `cambia_algo_concreto=si`. Va en el sistema, no nombra criterios
+        # (sirve para cualquier config) y conserva el caso que sí cambia algo.
+        texto = ev.sistema(self.cfg, 'Perfil ficticio')
+        self.assertIn(ev.INSTRUCCION_CONTRAFACTICA, texto)
+        self.assertNotIn('cambia_algo_concreto', ev.INSTRUCCION_CONTRAFACTICA)
+        for frase in ('ya sabía o esperaba', 'no cambia nada', 'actuar de otra forma, sí'):
+            self.assertIn(frase, ev.INSTRUCCION_CONTRAFACTICA)
+        # Va con las reglas de veredicto, antes de la del eco.
+        self.assertLess(texto.index(ev.INSTRUCCION_CONTRAFACTICA), texto.index(ev.INSTRUCCION_ECO))
+
     def test_instruccion_de_eco_nombra_el_campo_texto_y_ocho_palabras(self):
         # v3.25.1 (medición real con Apple `pcc`): el ancla sale solo de
         # `estado.texto`; el eco empezaba por el asunto o traía 2-3 palabras.
