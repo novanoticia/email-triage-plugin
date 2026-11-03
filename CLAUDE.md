@@ -471,7 +471,10 @@ palabras con una instrucción más corta, y la comprobación sigue en 4 de 6; de
 v3.27.3 mira solo el principio del `inicio` y el final del `fin`, sin tope de
 longitud: Gemini no cuenta palabras y copiaba trozos de 2 a 14; desde v3.27.6,
 por decisión del mantenedor, el `fin` vale también con sus tres últimas palabras
-exactas, nunca con dos, y el `inicio` sigue en 4 de 6). Desde v3.27.4 `INSTRUCCION_CONTRAFACTICA` recuerda en el sistema que confirmar lo esperado no cambia nada (mediciones 15 y 16: avisos breves a `REVIEW`); sin pesos ni umbrales nuevos; desde v3.27.5 añade que un aviso de cambio o acceso a una cuenta no es una confirmación si pudo no hacerlo el destinatario (mediciones 18-21: «tu contraseña se ha cambiado» a `ARCHIVE` en 4 de 5 pasadas). Desde v3.26.0 `ollama_so.py`
+exactas, nunca con dos, y el `inicio` sigue en 4 de 6). Desde v3.27.4 `INSTRUCCION_CONTRAFACTICA` recuerda en el sistema que confirmar lo esperado no cambia nada (mediciones 15 y 16: avisos breves a `REVIEW`); sin pesos ni umbrales nuevos; desde v3.27.5 añade que un aviso de cambio o acceso a una cuenta no es una confirmación si pudo no hacerlo el destinatario (mediciones 18-21: «tu contraseña se ha cambiado» a `ARCHIVE` en 4 de 5 pasadas). Desde v3.27.7 `scoring` (CLI) se niega a puntuar con
+`scoring.ensayo_p3: true` si falta `--config-ensayo` o la capa no existe
+(`_regla_ensayo`, como `_regla_bloques`, fuera de `cmd_scoring_dispatch`):
+prueba real 2026-11-03, un lote de 50 correos puntuado sin la capa y sin aviso. Desde v3.26.0 `ollama_so.py`
 (`qwen3.5:latest` en `127.0.0.1:11434`, misma vía sin clave ni proxy): el correo
 no sale del Mac, pero el doble consentimiento se exige igual; es el único que
 declara `TIMEOUT_MAXIMO` (600) en `config_capa`, el resto sigue en 60. Desde

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.27.6).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.27.7).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -2037,6 +2037,34 @@ def _regla_bloques(payload, cfg, acumula):
                 "remedio": "reparte con planificar-bloques y evalúa y "
                            "puntúa un bloque antes de leer el siguiente"}
     return None
+
+
+def _regla_ensayo(cfg, ruta_capa):
+    """v3.27.7: negativa de `scoring` (CLI) si el config pide el ensayo P3
+    (`scoring.ensayo_p3: true`, solo un true literal) y la llamada no trae
+    una capa que exista (`--config-ensayo RUTA`), o None. Prueba real
+    2026-11-03: una sesión puntuó 50 correos sin la capa y nada lo avisó,
+    porque el ensayo dependía de que el modelo recordara el flag y una ruta
+    inexistente es un no-op en `_fusiona_capa`. Con el ensayo apagado no
+    niega nada (lo de siempre). TOTAL."""
+    scfg = cfg.get("scoring") if isinstance(cfg, dict) else None
+    if not (isinstance(scfg, dict) and scfg.get("ensayo_p3") is True):
+        return None
+    if ruta_capa and os.path.isfile(ruta_capa):
+        return None
+    return {"ok": False,
+            "error": "scoring.ensayo_p3 activo: %s (sin la capa se puntúa con "
+                     "los criterios de siempre y el ensayo no se aplica)"
+                     % ("falta --config-ensayo" if not ruta_capa else
+                        "la capa %s no existe" % ruta_capa),
+            "ensayo_p3": {"activo": True, "capa": ruta_capa or None},
+            "remedio": "añade --config-ensayo ~/.email-triage/"
+                       "config-ensayo-p3.yaml (o la plantilla "
+                       "<ruta-del-skill>/config-ensayo-p3.yaml) y evalúa "
+                       "razonamiento_dirigido, alternativas_reales y "
+                       "responsabilidad_personal en lugar de "
+                       "forward_backward_flow, third_alternative y "
+                       "fake_justification (references/ensayo-p3.md)"}
 
 
 def cmd_planificar_bloques(datos, cfg) -> dict:
@@ -5991,8 +6019,10 @@ def main():
         else:
             # v3.22.14: con scoring.bloques activo no se puntúa nada (ni se
             # escribe el desglose) fuera de la regla; sin él, None.
-            out = _regla_bloques(payload, cfg,
-                                 bool(args.desglose and args.desglose_append))
+            # v3.27.7: antes, la del ensayo P3 (capa pedida y no pasada).
+            out = (_regla_ensayo(cfg, args.config_ensayo)
+                   or _regla_bloques(payload, cfg,
+                                     bool(args.desglose and args.desglose_append)))
         if out is None:
             # v3.22.13: con --desglose-append, las huellas de plantilla se
             # miden sobre lo ya puntuado en la sesión más este lote. Se lee
