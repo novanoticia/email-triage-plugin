@@ -696,6 +696,24 @@ recorte a 0 que frenaba la subida.
 él, la 2b habría pasado por buena con la cuenta de los fallos de la 24. Lo que
 queda de `READING_LATER` no se arregla con pesos.
 
+### El banco lector (12 boletines largos)
+
+`scripts/correos_lector.py`, con `BANCO=lector`. Nace de los dry-runs reales
+del 2026-11-03, que mostraron dos cosas que el banco de 120 no reproduce:
+ensayos que suben a `REVIEW` porque encajan con el perfil, y más fallos de eco
+(Gemini, 11 de 55 frente al 2-3 %). Tiene un perfil de intereses (filosofía de
+la mente, psicología clínica, IA, escritura) y doce cuerpos de más de 1.500
+caracteres, que `sanitizar` recorta como un boletín real:
+
+- 1-6: ensayos afines en envío masivo (B), esperado `READING_LATER`;
+- 7-8: publicidad (B), `ARCHIVE`; 11: boletín ajeno al perfil (B), `ARCHIVE`;
+- 9-10: avisos con plazo (B y D), `REVIEW`;
+- 12: carta personal larga sin pregunta, `READING_LATER`.
+
+Los esperados son una propuesta pendiente de aceptar. Los ids (1-12) no se
+comparan con los del banco de 120. Un test fija que el recorte por sí solo no
+rompe el eco: un eco que copia las últimas palabras sin «[truncado]» vale.
+
 ### El banco de 80 correos
 
 `correos_ficticios.py` pasa de 40 a 80. Los 40 primeros no cambian, así que

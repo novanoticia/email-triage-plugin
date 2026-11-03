@@ -75,11 +75,12 @@ def filas_guardables(repeticiones, esperados):
     return pasadas
 
 
-def guardar(ruta, proveedor, repeticiones, esperados):
-    """Escribe el fichero de veredictos (JSON). Devuelve cuántas filas guardó."""
+def guardar(ruta, proveedor, repeticiones, esperados, banco=None):
+    """Escribe el fichero de veredictos (JSON). Devuelve cuántas filas guardó.
+    `banco`: qué banco se midió («120» o «lector»), solo informativo."""
     pasadas = filas_guardables(repeticiones, esperados)
     version = re.search(r"\(v([\d.]+)\)", th.__doc__ or "")
-    datos = {"formato": FORMATO, "proveedor": proveedor,
+    datos = {"formato": FORMATO, "proveedor": proveedor, "banco": banco,
              "version": "v" + version.group(1) if version else None,
              "pasadas": pasadas}
     with open(ruta, "w", encoding="utf-8") as fh:
@@ -212,8 +213,10 @@ def main(argv=None):
     except (OSError, ValueError, KeyError) as e:
         print("error: %s" % e, file=sys.stderr)
         return 2
-    print("veredictos de %s (%s), pasada %d de %d" % (
-        datos.get("proveedor"), datos.get("version"), args.pasada + 1, len(pasadas)))
+    print("veredictos de %s (%s%s), pasada %d de %d" % (
+        datos.get("proveedor"), datos.get("version"),
+        ", banco %s" % datos["banco"] if datos.get("banco") else "",
+        args.pasada + 1, len(pasadas)))
     informe(pasadas[args.pasada], cfg, variantes)
     return 0
 
