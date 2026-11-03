@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.28.0).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.28.1).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -950,7 +950,15 @@ def eco_coincide(eco, ancla) -> bool:
     ancla. Gemini copia solo el final de la frase («socios. Plazas
     limitadas.») y perdía así un 7 % de las filas. Tres palabras finales
     exactas siguen probando que el texto llegó entero hasta el final; con
-    dos no basta, y el `inicio` sigue exigiendo 4 de 6."""
+    dos no basta, y el `inicio` sigue exigiendo 4 de 6.
+    v3.28.1 (medición 26, decisión del mantenedor): si el ancla acaba en la
+    marca « [truncado]» y el eco también, la marca cuenta como la tercera
+    palabra: valen las DOS últimas palabras exactas seguidas de la marca.
+    Gemini copia «área d [truncado]» (el recorte cae a mitad de palabra) y
+    perdía así 2 de 12 filas del banco lector y unas 11 de 55 con correo
+    real. Solo quien recibió el texto sabe dónde cae el corte y qué lo
+    precede; con una sola palabra y la marca sigue sin bastar, y sin la
+    marca en los dos lados rige lo de siempre."""
     if not (isinstance(eco, dict) and isinstance(ancla, dict)):
         return False
     for clave in ("inicio", "fin"):
@@ -973,8 +981,22 @@ def eco_coincide(eco, ancla) -> bool:
             continue
         if clave == "fin" and len(ta) >= 3 and len(te) >= 3 and te[-3:] == ta[-3:]:
             continue  # v3.27.6: las tres últimas palabras, exactas y al final
+        if (clave == "fin" and len(ta) >= 2 and len(te) >= 2 and te[-2:] == ta[-2:]
+                and _acaba_en_marca(a) and _acaba_en_marca(e)):
+            continue  # v3.28.1: dos palabras exactas y la marca de recorte
         return False
     return True
+
+
+_RE_MARCA_FINAL = re.compile(r"\[truncado\]\W*$")
+
+
+def _acaba_en_marca(texto) -> bool:
+    """¿Acaba en la marca literal « [truncado]» de `sanitizar` (sin contar
+    mayúsculas ni la puntuación que un modelo añada detrás)? A propósito no
+    vale la palabra «truncado» suelta: es la marca lo que prueba el corte."""
+    t = unicodedata.normalize("NFKC", texto if isinstance(texto, str) else "")
+    return _RE_MARCA_FINAL.search(t.casefold()) is not None
 
 
 def cmd_sanitizar(texto: str, max_chars: int = 1500,

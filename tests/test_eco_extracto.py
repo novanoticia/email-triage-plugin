@@ -37,7 +37,11 @@ class TestAncla(unittest.TestCase):
         self.assertTrue(th.eco_coincide(literal, ancla))
         sin_marca = {"inicio": " ".join(w[:6]), "fin": " ".join(w[-7:-1])}
         self.assertTrue(th.eco_coincide(sin_marca, ancla))
-        corto = {"inicio": " ".join(w[:6]), "fin": " ".join(w[-3:])}
+        # v3.28.1 (medición 26, decisión del mantenedor): dos palabras y la
+        # marca valen; antes no. Una palabra y la marca siguen sin valer.
+        dos_y_marca = {"inicio": " ".join(w[:6]), "fin": " ".join(w[-3:])}
+        self.assertTrue(th.eco_coincide(dos_y_marca, ancla))
+        corto = {"inicio": " ".join(w[:6]), "fin": " ".join(w[-2:])}
         self.assertFalse(th.eco_coincide(corto, ancla))
 
     def test_el_eco_tolera_lo_que_un_modelo_no_conserva(self):

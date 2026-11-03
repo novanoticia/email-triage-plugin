@@ -736,11 +736,13 @@ remitentes de 1-6 en la lista, los seis saldrían en `READING_LATER` y el resto
 quedaría igual. Esa cuenta es circular, porque la lista ya contiene lo
 esperado: no mide al evaluador, solo muestra que el score por sí solo no llega.
 
-**Pendiente de decidir (relajaría un freno):** contar «[truncado]» como
-palabra en la regla de las tres finales cuando el ancla acaba en la marca.
-«área d [truncado]» prueba que el texto llegó hasta el corte, porque nadie que
-no lo haya recibido sabe dónde cae ni qué fragmento lo precede.
-«preferimos [truncado]» prueba mucho menos: es una sola palabra. No se aplica.
+**Aplicado en v3.28.1 (decisión del mantenedor):** si el ancla y el eco
+acaban en «[truncado]», la marca cuenta como tercera palabra, y bastan las dos
+últimas palabras exactas seguidas de ella. «área d [truncado]» prueba que el
+texto llegó hasta el corte, porque nadie que no lo haya recibido sabe dónde cae
+ni qué fragmento lo precede. «preferimos [truncado]» prueba mucho menos, porque
+es una sola palabra, y sigue sin valer. Con esa regla, el 7 de esta medición
+habría pasado y el 10 no.
 
 ### El banco lector (12 boletines largos)
 
@@ -759,7 +761,8 @@ caracteres, que `sanitizar` recorta como un boletín real:
 Los esperados son una propuesta pendiente de aceptar. Los ids (1-12) no se
 comparan con los del banco de 120. Un test fija que el recorte por sí solo no
 rompe el eco: un eco que copia las últimas palabras sin «[truncado]» vale. Lo
-que falla, según la medición 26, es copiar la marca con menos de tres palabras.
+que fallaba, según la medición 26, era copiar la marca con menos de tres
+palabras; desde v3.28.1 valen dos palabras y la marca.
 
 ### El banco de 80 correos
 
@@ -880,6 +883,9 @@ extremos cortos; Gemini, un `fin` que no llega al final. Ninguno de los dos se
 arregla nombrando el campo. v3.27.1 consiguió que el `fin` de Gemini acabe en su
 sitio (medición 12), pero sigue corto: 3 palabras en vez de 6. Por prompt queda
 poco que ganar. En `qwen3.5` el eco es solo uno de sus problemas (medición 10).
+Las relajaciones posteriores las decidió el mantenedor con mediciones delante:
+la regla de las tres palabras finales (v3.27.6, mediciones 20 y 23) y, con el
+extracto recortado, la de dos palabras y la marca (v3.28.1, medición 26).
 
 ---
 
