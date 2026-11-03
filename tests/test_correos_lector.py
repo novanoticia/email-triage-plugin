@@ -41,14 +41,28 @@ class TestBancoLector(unittest.TestCase):
 
     def test_el_recorte_por_si_solo_no_rompe_el_eco(self):
         """Un eco que copia las últimas palabras del extracto sin la marca
-        «[truncado]» sigue valiendo: el recorte no explica por sí solo los
-        fallos de eco con correo real (11 de 55, Gemini, 2026-11-03)."""
+        «[truncado]» sigue valiendo. Lo que falla (medición 26: 2 de 12, y
+        11 de 55 con correo real) es copiar la marca con menos de tres
+        palabras («área d [truncado]»): la marca no cuenta como palabra."""
         for asunto, remitente, cuerpo in cl.CORREOS:
             texto = th.cmd_sanitizar(cuerpo, 1500, asunto, remitente)["texto"]
             ancla = th.ancla_extracto(texto)
             palabras = texto.replace("[truncado]", "").split()
             eco = {"inicio": " ".join(palabras[:8]), "fin": " ".join(palabras[-8:])}
             self.assertTrue(th.eco_coincide(eco, ancla), asunto)
+
+    def test_la_marca_no_cuenta_como_palabra(self):
+        """Freno vigente (medición 26, correos 7 y 10): con la marca y dos
+        palabras el `fin` no vale; con tres palabras y la marca, sí. Si algún
+        día se relaja, este test lo hace visible."""
+        for asunto, remitente, cuerpo in cl.CORREOS:
+            texto = th.cmd_sanitizar(cuerpo, 1500, asunto, remitente)["texto"]
+            ancla = th.ancla_extracto(texto)
+            palabras = texto.replace("[truncado]", "").split()
+            inicio = " ".join(palabras[:8])
+            for n, vale in ((2, False), (3, True)):
+                eco = {"inicio": inicio, "fin": " ".join(palabras[-n:]) + " [truncado]"}
+                self.assertIs(th.eco_coincide(eco, ancla), vale, (asunto, n))
 
 
 if __name__ == "__main__":
