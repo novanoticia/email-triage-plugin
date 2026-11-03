@@ -474,7 +474,13 @@ por decisión del mantenedor, el `fin` vale también con sus tres últimas palab
 exactas, nunca con dos, y el `inicio` sigue en 4 de 6). Desde v3.27.4 `INSTRUCCION_CONTRAFACTICA` recuerda en el sistema que confirmar lo esperado no cambia nada (mediciones 15 y 16: avisos breves a `REVIEW`); sin pesos ni umbrales nuevos; desde v3.27.5 añade que un aviso de cambio o acceso a una cuenta no es una confirmación si pudo no hacerlo el destinatario (mediciones 18-21: «tu contraseña se ha cambiado» a `ARCHIVE` en 4 de 5 pasadas). Desde v3.27.7 `scoring` (CLI) se niega a puntuar con
 `scoring.ensayo_p3: true` si falta `--config-ensayo` o la capa no existe
 (`_regla_ensayo`, como `_regla_bloques`, fuera de `cmd_scoring_dispatch`):
-prueba real 2026-11-03, un lote de 50 correos puntuado sin la capa y sin aviso. Desde v3.26.0 `ollama_so.py`
+prueba real 2026-11-03, un lote de 50 correos puntuado sin la capa y sin aviso. Desde v3.28.0
+`filtros.remitentes_lectura` (opt-in, `docs/diseno-remitentes-lectura.md`)
+fija en `scoring` el tier en `READING_LATER`, como suelo y como techo, por el
+`remitente` del payload (`lectura_aplicada`): solo `forzar_reply_needed` y
+`deadline_explicito_boost` levantan el techo, el cap por inyección manda, no
+suma puntos y anula el `prioritario` (y su +3 en `coincidencias`); va en
+`cmd_scoring`, así que en híbrido se aplica igual. Desde v3.26.0 `ollama_so.py`
 (`qwen3.5:latest` en `127.0.0.1:11434`, misma vía sin clave ni proxy): el correo
 no sale del Mac, pero el doble consentimiento se exige igual; es el único que
 declara `TIMEOUT_MAXIMO` (600) en `config_capa`, el resto sigue en 60. Desde

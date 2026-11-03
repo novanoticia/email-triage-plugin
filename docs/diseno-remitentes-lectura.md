@@ -1,7 +1,8 @@
 # Diseño: remitentes de lectura
 
-Estado: **propuesta, pendiente de las decisiones D1-D7 del mantenedor.** Nada
-de esto está implementado. Redactado el 2026-11-03.
+Estado: **implementado en v3.28.0.** El mantenedor aceptó las siete
+propuestas (D1-D7) tal cual, el 2026-11-03. Redactado ese mismo día; la
+medición 26 (`docs/mediciones-evaluadores.md`) se hizo antes de implementarlo.
 
 ## El problema, visto con correo real
 
@@ -33,7 +34,9 @@ Una lista nueva en el config, `filtros.remitentes_lectura` (dirección o
 Un correo de esa lista sale en `READING_LATER`, como mínimo **y como máximo**,
 salvo las excepciones de D2. El score no cambia: solo el tier, con un campo
 `lectura_aplicada` (p. ej. `"REVIEW->READING_LATER (remitente de lectura)"`)
-que el informe muestra.
+en la salida de `scoring`. Como `suelo_aplicado`, el informe no lo lee: el
+modelo lo cita en la razón (`references/personalizacion.md`; `SKILL.md` está
+en su techo de tamaño y no se tocó).
 
 Va en Python (`cmd_scoring`, junto al suelo de prioritarios) y lo decide el
 script a partir del `remitente` del payload, como `prioritario` desde v3.21.27:
@@ -89,6 +92,20 @@ excepciones.
 - No mide si el evaluador acierta: es una regla de config, y se prueba con
   tests. El banco de boletines largos (`BANCO=lector` en
   `scripts/medir_evaluadores.py`) mide el evaluador sin ella.
+
+## Lo implementado (v3.28.0)
+
+- `scoring` devuelve `remitente_lectura` (true, false o null si el payload no
+  trae dirección) solo con la lista configurada; `lectura_aplicada` cuando
+  cambia el tier, y `lectura_sin_techo` con la señal que levantó el techo
+  (`forzar_reply_needed` o `deadline_explicito_boost`, solo si se aplicó).
+- `coincidencias` añade `lectura` y, con un solape, pone `prioritario: false`
+  sin el +3 y marca la coincidencia anulada (`anulado_por`).
+- `validar-config` avisa de los dominios compartidos (D5) y de los solapes con
+  `remitentes_prioritarios` (D4) y con `remitentes_ignorar`. Este último no
+  estaba en D1-D7: ahí manda ignorar, porque esos correos se descartan antes
+  del scoring.
+- Tests: `tests/test_remitentes_lectura.py`.
 
 ## Cómo se probaría
 

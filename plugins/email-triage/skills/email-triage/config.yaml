@@ -1,5 +1,5 @@
 # ═══════════════════════════════════════════════════════════════
-# EMAIL TRIAGE v3.27 — Configuración del usuario
+# EMAIL TRIAGE v3.28 — Configuración del usuario
 # ═══════════════════════════════════════════════════════════════
 #
 # Este archivo define quién eres, qué te importa, cómo se
@@ -312,6 +312,15 @@ filtros:
   # (v3.21.22, opt-in) Tier mínimo de un remitente prioritario:
   # READING_LATER (nunca se archiva) o REVIEW. null = solo el +3 de arriba.
   # El cap por inyección manda sobre el suelo; REPLY_NEEDED no es un suelo.
+
+  remitentes_lectura: []
+  # (v3.28.0, opt-in) Autores que lees sin prisa: sus correos salen siempre
+  # en READING_LATER, ni más arriba ni más abajo, y el score no cambia.
+  # Dirección o dominio, como arriba; mejor la dirección o el subdominio del
+  # autor («@autora.substack.com») que un dominio compartido («@substack.com»).
+  # Solo forzar_reply_needed o deadline_explicito_boost lo dejan subir; el cap
+  # por inyección manda. Si un remitente está también en prioritarios, manda
+  # esta lista (sin el +3). Lo aplica el script por el remitente.
 
   remitentes_ignorar: []
   # Direcciones que se saltan completamente (-99).

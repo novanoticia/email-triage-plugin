@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.27.7).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.28.0).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -458,6 +458,61 @@ def _remitente_en_filtro(remitente, cfg, clave):
         return None
     return any(_casa_remitente(e, addr, dominio)
                for e in _lista_texto(f.get(clave)))
+
+
+# v3.28.0 (docs/diseno-remitentes-lectura.md, D1-D7; dry-runs reales del
+# 2026-11-03: ensayos de autores que se siguen subían a REVIEW con el
+# principal y bajaban a ARCHIVE con los evaluadores externos). Un remitente
+# de `filtros.remitentes_lectura` sale en READING_LATER, como mínimo y como
+# máximo (D1). Solo estas dos señales de acción levantan el techo (D2); la
+# pregunta directa no, porque en un boletín suele ser retórica. El suelo se
+# mantiene siempre y el cap por inyección manda sobre todo. No suma puntos (D3).
+TIER_LECTURA = "READING_LATER"
+LECTURA_ROMPEN_TECHO = ("forzar_reply_needed", "deadline_explicito_boost")
+# D5: dominios de correo o de plataforma compartidos. Con uno de ellos en
+# `remitentes_lectura`, todo correo de esa plataforma quedaría en
+# READING_LATER; validar-config avisa (no rechaza).
+DOMINIOS_COMPARTIDOS = frozenset((
+    "gmail.com", "googlemail.com", "icloud.com", "me.com", "mac.com",
+    "outlook.com", "outlook.es", "hotmail.com", "hotmail.es", "live.com",
+    "msn.com", "yahoo.com", "yahoo.es", "aol.com", "gmx.com", "gmx.es",
+    "proton.me", "protonmail.com", "zoho.com", "yandex.com",
+    "substack.com", "medium.com", "ghost.io", "beehiiv.com", "buttondown.email",
+    "mailchimp.com", "mailchimpapp.com", "mcsv.net", "sendgrid.net",
+    "mailerlite.com", "convertkit.com", "kit.com", "revue.email",
+    "patreon.com", "linkedin.com", "google.com", "apple.com",
+))
+
+
+def _lectura_rompen_techo(payload, hard_desglose):
+    """Señales de acción del payload que levantan el techo de lectura (D2):
+    `forzar_reply_needed` (mismo criterio de verdad que el resto de
+    `scoring`) y `deadline_explicito_boost` solo si se aplicó de verdad."""
+    rompen = []
+    if payload.get("forzar_reply_needed"):
+        rompen.append("forzar_reply_needed")
+    if any(isinstance(h, dict) and h.get("regla") == "deadline_explicito_boost"
+           for h in hard_desglose):
+        rompen.append("deadline_explicito_boost")
+    return rompen
+
+
+def _entradas_solapan(a, b):
+    """¿Pueden casar las dos entradas con un mismo remitente? Dirección con
+    dirección (ignorando +sufijo), dirección dentro de un dominio, o un
+    dominio dentro de otro (subdominios incluidos). TOTAL."""
+    ta, tb = _tipo_entrada(a), _tipo_entrada(b)
+    if not ta or not tb:
+        return False
+    if ta == "dominio" and tb == "dominio":
+        da, db = _buzon(a).lstrip("@"), _buzon(b).lstrip("@")
+        return (da == db or da.endswith("." + db) or db.endswith("." + da))
+    if ta == "direccion" and tb == "direccion":
+        addr, dominio = _direccion(a)
+        return _casa_remitente(b, addr, dominio)
+    direc, dom = (a, b) if ta == "direccion" else (b, a)
+    addr, dominio = _direccion(direc)
+    return _casa_remitente(dom, addr, dominio)
 
 STOPWORDS = {
     "de", "la", "el", "los", "las", "un", "una", "y", "o", "en", "del",
@@ -1355,7 +1410,13 @@ def cmd_scoring(payload: dict, cfg: dict) -> dict:
     # antes del cap por inyección, que siempre manda.
     suelo = _suelo_prioritarios(cfg)
     suelo_aplicado = None
+    # Remitentes de lectura (v3.28.0, opt-in): los decide el script por el
+    # `remitente` del payload; sin remitente útil, None y no se aplica.
+    de_lectura = _remitente_en_filtro(payload.get("remitente"), cfg,
+                                      "remitentes_lectura")
     derivado = _prioritario_por_remitente(payload.get("remitente"), cfg)
+    if de_lectura:
+        derivado = False   # D4: manda remitentes_lectura (sin suelo de prioritario)
     prioritario = (payload.get("prioritario") is True if derivado is None
                    else derivado)
     aviso_prioritario = None
@@ -1368,6 +1429,20 @@ def cmd_scoring(payload: dict, cfg: dict) -> dict:
             and TIER_ORDEN[tier] < TIER_ORDEN[suelo]):
         suelo_aplicado = "%s->%s (remitente prioritario)" % (tier, suelo)
         tier = suelo
+
+    # Remitente de lectura (v3.28.0): suelo siempre (D1); techo salvo una de
+    # LECTURA_ROMPEN_TECHO (D2). Antes del cap por inyección, que manda.
+    lectura_aplicada, rompen_techo = None, []
+    if de_lectura:
+        rompen_techo = _lectura_rompen_techo(payload, hard_desglose)
+        nuevo = tier
+        if TIER_ORDEN[tier] < TIER_ORDEN[TIER_LECTURA]:
+            nuevo = TIER_LECTURA
+        elif TIER_ORDEN[tier] > TIER_ORDEN[TIER_LECTURA] and not rompen_techo:
+            nuevo = TIER_LECTURA
+        if nuevo != tier:
+            lectura_aplicada = "%s->%s (remitente de lectura)" % (tier, nuevo)
+            tier = nuevo
 
     # Cap por inyección (v3.5): nunca por encima de tier_maximo.
     tmax = payload.get("tier_maximo")
@@ -1399,6 +1474,14 @@ def cmd_scoring(payload: dict, cfg: dict) -> dict:
     if _lista_texto(f_cfg.get("remitentes_sin_penalizacion_masiva")):
         # Solo con la lista configurada (aditivo): None = sin remitente útil.
         out["sender_bulk_exento"] = exento
+    if _lista_texto(f_cfg.get("remitentes_lectura")):
+        # Solo con la lista configurada (aditivo): None = sin remitente útil,
+        # y entonces la regla no se aplicó.
+        out["remitente_lectura"] = de_lectura
+    if lectura_aplicada:
+        out["lectura_aplicada"] = lectura_aplicada
+    if de_lectura and rompen_techo:
+        out["lectura_sin_techo"] = rompen_techo
     if aviso_prioritario:
         out["aviso_prioritario"] = aviso_prioritario
     if sin_evaluar:
@@ -1682,7 +1765,8 @@ def _brief(r):
     if r.get("suelo_aplicado"):
         out["suelo_aplicado"] = r["suelo_aplicado"]
     for k in ("prioritario_verificado", "aviso_prioritario",
-              "sender_bulk_exento", "criterios_sin_evaluar",
+              "sender_bulk_exento", "remitente_lectura", "lectura_aplicada",
+              "lectura_sin_techo", "criterios_sin_evaluar",
               "lectura_recortada", "lectura_verificada"):
         if k in r:
             out[k] = r[k]
@@ -2338,7 +2422,7 @@ def _avisos_config_usuario(data):
     f = data.get("filtros") if isinstance(data.get("filtros"), dict) else {}
     no_validas = []
     for lista in ("remitentes_prioritarios", "remitentes_ignorar",
-                  "remitentes_sin_penalizacion_masiva"):
+                  "remitentes_sin_penalizacion_masiva", "remitentes_lectura"):
         v = f.get(lista)
         if v is None:
             continue
@@ -2360,6 +2444,28 @@ def _avisos_config_usuario(data):
                       "null): sin suelo, un prioritario puede caer a ARCHIVE"
                       % (suelo, " o ".join(SUELOS_PRIORITARIOS)))
     info["suelo_prioritarios_efectivo"] = _suelo_prioritarios(data)
+    # v3.28.0, remitentes de lectura: D5 (dominios compartidos) y D4 (solapes).
+    lectura = [e for e in _lista_texto(f.get("remitentes_lectura"))
+               if _tipo_entrada(e)]
+    compartidos = [e for e in lectura if _tipo_entrada(e) == "dominio"
+                   and _buzon(e).lstrip("@") in DOMINIOS_COMPARTIDOS]
+    if compartidos:
+        avisos.append("filtros.remitentes_lectura tiene %d dominio(s) de correo "
+                      "o de plataforma compartidos (%s): todo correo de ese "
+                      "dominio saldrá en READING_LATER; usa la dirección del "
+                      "autor o su subdominio" % (len(compartidos),
+                                                 ", ".join(compartidos[:8])))
+    for otra, efecto in (("remitentes_prioritarios",
+                          "manda remitentes_lectura: sin +3 ni suelo de prioritario"),
+                         ("remitentes_ignorar",
+                          "manda remitentes_ignorar: esos correos se saltan")):
+        solapes = [e for e in lectura
+                   if any(_entradas_solapan(e, o) for o in _lista_texto(f.get(otra)))]
+        if solapes:
+            avisos.append("%d entrada(s) de filtros.remitentes_lectura coinciden "
+                          "con filtros.%s (%s); %s" % (len(solapes), otra,
+                                                       ", ".join(solapes[:8]), efecto))
+    info["remitentes_lectura_efectivos"] = len(lectura)
     return avisos, info
 
 
@@ -4209,7 +4315,9 @@ def cmd_coincidencias(datos, cfg) -> dict:
     """Aplica `filtros` del config (remitentes_prioritarios, remitentes_ignorar,
     palabras_clave_boost, palabras_clave_penalizar) a {"correos": [{id,
     remitente, asunto, cuerpo?}]}. Devuelve por correo `extra_points_filtros`
-    (a sumar en extra_points), `prioritario`, `ignorar` y el detalle. Solo
+    (a sumar en extra_points), `prioritario`, `ignorar` y el detalle; con
+    `remitentes_lectura` configurada, también `lectura` (v3.28.0: anula el
+    `prioritario` y su +3, D4; el tier lo fija `scoring`). Solo
     devuelve textos del CONFIG, nunca del correo. Función TOTAL; no escribe."""
     try:
         return _coincidencias_nucleo(datos, cfg)
@@ -4227,6 +4335,7 @@ def _coincidencias_nucleo(datos, cfg):
     f = f if isinstance(f, dict) else {}
     prioritarios = _lista_texto(f.get("remitentes_prioritarios"))
     ignorar = _lista_texto(f.get("remitentes_ignorar"))
+    lectura = _lista_texto(f.get("remitentes_lectura"))   # v3.28.0
     boost = _keywords_boost(f.get("palabras_clave_boost"))
     penalizar = _lista_texto(f.get("palabras_clave_penalizar"))
     usados, resultados = set(), []
@@ -4240,7 +4349,10 @@ def _coincidencias_nucleo(datos, cfg):
         asunto, cuerpo = _plano(texto["asunto"]), _plano(texto["cuerpo"])
         r = {"id": c.get("id", i), "prioritario": False, "ignorar": False,
              "extra_points_filtros": 0, "detalle": []}
-        for lista, campo in ((prioritarios, "prioritario"), (ignorar, "ignorar")):
+        if lectura:
+            r["lectura"] = False   # aditivo: solo con la lista configurada
+        for lista, campo in ((prioritarios, "prioritario"), (ignorar, "ignorar"),
+                             (lectura, "lectura")):
             for e in lista:
                 if _casa_remitente(e, addr, dominio):
                     r[campo] = True
@@ -4249,6 +4361,13 @@ def _coincidencias_nucleo(datos, cfg):
                         "prioritarios" if campo == "prioritario" else campo),
                         "entrada": e})
                     break
+        if r.get("lectura") and r["prioritario"]:
+            # D4 (v3.28.0): manda remitentes_lectura; sin +3 ni suelo de
+            # prioritario. El detalle conserva la coincidencia, anulada.
+            r["prioritario"] = False
+            for d in r["detalle"]:
+                if d["filtro"] == "remitentes_prioritarios":
+                    d["anulado_por"] = "remitentes_lectura"
         if r["prioritario"]:
             r["extra_points_filtros"] += PUNTOS_PRIORITARIO
         for palabra, peso in boost:
@@ -4272,7 +4391,8 @@ def _coincidencias_nucleo(datos, cfg):
                                      "puntos": PUNTOS_KEYWORD_PENALIZAR})
         resultados.append(r)
     sin_uso = [e for e in prioritarios if ("remitente", e) not in usados]
-    no_validas = [e for e in prioritarios + ignorar if _tipo_entrada(e) is None]
+    no_validas = [e for e in prioritarios + ignorar + lectura
+                  if _tipo_entrada(e) is None]
     return {"ok": True, "resultados": resultados,
             "suelo_prioritarios": _suelo_prioritarios(cfg),
             "prioritarios_sin_coincidencia": sin_uso,
