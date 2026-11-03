@@ -51,6 +51,13 @@ otros pesos, ejes o rangos sin llamar al proveedor.
 
     GUARDAR=/tmp/veredictos.json PROVEEDOR=gemini python3 scripts/medir_evaluadores.py
 
+Desde la medición 26, BANCO=lector mide otro banco: 12 boletines y cartas de
+más de 1.500 caracteres, con un perfil de intereses (scripts/correos_lector.py).
+Reproduce lo que el de 120 no puede: extractos recortados y ensayos que encajan
+con el perfil.
+
+    BANCO=lector PROVEEDOR=gemini python3 scripts/medir_evaluadores.py
+
 Desde la medición 16 los fallos de tier muestran también los criterios que
 puntúan distinto de 0, agrupados por eje: el eje dice dónde se hunde el
 correo; el criterio, qué veredicto lo hunde.
@@ -70,6 +77,15 @@ import evaluadores as ev  # noqa: E402
 import triage_helpers as th  # noqa: E402
 
 from correos_ficticios import CORREOS, ESPERADOS, PERFIL, control  # noqa: E402
+
+# BANCO=lector (2026-11-03): 12 boletines y cartas largos, que `sanitizar`
+# recorta, con un perfil de intereses (scripts/correos_lector.py). Sus ids van
+# de 1 a 12 y no se comparan con los del banco de 120.
+BANCO = os.environ.get("BANCO", "").strip()
+if BANCO == "lector":
+    from correos_lector import CORREOS, ESPERADOS, PERFIL  # noqa: E402,F811
+elif BANCO:
+    sys.exit("BANCO no válido: %r (vacío para el de 120, o «lector»)" % BANCO)
 
 N = int(os.environ.get("N", str(len(CORREOS))))
 CORREOS = CORREOS[:N]  # los ids siguen siendo 1..N: ESPERADOS se indexa igual
@@ -175,8 +191,9 @@ def capturar(body, key, timeout):
 
 
 capturar.llamadas = 0
-print("Enviando %d correos inventados a %s%s (unos %d s)..." % (
-    len(SELECCION), PROVEEDOR, "" if REPETIR == 1 else ", %d veces" % REPETIR,
+print("Enviando %d correos inventados%s a %s%s (unos %d s)..." % (
+    len(SELECCION), " del banco lector" if BANCO else "", PROVEEDOR,
+    "" if REPETIR == 1 else ", %d veces" % REPETIR,
     int(len(SELECCION) * REPETIR * PAUSA)))
 # Cada repetición evalúa una copia de los lotes: `evaluar` no debe ver el
 # estado que dejó la anterior. El informe completo es el de la última.
@@ -192,7 +209,8 @@ parciales = repeticiones[-1]
 if GUARDAR:
     import simular_scoring  # noqa: E402
     print("veredictos guardados en %s: %d filas" % (
-        GUARDAR, simular_scoring.guardar(GUARDAR, PROVEEDOR, repeticiones, ESPERADOS)))
+        GUARDAR, simular_scoring.guardar(GUARDAR, PROVEEDOR, repeticiones, ESPERADOS,
+                                          banco=BANCO or "120")))
 
 
 def _sumar(valores):

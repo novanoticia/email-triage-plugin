@@ -166,6 +166,60 @@ class TestCLI(unittest.TestCase):
 
 
 @unittest.skipIf(yaml is None, "PyYAML no instalado")
+class TestEnsayoActivoSinCapa(unittest.TestCase):
+    """v3.27.7 (prueba real 2026-11-03): con `scoring.ensayo_p3: true`, el
+    scoring CLI no puntúa sin una capa que exista. Antes, olvidar el flag (o
+    una ruta inexistente) puntuaba en silencio con los criterios de siempre."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.dir = tempfile.TemporaryDirectory()
+        cfg = th._cargar_config(RUTA_CFG)
+        cfg["scoring"]["ensayo_p3"] = True
+        cls.ruta = os.path.join(cls.dir.name, "config.yaml")
+        with open(cls.ruta, "w", encoding="utf-8") as f:
+            yaml.safe_dump(cfg, f, allow_unicode=True)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.dir.cleanup()
+
+    def _scoring(self, *extra, payload=None):
+        cmd = [sys.executable, os.path.join(DIR_SCRIPTS, "triage_helpers.py"),
+               "scoring", "--config", self.ruta, *extra]
+        p = subprocess.run(cmd, input=json.dumps(payload or {"verdicts": {}}),
+                           capture_output=True, text=True, timeout=60)
+        return json.loads(p.stdout)
+
+    def test_sin_flag_no_puntua(self):
+        r = self._scoring(payload={"verdicts": {"forward_backward_flow": "forward"}})
+        self.assertIs(r["ok"], False)
+        self.assertIn("--config-ensayo", r["error"])
+        self.assertNotIn("tier", r)
+        self.assertEqual(r["ensayo_p3"], {"activo": True, "capa": None})
+
+    def test_ruta_inexistente_no_puntua(self):
+        r = self._scoring("--config-ensayo", "/no/existe.yaml")
+        self.assertIs(r["ok"], False)
+        self.assertIn("no existe", r["error"])
+
+    def test_con_la_capa_puntua_como_siempre(self):
+        r = self._scoring("--config-ensayo", RUTA_CAPA, payload={
+            "verdicts": {"razonamiento_dirigido": "exploratorio"}})
+        self.assertNotIn("error", r)
+        self.assertEqual(r["ejes"]["calidad_epistemica"], 3)
+
+    def test_sin_ensayo_nada_cambia(self):
+        self.assertIsNone(th._regla_ensayo(th._cargar_config(RUTA_CFG), None))
+        for raro in ("si", 1, None):
+            self.assertIsNone(th._regla_ensayo({"scoring": {"ensayo_p3": raro}}, None))
+
+    def test_total_con_formas_raras(self):
+        for cfg in (None, [], {"scoring": None}, {"scoring": []}):
+            self.assertIsNone(th._regla_ensayo(cfg, None))
+
+
+@unittest.skipIf(yaml is None, "PyYAML no instalado")
 class TestValidarConfig(unittest.TestCase):
     def test_aviso_si_no_es_booleano(self):
         with tempfile.TemporaryDirectory() as d:
