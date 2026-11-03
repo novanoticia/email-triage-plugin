@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.27.7
+# Email Triage Plugin v3.28.0
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,24 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.28.0
+
+- **Autores que lees sin prisa: `filtros.remitentes_lectura`.** En las pruebas
+  reales, los ensayos de autores que sigues no caían en un sitio estable: el
+  modelo principal los subía a `REVIEW`, junto a lo urgente, y los evaluadores
+  externos los bajaban a `ARCHIVE`. Con correos inventados pasa lo mismo: seis
+  ensayos parecidos quedaron entre −9 y +5 puntos, cuando la banda de
+  `READING_LATER` va de 0 a 3. Ahora puedes poner a esos autores en la lista
+  nueva (su dirección o su dominio, como en `remitentes_prioritarios`), y sus
+  correos saldrán siempre en `READING_LATER`, ni más arriba ni más abajo.
+  El score sigue igual; el script anota el cambio en `lectura_aplicada`. Solo
+  un plazo explícito o una petición de respuesta forzada los dejan subir, y la
+  protección ante inyecciones sigue mandando. Si un remitente está también en
+  `remitentes_prioritarios`, manda la lista nueva y no recibe el +3.
+  `validar-config` avisa si pones un dominio compartido como `@substack.com` o
+  `@gmail.com`, o si una entrada coincide con prioritarios o ignorados. La
+  lista viene vacía: si no la rellenas, nada cambia.
 
 ## Novedades en v3.27.7
 

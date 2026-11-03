@@ -7,6 +7,7 @@ un stub con la condición de entrada y apunta aquí. -->
 ### Filtros y keywords (heredados de v2.0)
 - `remitentes_prioritarios` — boost de calibración (+3): va en `extra_points`, no es clave de `hard_rules` (ver 4.A.2)
 - `suelo_prioritarios` — (v3.21.22, opt-in) `READING_LATER` o `REVIEW`: tier mínimo de un prioritario. Lo aplica `scoring`: con `remitente` en el payload lo decide él (v3.21.27, `aviso_prioritario` si el flag discrepa; `prioritario_sin_verificar` cuenta los que no lo traen); si no, usa el `prioritario` de `coincidencias`; el cap por inyección manda sobre él. `null` = solo el +3
+- `remitentes_lectura` — (v3.28.0, opt-in) autores que se leen sin prisa: `READING_LATER` como mínimo y como máximo, sin tocar el score. Lo aplica `scoring` por el `remitente` del payload (`lectura_aplicada`; `remitente_lectura` es `null` si no trae dirección); solo `forzar_reply_needed` o `deadline_explicito_boost` lo dejan subir (`lectura_sin_techo`) y el cap por inyección manda. Manda sobre `remitentes_prioritarios`: `coincidencias` da `lectura: true` y quita el +3. `validar-config` avisa de dominios compartidos (`@substack.com`, `@gmail.com`…) y de solapes con prioritarios o ignorar. No lo apliques a mano ni lo deshagas: si el script lo aplicó, dilo en la razón
 - `remitentes_ignorar` — skip total (-99)
 - `palabras_clave_boost` — con peso: `alto` (+3), `medio` (+2), `bajo` (+1)
 - `palabras_clave_penalizar` — reducen puntuación (-2)

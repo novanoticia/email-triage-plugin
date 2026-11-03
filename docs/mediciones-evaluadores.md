@@ -696,6 +696,52 @@ recorte a 0 que frenaba la subida.
 él, la 2b habría pasado por buena con la cuenta de los fallos de la 24. Lo que
 queda de `READING_LATER` no se arregla con pesos.
 
+### 26. Gemini, banco lector, v3.27.7 — 10 de 12, 4 de 10 aciertos
+
+Primera medición del banco lector (`BANCO=lector`, 12 boletines largos
+inventados), con los esperados todavía por aceptar y los veredictos guardados
+con `GUARDAR`.
+
+- **Eco: 2 fallos (7 y 10), los dos en el `fin` y por lo mismo.** Gemini copia
+  la marca y muy poco texto: «área d [truncado]» y «preferimos [truncado]».
+  La marca no cuenta como palabra, así que quedan dos y una, y la regla de las
+  tres finales los rechaza. El recorte de `sanitizar` corta a mitad de palabra
+  («área d»), y todo indica que Gemini cuenta «[truncado]» como una de sus
+  tres. 2 de 12 (17 %) se parece al 11 de 55 (20 %) del correo real y no al
+  2-3 % del banco de 120, cuyos cuerpos no se recortan.
+- **Los ensayos bajan, no suben.** De los seis ensayos afines (1-6) solo
+  acierta el 3, con 1. Cuatro caen a `ARCHIVE` (entre −5 y −9) y el 1 sube a
+  `REVIEW` con 5. Los cinco fallos pierden lo mismo:
+  - −3 de `evidencia_filtrada=newsletter_marketing_burocratico`;
+  - −4 de la regla de envío masivo;
+  - en cuatro de ellos, `cambia_algo_concreto=no` y `cambio_predicciones=no`
+    dejan `valor_decisional` en 0 por el recorte.
+
+  Con correo real, el principal (Claude) subía estos ensayos a `REVIEW`;
+  aquí Gemini los baja. Quitarles la regla de envío masivo
+  (`remitentes_sin_penalizacion_masiva`) no bastaría: los cuatro de
+  `ARCHIVE` quedarían en −1, −5, −3 y −1.
+- **La carta personal (12) sube a `REVIEW`** con 5: no hay regla B, y
+  `abre_opciones` y `hug_the_query=directo` suman 7.
+- **Lo que no es lectura acierta:** la publicidad y el boletín ajeno van a
+  `ARCHIVE` (8 y 11, con −20 y −10), y el aviso con plazo va a `REVIEW` (9,
+  con 18). El 7 y el 10 se quedan sin propuesta por el eco.
+
+**Lo que dice.** Seis ensayos parecidos, para el mismo perfil, quedan entre −9
+y +5: catorce puntos para una banda de cuatro. Si se suma la medición 25 (un
+mismo correo se mueve de 2 a 9 puntos entre ejecuciones), el texto no basta
+para poner un ensayo en `READING_LATER`, ni con el principal ni con Gemini.
+Este es el argumento para `filtros.remitentes_lectura` (v3.28.0). Con los
+remitentes de 1-6 en la lista, los seis saldrían en `READING_LATER` y el resto
+quedaría igual. Esa cuenta es circular, porque la lista ya contiene lo
+esperado: no mide al evaluador, solo muestra que el score por sí solo no llega.
+
+**Pendiente de decidir (relajaría un freno):** contar «[truncado]» como
+palabra en la regla de las tres finales cuando el ancla acaba en la marca.
+«área d [truncado]» prueba que el texto llegó hasta el corte, porque nadie que
+no lo haya recibido sabe dónde cae ni qué fragmento lo precede.
+«preferimos [truncado]» prueba mucho menos: es una sola palabra. No se aplica.
+
 ### El banco lector (12 boletines largos)
 
 `scripts/correos_lector.py`, con `BANCO=lector`. Nace de los dry-runs reales
@@ -712,7 +758,8 @@ caracteres, que `sanitizar` recorta como un boletín real:
 
 Los esperados son una propuesta pendiente de aceptar. Los ids (1-12) no se
 comparan con los del banco de 120. Un test fija que el recorte por sí solo no
-rompe el eco: un eco que copia las últimas palabras sin «[truncado]» vale.
+rompe el eco: un eco que copia las últimas palabras sin «[truncado]» vale. Lo
+que falla, según la medición 26, es copiar la marca con menos de tres palabras.
 
 ### El banco de 80 correos
 
