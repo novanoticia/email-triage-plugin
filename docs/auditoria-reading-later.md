@@ -1,8 +1,7 @@
 # Auditoría: por qué `READING_LATER` casi no se alcanza
 
-Estado: **la opción 1 se aplicó en v3.27.6 y se midió** (medición 24:
-`READING_LATER` de 3 a 6 de 17, todos sin B; con B, 0 de 8). Ver «Tras la
-medición 24» al final. Redactada el 2026-11-02 tras las
+Estado: **la opción 1 se aplicó en v3.27.6; la opción 2 se simuló y se
+descarta** (mediciones 24 y 25). Ver «Tras la medición 25» al final. Redactada el 2026-11-02 tras las
 mediciones 18 y 19 (`docs/mediciones-evaluadores.md`). Cualquier cambio de
 pesos, rangos o redacción de criterios que salga de aquí toca el scoring: va
 en un PR propio, con tests, y nace sin cambiar nada a quien no toque su config
@@ -78,7 +77,7 @@ está escrito; el texto dice más de lo que quería decir, que era el ritual
   medirlo, pero la aritmética del primer hallazgo vale para cualquier
   evaluador.
 
-## Opciones (la 1 aplicada en v3.27.6)
+## Opciones (la 1 aplicada en v3.27.6, la 2 descartada)
 
 Ordenadas de menor a mayor alcance. Todas son cambios del scoring.
 
@@ -135,3 +134,19 @@ veredictos de una pasada (solo de los correos inventados, sin texto) y
 (solo `relevancia_longitudinal`) y 2b (también `abre_opciones`), o con
 cualquier `--eje`/`--rango`, sin llamar al proveedor. Pendiente: una medición
 con `GUARDAR` para simular la opción 2 con todos los correos.
+
+## Tras la medición 25
+
+- **La mejora de la opción 1 no está demostrada.** La medición 25, con la misma
+  versión, da 3 de 17 frente a 6 de la 24, y solo el 79 acierta en las dos.
+  Con una banda de cuatro puntos y un evaluador que mueve el mismo correo de 2
+  a 9 puntos entre ejecuciones, una ejecución no distingue un cambio de 3
+  aciertos. La redacción nueva se queda, porque es más precisa, pero sin decir
+  que mejora `READING_LATER`.
+- **La opción 2 se descarta.** Simulada sobre los 118 correos: la 2a no cambia
+  ningún tier; la 2b mete tres correos y saca otros tres (68 de 88 en los dos
+  casos). Mueve la banda, no la ensancha.
+- **Lo que queda: el remitente (opción 4) o aceptar el límite.** Con lo medido,
+  `READING_LATER` por texto es casi un sorteo para todo correo sin acción. Lo
+  que es estable, en dos ejecuciones, es lo de los extremos: `REVIEW` 33-34 de
+  34 y ninguna promoción en `READING_LATER`.

@@ -646,6 +646,56 @@ de los aciertos no se sabe cuántos de ellos, ni de los `ARCHIVE`, se moverían.
 remitente masivo, que en el texto es indistinguible de una promoción: lo que lo
 hace interesante es quién lo manda y si la persona lo conserva, no lo que dice.
 
+> **Corregido por la medición 25:** que `READING_LATER` «se duplique» y que
+> `ruido_social` «ya no aparezca» no se sostiene. Con la misma versión, la 25
+> da 3 de 17 y `ruido_social` vuelve en tres correos. Lo que sí se mantiene es
+> el eco.
+
+### 25. Gemini, 120 correos, v3.27.6, repetición con `GUARDAR` — 118 de 120, 68 de 88 aciertos
+
+Misma versión que la 24, sin cambiar nada, para guardar los veredictos y
+simular la opción 2 con todos los correos (`scripts/simular_scoring.py`).
+
+- **Eco: 2 fallos** (61 y 94), los dos reales: el 61 da una palabra
+  («grande!») y el 94 copia otra frase. Con la 24 (3 fallos), el arreglo del
+  eco se confirma en dos ejecuciones.
+- **`REVIEW`: 33 de 34.** El fallo es el 35 (encuesta municipal), que cae a
+  `READING_LATER` con 2; en la 24 acertó.
+- **`READING_LATER`: 3 de 17** (79, 92 y 93), frente a 6 en la 24 (10, 32, 59,
+  79, 89 y 90). **Solo el 79 acierta en las dos.** El 92 y el 93, que fallaron
+  en la 24, aciertan ahora; el 10, el 32, el 89 y el 90 hacen lo contrario.
+  Sin B, 3 de 9; con B, 0 de 8 otra vez.
+- **Falsos `READING_LATER`: 3** (39, 62 y 101, todos con 0-2), ninguno de
+  publicidad.
+- **`ruido_social` vuelve**: `mixto` en el 29, `ritual` en el 32 (invitación) y
+  en el 56 (presentación del libro). Con la nueva redacción, estos dos últimos
+  pueden ser lecturas legítimas de «ritual social».
+
+**Lo que dice la repetición.** Una misma versión da 6 y 3 aciertos de
+`READING_LATER` en dos ejecuciones seguidas, y los aciertos casi no coinciden.
+La banda de `READING_LATER` tiene cuatro puntos (0 a 3). Los nueve que la
+esperan sin B caen entre −9 y +5, y entre la 24 y la 25 un mismo correo se
+mueve de 2 a 9 puntos (el 32, de 0 a −9; el 56, de 7 a −1). Con una ejecución no se puede medir un cambio de
+`READING_LATER` menor de unos 3 aciertos.
+
+**Simulación de la opción 2 (los 118 correos con propuesta):**
+
+| Variante | Aciertos sin F | `READING_LATER` | `REVIEW` | Cambian de tier |
+|---|---|---|---|---|
+| Config actual | 68 de 88 | 3 de 17 | 33 de 34 | — |
+| 2a (`relevancia_longitudinal`) | 68 de 88 | 3 de 17 | 33 de 34 | 0 (cambian 20 scores) |
+| 2b (también `abre_opciones`) | 68 de 88 | 2 de 17 | 34 de 34 | 6 |
+
+Con la 2b ganan el 35 (a `REVIEW`, 5), el 88 (2) y el 90 (1), y pierden el 79,
+el 92 y el 93, que suben de `READING_LATER` a `REVIEW` (4-5). **La opción 2 no
+ensancha `READING_LATER`, lo desplaza:** los correos que entran por abajo
+empujan fuera a los que ya estaban, porque `calidad_epistemica` no tiene el
+recorte a 0 que frenaba la subida.
+
+**Conclusión.** Se descarta la opción 2. El simulador ha servido para eso: sin
+él, la 2b habría pasado por buena con la cuenta de los fallos de la 24. Lo que
+queda de `READING_LATER` no se arregla con pesos.
+
 ### El banco de 80 correos
 
 `correos_ficticios.py` pasa de 40 a 80. Los 40 primeros no cambian, así que
