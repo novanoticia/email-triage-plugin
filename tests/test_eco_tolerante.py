@@ -121,6 +121,32 @@ class TestEcoTolerante(unittest.TestCase):
         detras = {"inicio": ini, "fin": " ".join(ultimas) + " oferta solo hoy"}
         self.assertFalse(th.eco_coincide(detras, self.ancla))
 
+    def test_fin_de_dos_palabras_vale_con_la_marca_de_recorte(self):
+        # v3.28.1 (medición 26, decisión del mantenedor): con el ancla
+        # recortada, Gemini copia «área d [truncado]»: la marca cuenta como
+        # tercera palabra. Una sola palabra y la marca no bastan.
+        self.assertTrue(self.ancla["fin"].endswith("[truncado]"))
+        palabras = th._tokens_eco(self.ancla["fin"])
+        ini = self.ancla["inicio"]
+        dos = " ".join(palabras[-2:])
+        for fin in (dos + " [truncado]", dos.upper() + " [Truncado].", dos + "[truncado]"):
+            self.assertTrue(th.eco_coincide({"inicio": ini, "fin": fin}, self.ancla), fin)
+        for fin in (palabras[-1] + " [truncado]",          # una sola palabra
+                    dos,                                    # sin la marca
+                    dos + " truncado",                      # la palabra, no la marca
+                    " ".join(palabras[-3:-1]) + " [truncado]",   # no son las últimas
+                    "oferta solo hoy [truncado]"):          # texto ajeno
+            self.assertFalse(th.eco_coincide({"inicio": ini, "fin": fin}, self.ancla), fin)
+
+    def test_la_marca_no_vale_si_el_ancla_no_se_recorto(self):
+        texto = "uno dos tres cuatro cinco seis siete ocho nueve diez"
+        ancla = th.ancla_extracto(texto)
+        self.assertFalse(ancla["fin"].endswith("[truncado]"))
+        eco = {"inicio": ancla["inicio"], "fin": "nueve diez [truncado]"}
+        self.assertFalse(th.eco_coincide(eco, ancla))
+        eco["fin"] = "ocho nueve diez"          # la regla de las tres, intacta
+        self.assertTrue(th.eco_coincide(eco, ancla))
+
     def test_el_inicio_corto_sigue_sin_valer(self):
         # La excepción es solo para el `fin`: el `inicio` sigue en 4 de 6.
         w = th._tokens_eco(self.ancla["inicio"])

@@ -113,11 +113,13 @@ frases:
   - {clave: deshacer.confirmar, lista: true, fichero: references/paso-6-deshacer.md, riesgo: alto,
      patron: '^\s*(¿Confirmas\? \(sí/no\))$'}
 
-  # ── SKILL.md · desglose de ejemplo y resumen ──
-  - {clave: desglose.puntuacion, fichero: SKILL.md, patron: '^(📊 Puntuación: 6)$'}
-  - {clave: desglose.extra, fichero: SKILL.md, patron: '^(   Extra \(calibración\): \+1 \(dominio frecuente\))$'}
-  - {clave: desglose.aprendido, fichero: SKILL.md, patron: '^(   Aprendido:  \+2 \(remitente corregido 4 veces hacia arriba\))$'}
-  - {clave: desglose.epistemico, fichero: SKILL.md, patron: '^(   Epistémico: \+3 \(valor_decisional \+2, calidad_epistemica \+1\))$'}
+  # ── references/ajustes-aprendidos.md · desglose de ejemplo (fuera de SKILL.md desde v3.28.1) ──
+  - {clave: desglose.puntuacion, fichero: references/ajustes-aprendidos.md, patron: '^(📊 Puntuación: 6)$'}
+  - {clave: desglose.extra, fichero: references/ajustes-aprendidos.md, patron: '^(   Extra \(calibración\): \+1 \(dominio frecuente\))$'}
+  - {clave: desglose.aprendido, fichero: references/ajustes-aprendidos.md, patron: '^(   Aprendido:  \+2 \(remitente corregido 4 veces hacia arriba\))$'}
+  - {clave: desglose.epistemico, fichero: references/ajustes-aprendidos.md, patron: '^(   Epistémico: \+3 \(valor_decisional \+2, calidad_epistemica \+1\))$'}
+
+  # ── SKILL.md · resumen ──
   - {clave: resumen.crit_pos1, fichero: SKILL.md, tambien: [references/salidas-por-modo.md],
      patron: '^(   ▲ \[criterio positivo más frecuente\]: N veces)$'}
   - {clave: resumen.crit_pos2, fichero: SKILL.md, patron: '^(   ▲ \[criterio positivo 2\]: N veces)$'}

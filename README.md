@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.28.0
+# Email Triage Plugin v3.28.1
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,24 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.28.1
+
+- **Menos respuestas descartadas cuando el boletín se recorta.** Para
+  comprobar que un evaluador externo leyó el correo, el plugin le pide que copie
+  el principio y el final del texto que recibió (el «eco»). Cuando el texto
+  llega recortado y termina en «[truncado]», Gemini copia a veces solo las dos
+  últimas palabras y la marca («área d [truncado]»), y esa respuesta se
+  descartaba. Ahora vale: nadie que no haya recibido el texto sabe dónde cae el
+  corte. Con una sola palabra y la marca sigue sin valer. En la medición del
+  banco de boletines largos, esto recupera una de las dos respuestas
+  descartadas.
+- **Las instrucciones del skill ocupan menos.** El bloque de ajustes aprendidos
+  de correcciones anteriores pasa de `SKILL.md` a
+  `references/ajustes-aprendidos.md`, y `SKILL.md` deja un aviso de cuándo
+  leerlo: solo hace falta si hay correcciones. `SKILL.md` se carga entero en
+  cada sesión y estaba a 5 bytes de su límite; ahora le sobran unos 2,8 KB. El
+  comportamiento no cambia.
 
 ## Novedades en v3.28.0
 
