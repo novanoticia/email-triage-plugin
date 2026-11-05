@@ -6,8 +6,9 @@ Gemini, citando «no repetir para eludirlo», que solo estaba escrito en
 `references/evaluadores.md`. Decidía el ánimo del modelo, no una regla. Por
 decisión del mantenedor la regla es una sola, en el bloque «Evaluadores
 externos» del SKILL.md: tandas solo si la persona pide más correos que el
-tope, con las filas que la anterior dejó en `limite_llamadas`, hasta 500
-correos por sesión entre todas, sin reenviar ninguno. El mantenedor pidió
+tope, con los que faltan (los que la anterior dejó en `limite_llamadas` y los
+que no entraron en ella, que admite como mucho `MAX_LOTE`), hasta 500 correos
+por sesión entre todas, sin reenviar ninguno. El mantenedor pidió
 2000; quedan en 500 porque `informe` no acepta más unidades por sesión
 (`_INFORME_MAX_UNIDADES`) y una sesión que no puede cerrar su informe no es un
 triaje válido. Si ese tope sube, este test pide subir también el de la regla.
@@ -52,11 +53,25 @@ class TestReglaTandas(unittest.TestCase):
     def test_la_regla_dice_lo_que_decidio_el_mantenedor(self):
         regla = " ".join(_regla().split())
         self.assertTrue(regla, "falta la regla de tandas en el SKILL.md")
-        for trozo in ("por ejecución", "pide más correos que ese tope",
-                      "`limite_llamadas`", "correos por sesión entre todas",
-                      "nunca reenvíes un correo ya enviado",
+        for trozo in ("por ejecución", "pide más de los que caben en una",
+                      "`limite_llamadas`", "los que no entraron en ella",
+                      "correos por sesión entre todas",
+                      "Nunca reenvíes un correo ya enviado",
                       "`proveedor_detenido`", "Sin número, una sola"):
             self.assertIn(trozo, regla)
+
+    def test_el_tope_por_ejecucion_es_el_de_clasificadores(self):
+        # Revisión Codex (PR #197): con 100 pedidos y `max_llamadas: 50`, la
+        # primera ejecución no deja ninguno en `limite_llamadas`, porque solo
+        # admite MAX_LOTE correos (`_filas`, también en evaluadores.py). La
+        # regla tiene que contar también los que no entraron.
+        import clasificadores
+        regla = " ".join(_regla().split())
+        m = re.search(r"cada ejecución admite como mucho (\d+) correos", regla)
+        self.assertIsNotNone(m, "la regla no cita el tope de entrada")
+        self.assertEqual(int(m.group(1)), clasificadores.MAX_LOTE)
+        codigo = _leer(os.path.join(DIR_SCRIPTS, "evaluadores.py"))
+        self.assertIn("nc._filas(p)", codigo)
 
     def test_el_tope_de_la_regla_es_el_de_informe(self):
         # Doc<->código: más correos de los que `informe` acepta dejarían la

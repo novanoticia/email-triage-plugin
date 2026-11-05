@@ -97,12 +97,13 @@ relue par un humain. / Traducción generada por una IA, sin revisión humana.
   tope estaba escrita solo para los evaluadores LLM, y en una prueba real el
   mismo tope se aplicó de dos formas: Decisions se partió en dos tandas y
   Gemini no. Ahora la regla es común y está en `SKILL.md`: solo si pides más
-  correos que el tope («sobre 100»), se lanzan más ejecuciones, cada una con
-  los correos que la anterior dejó fuera, con el mismo evaluador y modelo,
-  hasta 500 correos por sesión entre todas y sin reenviar ninguno (500 es lo
-  máximo que acepta el informe final de una sesión). Si una falla o el
-  proveedor se detiene, no se lanzan más. Sin un número, una sola ejecución, diciendo
-  cuántos quedan fuera. Es una regla para el modelo, no un freno del script.
+  correos de los que caben en una ejecución («sobre 100»; cada una admite como
+  mucho 50), se lanzan más, cada una con los correos que faltan y con el mismo
+  evaluador y modelo, hasta 500 correos por sesión entre todas y sin reenviar
+  ninguno (500 es lo máximo que acepta el informe final de una sesión). Si una
+  falla o el proveedor se detiene, no se lanzan más. Sin un número, una sola
+  ejecución, diciendo cuántos quedan fuera. Es una regla para el modelo, no un
+  freno del script.
 - **Cada veredicto sale de leer el correo en la sesión.** En una prueba real,
   para comparar con Gemini, la sesión reutilizó los veredictos de una
   simulación anterior sin releer los textos y generó otros con un script propio

@@ -139,12 +139,13 @@ proveedor elegido. Decisions usa `OPENAI_API_KEY`. `comparar` fuerza simulación
 Simulación solicitada siempre prevalece. No combinar evaluadores: con varias
 capas activas, pregunta cuál usar antes de enviar datos.
 **Tandas (v3.28.2), regla común a estas cinco capas.** Su `max_llamadas` es por
-ejecución. Solo si la persona pide más correos que ese tope («sobre 100»), lanza
-otra ejecución con las filas que la anterior dejó en `limite_llamadas`, misma
-capa y modelo, hasta 500 correos por sesión entre todas (el tope de `informe`);
-nunca reenvíes un correo ya enviado. Con
-`ok: false` o filas `proveedor_detenido`, no sigas. Sin número, una sola: di
-cuántos quedan fuera. Informa del consumo de cada una y la suma.
+ejecución, y cada ejecución admite como mucho 50 correos. Solo si la persona pide
+más de los que caben en una («sobre 100»), lanza otra, misma capa y modelo, con
+los que faltan: los que la anterior dejó en `limite_llamadas` y los que no
+entraron en ella; hasta 500 correos por sesión entre todas (el tope de
+`informe`). Nunca reenvíes un correo ya enviado. Con `ok: false` o filas
+`proveedor_detenido`, no sigas. Sin número, una sola: di cuántos quedan fuera.
+Informa del consumo de cada una y la suma.
 <!-- i18n:fin -->
 
 Lee la configuración antes de cualquier fase. Contiene perfil, carpetas y pesos.
