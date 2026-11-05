@@ -7,11 +7,13 @@ Gemini, citando «no repetir para eludirlo», que solo estaba escrito en
 decisión del mantenedor la regla es una sola, en el bloque «Evaluadores
 externos» del SKILL.md: tandas solo si la persona pide más correos que el
 tope, con los que faltan (los que la anterior dejó en `limite_llamadas` y los
-que no entraron en ella, que admite como mucho `MAX_LOTE`), hasta 500 correos
-por sesión entre todas, sin reenviar ninguno. El mantenedor pidió
-2000; quedan en 500 porque `informe` no acepta más unidades por sesión
-(`_INFORME_MAX_UNIDADES`) y una sesión que no puede cerrar su informe no es un
-triaje válido. Si ese tope sube, este test pide subir también el de la regla.
+que no entraron en ella, que admite como mucho `MAX_LOTE`), hasta 2000
+correos por sesión entre todas, sin reenviar ninguno, y con más de dos, una
+pausa tras la primera para confirmar el gasto. v3.28.2 lo dejó en 500 porque
+`informe` no aceptaba más; v3.28.3 sube ese tope y el de las huellas
+(`MAX_FILAS_HUELLAS`) a 2000. Una sesión que no puede cerrar su informe, o
+cuyo freno de plantillas no mide, no es un triaje válido: este test ata los
+tres números.
 
 Es doctrina, no un freno del script: este test vigila que la regla no se
 contradiga en otro documento y que los motivos que cita sigan existiendo en
@@ -57,7 +59,9 @@ class TestReglaTandas(unittest.TestCase):
                       "`limite_llamadas`", "los que no entraron en ella",
                       "correos por sesión entre todas",
                       "Nunca reenvíes un correo ya enviado",
-                      "`proveedor_detenido`", "Sin número, una sola"):
+                      "`proveedor_detenido`", "Sin número, una sola",
+                      "Si van a ser más de dos, tras la primera",
+                      "espera a que la persona confirme"):
             self.assertIn(trozo, regla)
 
     def test_el_tope_por_ejecucion_es_el_de_clasificadores(self):
@@ -80,6 +84,9 @@ class TestReglaTandas(unittest.TestCase):
         m = re.search(r"hasta (\d+) correos por sesión", regla)
         self.assertIsNotNone(m, "la regla no cita su tope de correos")
         self.assertEqual(int(m.group(1)), th._INFORME_MAX_UNIDADES)
+        # v3.28.3: por encima de MAX_FILAS_HUELLAS el freno de plantillas
+        # deja de medir (`lote_grande`); no puede quedar por debajo.
+        self.assertGreaterEqual(th.MAX_FILAS_HUELLAS, th._INFORME_MAX_UNIDADES)
 
     def test_los_motivos_que_cita_existen_en_el_codigo(self):
         # Si el script renombra un motivo, la regla deja de poder aplicarse.
