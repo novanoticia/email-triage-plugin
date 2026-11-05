@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.28.2
+# Email Triage Plugin v3.28.3
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,25 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.28.3
+
+- **Sesiones de hasta 2000 correos con un evaluador externo.** La regla de
+  tandas de la v3.28.2 se quedó en 500 correos por sesión porque el informe
+  final no aceptaba más y porque, por encima de 500, el freno que detecta
+  veredictos asignados en serie (`plantilla_cercana`) dejaba de medir: buscaba
+  correos parecidos comparándolos todos con todos, y con 2000 tardaba 16
+  segundos en cada paso. Ahora solo compara los que pueden parecerse, con el
+  mismo resultado exacto (fijado por un test contra el método anterior): con
+  2000 correos ficticios, cada paso tarda menos de medio segundo y el freno
+  los mide todos. El informe acepta 2000 correos y la regla de tandas sube a
+  2000.
+- **Pausa para confirmar el gasto.** Si una sesión necesita más de dos
+  ejecuciones del evaluador, después de la primera se te dice cuánto ha costado
+  y cuánto costarían todas a ese ritmo, y no se sigue hasta que lo confirmas.
+- **Qué no cambia.** Cada ejecución sigue admitiendo como mucho 50 correos y
+  su `max_llamadas`, y la regla sigue siendo una instrucción para el modelo,
+  no un freno del script.
 
 ## Novedades en v3.28.2
 

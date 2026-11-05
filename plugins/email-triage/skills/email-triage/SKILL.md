@@ -16,7 +16,7 @@ compatibility: >
   Claude Code, Claude Cowork y ChatGPT.
 license: Apache-2.0
 metadata:
-  version: "3.28.2"
+  version: "3.28.3"
   author: novanoticia
 ---
 
@@ -142,10 +142,12 @@ capas activas, pregunta cuál usar antes de enviar datos.
 ejecución, y cada ejecución admite como mucho 50 correos. Solo si la persona pide
 más de los que caben en una («sobre 100»), lanza otra, misma capa y modelo, con
 los que faltan: los que la anterior dejó en `limite_llamadas` y los que no
-entraron en ella; hasta 500 correos por sesión entre todas (el tope de
-`informe`). Nunca reenvíes un correo ya enviado. Con `ok: false` o filas
-`proveedor_detenido`, no sigas. Sin número, una sola: di cuántos quedan fuera.
-Informa del consumo de cada una y la suma.
+entraron en ella; hasta 2000 correos por sesión entre todas (el tope de
+`informe`). Si van a ser más de dos, tras la primera di su consumo y lo que
+costarían todas a ese ritmo, y espera a que la persona confirme. Nunca
+reenvíes un correo ya enviado. Con `ok: false` o filas `proveedor_detenido`,
+no sigas. Sin número, una sola: di cuántos quedan fuera. Informa del consumo
+de cada una y la suma.
 <!-- i18n:fin -->
 
 Lee la configuración antes de cualquier fase. Contiene perfil, carpetas y pesos.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.28.2).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.28.3).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -1867,10 +1867,12 @@ UMBRAL_INMOVILES = 15
 DIST_CERCANA = 3
 MIN_VECINOS_CERCANA = 4
 MIN_CRITERIOS_CERCANA = 20
-# /code-review ultra (PR #128, hallazgo 3): la búsqueda de vecinos es
-# cuadrática; con 2000 filas tardaba 16 s en cada `scoring` de lote. Una
-# sesión tiene como mucho 50 correos: 500 da margen sin coste visible.
-MAX_FILAS_HUELLAS = 500
+# /code-review ultra (PR #128, hallazgo 3): la búsqueda de vecinos era
+# cuadrática; con 2000 filas tardaba 16 s en cada `scoring` de lote y el
+# tope era 500. Desde v3.28.3 `_vecinos_cercanos` compara solo candidatos
+# (mismo resultado) y el tope sigue al de `informe`: una sesión de tandas
+# puede llegar a 2000 correos y el freno tiene que medirlos todos.
+MAX_FILAS_HUELLAS = 2000
 
 
 def _valor_clave(v):
@@ -1953,32 +1955,80 @@ def _metricas_plantilla(filas):
     # correos casi iguales entre tiers. Cada par se compara una vez, con las
     # claves precalculadas y salida en cuanto pasa de DIST_CERCANA (hallazgo 3).
     aptos = [k for k in range(n) if len(validas[k][1]) >= MIN_CRITERIOS_CERCANA]
-    claves = {k: set(validas[k][1]) for k in aptos}
-    vecinos = {k: 0 for k in aptos}
-    tiers_vec = {k: {validas[k][2]} for k in aptos}
-    for x, a in enumerate(aptos):
-        va, ka = validas[a][1], claves[a]
-        for b in aptos[x + 1:]:
-            vb, kb = validas[b][1], claves[b]
-            dist = len(ka ^ kb)
-            if dist > DIST_CERCANA:
-                continue
-            for c in ka & kb:
-                if va[c] != vb[c]:
-                    dist += 1
-                    if dist > DIST_CERCANA:
-                        break
-            if dist <= DIST_CERCANA:
-                vecinos[a] += 1
-                vecinos[b] += 1
-                tiers_vec[a].add(validas[b][2])
-                tiers_vec[b].add(validas[a][2])
+    vecinos, tiers_vec = _vecinos_cercanos(validas, aptos)
     cercanos = [validas[k][0] for k in aptos
                 if vecinos[k] >= MIN_VECINOS_CERCANA
                 and len(tiers_vec[k] - {None}) >= 2]
     return {"correos": n, "tiers": len(tiers), "criterios": len(cuenta),
             "criterios_max": max((len(vs) for _, vs, _ in validas), default=0),
             "inmoviles": inmoviles, "cercanos": cercanos}
+
+
+_FALTA = object()   # criterio sin veredicto en esa fila (distinto de todo)
+
+
+def _vecinos_cercanos(validas, aptos):
+    """Vecinos a <= DIST_CERCANA veredictos, sin comparar todos los pares.
+
+    v3.28.3 (sesiones de hasta 2000 correos): la comparación de todos los
+    pares tardaba 16 s por `scoring` con 2000 filas y por eso las huellas
+    se omitían por encima de 500. Mismo resultado con dos atajos exactos:
+    - Palomar: la distancia es la de Hamming sobre la unión de criterios
+      (un criterio presente en una fila y no en la otra cuenta 1, como
+      `len(ka ^ kb)`). Partida esa unión en DIST_CERCANA + 1 bloques, dos
+      filas a distancia <= DIST_CERCANA coinciden enteras en al menos un
+      bloque: solo se comparan las que comparten alguno.
+    - Fila resuelta: con MIN_VECINOS_CERCANA vecinos en 2+ tiers ya es
+      `plantilla_cercana`; un par de dos filas resueltas no cambia nada y
+      se salta. Los recuentos quedan como cota inferior, que es lo único
+      que usan los umbrales.
+    Devuelve (vecinos, tiers_vec) por índice de `validas`."""
+    vecinos = {k: 0 for k in aptos}
+    tiers_vec = {k: {validas[k][2]} for k in aptos}
+    if len(aptos) < 2:
+        return vecinos, tiers_vec
+    union = sorted({c for k in aptos for c in validas[k][1]})
+    vec = {k: tuple(validas[k][1].get(c, _FALTA) for c in union) for k in aptos}
+    nb = DIST_CERCANA + 1
+    cortes = [round(j * len(union) / nb) for j in range(nb + 1)]
+    bloques = [(cortes[j], cortes[j + 1]) for j in range(nb)
+               if cortes[j + 1] > cortes[j]]
+    if len(bloques) < nb:
+        # Con menos criterios que bloques el palomar no garantiza nada: un
+        # bloque vacío hace candidatas a todas (hoy imposible: cada fila
+        # apta trae MIN_CRITERIOS_CERCANA criterios).
+        bloques = [(0, 0)]
+    indice = [{} for _ in bloques]
+    for k in aptos:
+        for j, (i0, i1) in enumerate(bloques):
+            indice[j].setdefault(vec[k][i0:i1], []).append(k)
+    orden = {k: x for x, k in enumerate(aptos)}
+
+    def resuelta(k):
+        return (vecinos[k] >= MIN_VECINOS_CERCANA
+                and len(tiers_vec[k] - {None}) >= 2)
+
+    for a in aptos:
+        va, xa, vistos = vec[a], orden[a], set()
+        for j, (i0, i1) in enumerate(bloques):
+            for b in indice[j][va[i0:i1]]:
+                if orden[b] <= xa or b in vistos:
+                    continue
+                vistos.add(b)
+                if resuelta(a) and resuelta(b):
+                    continue
+                dist = 0
+                for x, y in zip(va, vec[b]):
+                    if x != y:
+                        dist += 1
+                        if dist > DIST_CERCANA:
+                            break
+                if dist <= DIST_CERCANA:
+                    vecinos[a] += 1
+                    vecinos[b] += 1
+                    tiers_vec[a].add(validas[b][2])
+                    tiers_vec[b].add(validas[a][2])
+    return vecinos, tiers_vec
 
 
 def _huellas_desde_metricas(filas, m):
@@ -5654,7 +5704,7 @@ _INFORME_TIERS = (("REPLY_NEEDED", "🔴"), ("REVIEW", "🟡"),
                   ("READING_LATER", "🔵"), ("ARCHIVE", "⚪"))
 _INFORME_MODOS = ("real", "simulacion", "rutina")
 _INFORME_ACCIONES = ("movido", "propuesto", "dejado", "excluido", "fallido")
-_INFORME_MAX_UNIDADES = 500
+_INFORME_MAX_UNIDADES = 2000   # v3.28.3: sesiones de tandas (antes 500)
 _INFORME_MAX_CELDA = 140
 _RE_SESSION_ID = re.compile(r"^[A-Za-z0-9_.-]{1,64}$")
 _MD_ESPECIALES = re.compile(r"([\\`*_\[\]()|#!~])")
