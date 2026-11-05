@@ -103,6 +103,14 @@ relue par un humain. / Traducción generada por una IA, sin revisión humana.
   máximo que acepta el informe final de una sesión). Si una falla o el
   proveedor se detiene, no se lanzan más. Sin un número, una sola ejecución, diciendo
   cuántos quedan fuera. Es una regla para el modelo, no un freno del script.
+- **Cada veredicto sale de leer el correo en la sesión.** En una prueba real,
+  para comparar con Gemini, la sesión reutilizó los veredictos de una
+  simulación anterior sin releer los textos y generó otros con un script propio
+  por categoría. Ahora `SKILL.md` lo prohíbe en real y en rutina. Solo en
+  simulación, para comparar proveedores sobre los mismos correos, se pueden
+  reutilizar los de una simulación anterior, y el informe tiene que decirlo y
+  con cuántos. Es una regla para el modelo; el freno mecánico contra veredictos
+  en serie sigue siendo la detección de plantillas.
 
 ## Novedades en v3.28.1
 

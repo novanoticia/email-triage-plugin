@@ -538,6 +538,12 @@ revisa la evidencia antes de reintegrar. Hard rules, señales de respuesta y cap
 permanecen bajo control del principal. Con Jev activo, aplica `references/jev.md`:
 `evaluar` en híbrido, `comparar` en simulación; con Decisions activo, lo mismo
 con `references/decisions.md`. Sin delegación, sigue este paso.
+**Veredictos de esta sesión (v3.28.2).** Cada veredicto sale de leer en esta
+sesión el texto saneado de ese correo: nunca de otra sesión, de otro correo ni
+de un script tuyo que los asigne por categoría o remitente. En real y en rutina,
+sin excepción. Solo en simulación, para comparar proveedores sobre los mismos
+correos, puedes reutilizar los de una simulación anterior si lo dices en el
+informe, con cuántos son; nunca como evaluación nueva.
 <!-- i18n:fin -->
 
 El modelo evalúa cada correo contra los criterios epistémicos definidos en

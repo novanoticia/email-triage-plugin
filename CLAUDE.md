@@ -489,7 +489,12 @@ persona pide más correos que `max_llamadas`, con las filas `limite_llamadas`,
 hasta 500 correos por sesión entre todas (`_INFORME_MAX_UNIDADES`: el
 mantenedor pidió 2000, pero `informe` no acepta más) y sin reenviar ninguno.
 Es doctrina, no un freno del script
-(prueba real: Decisions partido en dos tandas, Gemini no). Desde v3.26.0 `ollama_so.py`
+(prueba real: Decisions partido en dos tandas, Gemini no). También desde
+v3.28.2, en el bloque de delegación del PASO 4 del `SKILL.md`, cada veredicto
+sale de leer ese correo en esa sesión, nunca de otra sesión ni de un script
+propio; solo en simulación se pueden reutilizar los de una simulación
+anterior, declarándolo en el informe (`tests/test_regla_veredictos.py`; prueba
+real: veredictos reutilizados «sin releer los textos»). Desde v3.26.0 `ollama_so.py`
 (`qwen3.5:latest` en `127.0.0.1:11434`, misma vía sin clave ni proxy): el correo
 no sale del Mac, pero el doble consentimiento se exige igual; es el único que
 declara `TIMEOUT_MAXIMO` (600) en `config_capa`, el resto sigue en 60. Desde
