@@ -96,8 +96,9 @@ ocupado con una petición abandonada no se detecta y sigue saliendo
 Límites: 1–50 llamadas por invocación, timeout 1–60 segundos (1–600 con
 Ollama, que tarda unos 110 s por correo en un Mac de 16 GB), una petición por
 correo y hasta 8192 tokens de salida. Una petición demasiado grande se rechaza
-antes de enviar. El presupuesto por ejecución no limita el gasto de una sesión
-si el orquestador ejecuta varias veces: no repetir para eludirlo.
+antes de enviar. El presupuesto por ejecución no limita el gasto de una sesión:
+varias ejecuciones solo valen como tandas, con la regla común de «Evaluadores
+externos» del `SKILL.md` (v3.28.2).
 
 `tolerancia_dudas` solo admite **0**. Cualquier valor superior se rechaza con
 `tolerancia_dudas_no_disponible`. Las dudas son texto libre: ni un nombre de

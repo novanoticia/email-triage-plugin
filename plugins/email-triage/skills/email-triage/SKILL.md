@@ -16,7 +16,7 @@ compatibility: >
   Claude Code, Claude Cowork y ChatGPT.
 license: Apache-2.0
 metadata:
-  version: "3.28.1"
+  version: "3.28.2"
   author: novanoticia
 ---
 
@@ -138,6 +138,14 @@ proveedor elegido. Decisions usa `OPENAI_API_KEY`. `comparar` fuerza simulación
 `hibrido` explícito permite veredictos revisados, sin nuevos permisos de movimiento.
 Simulación solicitada siempre prevalece. No combinar evaluadores: con varias
 capas activas, pregunta cuál usar antes de enviar datos.
+**Tandas (v3.28.2), regla común a estas cinco capas.** Su `max_llamadas` es por
+ejecución, y cada ejecución admite como mucho 50 correos. Solo si la persona pide
+más de los que caben en una («sobre 100»), lanza otra, misma capa y modelo, con
+los que faltan: los que la anterior dejó en `limite_llamadas` y los que no
+entraron en ella; hasta 500 correos por sesión entre todas (el tope de
+`informe`). Nunca reenvíes un correo ya enviado. Con `ok: false` o filas
+`proveedor_detenido`, no sigas. Sin número, una sola: di cuántos quedan fuera.
+Informa del consumo de cada una y la suma.
 <!-- i18n:fin -->
 
 Lee la configuración antes de cualquier fase. Contiene perfil, carpetas y pesos.
@@ -495,7 +503,8 @@ no existen). Derivan de las listas del config (`remitentes_prioritarios`,
 determinista se suman entre sí y se pasan como un único entero en
 `extra_points`; en modo mental se aplican con este mismo baremo.
 Los de `filtros` los calcula `coincidencias` (v3.21.8, ver
-`references/personalizacion.md`): no los cuentes a mano.
+`references/personalizacion.md`): no los cuentes a mano. Si devuelve
+`palabras_solo_como_raiz` o `correos_sin_cuerpo` > 0, dilo.
 Pasa además a `scoring` el `remitente` (dirección) y el `prioritario` de
 `coincidencias`: con `filtros.suelo_prioritarios` activo, el script no lo
 deja bajar de ese tier (`suelo_aplicado`). Nunca apliques el suelo a mano.
@@ -531,6 +540,12 @@ revisa la evidencia antes de reintegrar. Hard rules, señales de respuesta y cap
 permanecen bajo control del principal. Con Jev activo, aplica `references/jev.md`:
 `evaluar` en híbrido, `comparar` en simulación; con Decisions activo, lo mismo
 con `references/decisions.md`. Sin delegación, sigue este paso.
+**Veredictos de esta sesión (v3.28.2).** Cada veredicto sale de leer en esta
+sesión el texto saneado de ese correo: nunca de otra sesión, de otro correo ni
+de un script tuyo que los asigne por categoría o remitente. En real y en rutina,
+sin excepción. Solo en simulación, para comparar proveedores sobre los mismos
+correos, puedes reutilizar los de una simulación anterior si lo dices en el
+informe, con cuántos son; nunca como evaluación nueva.
 <!-- i18n:fin -->
 
 El modelo evalúa cada correo contra los criterios epistémicos definidos en

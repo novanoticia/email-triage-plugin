@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.28.1).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.28.2).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -4333,14 +4333,38 @@ def _keywords_boost(v):
     return salida
 
 
+def _diagnostico_palabras(palabras, usados, planos):
+    """v3.28.2 (prueba real 2026-11-03: «las palabras clave no puntuaban»).
+
+    Devuelve (sin_coincidencia, solo_como_raiz): las palabras clave del
+    config, boost y penalizar, sin repetir y en su orden, que no casaron con
+    ningún correo del lote, y de esas las que sí aparecen como comienzo de
+    una palabra más larga. El casado es por palabra completa, así que una
+    raíz («cognitiv») no casa nunca con «cognitiva»: hay que escribir la
+    palabra entera. Las entradas vacías no cuentan. Solo textos del config,
+    nunca del correo."""
+    sin, raiz = [], []
+    for p in palabras:
+        plana = _plano(p).strip()
+        if not plana or p in sin or ("palabra", p) in usados:
+            continue
+        sin.append(p)
+        patron = re.compile(r"(?<!\w)%s\w" % re.escape(plana))
+        if any(patron.search(t) for t in planos):
+            raiz.append(p)
+    return sin, raiz
+
+
 def cmd_coincidencias(datos, cfg) -> dict:
     """Aplica `filtros` del config (remitentes_prioritarios, remitentes_ignorar,
     palabras_clave_boost, palabras_clave_penalizar) a {"correos": [{id,
     remitente, asunto, cuerpo?}]}. Devuelve por correo `extra_points_filtros`
     (a sumar en extra_points), `prioritario`, `ignorar` y el detalle; con
     `remitentes_lectura` configurada, también `lectura` (v3.28.0: anula el
-    `prioritario` y su +3, D4; el tier lo fija `scoring`). Solo
-    devuelve textos del CONFIG, nunca del correo. Función TOTAL; no escribe."""
+    `prioritario` y su +3, D4; el tier lo fija `scoring`). Desde v3.28.2
+    también `palabras_sin_coincidencia`, `palabras_solo_como_raiz` y
+    `correos_sin_cuerpo` (ver `_diagnostico_palabras`). Solo devuelve textos
+    del CONFIG, nunca del correo. Función TOTAL; no escribe."""
     try:
         return _coincidencias_nucleo(datos, cfg)
     except Exception as e:   # red universal: cultura de fuzz del repo
@@ -4360,7 +4384,7 @@ def _coincidencias_nucleo(datos, cfg):
     lectura = _lista_texto(f.get("remitentes_lectura"))   # v3.28.0
     boost = _keywords_boost(f.get("palabras_clave_boost"))
     penalizar = _lista_texto(f.get("palabras_clave_penalizar"))
-    usados, resultados = set(), []
+    usados, resultados, planos, sin_cuerpo = set(), [], [], 0
     for i, c in enumerate(correos):
         if not isinstance(c, dict):
             resultados.append({"indice": i, "error": "no es un objeto JSON"})
@@ -4369,6 +4393,8 @@ def _coincidencias_nucleo(datos, cfg):
                  for k in ("remitente", "asunto", "cuerpo")}
         addr, dominio = _direccion(texto["remitente"])
         asunto, cuerpo = _plano(texto["asunto"]), _plano(texto["cuerpo"])
+        planos.extend((asunto, cuerpo))
+        sin_cuerpo += not cuerpo.strip()
         r = {"id": c.get("id", i), "prioritario": False, "ignorar": False,
              "extra_points_filtros": 0, "detalle": []}
         if lectura:
@@ -4415,10 +4441,15 @@ def _coincidencias_nucleo(datos, cfg):
     sin_uso = [e for e in prioritarios if ("remitente", e) not in usados]
     no_validas = [e for e in prioritarios + ignorar + lectura
                   if _tipo_entrada(e) is None]
+    palabras_sin, solo_raiz = _diagnostico_palabras(
+        [p for p, _ in boost] + penalizar, usados, planos)
     return {"ok": True, "resultados": resultados,
             "suelo_prioritarios": _suelo_prioritarios(cfg),
             "prioritarios_sin_coincidencia": sin_uso,
             "entradas_no_validas": no_validas,
+            "palabras_sin_coincidencia": palabras_sin,
+            "palabras_solo_como_raiz": solo_raiz,
+            "correos_sin_cuerpo": sin_cuerpo,
             "nota": "extra_points_filtros solo cubre filtros del config; los "
                     "boosts de calibración (historial, dominio) se suman aparte"}
 

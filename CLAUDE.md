@@ -482,7 +482,25 @@ fija en `scoring` el tier en `READING_LATER`, como suelo y como techo, por el
 `remitente` del payload (`lectura_aplicada`): solo `forzar_reply_needed` y
 `deadline_explicito_boost` levantan el techo, el cap por inyección manda, no
 suma puntos y anula el `prioritario` (y su +3 en `coincidencias`); va en
-`cmd_scoring`, así que en híbrido se aplica igual. Desde v3.26.0 `ollama_so.py`
+`cmd_scoring`, así que en híbrido se aplica igual. Desde v3.28.2 la regla de
+tandas de las cinco capas externas es una sola, en «Evaluadores externos» del
+`SKILL.md` (decisión del mantenedor; `tests/test_regla_tandas.py`): solo si la
+persona pide más correos de los que caben en una ejecución, con los que faltan
+(filas `limite_llamadas` y los que no entraron: cada una admite `MAX_LOTE`, 50),
+hasta 500 correos por sesión entre todas (`_INFORME_MAX_UNIDADES`: el
+mantenedor pidió 2000, pero `informe` no acepta más) y sin reenviar ninguno.
+Es doctrina, no un freno del script
+(prueba real: Decisions partido en dos tandas, Gemini no). También desde
+v3.28.2, en el bloque de delegación del PASO 4 del `SKILL.md`, cada veredicto
+sale de leer ese correo en esa sesión, nunca de otra sesión ni de un script
+propio; solo en simulación se pueden reutilizar los de una simulación
+anterior, declarándolo en el informe (`tests/test_regla_veredictos.py`; prueba
+real: veredictos reutilizados «sin releer los textos»). Desde v3.28.2
+`coincidencias` devuelve `palabras_sin_coincidencia`, `palabras_solo_como_raiz`
+(raíces como «cognitiv» que el casado por palabra completa no encuentra nunca)
+y `correos_sin_cuerpo`; solo textos del config y recuentos, nunca del correo
+(prueba real: «las palabras clave no puntuaban», atribuido sin pruebas a la
+versión). Desde v3.26.0 `ollama_so.py`
 (`qwen3.5:latest` en `127.0.0.1:11434`, misma vía sin clave ni proxy): el correo
 no sale del Mac, pero el doble consentimiento se exige igual; es el único que
 declara `TIMEOUT_MAXIMO` (600) en `config_capa`, el resto sigue en 60. Desde
