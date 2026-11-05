@@ -32,6 +32,12 @@ Reglas, fijadas por tests:
   peso; solo en el cuerpo: +1. Penalizar: -2 por palabra.
 - `prioritarios_sin_coincidencia` lista las entradas que no casaron con
   ningún correo del lote: pista de una dirección mal escrita, no una prueba.
+- `palabras_sin_coincidencia` (v3.28.2) hace lo mismo con las palabras clave,
+  y `palabras_solo_como_raiz` separa las que solo aparecen como comienzo de una
+  palabra más larga («cognitiv» en «cognitiva»): no casan nunca, escribe la
+  palabra entera. `correos_sin_cuerpo` cuenta los que llegaron sin `cuerpo`; en
+  ellos una palabra del cuerpo no puede casar. Si algo de esto no está vacío,
+  dilo con el número antes de atribuirlo a la versión del plugin.
 - `remitentes_ignorar` sale como `ignorar: true`: ese correo se descarta antes
   del scoring.
 - `limite_por_sesion` — máximo por ejecución (default: 50)

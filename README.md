@@ -111,6 +111,13 @@ relue par un humain. / Traducción generada por una IA, sin revisión humana.
   reutilizar los de una simulación anterior, y el informe tiene que decirlo y
   con cuántos. Es una regla para el modelo; el freno mecánico contra veredictos
   en serie sigue siendo la detección de plantillas.
+- **Saber por qué una palabra clave no puntúa.** Las palabras clave casan por
+  palabra completa, así que una raíz como «cognitiv» no casa nunca con
+  «cognitiva». Ahora el cálculo de filtros devuelve qué palabras clave no han
+  casado con ningún correo, cuáles aparecen solo como comienzo de una palabra
+  más larga (escríbelas enteras) y cuántos correos llegaron sin cuerpo, porque
+  en esos una palabra del cuerpo no puede casar. Solo devuelve palabras de tu
+  configuración y recuentos, nunca texto de los correos.
 
 ## Novedades en v3.28.1
 

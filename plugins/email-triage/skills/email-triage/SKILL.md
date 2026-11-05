@@ -502,7 +502,8 @@ no existen). Derivan de las listas del config (`remitentes_prioritarios`,
 determinista se suman entre sí y se pasan como un único entero en
 `extra_points`; en modo mental se aplican con este mismo baremo.
 Los de `filtros` los calcula `coincidencias` (v3.21.8, ver
-`references/personalizacion.md`): no los cuentes a mano.
+`references/personalizacion.md`): no los cuentes a mano. Si devuelve
+`palabras_solo_como_raiz` o `correos_sin_cuerpo` > 0, dilo.
 Pasa además a `scoring` el `remitente` (dirección) y el `prioritario` de
 `coincidencias`: con `filtros.suelo_prioritarios` activo, el script no lo
 deja bajar de ese tier (`suelo_aplicado`). Nunca apliques el suelo a mano.
