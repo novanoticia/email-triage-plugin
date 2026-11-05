@@ -486,7 +486,9 @@ suma puntos y anula el `prioritario` (y su +3 en `coincidencias`); va en
 tandas de las cinco capas externas es una sola, en «Evaluadores externos» del
 `SKILL.md` (decisión del mantenedor; `tests/test_regla_tandas.py`): solo si la
 persona pide más correos que `max_llamadas`, con las filas `limite_llamadas`,
-hasta 4 por sesión y sin reenviar ninguno. Es doctrina, no un freno del script
+hasta 500 correos por sesión entre todas (`_INFORME_MAX_UNIDADES`: el
+mantenedor pidió 2000, pero `informe` no acepta más) y sin reenviar ninguno.
+Es doctrina, no un freno del script
 (prueba real: Decisions partido en dos tandas, Gemini no). Desde v3.26.0 `ollama_so.py`
 (`qwen3.5:latest` en `127.0.0.1:11434`, misma vía sin clave ni proxy): el correo
 no sale del Mac, pero el doble consentimiento se exige igual; es el único que

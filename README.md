@@ -99,8 +99,9 @@ relue par un humain. / Traducción generada por una IA, sin revisión humana.
   Gemini no. Ahora la regla es común y está en `SKILL.md`: solo si pides más
   correos que el tope («sobre 100»), se lanzan más ejecuciones, cada una con
   los correos que la anterior dejó fuera, con el mismo evaluador y modelo,
-  hasta 4 por sesión y sin reenviar ninguno. Si una falla o el proveedor se
-  detiene, no se lanzan más. Sin un número, una sola ejecución, diciendo
+  hasta 500 correos por sesión entre todas y sin reenviar ninguno (500 es lo
+  máximo que acepta el informe final de una sesión). Si una falla o el
+  proveedor se detiene, no se lanzan más. Sin un número, una sola ejecución, diciendo
   cuántos quedan fuera. Es una regla para el modelo, no un freno del script.
 
 ## Novedades en v3.28.1

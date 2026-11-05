@@ -141,7 +141,8 @@ capas activas, pregunta cuál usar antes de enviar datos.
 **Tandas (v3.28.2), regla común a estas cinco capas.** Su `max_llamadas` es por
 ejecución. Solo si la persona pide más correos que ese tope («sobre 100»), lanza
 otra ejecución con las filas que la anterior dejó en `limite_llamadas`, misma
-capa y modelo, hasta 4 por sesión; nunca reenvíes un correo ya enviado. Con
+capa y modelo, hasta 500 correos por sesión entre todas (el tope de `informe`);
+nunca reenvíes un correo ya enviado. Con
 `ok: false` o filas `proveedor_detenido`, no sigas. Sin número, una sola: di
 cuántos quedan fuera. Informa del consumo de cada una y la suma.
 <!-- i18n:fin -->
