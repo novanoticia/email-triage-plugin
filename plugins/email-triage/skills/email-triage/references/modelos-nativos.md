@@ -134,6 +134,29 @@ Entrega únicamente al especialista:
   lo recompongas de memoria ni juntes trozos de varias lecturas** (v3.21.36;
   prueba real: texto ajeno en una unidad, otra cortada, una línea perdida).
   Pide al especialista el `eco` de cada unidad (ver contrato).
+- **Monta el mensaje con `preparar` (v3.28.4), nunca con un script propio.**
+  Guarda la salida de cada `sanitizar` en `tmp/saneado_<id>.json` (con `>` al
+  final del mismo comando; evalúa tú leyendo ese fichero) y escribe
+  `tmp/modelos-preparar.json` con `plan`, `idioma`, `perfil_minimo` y
+  `unidades: [{"id", "saneado": ruta, "fecha"}]`. Pasa las mismas capas que a
+  `validar`:
+
+  ```bash
+  python3 "<ruta-del-skill>/scripts/modelos.py" preparar --config ~/.email-triage/config.yaml < ~/.email-triage/tmp/modelos-preparar.json > ~/.email-triage/tmp/modelos-preparado.json
+  python3 "<ruta-del-skill>/scripts/modelos.py" preparar --config ~/.email-triage/config.yaml --solo-mensaje < ~/.email-triage/tmp/modelos-preparar.json
+  ```
+
+  Del primero salen `lote` (va tal cual a `validar`), `esperados` (sus
+  `huella_extracto` y `ancla_extracto`; el `control` lo añades tú) y
+  `excluidas`: inyección, cap, un saneado retocado o fuera de `tmp/`; se
+  quedan en el principal con su motivo. El segundo imprime el mensaje, que
+  ya lleva el contrato, el idioma, el perfil, los criterios y cada extracto
+  en su etiqueta, con asunto y remitente fuera. Pásalo al especialista
+  **entero y tal cual**: sin resumirlo, recomponerlo ni añadirle frases. Es la
+  única copia a mano que queda, y la comprueba `validar` con el transcript
+  (`entrega_distinta`). Prueba real 2026-11-05: un generador propio puso el
+  asunto dentro de la etiqueta, y al reteclear ~15.000 caracteres cambió una
+  coma en un extracto y recompuso el final de otro.
 - `criterios_epistemicos` activos de la configuración efectiva (con la capa
   veloz fusionada por el mecanismo existente si aplica), sus preguntas, opciones
   y la distinción `core`. No hace falta transmitir cuentas, carpetas, credenciales,

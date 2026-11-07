@@ -519,7 +519,7 @@ class TestCLIYPaquete(unittest.TestCase):
         rng = random.Random(42)
         from tests.test_triage_helpers import _rand_json
         for _ in range(1000):
-            for cmd in ("planificar", "validar", "comparar"):
+            for cmd in ("planificar", "validar", "comparar", "preparar"):
                 r = m.ejecutar(cmd, _rand_json(rng))
                 self.assertIsInstance(r, dict)
                 json.dumps(r, allow_nan=False)
