@@ -389,7 +389,7 @@ prueba real: 4 de 41 alterados al copiar).
 Desde v3.22.10 ese transcript también da las herramientas (bloques `tool_use`
 del especialista) y manda sobre `acciones_especialista`: otra que no sea una
 `SubagentHandback` → `especialista_uso_herramientas`; declarar menos →
-`acciones_no_coinciden`. El freno ya no depende de lo que copia el principal. Es la única lectura de fichero de `modelos.py`; sigue sin escribir.
+`acciones_no_coinciden`. El freno ya no depende de lo que copia el principal. Es la única lectura de fichero de `modelos.py` junto con la de `preparar` (v3.28.4); sigue sin escribir.
 Desde v3.22.24 ese transcript también da la respuesta: la última
 `{"evaluaciones": …}` que escribió el especialista (texto `assistant` o
 entrada de su `SubagentHandback`). Sin `respuesta`, `validar` la toma de ahí;
@@ -505,7 +505,18 @@ versión). Desde v3.28.3 `MAX_FILAS_HUELLAS` y `_INFORME_MAX_UNIDADES` valen
 solo entre candidatos (palomar en DIST_CERCANA + 1 bloques y pares de filas ya
 resueltas), con el mismo resultado que comparar todos los pares
 (`tests/test_vecinos_cercanos.py`); 2000 correos ficticios dan un desglose de
-7,3 MB (tope de lectura 10 MB) y menos de 0,5 s por `scoring`. Desde v3.26.0 `ollama_so.py`
+7,3 MB (tope de lectura 10 MB) y menos de 0,5 s por `scoring`. Desde v3.28.4 el contrato nativo pide una evidencia por
+veredicto, y `validar` (y `evaluadores.py`) devuelven en `motivo_detalle` qué
+criterios fallaron (`modelos.detalle_motivo`: `criterios_sin_evidencia`,
+`evidencias_de_mas`, `core_en_no_aplica`, `no_aplica_sin_razon`; solo nombres
+del config y recuentos). La descripción de `razon_no_aplica` en `esquema.py`
+dice «Obligatoria si veredicto es __no_aplica__» (prueba real: 31 de 84 filas
+de OpenAI `strict` sin razón; un core no puede excluirse en ese esquema). Y
+`modelos.py preparar` (solo lectura: salidas de `sanitizar` dentro de
+`<base>/tmp/`) monta el mensaje del especialista, el `lote` y las huellas
+desde la misma fuente, y deja en `excluidas` inyección, cap y saneados
+retocados (prueba real: generador propio del principal y dos extractos
+alterados al reteclearlos). Desde v3.26.0 `ollama_so.py`
 (`qwen3.5:latest` en `127.0.0.1:11434`, misma vía sin clave ni proxy): el correo
 no sale del Mac, pero el doble consentimiento se exige igual; es el único que
 declara `TIMEOUT_MAXIMO` (600) en `config_capa`, el resto sigue en 60. Desde
