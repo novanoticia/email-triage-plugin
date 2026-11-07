@@ -212,6 +212,19 @@ def _validar_fila(fila, criterios):
     return None
 
 
+def _detalle_evidencias(fila, criterios):
+    """v3.28.4 (prueba real 2026-11-05: Haiku omitió la evidencia de
+    `confusion_productiva` en un lote entero y el principal tuvo que escribir
+    un script propio para saber cuál faltaba). Solo nombres de criterios del
+    config y un recuento; nunca texto del especialista."""
+    vs, ev = fila.get("verdicts"), fila.get("evidencias")
+    if not isinstance(vs, dict) or not isinstance(ev, dict):
+        return {}
+    sin = sorted(k for k in vs if k in criterios and not _texto(ev.get(k)))
+    return {"criterios_sin_evidencia": sin,
+            "evidencias_de_mas": sum(1 for k in ev if k not in vs)}
+
+
 def validar(p):
     """Valida por correo y calcula con scoring existente, sin cambiar sus reglas.
 
@@ -339,7 +352,10 @@ def validar(p):
             if not th.eco_coincide(fila.get("eco"), ancla):
                 motivo = "eco_distinto"
         if motivo:
-            resultados.append({"id": ident, "usar_principal": True, "motivo": motivo})
+            fallo = {"id": ident, "usar_principal": True, "motivo": motivo}
+            if motivo == "evidencias_ausentes":
+                fallo.update(_detalle_evidencias(fila, criterios))
+            resultados.append(fallo)
             continue
         entrada = dict(copy.deepcopy(control), id=ident, verdicts=fila["verdicts"])
         score = th.cmd_scoring_dispatch(entrada, cfg)

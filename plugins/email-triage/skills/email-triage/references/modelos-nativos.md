@@ -166,7 +166,11 @@ El ejemplo está abreviado: cubrir **todos los criterios activos** exactamente
 una vez entre `verdicts` y `no_aplica`. Todos los core requieren veredicto. Solo
 los no-core pueden figurar en `no_aplica`, con una razón no vacía; nunca usarlo
 para ocultar incertidumbre. Cada veredicto necesita evidencia breve, sin cadena
-de pensamiento. Si falta información o hay ambigüedad, indicarlo en `dudas`.
+de pensamiento: `evidencias` lleva exactamente las mismas claves que `verdicts`,
+una no vacía por veredicto, core o no, y ninguna para `no_aplica`. Antes de
+entregar, comprobar en cada unidad que ningún veredicto se queda sin la suya:
+falta una y la unidad entera no cuenta (v3.28.4; prueba real: Haiku omitió la de
+un mismo criterio en todo un lote). Si falta información o hay ambigüedad, indicarlo en `dudas`.
 El recorte del extracto, por sí solo, no es una duda (siempre lo hay).
 No inventar probabilidades ni incluir `score`, `tier`, caps o boosts.
 
@@ -259,7 +263,12 @@ python3 "<ruta-del-skill>/scripts/modelos.py" validar --config ~/.email-triage/c
 ```
 
 La validación rechaza IDs duplicados/extraños, criterios faltantes/desconocidos,
-opciones inválidas, core omitidos, evidencia vacía y campos adicionales. Calcula
+opciones inválidas, core omitidos, evidencia vacía y campos adicionales. Con
+`evidencias_ausentes`, la fila trae `criterios_sin_evidencia` (nombres del
+config) y `evidencias_de_mas` (un recuento): no escribas un script propio para
+averiguarlo, ni completes la evidencia que falta (v3.28.4). El contrato ya pide
+una por veredicto: no le añadas frases tuyas a mitad de sesión, que
+cambiarían las condiciones entre lotes de una misma comparación. Calcula
 con **el scoring determinista existente**, sin modificar pesos ni reglas.
 Devuelve por correo `usar_principal` o una propuesta con `payload_scoring`,
 `resultado`, `evidencias` y `resumen`. Un error global exige reevaluar el lote;
