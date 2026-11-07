@@ -359,7 +359,9 @@ def procesar(p, cfg, capa, transporte=None, modo="comparar"):
                 _exigir(len(evaluaciones) == 1 and evaluaciones[0]["id"] == e["id"], "ids_inesperados")
                 v = evaluaciones[0]
                 motivo = modelos._validar_fila(v, activos)
-                _exigir(motivo is None, motivo)
+                # v3.28.4: qué criterios, para no tener que adivinarlo.
+                _exigir(motivo is None, motivo,
+                        modelos.detalle_motivo(v, activos, motivo) or None)
                 _exigir(th.eco_coincide(v.get("eco"), ancla), "eco_distinto")
                 r["evaluacion_" + c["proveedor"]] = v
                 if modo == "comparar":

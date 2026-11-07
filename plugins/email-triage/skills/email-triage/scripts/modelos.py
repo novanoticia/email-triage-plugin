@@ -212,17 +212,31 @@ def _validar_fila(fila, criterios):
     return None
 
 
-def _detalle_evidencias(fila, criterios):
-    """v3.28.4 (prueba real 2026-11-05: Haiku omitió la evidencia de
-    `confusion_productiva` en un lote entero y el principal tuvo que escribir
-    un script propio para saber cuál faltaba). Solo nombres de criterios del
-    config y un recuento; nunca texto del especialista."""
-    vs, ev = fila.get("verdicts"), fila.get("evidencias")
-    if not isinstance(vs, dict) or not isinstance(ev, dict):
-        return {}
-    sin = sorted(k for k in vs if k in criterios and not _texto(ev.get(k)))
-    return {"criterios_sin_evidencia": sin,
-            "evidencias_de_mas": sum(1 for k in ev if k not in vs)}
+def detalle_motivo(fila, criterios, motivo):
+    """Qué criterios hicieron fallar la fila; {} si el motivo no lo admite.
+
+    v3.28.4. Solo nombres de criterios del config y recuentos, nunca texto
+    del especialista (va a `motivo_detalle`, como en clasificadores).
+    - `evidencias_ausentes` (prueba real 2026-11-05: Haiku omitió la de
+      `confusion_productiva` en un lote entero y el principal escribió un
+      script propio para saber cuál faltaba).
+    - `criterio_core_omitido_o_sin_justificacion`: el nombre junta dos casos
+      (prueba real 2026-11-05: 31 de 84 filas de OpenAI). Con el esquema
+      `strict` un core no puede elegir `__no_aplica__`, así que allí solo
+      queda `no_aplica_sin_razon`; separarlos dice cuál fue.
+    """
+    vs, ev, na = (fila.get(k) if isinstance(fila, dict) else None
+                  for k in ("verdicts", "evidencias", "no_aplica"))
+    if motivo == "evidencias_ausentes" and isinstance(vs, dict) and isinstance(ev, dict):
+        return {"criterios_sin_evidencia": sorted(
+                    k for k in vs if k in criterios and not _texto(ev.get(k))),
+                "evidencias_de_mas": sum(1 for k in ev if k not in vs)}
+    if motivo == "criterio_core_omitido_o_sin_justificacion" and isinstance(na, dict):
+        en_na = [k for k in na if k in criterios]
+        return {"core_en_no_aplica": sorted(k for k in en_na if criterios[k][1]),
+                "no_aplica_sin_razon": sorted(k for k in en_na if not criterios[k][1]
+                                              and not _texto(na[k]))}
+    return {}
 
 
 def validar(p):
@@ -353,8 +367,9 @@ def validar(p):
                 motivo = "eco_distinto"
         if motivo:
             fallo = {"id": ident, "usar_principal": True, "motivo": motivo}
-            if motivo == "evidencias_ausentes":
-                fallo.update(_detalle_evidencias(fila, criterios))
+            detalle = detalle_motivo(fila, criterios, motivo)
+            if detalle:
+                fallo["motivo_detalle"] = detalle
             resultados.append(fallo)
             continue
         entrada = dict(copy.deepcopy(control), id=ident, verdicts=fila["verdicts"])

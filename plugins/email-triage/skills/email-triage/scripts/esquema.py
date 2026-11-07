@@ -71,11 +71,16 @@ def generar(cfg):
         campos = {"veredicto": {"type": "string",
                                 "enum": orden if core else orden + [NO_APLICA]},
                   "evidencia": {"type": "string",
-                                "description": "Cita o hecho del correo; vacía solo con " + NO_APLICA}}
+                                "description": "Cita o hecho del correo; vacía solo si veredicto es "
+                                               + NO_APLICA}}
         if not core:
+            # v3.28.4 (prueba real 2026-11-05: 31 de 84 filas de OpenAI
+            # `strict` sin razón): «vacía si hay veredicto» era ambiguo,
+            # porque `__no_aplica__` también es un valor de `veredicto`.
             campos["razon_no_aplica"] = {
                 "type": "string",
-                "description": "Por qué no aplica; vacía si hay veredicto"}
+                "description": "Obligatoria si veredicto es " + NO_APLICA
+                               + ": por qué no aplica a este correo. Vacía con cualquier otra opción."}
         criterios[k] = _objeto(campos, desc + (" (core: no se excluye)" if core else ""))
     fila = _objeto({
         "id": {"type": "string"},

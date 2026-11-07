@@ -612,6 +612,36 @@ class TestEvaluadores(unittest.TestCase):
         self.assertEqual(r['resultados'][0]['motivo'], 'principal_no_comparable')
         t.assert_not_called()
 
+    def test_no_aplica_sin_razon_dice_que_criterio(self):
+        # v3.28.4 (prueba real 2026-11-05: 31 de 84 filas de OpenAI con
+        # `criterio_core_omitido_o_sin_justificacion`, sin decir cuál).
+        no_core = next(k for k, (_, core) in modelos._criterios(self.cfg).items() if not core)
+        def excluir(d):
+            d['evaluaciones'][0]['criterios'][no_core].update(
+                veredicto='__no_aplica__', evidencia='No aplica aquí.', razon_no_aplica='')
+        def sin_evidencia(d):
+            d['evaluaciones'][0]['criterios'][no_core].update(evidencia=' ')
+        for nombre in PROVEEDORES:
+            for modo in ('comparar', 'hibrido'):
+                f = self.ejecutar(nombre, modo, excluir)[0]['resultados'][0]
+                self.assertEqual(f['motivo'], 'criterio_core_omitido_o_sin_justificacion')
+                self.assertEqual(f['motivo_detalle'],
+                                 {'core_en_no_aplica': [], 'no_aplica_sin_razon': [no_core]})
+                self.assertNotIn('propuesta', f)
+                f = self.ejecutar(nombre, modo, sin_evidencia)[0]['resultados'][0]
+                self.assertEqual(f['motivo_detalle'],
+                                 {'criterios_sin_evidencia': [no_core], 'evidencias_de_mas': 0})
+
+    def test_el_esquema_dice_cuando_la_razon_es_obligatoria(self):
+        esq = ev.esquema_evaluador(self.cfg)
+        crit = esq['properties']['evaluaciones']['items']['properties']['criterios']['properties']
+        razones = [c['properties']['razon_no_aplica']['description']
+                   for c in crit.values() if 'razon_no_aplica' in c['properties']]
+        self.assertTrue(razones)
+        for d in razones:
+            self.assertIn('Obligatoria si veredicto es __no_aplica__', d)
+            self.assertNotIn('vacía si hay veredicto', d)
+
     def test_no_aplica_se_puntua_como_su_opcion_a_cero_en_hibrido(self):
         # v3.24.4 (medición real con Gemini): la exclusión de un no core con
         # una sola opción a 0 puntos se puntúa así; mismo score y tier.

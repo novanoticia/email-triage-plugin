@@ -264,8 +264,10 @@ python3 "<ruta-del-skill>/scripts/modelos.py" validar --config ~/.email-triage/c
 
 La validación rechaza IDs duplicados/extraños, criterios faltantes/desconocidos,
 opciones inválidas, core omitidos, evidencia vacía y campos adicionales. Con
-`evidencias_ausentes`, la fila trae `criterios_sin_evidencia` (nombres del
-config) y `evidencias_de_mas` (un recuento): no escribas un script propio para
+`evidencias_ausentes`, la fila trae en `motivo_detalle` `criterios_sin_evidencia`
+(nombres del config) y `evidencias_de_mas` (un recuento), y con
+`criterio_core_omitido_o_sin_justificacion`, `core_en_no_aplica` y
+`no_aplica_sin_razon`: no escribas un script propio para
 averiguarlo, ni completes la evidencia que falta (v3.28.4). El contrato ya pide
 una por veredicto: no le añadas frases tuyas a mitad de sesión, que
 cambiarían las condiciones entre lotes de una misma comparación. Calcula
