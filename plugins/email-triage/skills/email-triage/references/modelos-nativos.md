@@ -148,8 +148,11 @@ Entrega únicamente al especialista:
 
   Del primero salen `lote` (va tal cual a `validar`), `esperados` (sus
   `huella_extracto` y `ancla_extracto`; el `control` lo añades tú) y
-  `excluidas`: inyección, cap, un saneado retocado o fuera de `tmp/`; se
-  quedan en el principal con su motivo. El segundo imprime el mensaje, que
+  `excluidas`: inyección, cap, un saneado retocado o fuera de `tmp/`, o un
+  asunto o remitente con una etiqueta o un JSON `{id, extracto}` que
+  confundiría la comprobación de entrega (`metadatos_con_estructura`); se
+  quedan en el principal con su motivo. `preparar` lee su propio mensaje como
+  lo leerá `validar`; si no pasa, no lo entrega (`mensaje_no_verificable`). El segundo imprime el mensaje, que
   ya lleva el contrato, el idioma, el perfil, los criterios y cada extracto
   en su etiqueta, con asunto y remitente fuera. Pásalo al especialista
   **entero y tal cual**: sin resumirlo, recomponerlo ni añadirle frases. Es la

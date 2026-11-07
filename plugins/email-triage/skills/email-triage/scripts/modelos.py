@@ -824,14 +824,23 @@ def preparar(p):
         if motivo:
             excluidas.append({"id": u["id"], "motivo": motivo})
             continue
+        bloque = ("Unidad %s | Asunto: %s | Remitente: %s | Fecha: %s\n"
+                  '<email-body-data id="%s">\n%s\n</email-body-data>'
+                  % (u["id"], _linea(doc, "asunto_evaluable"),
+                     _linea(doc, "remitente_evaluable"), fecha or "(sin dato)",
+                     u["id"], doc["texto"]))
+        # Revisión Codex (PR #199): una etiqueta o un JSON `{id, extracto}`
+        # en el asunto o el remitente (S0 no los marca) engañaba a
+        # `_entregas`, y el mensaje copiado tal cual salía `entrega_distinta`.
+        # Cada bloque se lee como lo leerá `validar`: o da exactamente su
+        # extracto bajo su id, o la unidad se queda en el principal.
+        if _entregas(bloque) != {u["id"]: [_normalizar_extracto(doc["texto"])]}:
+            excluidas.append({"id": u["id"], "motivo": "metadatos_con_estructura"})
+            continue
         lote.append({"id": u["id"], "extracto": doc["texto"]})
         esperados.append({"id": u["id"], "huella_extracto": doc["huella_extracto"],
                           "ancla_extracto": doc["ancla_extracto"]})
-        bloques.append("Unidad %s | Asunto: %s | Remitente: %s | Fecha: %s\n"
-                       '<email-body-data id="%s">\n%s\n</email-body-data>'
-                       % (u["id"], _linea(doc, "asunto_evaluable"),
-                          _linea(doc, "remitente_evaluable"), fecha or "(sin dato)",
-                          u["id"], doc["texto"]))
+        bloques.append(bloque)
     if not lote:
         return dict(_error("sin_unidades_delegables"), excluidas=excluidas)
     crit = cfg["criterios_epistemicos"]
@@ -852,6 +861,11 @@ def preparar(p):
         "Criterios activos (%d):\n%s" % (len(lineas), "\n".join(lineas)),
         "Correos a evaluar (ids: %s):" % ", ".join(e["id"] for e in lote),
     ] + bloques) + "\n"
+    # El mensaje entero, también la cabecera (perfil incluido), tiene que
+    # pasar la misma lectura: si no, no se entrega (fail-closed).
+    if _entregas(mensaje) != {e["id"]: [_normalizar_extracto(e["extracto"])]
+                              for e in lote}:
+        return dict(_error("mensaje_no_verificable"), excluidas=excluidas)
     return {"ok": True, "mensaje": mensaje, "caracteres": len(mensaje),
             "lote": {"unidades": lote}, "esperados": esperados,
             "excluidas": excluidas}

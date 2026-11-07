@@ -514,8 +514,8 @@ dice «Obligatoria si veredicto es __no_aplica__» (prueba real: 31 de 84 filas
 de OpenAI `strict` sin razón; un core no puede excluirse en ese esquema). Y
 `modelos.py preparar` (solo lectura: salidas de `sanitizar` dentro de
 `<base>/tmp/`) monta el mensaje del especialista, el `lote` y las huellas
-desde la misma fuente, y deja en `excluidas` inyección, cap y saneados
-retocados (prueba real: generador propio del principal y dos extractos
+desde la misma fuente, y deja en `excluidas` inyección, cap, saneados
+retocados y cabeceras que confundirían a `_entregas` (revisión Codex, PR #199) (prueba real: generador propio del principal y dos extractos
 alterados al reteclearlos). Desde v3.26.0 `ollama_so.py`
 (`qwen3.5:latest` en `127.0.0.1:11434`, misma vía sin clave ni proxy): el correo
 no sale del Mac, pero el doble consentimiento se exige igual; es el único que
