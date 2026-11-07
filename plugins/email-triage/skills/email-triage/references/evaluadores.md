@@ -248,7 +248,7 @@ Solo se admite una evaluación y el id del correo solicitado.
 | Condición | Motivo y consecuencia |
 |---|---|
 | JSON no conforme | `esquema_no_conforme`; detalle con ruta/causa, nunca valores |
-| Evidencia o justificación vacía | Motivo literal de `_validar_fila`, por ejemplo `evidencias_ausentes` |
+| Evidencia o justificación vacía | Motivo literal de `_validar_fila`, por ejemplo `evidencias_ausentes`. Desde v3.28.4 `motivo_detalle` dice qué criterios: `criterios_sin_evidencia` y `evidencias_de_mas` (recuento), o, con `criterio_core_omitido_o_sin_justificacion`, `core_en_no_aplica` y `no_aplica_sin_razon`. Con el esquema un core no puede excluirse, así que aquí ese motivo es casi siempre un no core en `__no_aplica__` sin `razon_no_aplica` (prueba real: 31 de 84 filas de OpenAI; la descripción decía «vacía si hay veredicto», y `__no_aplica__` también lo es) |
 | Dudas no vacías | `evaluador_con_dudas`; sin propuesta ni `payload_scoring` |
 | Scoring con criterios sin evaluar en híbrido (incluido `__no_aplica__` sin cobertura en scoring) | Desde v3.24.4, si cada excluido es no core con una sola opción a 0 puntos y puntuarla da el mismo score y tier, se puntúa así y consta en `no_aplica_puntuado_como` (punto 12 de `jev.md`). Si no: `scoring_incompleto`; conserva `no_aplica` para resolución del principal, sin propuesta ni `payload_scoring`; requiere simulación. En `comparar` permanece como resultado informativo. |
 | Eco distinto o ausente (también sin `ancla_extracto` en el payload) | `eco_distinto`; sin propuesta |

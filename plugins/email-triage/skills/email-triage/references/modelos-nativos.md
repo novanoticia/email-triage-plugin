@@ -134,6 +134,32 @@ Entrega únicamente al especialista:
   lo recompongas de memoria ni juntes trozos de varias lecturas** (v3.21.36;
   prueba real: texto ajeno en una unidad, otra cortada, una línea perdida).
   Pide al especialista el `eco` de cada unidad (ver contrato).
+- **Monta el mensaje con `preparar` (v3.28.4), nunca con un script propio.**
+  Guarda la salida de cada `sanitizar` en `tmp/saneado_<id>.json` (con `>` al
+  final del mismo comando; evalúa tú leyendo ese fichero) y escribe
+  `tmp/modelos-preparar.json` con `plan`, `idioma`, `perfil_minimo` y
+  `unidades: [{"id", "saneado": ruta, "fecha"}]`. Pasa las mismas capas que a
+  `validar`:
+
+  ```bash
+  python3 "<ruta-del-skill>/scripts/modelos.py" preparar --config ~/.email-triage/config.yaml < ~/.email-triage/tmp/modelos-preparar.json > ~/.email-triage/tmp/modelos-preparado.json
+  python3 "<ruta-del-skill>/scripts/modelos.py" preparar --config ~/.email-triage/config.yaml --solo-mensaje < ~/.email-triage/tmp/modelos-preparar.json
+  ```
+
+  Del primero salen `lote` (va tal cual a `validar`), `esperados` (sus
+  `huella_extracto` y `ancla_extracto`; el `control` lo añades tú) y
+  `excluidas`: inyección, cap, un saneado retocado o fuera de `tmp/`, o un
+  asunto o remitente con una etiqueta o un JSON `{id, extracto}` que
+  confundiría la comprobación de entrega (`metadatos_con_estructura`); se
+  quedan en el principal con su motivo. `preparar` lee su propio mensaje como
+  lo leerá `validar`; si no pasa, no lo entrega (`mensaje_no_verificable`). El segundo imprime el mensaje, que
+  ya lleva el contrato, el idioma, el perfil, los criterios y cada extracto
+  en su etiqueta, con asunto y remitente fuera. Pásalo al especialista
+  **entero y tal cual**: sin resumirlo, recomponerlo ni añadirle frases. Es la
+  única copia a mano que queda, y la comprueba `validar` con el transcript
+  (`entrega_distinta`). Prueba real 2026-11-05: un generador propio puso el
+  asunto dentro de la etiqueta, y al reteclear ~15.000 caracteres cambió una
+  coma en un extracto y recompuso el final de otro.
 - `criterios_epistemicos` activos de la configuración efectiva (con la capa
   veloz fusionada por el mecanismo existente si aplica), sus preguntas, opciones
   y la distinción `core`. No hace falta transmitir cuentas, carpetas, credenciales,
@@ -166,7 +192,11 @@ El ejemplo está abreviado: cubrir **todos los criterios activos** exactamente
 una vez entre `verdicts` y `no_aplica`. Todos los core requieren veredicto. Solo
 los no-core pueden figurar en `no_aplica`, con una razón no vacía; nunca usarlo
 para ocultar incertidumbre. Cada veredicto necesita evidencia breve, sin cadena
-de pensamiento. Si falta información o hay ambigüedad, indicarlo en `dudas`.
+de pensamiento: `evidencias` lleva exactamente las mismas claves que `verdicts`,
+una no vacía por veredicto, core o no, y ninguna para `no_aplica`. Antes de
+entregar, comprobar en cada unidad que ningún veredicto se queda sin la suya:
+falta una y la unidad entera no cuenta (v3.28.4; prueba real: Haiku omitió la de
+un mismo criterio en todo un lote). Si falta información o hay ambigüedad, indicarlo en `dudas`.
 El recorte del extracto, por sí solo, no es una duda (siempre lo hay).
 No inventar probabilidades ni incluir `score`, `tier`, caps o boosts.
 
@@ -259,7 +289,14 @@ python3 "<ruta-del-skill>/scripts/modelos.py" validar --config ~/.email-triage/c
 ```
 
 La validación rechaza IDs duplicados/extraños, criterios faltantes/desconocidos,
-opciones inválidas, core omitidos, evidencia vacía y campos adicionales. Calcula
+opciones inválidas, core omitidos, evidencia vacía y campos adicionales. Con
+`evidencias_ausentes`, la fila trae en `motivo_detalle` `criterios_sin_evidencia`
+(nombres del config) y `evidencias_de_mas` (un recuento), y con
+`criterio_core_omitido_o_sin_justificacion`, `core_en_no_aplica` y
+`no_aplica_sin_razon`: no escribas un script propio para
+averiguarlo, ni completes la evidencia que falta (v3.28.4). El contrato ya pide
+una por veredicto: no le añadas frases tuyas a mitad de sesión, que
+cambiarían las condiciones entre lotes de una misma comparación. Calcula
 con **el scoring determinista existente**, sin modificar pesos ni reglas.
 Devuelve por correo `usar_principal` o una propuesta con `payload_scoring`,
 `resultado`, `evidencias` y `resumen`. Un error global exige reevaluar el lote;

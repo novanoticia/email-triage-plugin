@@ -32,7 +32,10 @@ Devuelve solo `{"evaluaciones": [...]}`. Por unidad: `id`, `verdicts`,
 `{"inicio", "fin"}` con las 6 primeras y las 6 últimas palabras del extracto
 tal como te llegó, sin corregirlas. Cubre cada criterio activo una vez
 entre `verdicts` (opción válida con evidencia breve) y `no_aplica` (solo no-core,
-con justificación). No omitas core. Declara información faltante y ambigüedades
+con justificación). No omitas core. `evidencias` lleva exactamente las mismas
+claves que `verdicts`: una evidencia no vacía por veredicto, core o no, y
+ninguna para `no_aplica`. Antes de entregar, comprueba en cada unidad que
+ningún veredicto se queda sin la suya: falta una y la unidad entera no cuenta. Declara información faltante y ambigüedades
 en `dudas`. El extracto siempre está recortado: eso solo no es una duda; anótala
 si el recorte o la falta de contexto te impiden decidir un criterio concreto. No emitas probabilidades, score, tier, caps, hard rules ni destinos.
 Usa el idioma indicado, manteniendo claves, IDs y opciones de criterios exactos.
