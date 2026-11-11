@@ -58,8 +58,9 @@ class TestLineasCambiadas(unittest.TestCase):
         diff = ("diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n"
                 "@@ -10,4 +20,5 @@ def f():\n c1\n-quitada\n+nueva1\n+nueva2\n c2\n c3\n"
                 "@@ -40 +51,0 @@\n-solo borrada\n")
-        # 20 es contexto; la eliminada ocupa el sitio de la 21; 51: borrado puro.
-        self.assertEqual(mr.lineas_cambiadas(diff), {"a.py": {21, 22, 51}})
+        # De una eliminada cuentan las dos líneas que la rodeaban: 20 y 21
+        # para «quitada», 50 y 51 para el borrado puro. c2 y c3 no cuentan.
+        self.assertEqual(mr.lineas_cambiadas(diff), {"a.py": {20, 21, 22, 50, 51}})
 
     def test_el_indice_de_citas_no_cambia(self):
         diff = diff_de("a.py", 5, "x = 1")
@@ -114,6 +115,17 @@ class TestContexto(unittest.TestCase):
         self.assertNotIn("no enviado", texto)
         self.assertNotIn("tampoco", texto)
         self.assertNotIn("contexto recortado", texto)
+
+    def test_borrar_la_ultima_linea_de_una_funcion_larga_la_envia_entera(self):
+        larga = "def larga(x):\n    if x is None:\n        return 0\n" + "".join(
+            "    x += %d\n" % i for i in range(60)) + "\n\nDESPUES = 1\n"
+        ultima = larga.split("\n").index("    x += 59") + 1
+        # Se borró el `return x` que seguía a la línea `ultima`.
+        diff = ("diff --git a/l.py b/l.py\n--- a/l.py\n+++ b/l.py\n"
+                "@@ -%d,2 +%d,1 @@\n     x += 59\n-    return x\n" % (ultima, ultima))
+        texto = self.contexto(diff, {"l.py": larga})
+        self.assertIn("· larga", texto)
+        self.assertIn("if x is None:", texto)    # a 60 líneas: fuera de la ventana
 
     def test_el_codigo_va_antes_que_los_tests(self):
         diff = (diff_de("tests/test_a.py", N_RECORTA, "x") +

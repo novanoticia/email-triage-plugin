@@ -216,11 +216,19 @@ def indice_diff(diff):
 
 
 def lineas_cambiadas(diff):
-    """Números de línea, en la cabeza, de lo añadido o eliminado por ruta."""
+    """Números de línea, en la cabeza, de lo añadido o eliminado por ruta.
+
+    Una línea eliminada no existe en la cabeza: cuentan las dos que la
+    rodeaban. Con solo la siguiente, borrar la última línea de una función
+    apuntaba fuera de ella y la función acortada no se enviaba (Codex, PR #200).
+    """
     cambios = {}
     for archivo, linea, numero in _lineas_de_hunks(diff):
         if linea[0] in "+-" and numero > 0:
-            cambios.setdefault(archivo, set()).add(numero)
+            lineas = cambios.setdefault(archivo, set())
+            lineas.add(numero)
+            if linea[0] == "-" and numero > 1:
+                lineas.add(numero - 1)
     return cambios
 
 
