@@ -166,6 +166,7 @@ def obtener_rutas_diff(base, cabeza):
     return set(salida.decode("utf-8", "replace").split("\0")) - {""}
 
 
+_SHA = re.compile(r"^[0-9a-f]{7,64}$")
 _HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 
 
@@ -245,20 +246,23 @@ def _rangos_python(texto, lineas):
     except (SyntaxError, ValueError, RecursionError, MemoryError):
         return None
     funciones = []
-
-    def visitar(nodo, prefijo, dentro):
+    # Recorrido con pila propia: una expresión muy profunda (una suma de mil
+    # términos) parsea pero agotaba la recursión de Python y tumbaba la
+    # revisión entera (Codex, PR #200). Dentro de una función no se baja:
+    # solo interesa la más externa.
+    pila = [(arbol, "")]
+    while pila:
+        nodo, prefijo = pila.pop()
         for hijo in ast.iter_child_nodes(nodo):
             if isinstance(hijo, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                if not dentro:
-                    inicio = min([hijo.lineno] + [d.lineno for d in hijo.decorator_list])
-                    funciones.append((inicio, hijo.end_lineno, prefijo + hijo.name))
-                visitar(hijo, prefijo + hijo.name + ".", True)
+                inicio = min([hijo.lineno] + [d.lineno for d in hijo.decorator_list])
+                funciones.append((inicio, hijo.end_lineno, prefijo + hijo.name))
             elif isinstance(hijo, ast.ClassDef):
-                visitar(hijo, prefijo + hijo.name + ".", dentro)
-            else:
-                visitar(hijo, prefijo, dentro)
-
-    visitar(arbol, "", False)
+                pila.append((hijo, prefijo + hijo.name + "."))
+            elif not isinstance(hijo, ast.expr):
+                # if/try/except/with/match pueden contener defs; en las
+                # expresiones, que son las que anidan sin límite, no se entra.
+                pila.append((hijo, prefijo))
     total = texto.count("\n") + 1
     rangos = set()
     for n in lineas:
@@ -646,18 +650,25 @@ def ya_revisado(repo, numero, base, cabeza):
     """¿Hay ya un informe válido de esta base y esta cabeza en el PR?
 
     Solo cuentan comentarios de GitHub Actions: la marca escrita por otra
-    cuenta no suprime la revisión. Si no se puede leer el historial, se
-    revisa: es preferible un informe repetido a ninguno.
+    cuenta no suprime la revisión. Y solo en la cabecera que escribe
+    `renderizar` para un informe válido: un informe rechazado puede repetir
+    la marca dentro del texto del modelo (Codex, PR #200). Si no se puede
+    leer el historial, se revisa: es preferible un informe repetido a ninguno.
     """
+    if not (_SHA.match(str(base)) and _SHA.match(str(cabeza))):
+        return False  # no se interpola en el filtro nada que no sea un SHA
+    cabecera = json.dumps(MARCA + "\n" + MARCA_OK % (base, cabeza) + "\n")
     try:
         proc = subprocess.run(
             ["gh", "api", "--paginate",
              "repos/%s/issues/%s/comments?per_page=100" % (repo, numero), "--jq",
-             '.[] | select(.user.login == "github-actions[bot]") | .body'],
+             'any(.[]; .user.login == "github-actions[bot]" and '
+             '(.body | startswith(%s)))' % cabecera],
             check=True, capture_output=True, text=True)
     except (OSError, subprocess.CalledProcessError):
         return False
-    return (MARCA_OK % (base, cabeza)) in proc.stdout
+    # Una línea por página de la API: true si esa página tiene la cabecera.
+    return "true" in proc.stdout.split()
 
 
 def main():

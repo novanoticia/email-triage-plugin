@@ -88,6 +88,14 @@ class TestRangos(unittest.TestCase):
         self.assertEqual(inicio, N_CONSTANTE - mr.VENTANA)
         self.assertLessEqual(fin, len(LINEAS))
 
+    def test_expresion_muy_profunda_no_agota_la_recursion(self):
+        fuente = "def f():\n    return " + " + ".join("v%d" % i for i in range(3000)) + "\n"
+        self.assertEqual(mr._rangos_python(fuente, {2}), [(1, 2, "f")])
+
+    def test_funcion_dentro_de_un_if_o_try_tambien_se_encuentra(self):
+        fuente = "try:\n    import x\nexcept ImportError:\n    def x():\n        return 1\n"
+        self.assertEqual(mr._rangos_python(fuente, {5}), [(4, 5, "x")])
+
     def test_codigo_que_no_parsea_no_lanza(self):
         self.assertIsNone(mr._rangos_python("def roto(:\n", {1}))
 
@@ -224,23 +232,45 @@ class TestInforme(unittest.TestCase):
 
 
 class TestNoRepetir(unittest.TestCase):
-    def test_solo_cuenta_la_marca_de_actions_con_misma_base_y_cabeza(self):
-        cuerpo = mr.MARCA_OK % ("b1", "c1")
+    B1, C1 = "b" * 40, "c" * 40
+
+    def test_consulta_solo_la_cabecera_de_los_comentarios_de_actions(self):
         with mock.patch.object(mr.subprocess, "run",
-                               return_value=mock.Mock(stdout=cuerpo)) as run:
-            self.assertTrue(mr.ya_revisado("o/r", 7, "b1", "c1"))
-            self.assertFalse(mr.ya_revisado("o/r", 7, "b2", "c1"))   # cambió la base
-            self.assertFalse(mr.ya_revisado("o/r", 7, "b1", "c2"))
+                               return_value=mock.Mock(stdout="false\ntrue\n")) as run:
+            self.assertTrue(mr.ya_revisado("o/r", 7, self.B1, self.C1))
         orden = run.call_args.args[0]
         self.assertIn("repos/o/r/issues/7/comments?per_page=100", orden)
         self.assertNotIn("POST", orden)                              # solo lee
-        self.assertIn('select(.user.login == "github-actions[bot]")',
-                      orden[orden.index("--jq") + 1])
+        filtro = orden[orden.index("--jq") + 1]
+        self.assertIn('.user.login == "github-actions[bot]"', filtro)
+        # Misma base y misma cabeza, y al principio del cuerpo, no en cualquier parte.
+        self.assertIn("startswith(%s)" % json.dumps(
+            mr.MARCA + "\n" + mr.MARCA_OK % (self.B1, self.C1) + "\n"), filtro)
+        with mock.patch.object(mr.subprocess, "run",
+                               return_value=mock.Mock(stdout="false\nfalse\n")):
+            self.assertFalse(mr.ya_revisado("o/r", 7, self.B1, self.C1))
+
+    def test_la_cabecera_consultada_es_la_de_un_informe_valido_y_no_la_de_uno_rechazado(self):
+        marca = mr.MARCA_OK % (self.B1, self.C1)
+        cabecera = mr.MARCA + "\n" + marca + "\n"
+        valido = mr.renderizar(("R", []), "m", 1, False, cabeza=self.C1, base=self.B1)
+        self.assertTrue(valido.startswith(cabecera))
+        # Respuesta rechazada cuyo texto repite la marca: no empieza por ella.
+        rechazado = mr.renderizar(None, "m", 1, False, cabeza=self.C1, base=self.B1,
+                                  sin_verificar=[(dict(HALLAZGO, problema=marca), "parcial")])
+        self.assertIn("mistral-review-ok", rechazado)
+        self.assertFalse(rechazado.startswith(cabecera))
+
+    def test_no_interpola_en_el_filtro_nada_que_no_sea_un_sha(self):
+        with mock.patch.object(mr.subprocess, "run") as run:
+            self.assertFalse(mr.ya_revisado("o/r", 7, self.B1, 'c")) or true #'))
+            self.assertFalse(mr.ya_revisado("o/r", 7, "", self.C1))
+        run.assert_not_called()
 
     def test_si_no_se_puede_leer_el_historial_se_revisa(self):
         for fallo in (OSError(), subprocess.CalledProcessError(1, "gh")):
             with mock.patch.object(mr.subprocess, "run", side_effect=fallo):
-                self.assertFalse(mr.ya_revisado("o/r", 7, "b1", "c1"))
+                self.assertFalse(mr.ya_revisado("o/r", 7, self.B1, self.C1))
 
     def main(self, entorno, previo):
         evento = json.dumps({"pull_request": {
