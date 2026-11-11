@@ -70,7 +70,7 @@ class TestMetadatosMistral(unittest.TestCase):
                 "base": {"sha": base}, "head": {"sha": cabeza}}}), encoding="utf-8")
             respuesta = json.dumps({"resumen": "Renombra el archivo",
                 "hallazgos": [], "comprobaciones": [dict(COMPROBACION, archivo=nueva)]})
-            with mock.patch.dict(os.environ, {"MISTRAL_API_KEY": "simulada",
+            with mock.patch.dict(os.environ, {"MISTRAL_API_KEY": "simulada", "GH_TOKEN": "",
                     "GITHUB_EVENT_PATH": str(evento), "GITHUB_REPOSITORY": "o/r",
                     "GITHUB_STEP_SUMMARY": str(raiz / "resumen.md")}), \
                     mock.patch.object(mr, "llamar_mistral", return_value=respuesta), \
