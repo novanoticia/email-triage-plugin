@@ -20,15 +20,33 @@ a la ejecución y al intento de Actions. Los reintentos del mismo commit tambié
 se conservan por separado, incluidos los resultados inválidos o fallos de API.
 Los comentarios anteriores no se editan ni se borran. Un push nuevo cancela
 la revisión en curso; una ejecución cancelada antes de publicar puede no dejar
-comentario. Editar el PR también puede volver a consumir la API.
+comentario.
+
+**Un informe válido por commit.** Desde el 2026-11-11, si el PR ya tiene un
+informe válido de la misma base y la misma cabeza, editar el título o la
+descripción, reabrirlo o marcarlo listo **no repite** la revisión ni consume
+la API: el resumen de Actions dice «no repetida». Antes, abrir un borrador y
+marcarlo listo dejaba dos informes distintos del mismo commit (PR #198 y
+#199). Para pedir otro del mismo commit, usa «Re-run jobs»: los reintentos
+manuales siempre revisan. Un informe inválido o un fallo de API no cuentan
+como revisión hecha. Solo se reconoce la marca en comentarios de GitHub
+Actions, y si no se puede leer el historial se revisa igualmente.
 
 ## Qué recibe y qué debe devolver
 
-- Guía `REVIEW.md`, o `CLAUDE.md` si no existe la primera; máximo 20.000 caracteres.
+- Guía `REVIEW.md`, o `CLAUDE.md` si no existe la primera; máximo 60.000
+  caracteres, que hoy cubren `CLAUDE.md` entero (con 20.000 se quedaba fuera
+  casi la mitad). Si algún día se recorta, el modelo recibe el aviso.
 - Título, descripción y diff con diez líneas de contexto, hasta 150.000 caracteres.
 - Contexto de los archivos Python cambiados, leído con `git show` del commit:
-  hasta 10.000 caracteres por archivo y 40.000 en total. No ejecuta el código.
-  Los recortes se indican; no se incluyen automáticamente dependencias sin cambios.
+  **las funciones completas de la versión nueva que contienen las líneas
+  cambiadas**, con sus números de línea (un método va sin el resto de su
+  clase; un cambio fuera de toda función lleva una ventana de 15 líneas).
+  Primero el código y después los tests. Hasta 10.000 caracteres por archivo
+  y 40.000 en total, cortando por líneas enteras. Solo se analiza la sintaxis;
+  no ejecuta el código. Los recortes se indican; no se incluyen
+  automáticamente dependencias sin cambios. Antes se enviaba el principio de
+  cada archivo, que en `triage_helpers.py` era solo el docstring.
 - Entre una y seis comprobaciones con archivo, escenario, conclusión y estado
   `revisado` o `pendiente`. Son razonamientos por lectura, no pruebas ejecutadas.
   Sus rutas se contrastan con el inventario de Git, incluidos renombrados puros,
@@ -38,6 +56,20 @@ comentario. Editar el PR también puede volver a consumir la API.
 
 El modelo se elige con la variable de Actions `MISTRAL_MODEL` (por defecto
 `codestral-latest`). La clave se configura como secreto `MISTRAL_API_KEY`.
+
+## Cómo se lee el informe
+
+La primera línea tras el resumen es **Resultado**: cuántos hallazgos, cuántas
+comprobaciones pendientes y cuántas sin defecto aparente. Después van los
+hallazgos, luego las comprobaciones **pendientes** (lo que el modelo no pudo
+decidir y conviene mirar a mano o con un test) y, plegadas, las que no
+encontraron defecto. El prompt pide que cada comprobación intente romper el
+cambio con una entrada que los tests del diff no ejerciten, y que cada
+hallazgo sobreviva a un intento de refutación o pase a «pendiente».
+
+**Verificado y propuesto.** Qué se envía, qué se publica y cuándo está fijado
+por tests. Que el prompt nuevo mejore el razonamiento del modelo **no está
+medido**: hay que contrastarlo en PR reales (ver la auditoría enlazada abajo).
 
 ## Cómo interpretar el resultado y continuar
 

@@ -17,12 +17,27 @@ que traía diez):
   publica por separado; una respuesta inválida hace fallar el check.
 - **Reintentos acotados.** Tres solicitudes como máximo, respetando
   Retry-After hasta MAX_ESPERA; una espera mayor se informa como fallo.
+
+Lo que cambia el 2026-11-11 (PR #198 y #199: informes de seis «revisado, sin
+defecto» que repetían la descripción del PR, dos por commit, mientras Codex
+encontraba un fallo en el mismo commit):
+
+- **Contexto por funciones.** En vez del principio de cada archivo (en
+  `triage_helpers.py`, solo el docstring), van enteras las funciones de la
+  versión nueva que contienen las líneas cambiadas, con sus números de línea.
+- **La guía entera.** MAX_GUIA cubre CLAUDE.md completo; si se recorta, se dice.
+- **Un informe por commit.** Editar el título o marcar el PR como listo no
+  repite la revisión de un commit que ya tiene una válida; «Re-run» sí.
+- **Lo accionable, arriba.** Hallazgos y comprobaciones pendientes primero;
+  las comprobaciones sin defecto, plegadas. El prompt pide intentar romper
+  el cambio y refutar cada hallazgo; su efecto en la calidad está sin medir.
 """
 import ast
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -30,11 +45,14 @@ import urllib.error
 import urllib.request
 
 MARCA = "<!-- mistral-review -->"
+# Solo en informes válidos: identifica base y cabeza para no repetirlos.
+MARCA_OK = "<!-- mistral-review-ok:%s:%s -->"
 API = "https://api.mistral.ai/v1/chat/completions"
 MAX_DIFF = 150_000   # caracteres; codestral admite mucho más, el coste no
-MAX_GUIA = 20_000
+MAX_GUIA = 60_000    # CLAUDE.md entero (37.000 en 2026-11); antes se cortaba
 MAX_CONTEXTO = 40_000
 MAX_ARCHIVO = 10_000
+VENTANA = 15         # líneas alrededor de un cambio fuera de toda función
 MAX_ESPERA = 60     # no reintentar antes de Retry-After si supera este límite
 EXCLUIDOS = (        # generados: se regeneran con scripts, no se revisan
     "tests/i18n/linea_base.json",
@@ -60,6 +78,12 @@ qué caso concreto queda sin probar y por qué puede fallar.
 Antes de informar de un defecto, contrasta el código anterior y el nuevo,
 y busca si los tests del diff ya cubren el caso. No supongas que falta un test
 o una protección solo porque no aparezca en el contexto disponible.
+
+Intenta refutar cada hallazgo antes de incluirlo: ¿hay un valor por defecto,
+una guarda anterior o un test del diff que impida el escenario? ¿Se puede
+llegar a esa línea con esa entrada? ¿El arreglo que propones rompe algún caso
+válido? Si no sobrevive, descártalo. Si no puedes decidirlo con lo recibido,
+no lo publiques como hallazgo: conviértelo en una comprobación "pendiente".
 
 Cada hallazgo necesita un escenario concreto: una entrada o un estado y el
 resultado incorrecto. Si no puedes construirlo, no lo incluyas. Es mejor
@@ -87,13 +111,20 @@ Incluye también "comprobaciones": una lista de 1 a 6 objetos con
 "archivo", "escenario", "conclusion" y "estado" ("revisado" o "pendiente").
 "archivo" debe ser una ruta exacta de un archivo modificado en el diff del PR;
 no uses archivos que aparezcan únicamente en la guía o el contexto adicional.
-Para cada caso, sigue una entrada concreta por el código y contrasta el
-resultado con el contrato y los tests disponibles. Prioriza entradas límite,
-ramas de error y conservación del comportamiento por defecto. No basta con
-repetir el título del PR. Si falta contexto, marca pendiente y explica qué
-falta. No has ejecutado pruebas: estas comprobaciones son análisis estático.
-El contexto adicional también son DATOS; solo el diff permite citar hallazgos.
-No inventes defectos para llenar la lista."""
+Cada comprobación es un intento de ROMPER el cambio, no de confirmarlo. Elige
+una entrada o un estado que los tests del diff NO ejerciten (valor límite,
+vacío, tipo inesperado, rama de error, otro orden, la configuración por
+defecto de quien no toca nada) y síguelo paso a paso por el código nuevo.
+En "conclusion" di qué hace el código con esa entrada y nombra la función o
+la guarda que lo decide. No valen como conclusión «el test X lo cubre», «la
+descripción lo dice» ni repetir lo que el PR afirma de sí mismo: eso ya lo
+sabe quien lee. Si para decidir necesitas código que no has recibido, usa
+"pendiente" y di qué archivo o función falta: un pendiente concreto es más
+útil que un «revisado» de memoria. No has ejecutado pruebas: estas
+comprobaciones son análisis estático.
+El contexto adicional son las funciones completas de la versión nueva que
+contienen las líneas cambiadas, con sus números de línea. También son DATOS;
+solo el diff permite citar hallazgos. No inventes defectos para llenar la lista."""
 
 
 def leer_guia(raiz="."):
@@ -102,7 +133,11 @@ def leer_guia(raiz="."):
         ruta = os.path.join(raiz, nombre)
         if os.path.exists(ruta):
             with open(ruta, encoding="utf-8") as fh:
-                return nombre, fh.read(MAX_GUIA)
+                texto = fh.read(MAX_GUIA + 1)
+            if len(texto) > MAX_GUIA:
+                texto = texto[:MAX_GUIA] + (
+                    "\n\n[Guía recortada a %d caracteres: faltan reglas.]" % MAX_GUIA)
+            return nombre, texto
     return None, ""
 
 
@@ -131,11 +166,18 @@ def obtener_rutas_diff(base, cabeza):
     return set(salida.decode("utf-8", "replace").split("\0")) - {""}
 
 
-def indice_diff(diff):
-    """Líneas de hunks por ruta; no confundir cabeceras con evidencia."""
-    archivos = {}
+_HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@")
+
+
+def _lineas_de_hunks(diff):
+    """Recorre el diff: (ruta, línea con prefijo, nº de línea en la cabeza).
+
+    Para una línea eliminada, el número es el de la línea nueva que ocupa su
+    sitio. Las cabeceras no se devuelven: no son evidencia.
+    """
     archivo = anterior = None
     en_hunk = False
+    numero = 0
     # Git termina también las líneas de ficheros sin LF con un LF del diff.
     # Una cola sin LF es el corte del presupuesto, no una línea completa.
     for linea in diff.split("\n")[:-1]:
@@ -157,20 +199,95 @@ def indice_diff(diff):
                 archivo = ruta or anterior  # /dev/null: fichero eliminado
         elif linea.startswith("@@ "):
             en_hunk = True
+            cabecera = _HUNK.match(linea)
+            numero = int(cabecera.group(1)) if cabecera else 0
         elif en_hunk and archivo and linea.startswith(("+", "-", " ")):
-            archivos.setdefault(archivo, set()).add(linea)
+            yield archivo, linea, numero
+            if not linea.startswith("-"):
+                numero += 1
+
+
+def indice_diff(diff):
+    """Líneas de hunks por ruta; no confundir cabeceras con evidencia."""
+    archivos = {}
+    for archivo, linea, _ in _lineas_de_hunks(diff):
+        archivos.setdefault(archivo, set()).add(linea)
     return archivos
 
 
+def lineas_cambiadas(diff):
+    """Números de línea, en la cabeza, de lo añadido o eliminado por ruta."""
+    cambios = {}
+    for archivo, linea, numero in _lineas_de_hunks(diff):
+        if linea[0] in "+-" and numero > 0:
+            cambios.setdefault(archivo, set()).add(numero)
+    return cambios
+
+
+def _rangos_python(texto, lineas):
+    """Rangos (inicio, fin, nombre) que dan contexto a `lineas`; None si no parsea.
+
+    Para cada línea cambiada, la función más externa que la contiene (un
+    cierre va con su función; un método, sin el resto de la clase). Fuera de
+    toda función, una ventana de VENTANA líneas. Solo se analiza la sintaxis:
+    el código del PR no se importa ni se ejecuta.
+    """
+    try:
+        arbol = ast.parse(texto)
+    except (SyntaxError, ValueError, RecursionError, MemoryError):
+        return None
+    funciones = []
+
+    def visitar(nodo, prefijo, dentro):
+        for hijo in ast.iter_child_nodes(nodo):
+            if isinstance(hijo, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                if not dentro:
+                    inicio = min([hijo.lineno] + [d.lineno for d in hijo.decorator_list])
+                    funciones.append((inicio, hijo.end_lineno, prefijo + hijo.name))
+                visitar(hijo, prefijo + hijo.name + ".", True)
+            elif isinstance(hijo, ast.ClassDef):
+                visitar(hijo, prefijo + hijo.name + ".", dentro)
+            else:
+                visitar(hijo, prefijo, dentro)
+
+    visitar(arbol, "", False)
+    total = texto.count("\n") + 1
+    rangos = set()
+    for n in lineas:
+        dentro = [f for f in funciones if f[0] <= n <= f[1]]
+        if dentro:
+            rangos.add(dentro[0])
+        elif n <= total + 1:
+            rangos.add((max(1, n - VENTANA), min(total, n + VENTANA), ""))
+    # Une los solapados o contiguos: una función no se envía dos veces.
+    unidos = []
+    for inicio, fin, nombre in sorted(rangos):
+        if unidos and inicio <= unidos[-1][1] + 1:
+            previo = unidos[-1]
+            nombres = [x for x in (previo[2], nombre) if x]
+            unidos[-1] = (previo[0], max(previo[1], fin), ", ".join(nombres))
+        else:
+            unidos.append((inicio, fin, nombre))
+    return unidos
+
+
+def _es_test(ruta):
+    nombre = ruta.rsplit("/", 1)[-1]
+    return nombre.startswith("test_") or "/tests/" in "/" + ruta
+
+
 def obtener_contexto(diff, cabeza):
-    """Código de los archivos cambiados en el commit, sin ejecutar el PR.
+    """Funciones completas (versión nueva) que contienen los cambios.
 
     Solo fuentes y tests Python: no leer configuraciones de credenciales.
-    Cada archivo y el conjunto tienen un presupuesto visible.
+    Se lee con `git show`, sin ejecutar el PR. Primero el código y después
+    los tests, para que el presupuesto no se gaste en estos. Cada archivo y
+    el conjunto tienen un presupuesto visible, y se corta por líneas enteras.
     """
+    cambios = lineas_cambiadas(diff)
     partes = []
     restante = MAX_CONTEXTO
-    for ruta in sorted(indice_diff(diff)):
+    for ruta in sorted(cambios, key=lambda r: (_es_test(r), r)):
         if not ruta.endswith(".py"):
             continue
         if restante <= 0:
@@ -183,12 +300,35 @@ def obtener_contexto(diff, cabeza):
             partes.append("Archivo no disponible en cabeza: %s" % ruta)
             continue
         texto = proc.stdout.decode("utf-8", "replace")
+        lineas = texto.split("\n")
+        rangos = _rangos_python(texto, cambios[ruta])
+        if rangos is None:  # no parsea: ventanas alrededor de cada cambio
+            rangos = [(max(1, n - VENTANA), min(len(lineas), n + VENTANA), "")
+                      for n in sorted(cambios[ruta]) if n <= len(lineas) + 1]
         limite = min(MAX_ARCHIVO, restante)
-        fragmento = texto[:limite]
+        bloques, usado, omitidos = [], 0, []
+        for inicio, fin, nombre in rangos:
+            etiqueta = "# líneas %d-%d%s" % (inicio, fin, " · " + nombre if nombre else "")
+            cuerpo = []
+            for linea in lineas[inicio - 1:fin]:
+                if usado + len(etiqueta) + len(linea) + 2 > limite:
+                    break
+                cuerpo.append(linea)
+                usado += len(linea) + 1
+            if len(cuerpo) < fin - inicio + 1:
+                omitidos.append(nombre or "líneas %d-%d" % (inicio, fin))
+            if cuerpo:
+                usado += len(etiqueta) + 1
+                bloques.append(etiqueta + "\n" + "\n".join(cuerpo))
+        if not bloques:
+            if omitidos:  # no cabe ni una línea: decirlo, sin bloque vacío
+                partes.append("Contexto de %s omitido por presupuesto: %s" % (
+                    ruta, ", ".join(omitidos)[:300]))
+            continue
         partes.append("## %s%s\n```python\n%s\n```" % (
-            ruta, " (contexto recortado)" if len(texto) > limite else "",
-            fragmento))
-        restante -= len(fragmento)
+            ruta, (" (contexto recortado: %s)" % ", ".join(omitidos)[:300])
+            if omitidos else "", "\n\n".join(bloques)))
+        restante -= usado
     return "\n\n".join(partes)
 
 
@@ -199,7 +339,8 @@ def construir_mensajes(titulo, descripcion, diff, guia, contexto=""):
         ("## Guía del proyecto (%s)\n%s" % (nombre, texto)) if texto else "",
         "## Título\n%s" % (titulo or "(sin título)"),
         "## Descripción\n%s" % ((descripcion or "(sin descripción)")[:4000]),
-        ("## Contexto adicional (solo lectura, puede estar recortado)\n%s"
+        ("## Contexto adicional: funciones completas de la versión nueva que "
+         "contienen los cambios (solo lectura, puede estar recortado)\n%s"
          % contexto) if contexto else "",
         "## Diff%s\n```diff\n%s\n```" % (
             " (recortado a %d de %d caracteres)" % (MAX_DIFF, len(diff))
@@ -404,7 +545,7 @@ def _render_hallazgo(partes, i, h, inerte=False):
 
 def renderizar(resultado, modelo, diff_len, recortado, cabeza="", error=None,
                comprobaciones=None, ejecucion_url="", intento="",
-               sin_verificar=None):
+               sin_verificar=None, base=""):
     partes = [MARCA, "## Revisión de [Mistral AI (@mistralai)]"
               "(https://github.com/mistralai) (`%s`)" % modelo]
     if cabeza:
@@ -437,14 +578,17 @@ def renderizar(resultado, modelo, diff_len, recortado, cabeza="", error=None,
                     else "no verificada (`%s`)" % causa))
     else:
         resumen, hallazgos = resultado
+        if base and cabeza:
+            partes.insert(1, MARCA_OK % (base, cabeza))
         if resumen:
             partes.append(resumen)
-        if comprobaciones:
-            partes.append("### Comprobaciones por lectura (sin ejecutar tests)")
-            for c in comprobaciones:
-                partes.append("- **%s** · `%s`: %s → %s" % (
-                    c["estado"], _linea(c["archivo"], 200),
-                    _linea(c["escenario"]), _linea(c["conclusion"])))
+        pendientes = [c for c in comprobaciones or () if c["estado"] == "pendiente"]
+        revisadas = [c for c in comprobaciones or () if c["estado"] != "pendiente"]
+        # Lo que pide una acción va arriba; lo que no, plegado (PR #198 y
+        # #199: seis «revisado» ocupaban todo el informe).
+        partes.append("**Resultado:** %d hallazgo(s) · %d comprobación(es) pendiente(s) "
+                      "· %d sin defecto aparente." % (
+                          len(hallazgos), len(pendientes), len(revisadas)))
         orden = {"alta": 0, "media": 1, "baja": 2}
         hallazgos = sorted(hallazgos, key=lambda h: orden.get(
             str(h.get("severidad")).lower(), 3))
@@ -455,6 +599,25 @@ def renderizar(resultado, modelo, diff_len, recortado, cabeza="", error=None,
             partes.append("### Hallazgos (%d)" % len(hallazgos))
             for i, h in enumerate(hallazgos, 1):
                 _render_hallazgo(partes, i, h)
+
+        def lista(casos):
+            for c in casos:
+                partes.append("- **%s** · `%s`: %s → %s" % (
+                    c["estado"], _linea(c["archivo"], 200),
+                    _linea(c["escenario"]), _linea(c["conclusion"])))
+
+        if pendientes:
+            partes.append("### Comprobaciones por lectura pendientes (%d) — "
+                          "sin ejecutar tests" % len(pendientes))
+            partes.append("El modelo no pudo decidirlas con lo que recibió: "
+                          "compruébalas a mano o con un test.")
+            lista(pendientes)
+        if revisadas:
+            partes.extend(["", "<details>", "<summary>Comprobaciones por lectura sin "
+                           "defecto aparente (%d) — sin ejecutar tests</summary>"
+                           % len(revisadas), ""])
+            lista(revisadas)
+            partes.extend(["", "</details>"])
     partes.append("")
     partes.append("<sub>Diff preparado: %d caracteres%s. Hallazgos de un modelo: "
                   "compruébalos antes de actuar.</sub>"
@@ -471,6 +634,24 @@ def publicar(repo, numero, cuerpo):
                    check=True, capture_output=True)
 
 
+def ya_revisado(repo, numero, base, cabeza):
+    """¿Hay ya un informe válido de esta base y esta cabeza en el PR?
+
+    Solo cuentan comentarios de GitHub Actions: la marca escrita por otra
+    cuenta no suprime la revisión. Si no se puede leer el historial, se
+    revisa: es preferible un informe repetido a ninguno.
+    """
+    try:
+        proc = subprocess.run(
+            ["gh", "api", "--paginate",
+             "repos/%s/issues/%s/comments?per_page=100" % (repo, numero), "--jq",
+             '.[] | select(.user.login == "github-actions[bot]") | .body'],
+            check=True, capture_output=True, text=True)
+    except (OSError, subprocess.CalledProcessError):
+        return False
+    return (MARCA_OK % (base, cabeza)) in proc.stdout
+
+
 def main():
     clave = os.environ.get("MISTRAL_API_KEY", "")
     if not clave:
@@ -484,6 +665,19 @@ def main():
     with open(os.environ["GITHUB_EVENT_PATH"], encoding="utf-8") as fh:
         pr = json.load(fh)["pull_request"]
     modelo = os.environ.get("MISTRAL_MODEL") or "codestral-latest"
+    # Abrir como borrador y marcar listo, o editar el título, lanzaban dos
+    # informes distintos del mismo commit. «Re-run» (intento > 1) sí repite.
+    # Sin GH_TOKEN no se puede leer el historial: se revisa sin consultarlo.
+    if os.environ.get("GH_TOKEN") and os.environ.get(
+            "GITHUB_RUN_ATTEMPT", "1") == "1" and ya_revisado(
+            os.environ["GITHUB_REPOSITORY"], pr["number"],
+            pr["base"]["sha"], pr["head"]["sha"]):
+        aviso = ("**Revisión de Mistral no repetida:** el commit `%s` ya tiene un "
+                 "informe válido en este PR. Para pedir otro, usa «Re-run jobs»."
+                 % pr["head"]["sha"])
+        escribir_resumen(aviso)
+        print(aviso)
+        return 0
     diff, recortado, resultado, error = "", False, None, None
     comprobaciones, sin_verificar = None, []
     try:
@@ -523,6 +717,7 @@ def main():
                         cabeza=pr["head"]["sha"], error=error,
                         comprobaciones=comprobaciones,
                         ejecucion_url=ejecucion_url, intento=intento,
+                        base=pr["base"]["sha"],
                         sin_verificar=sin_verificar if resultado is None else None)
     escribir_resumen(cuerpo)
     print(cuerpo)
