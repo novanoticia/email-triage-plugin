@@ -378,9 +378,99 @@ def espera_reintento(error, intento):
     return espera if espera <= MAX_ESPERA else None
 
 
+# El margen incluye el razonamiento del modelo. Medido en el PR #202 con
+# `mistral-large-latest`: unos 6.500 tokens de razonamiento antes de empezar
+# la respuesta; con 8.000 se cortaba a media revisión.
+MAX_SALIDA = 16000
+# Una respuesta mal formada (una comprobación sin campo, una cita inventada)
+# invalidaba la revisión entera: se pide una segunda antes de rendirse.
+INTENTOS_RESPUESTA = 2
+# `mistral-large-latest` pasó a razonar antes de responder y gastaba el margen
+# entero en ello (PR #202: 31.129 caracteres de razonamiento, ninguno de
+# respuesta). Si el modelo no admite el parámetro, se retira y se repite.
+ESFUERZO = "low"
+
+
+class RespuestaIncompleta(ValueError):
+    """La API terminó sin `stop`. `causa` es su código (`length` = se agotó
+    MAX_SALIDA) reducido a letras: nunca lleva contenido de la respuesta."""
+
+    def __init__(self, causa, medidas=""):
+        ValueError.__init__(self, "Mistral no completó la revisión")
+        self.causa = re.sub(r"[^a-z_]", "", str(causa or "").lower())[:20]
+        self.medidas = medidas
+
+
+def texto_de(contenido):
+    """Texto de la respuesta. Los modelos con razonamiento devuelven una lista
+    de bloques (`thinking` y `text`) en vez de una cadena: solo cuenta `text`."""
+    if isinstance(contenido, list):
+        partes = [b.get("text") for b in contenido
+                  if isinstance(b, dict) and b.get("type") == "text"]
+        if all(isinstance(p, str) for p in partes):
+            return "".join(partes)
+        return None
+    return contenido
+
+
+def _cadenas(valor):
+    if isinstance(valor, str):
+        yield valor
+    elif isinstance(valor, dict):
+        for clave, v in valor.items():
+            if clave != "type":
+                yield from _cadenas(v)
+    elif isinstance(valor, list):
+        for v in valor:
+            yield from _cadenas(v)
+
+
+def _caracteres(valor):
+    return sum(len(c) for c in _cadenas(valor))
+
+
+def medir_corte(respuesta):
+    """Solo recuentos de una respuesta cortada, para el registro de Actions:
+    distinguen una respuesta larga de una que se repite, rellena con espacios
+    o gasta el margen en razonar. El modelo y los tipos de bloque se reducen
+    a un alfabeto fijo: nada del contenido llega al registro."""
+    try:
+        contenido = respuesta["choices"][0]["message"]["content"]
+        uso = respuesta.get("usage")
+        tokens = uso.get("completion_tokens") if isinstance(uso, dict) else None
+        modelo = re.sub(r"[^a-z0-9.-]", "", str(respuesta.get("model") or "").lower())[:40]
+    except (KeyError, IndexError, TypeError, AttributeError):
+        return ""
+    medidas = ["modelo=%s" % (modelo or "?"),
+               "tokens_salida=%s" % (tokens if isinstance(tokens, int) else "?")]
+    if isinstance(contenido, list):
+        por_tipo = {}
+        for bloque in contenido:
+            tipo = bloque.get("type") if isinstance(bloque, dict) else None
+            tipo = re.sub(r"[^a-z_]", "", str(tipo or "otro").lower())[:20] or "otro"
+            por_tipo[tipo] = por_tipo.get(tipo, 0) + _caracteres(bloque)
+        medidas.append("bloques=%d" % len(contenido))
+        medidas.extend("caracteres_%s=%d" % par for par in sorted(por_tipo.items()))
+        # Un razonamiento en bucle repite líneas: pocas distintas entre muchas.
+        razonado = [l.strip() for b in contenido
+                    if isinstance(b, dict) and b.get("type") == "thinking"
+                    for c in _cadenas(b) for l in c.splitlines() if l.strip()]
+        if razonado:
+            medidas.append("lineas_thinking=%d lineas_thinking_distintas=%d" % (
+                len(razonado), len(set(razonado))))
+    texto = texto_de(contenido)
+    if isinstance(texto, str):
+        lineas = [l.strip() for l in texto.splitlines() if l.strip()]
+        medidas.append("caracteres=%d espacios=%d lineas=%d lineas_distintas=%d" % (
+            len(texto), sum(c.isspace() for c in texto), len(lineas), len(set(lineas))))
+    else:
+        medidas.append("contenido no textual")
+    return " ".join(medidas)
+
+
 def llamar_mistral(mensajes, modelo, clave, json_mode=True):
     cuerpo = {"model": modelo, "messages": mensajes, "temperature": 0.1,
-              "max_tokens": 4000}
+              "max_tokens": MAX_SALIDA, "reasoning_effort": ESFUERZO}
     if json_mode:
         cuerpo["response_format"] = {"type": "json_object"}
     for intento in range(3):
@@ -395,21 +485,27 @@ def llamar_mistral(mensajes, modelo, clave, json_mode=True):
             try:
                 eleccion = respuesta["choices"][0]
                 if eleccion["finish_reason"] != "stop":
-                    raise ValueError("Mistral no completó la revisión")
-                contenido = eleccion["message"]["content"]
+                    raise RespuestaIncompleta(eleccion["finish_reason"],
+                                              medir_corte(respuesta))
+                contenido = texto_de(eleccion["message"]["content"])
             except (KeyError, IndexError, TypeError) as error:
                 raise ValueError("Respuesta de API de Mistral inválida") from error
             if not isinstance(contenido, str) or not contenido.strip():
                 raise ValueError("Mistral devolvió contenido vacío o no textual")
             return contenido
         except urllib.error.HTTPError as error:
-            if error.code == 400 and "response_format" in cuerpo and intento < 2:
+            if error.code == 400 and intento < 2:
                 detalle = error.read(8192).decode("utf-8", errors="replace").lower()
-                if ("response_format" in detalle or "json_object" in detalle) and any(
+                if "reasoning_effort" in cuerpo and "reasoning_effort" in detalle:
+                    del cuerpo["reasoning_effort"]
+                    print("::warning::El modelo no admite reasoning_effort; se retira.")
+                    continue  # comparte el presupuesto total de tres solicitudes
+                if "response_format" in cuerpo and (
+                        "response_format" in detalle or "json_object" in detalle) and any(
                         palabra in detalle for palabra in
                         ("not supported", "unsupported", "does not support")):
                     del cuerpo["response_format"]
-                    continue  # comparte el presupuesto total de tres solicitudes
+                    continue
             if error.code not in (429, 500, 502, 503, 504) or intento == 2:
                 raise
             espera = espera_reintento(error, intento)
@@ -707,22 +803,32 @@ def main():
         else:
             mensajes, recortado = construir_mensajes(pr.get("title"), pr.get("body"),
                 diff, leer_guia(), obtener_contexto(diff[:MAX_DIFF], pr["head"]["sha"]))
-            texto = llamar_mistral(mensajes, modelo, clave)
-            diagnostico = []
-            resultado = interpretar(texto, diff[:MAX_DIFF], exigir_comprobaciones=True,
-                rutas_comprobaciones=obtener_rutas_diff(
-                    pr["base"]["sha"], pr["head"]["sha"]), diagnostico=diagnostico,
-                sin_verificar=sin_verificar)
-            if diagnostico:
-                print("::error::Respuesta de Mistral rechazada: " + ", ".join(diagnostico))
-            if resultado is not None:
-                comprobaciones = json.loads(texto)["comprobaciones"]
+            rutas = obtener_rutas_diff(pr["base"]["sha"], pr["head"]["sha"])
+            for solicitud in range(1, INTENTOS_RESPUESTA + 1):
+                texto = llamar_mistral(mensajes, modelo, clave)
+                diagnostico = []
+                del sin_verificar[:]  # solo cuentan las citas del último intento
+                resultado = interpretar(texto, diff[:MAX_DIFF],
+                    exigir_comprobaciones=True, rutas_comprobaciones=rutas,
+                    diagnostico=diagnostico, sin_verificar=sin_verificar)
+                if resultado is not None:
+                    comprobaciones = json.loads(texto)["comprobaciones"]
+                    break
+                # Solo la regla incumplida: la respuesta puede citar el prompt.
+                print("::%s::Respuesta de Mistral rechazada (solicitud %d de %d): %s" % (
+                    "error" if solicitud == INTENTOS_RESPUESTA else "warning",
+                    solicitud, INTENTOS_RESPUESTA, ", ".join(diagnostico)))
     except urllib.error.HTTPError as fallo:
         error = "la API devolvió HTTP %d" % fallo.code
     except (urllib.error.URLError, TimeoutError):
         error = "falló la conexión con Mistral o se agotó el tiempo de espera"
-    except ValueError:
+    except ValueError as fallo:
         error = "Mistral devolvió una respuesta incompleta o no válida"
+        causa = getattr(fallo, "causa", "")
+        if causa:
+            error += " (`%s`)" % causa
+        if getattr(fallo, "medidas", ""):
+            print("::warning::Respuesta cortada: " + fallo.medidas)
     except (OSError, subprocess.CalledProcessError):
         error = "no se pudo preparar el diff o la guía del proyecto"
     # No mostrar cuerpos de error de la API: pueden contener datos del prompt.

@@ -22,6 +22,26 @@ Los comentarios anteriores no se editan ni se borran. Un push nuevo cancela
 la revisión en curso; una ejecución cancelada antes de publicar puede no dejar
 comentario.
 
+**Segunda solicitud ante una respuesta mal formada.** Desde el 2026-11-13,
+si la respuesta no cumple el esquema o cita líneas que no están en el diff, se
+pide **una** más antes de dar la revisión por no válida (en el PR #200 una sola
+comprobación sin campo invalidó la revisión entera, y repetirla a mano bastó).
+El registro de Actions nombra la regla incumplida de cada solicitud, nunca el
+contenido. Un corte de la API no se repite: el informe añade su código de causa
+(`length` cuando se agota el margen de salida, que sube de 4.000 a 16.000
+tokens) y el registro de Actions dice el modelo servido y cuánto ocupó el
+razonamiento y cuánto la respuesta, sin contenido.
+
+**Razonamiento bajo.** `mistral-large-latest` pasó a razonar antes de
+responder y devuelve el contenido en bloques (`thinking` y `text`). En el PR
+#202, con un margen de 8.000 tokens, los gastó en razonar y no escribió nada:
+esa era la causa de los informes «no completada». Con razonamiento bajo usó
+unos 6.500 tokens en razonar y se cortó a media respuesta; por eso el margen
+es de 16.000. El revisor lee los bloques `text`
+y envía `reasoning_effort: "low"`; si el modelo no admite el parámetro, lo
+retira y repite la solicitud. Para no depender de adónde apunte `-latest`,
+fija un modelo concreto en la variable `MISTRAL_MODEL`.
+
 **Un informe válido por commit.** Desde el 2026-11-11, si el PR ya tiene un
 informe válido de la misma base y la misma cabeza, editar el título o la
 descripción, reabrirlo o marcarlo listo **no repite** la revisión ni consume
