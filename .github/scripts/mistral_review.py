@@ -411,14 +411,20 @@ def texto_de(contenido):
     return contenido
 
 
-def _caracteres(valor):
+def _cadenas(valor):
     if isinstance(valor, str):
-        return len(valor)
-    if isinstance(valor, dict):
-        return sum(_caracteres(v) for k, v in valor.items() if k != "type")
-    if isinstance(valor, list):
-        return sum(_caracteres(v) for v in valor)
-    return 0
+        yield valor
+    elif isinstance(valor, dict):
+        for clave, v in valor.items():
+            if clave != "type":
+                yield from _cadenas(v)
+    elif isinstance(valor, list):
+        for v in valor:
+            yield from _cadenas(v)
+
+
+def _caracteres(valor):
+    return sum(len(c) for c in _cadenas(valor))
 
 
 def medir_corte(respuesta):
@@ -443,6 +449,13 @@ def medir_corte(respuesta):
             por_tipo[tipo] = por_tipo.get(tipo, 0) + _caracteres(bloque)
         medidas.append("bloques=%d" % len(contenido))
         medidas.extend("caracteres_%s=%d" % par for par in sorted(por_tipo.items()))
+        # Un razonamiento en bucle repite líneas: pocas distintas entre muchas.
+        razonado = [l.strip() for b in contenido
+                    if isinstance(b, dict) and b.get("type") == "thinking"
+                    for c in _cadenas(b) for l in c.splitlines() if l.strip()]
+        if razonado:
+            medidas.append("lineas_thinking=%d lineas_thinking_distintas=%d" % (
+                len(razonado), len(set(razonado))))
     texto = texto_de(contenido)
     if isinstance(texto, str):
         lineas = [l.strip() for l in texto.splitlines() if l.strip()]
@@ -483,6 +496,7 @@ def llamar_mistral(mensajes, modelo, clave, json_mode=True):
                 detalle = error.read(8192).decode("utf-8", errors="replace").lower()
                 if "reasoning_effort" in cuerpo and "reasoning_effort" in detalle:
                     del cuerpo["reasoning_effort"]
+                    print("::warning::El modelo no admite reasoning_effort; se retira.")
                     continue  # comparte el presupuesto total de tres solicitudes
                 if "response_format" in cuerpo and (
                         "response_format" in detalle or "json_object" in detalle) and any(
