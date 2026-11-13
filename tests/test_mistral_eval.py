@@ -55,6 +55,9 @@ class TestCasos(unittest.TestCase):
                  [{k: v for k, v in POSITIVO.items() if k != "arreglo"}],
                  [{k: v for k, v in NEGATIVO.items() if k != "archivos"}],
                  [dict(POSITIVO, cabeza="HEAD; rm -rf /")],
+                 [dict(POSITIVO, cabeza=SHA + "; rm -rf /")],
+                 [dict(POSITIVO, cabeza=SHA + "\n")],
+                 [dict(POSITIVO, cabeza=SHA[:7])],
                  [POSITIVO, dict(POSITIVO)])
         for casos in malos:
             with self.subTest(casos=casos), self.assertRaises(ValueError):

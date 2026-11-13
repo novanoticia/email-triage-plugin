@@ -31,6 +31,7 @@ import argparse
 import importlib.util
 import json
 import os
+import re
 import subprocess
 import sys
 import urllib.error
@@ -64,8 +65,9 @@ def cargar_casos(ruta):
             if not c.get(clave):
                 raise ValueError("caso %s: falta %s" % (c.get("id"), clave))
         for clave in ("base", "cabeza", "arreglo"):
-            if clave in c and not mr._SHA.match(str(c[clave])):
-                raise ValueError("caso %s: %s no es un SHA" % (c["id"], clave))
+            # SHA completo y nada más: `$` admitiría un salto de línea final.
+            if clave in c and not re.fullmatch(r"[0-9a-f]{40}", str(c[clave])):
+                raise ValueError("caso %s: %s no es un SHA completo" % (c["id"], clave))
         if c["id"] in vistos:
             raise ValueError("caso repetido: %s" % c["id"])
         vistos.add(c["id"])
