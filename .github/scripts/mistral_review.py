@@ -383,6 +383,10 @@ MAX_SALIDA = 8000
 # Una respuesta mal formada (una comprobación sin campo, una cita inventada)
 # invalidaba la revisión entera: se pide una segunda antes de rendirse.
 INTENTOS_RESPUESTA = 2
+# `mistral-large-latest` pasó a razonar antes de responder y gastaba el margen
+# entero en ello (PR #202: 31.129 caracteres de razonamiento, ninguno de
+# respuesta). Si el modelo no admite el parámetro, se retira y se repite.
+ESFUERZO = "low"
 
 
 class RespuestaIncompleta(ValueError):
@@ -451,7 +455,7 @@ def medir_corte(respuesta):
 
 def llamar_mistral(mensajes, modelo, clave, json_mode=True):
     cuerpo = {"model": modelo, "messages": mensajes, "temperature": 0.1,
-              "max_tokens": MAX_SALIDA}
+              "max_tokens": MAX_SALIDA, "reasoning_effort": ESFUERZO}
     if json_mode:
         cuerpo["response_format"] = {"type": "json_object"}
     for intento in range(3):
@@ -475,13 +479,17 @@ def llamar_mistral(mensajes, modelo, clave, json_mode=True):
                 raise ValueError("Mistral devolvió contenido vacío o no textual")
             return contenido
         except urllib.error.HTTPError as error:
-            if error.code == 400 and "response_format" in cuerpo and intento < 2:
+            if error.code == 400 and intento < 2:
                 detalle = error.read(8192).decode("utf-8", errors="replace").lower()
-                if ("response_format" in detalle or "json_object" in detalle) and any(
+                if "reasoning_effort" in cuerpo and "reasoning_effort" in detalle:
+                    del cuerpo["reasoning_effort"]
+                    continue  # comparte el presupuesto total de tres solicitudes
+                if "response_format" in cuerpo and (
+                        "response_format" in detalle or "json_object" in detalle) and any(
                         palabra in detalle for palabra in
                         ("not supported", "unsupported", "does not support")):
                     del cuerpo["response_format"]
-                    continue  # comparte el presupuesto total de tres solicitudes
+                    continue
             if error.code not in (429, 500, 502, 503, 504) or intento == 2:
                 raise
             espera = espera_reintento(error, intento)

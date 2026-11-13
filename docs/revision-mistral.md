@@ -29,7 +29,16 @@ comprobación sin campo invalidó la revisión entera, y repetirla a mano bastó
 El registro de Actions nombra la regla incumplida de cada solicitud, nunca el
 contenido. Un corte de la API no se repite: el informe añade su código de causa
 (`length` cuando se agota el margen de salida, que sube de 4.000 a 8.000
-tokens). Que el margen anterior causara cortes está **sin confirmar**.
+tokens) y el registro de Actions dice el modelo servido y cuánto ocupó el
+razonamiento y cuánto la respuesta, sin contenido.
+
+**Razonamiento bajo.** `mistral-large-latest` pasó a razonar antes de
+responder y devuelve el contenido en bloques (`thinking` y `text`). En el PR
+#202 gastó los 8.000 tokens en razonar y no escribió nada: esa era la causa de
+los informes «no completada», no el margen. El revisor lee los bloques `text`
+y envía `reasoning_effort: "low"`; si el modelo no admite el parámetro, lo
+retira y repite la solicitud. Para no depender de adónde apunte `-latest`,
+fija un modelo concreto en la variable `MISTRAL_MODEL`.
 
 **Un informe válido por commit.** Desde el 2026-11-11, si el PR ya tiene un
 informe válido de la misma base y la misma cabeza, editar el título o la

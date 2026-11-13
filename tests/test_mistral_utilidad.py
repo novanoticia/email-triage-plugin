@@ -7,6 +7,7 @@ Lo que estos tests fijan es mecánico (qué se envía, qué se publica y cuándo
 la calidad del razonamiento del modelo no se puede probar aquí.
 """
 import importlib.util
+import io
 import json
 import os
 import subprocess
@@ -393,6 +394,28 @@ class TestReintentoYCorte(unittest.TestCase):
                          "caracteres_thinking=70 caracteres=8 espacios=1 lineas=1 "
                          "lineas_distintas=1")
         self.assertNotIn("SECRETO", medidas)
+
+    def test_pide_poco_razonamiento_y_lo_retira_si_no_se_admite(self):
+        bien = mock.MagicMock()
+        bien.__enter__.return_value.read.return_value = json.dumps({"choices": [
+            {"message": {"content": "{}"}, "finish_reason": "stop"}]}).encode()
+        rechazo = mr.urllib.error.HTTPError(mr.API, 400, "error", {}, io.BytesIO(
+            b'{"message": "Extra inputs are not permitted: reasoning_effort"}'))
+        with mock.patch.object(mr.urllib.request, "urlopen",
+                               side_effect=[rechazo, bien]) as abrir:
+            self.assertEqual(mr.llamar_mistral([], "m", "clave"), "{}")
+        cuerpos = [json.loads(c.args[0].data) for c in abrir.call_args_list]
+        self.assertEqual(cuerpos[0]["reasoning_effort"], "low")
+        self.assertNotIn("reasoning_effort", cuerpos[1])
+        self.assertIn("response_format", cuerpos[1])
+
+    def test_otro_400_no_se_reintenta(self):
+        rechazo = mr.urllib.error.HTTPError(mr.API, 400, "error", {}, io.BytesIO(b"otro"))
+        with mock.patch.object(mr.urllib.request, "urlopen",
+                               side_effect=[rechazo]) as abrir:
+            with self.assertRaises(mr.urllib.error.HTTPError):
+                mr.llamar_mistral([], "m", "clave")
+        self.assertEqual(abrir.call_count, 1)
 
     def test_la_causa_se_reduce_a_letras(self):
         fallo = mr.RespuestaIncompleta("Length`\n## titulo <b>" + "x" * 50)
