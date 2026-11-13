@@ -442,7 +442,7 @@ class TestReintentoYCorte(unittest.TestCase):
         self.assertEqual(fallo.exception.causa, "length")
         enviado = json.loads(abrir.call_args.args[0].data)
         self.assertEqual(enviado["max_tokens"], mr.MAX_SALIDA)
-        self.assertEqual(mr.MAX_SALIDA, 8000)
+        self.assertEqual(mr.MAX_SALIDA, 16000)
 
 
 if __name__ == "__main__":

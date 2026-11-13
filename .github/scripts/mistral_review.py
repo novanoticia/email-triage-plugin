@@ -378,8 +378,10 @@ def espera_reintento(error, intento):
     return espera if espera <= MAX_ESPERA else None
 
 
-# Seis comprobaciones razonadas más los hallazgos rozaban los 4.000 tokens.
-MAX_SALIDA = 8000
+# El margen incluye el razonamiento del modelo. Medido en el PR #202 con
+# `mistral-large-latest`: unos 6.500 tokens de razonamiento antes de empezar
+# la respuesta; con 8.000 se cortaba a media revisión.
+MAX_SALIDA = 16000
 # Una respuesta mal formada (una comprobación sin campo, una cita inventada)
 # invalidaba la revisión entera: se pide una segunda antes de rendirse.
 INTENTOS_RESPUESTA = 2
