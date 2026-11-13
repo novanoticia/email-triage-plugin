@@ -391,7 +391,8 @@ class TestReintentoYCorte(unittest.TestCase):
         medidas = mr.medir_corte({"model": "m", "choices": [
             {"message": {"content": self.BLOQUES}}]})
         self.assertEqual(medidas, "modelo=m tokens_salida=? bloques=3 caracteres_text=8 "
-                         "caracteres_thinking=70 caracteres=8 espacios=1 lineas=1 "
+                         "caracteres_thinking=70 lineas_thinking=1 "
+                         "lineas_thinking_distintas=1 caracteres=8 espacios=1 lineas=1 "
                          "lineas_distintas=1")
         self.assertNotIn("SECRETO", medidas)
 
@@ -402,8 +403,10 @@ class TestReintentoYCorte(unittest.TestCase):
         rechazo = mr.urllib.error.HTTPError(mr.API, 400, "error", {}, io.BytesIO(
             b'{"message": "Extra inputs are not permitted: reasoning_effort"}'))
         with mock.patch.object(mr.urllib.request, "urlopen",
-                               side_effect=[rechazo, bien]) as abrir:
+                               side_effect=[rechazo, bien]) as abrir, \
+                mock.patch("builtins.print") as salida:
             self.assertEqual(mr.llamar_mistral([], "m", "clave"), "{}")
+        self.assertIn("se retira", salida.call_args.args[0])
         cuerpos = [json.loads(c.args[0].data) for c in abrir.call_args_list]
         self.assertEqual(cuerpos[0]["reasoning_effort"], "low")
         self.assertNotIn("reasoning_effort", cuerpos[1])
