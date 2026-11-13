@@ -272,7 +272,7 @@ class TestNoRepetir(unittest.TestCase):
             with mock.patch.object(mr.subprocess, "run", side_effect=fallo):
                 self.assertFalse(mr.ya_revisado("o/r", 7, self.B1, self.C1))
 
-    def main(self, entorno, previo):
+    def main(self, entorno, previo, respuestas=None):
         evento = json.dumps({"pull_request": {
             "number": 7, "base": {"sha": "b1"}, "head": {"sha": "c1"}}})
         variables = {"MISTRAL_API_KEY": "clave", "GITHUB_EVENT_PATH": "evento.json",
@@ -288,7 +288,8 @@ class TestNoRepetir(unittest.TestCase):
                 mock.patch.object(mr, "obtener_rutas_diff", return_value={"a.py"}), \
                 mock.patch.object(mr, "leer_guia", return_value=(None, "")), \
                 mock.patch.object(mr, "obtener_contexto", return_value=""), \
-                mock.patch.object(mr, "llamar_mistral", return_value=respuesta) as api, \
+                mock.patch.object(mr, "llamar_mistral",
+                                  side_effect=respuestas or [respuesta]) as api, \
                 mock.patch.object(mr, "publicar") as publicar, \
                 mock.patch("builtins.print") as salida:
             codigo = mr.main()
@@ -318,6 +319,70 @@ class TestNoRepetir(unittest.TestCase):
         _, historial, api, _, _ = self.main({"GH_TOKEN": ""}, True)
         historial.assert_not_called()
         api.assert_called_once()
+
+
+class TestReintentoYCorte(unittest.TestCase):
+    """Igualado con los otros repos el 2026-11-13: una respuesta mal formada
+    invalidaba la revisión entera (PR #200), y un corte no decía su causa."""
+
+    main = TestNoRepetir.main
+    VALIDA = json.dumps({"resumen": "R", "hallazgos": [],
+                         "comprobaciones": COMPROBACIONES})
+    ROTA = json.dumps({"resumen": "R", "hallazgos": [],
+                       "comprobaciones": [{"archivo": "a.py"}]})
+
+    def test_respuesta_mal_formada_se_pide_otra_vez(self):
+        codigo, _, api, publicar, salida = self.main(
+            {"GH_TOKEN": ""}, False, [self.ROTA, self.VALIDA])
+        self.assertEqual(codigo, 0)
+        self.assertEqual(api.call_count, 2)
+        self.assertIn(mr.MARCA_OK % ("b1", "c1"), publicar.call_args.args[2])
+        avisos = [c.args[0] for c in salida.call_args_list if "rechazada" in c.args[0]]
+        self.assertEqual(len(avisos), 1)
+        self.assertTrue(avisos[0].startswith("::warning::"))
+        self.assertIn("solicitud 1 de 2", avisos[0])
+
+    def test_dos_respuestas_mal_formadas_fallan_sin_tercera(self):
+        codigo, _, api, publicar, salida = self.main(
+            {"GH_TOKEN": ""}, False, [self.ROTA, self.ROTA, self.VALIDA])
+        self.assertEqual(codigo, 1)
+        self.assertEqual(api.call_count, mr.INTENTOS_RESPUESTA)
+        cuerpo = publicar.call_args.args[2]
+        self.assertIn("Revisión no válida", cuerpo)
+        self.assertNotIn("mistral-review-ok", cuerpo)
+        self.assertTrue(any(c.args[0].startswith("::error::")
+                            for c in salida.call_args_list))
+
+    def test_corte_de_la_api_nombra_la_causa_y_no_reintenta(self):
+        codigo, _, api, publicar, _ = self.main(
+            {"GH_TOKEN": ""}, False, [mr.RespuestaIncompleta("length"), self.VALIDA])
+        self.assertEqual(codigo, 1)
+        api.assert_called_once()
+        self.assertIn("incompleta o no válida (`length`)", publicar.call_args.args[2])
+
+    def test_la_causa_se_reduce_a_letras(self):
+        fallo = mr.RespuestaIncompleta("Length`\n## titulo <b>" + "x" * 50)
+        self.assertRegex(fallo.causa, r"^[a-z_]{1,20}$")
+        self.assertEqual(mr.RespuestaIncompleta(None).causa, "")
+
+    def test_otro_valueerror_no_inventa_causa(self):
+        _, _, _, publicar, _ = self.main(
+            {"GH_TOKEN": ""}, False, [ValueError("vacío")])
+        cuerpo = publicar.call_args.args[2]
+        self.assertIn("incompleta o no válida. ", cuerpo)
+        self.assertNotIn("válida (`", cuerpo)
+
+    def test_margen_de_salida_enviado(self):
+        resp = mock.MagicMock()
+        resp.__enter__.return_value.read.return_value = json.dumps({"choices": [
+            {"message": {"content": "{}"}, "finish_reason": "length"}]}).encode()
+        with mock.patch.object(mr.urllib.request, "urlopen", return_value=resp) as abrir:
+            with self.assertRaises(mr.RespuestaIncompleta) as fallo:
+                mr.llamar_mistral([], "m", "clave")
+        self.assertEqual(fallo.exception.causa, "length")
+        enviado = json.loads(abrir.call_args.args[0].data)
+        self.assertEqual(enviado["max_tokens"], mr.MAX_SALIDA)
+        self.assertEqual(mr.MAX_SALIDA, 8000)
 
 
 if __name__ == "__main__":

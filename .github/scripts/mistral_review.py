@@ -378,9 +378,25 @@ def espera_reintento(error, intento):
     return espera if espera <= MAX_ESPERA else None
 
 
+# Seis comprobaciones razonadas más los hallazgos rozaban los 4.000 tokens.
+MAX_SALIDA = 8000
+# Una respuesta mal formada (una comprobación sin campo, una cita inventada)
+# invalidaba la revisión entera: se pide una segunda antes de rendirse.
+INTENTOS_RESPUESTA = 2
+
+
+class RespuestaIncompleta(ValueError):
+    """La API terminó sin `stop`. `causa` es su código (`length` = se agotó
+    MAX_SALIDA) reducido a letras: nunca lleva contenido de la respuesta."""
+
+    def __init__(self, causa):
+        ValueError.__init__(self, "Mistral no completó la revisión")
+        self.causa = re.sub(r"[^a-z_]", "", str(causa or "").lower())[:20]
+
+
 def llamar_mistral(mensajes, modelo, clave, json_mode=True):
     cuerpo = {"model": modelo, "messages": mensajes, "temperature": 0.1,
-              "max_tokens": 4000}
+              "max_tokens": MAX_SALIDA}
     if json_mode:
         cuerpo["response_format"] = {"type": "json_object"}
     for intento in range(3):
@@ -395,7 +411,7 @@ def llamar_mistral(mensajes, modelo, clave, json_mode=True):
             try:
                 eleccion = respuesta["choices"][0]
                 if eleccion["finish_reason"] != "stop":
-                    raise ValueError("Mistral no completó la revisión")
+                    raise RespuestaIncompleta(eleccion["finish_reason"])
                 contenido = eleccion["message"]["content"]
             except (KeyError, IndexError, TypeError) as error:
                 raise ValueError("Respuesta de API de Mistral inválida") from error
@@ -707,22 +723,30 @@ def main():
         else:
             mensajes, recortado = construir_mensajes(pr.get("title"), pr.get("body"),
                 diff, leer_guia(), obtener_contexto(diff[:MAX_DIFF], pr["head"]["sha"]))
-            texto = llamar_mistral(mensajes, modelo, clave)
-            diagnostico = []
-            resultado = interpretar(texto, diff[:MAX_DIFF], exigir_comprobaciones=True,
-                rutas_comprobaciones=obtener_rutas_diff(
-                    pr["base"]["sha"], pr["head"]["sha"]), diagnostico=diagnostico,
-                sin_verificar=sin_verificar)
-            if diagnostico:
-                print("::error::Respuesta de Mistral rechazada: " + ", ".join(diagnostico))
-            if resultado is not None:
-                comprobaciones = json.loads(texto)["comprobaciones"]
+            rutas = obtener_rutas_diff(pr["base"]["sha"], pr["head"]["sha"])
+            for solicitud in range(1, INTENTOS_RESPUESTA + 1):
+                texto = llamar_mistral(mensajes, modelo, clave)
+                diagnostico = []
+                del sin_verificar[:]  # solo cuentan las citas del último intento
+                resultado = interpretar(texto, diff[:MAX_DIFF],
+                    exigir_comprobaciones=True, rutas_comprobaciones=rutas,
+                    diagnostico=diagnostico, sin_verificar=sin_verificar)
+                if resultado is not None:
+                    comprobaciones = json.loads(texto)["comprobaciones"]
+                    break
+                # Solo la regla incumplida: la respuesta puede citar el prompt.
+                print("::%s::Respuesta de Mistral rechazada (solicitud %d de %d): %s" % (
+                    "error" if solicitud == INTENTOS_RESPUESTA else "warning",
+                    solicitud, INTENTOS_RESPUESTA, ", ".join(diagnostico)))
     except urllib.error.HTTPError as fallo:
         error = "la API devolvió HTTP %d" % fallo.code
     except (urllib.error.URLError, TimeoutError):
         error = "falló la conexión con Mistral o se agotó el tiempo de espera"
-    except ValueError:
+    except ValueError as fallo:
         error = "Mistral devolvió una respuesta incompleta o no válida"
+        causa = getattr(fallo, "causa", "")
+        if causa:
+            error += " (`%s`)" % causa
     except (OSError, subprocess.CalledProcessError):
         error = "no se pudo preparar el diff o la guía del proyecto"
     # No mostrar cuerpos de error de la API: pueden contener datos del prompt.

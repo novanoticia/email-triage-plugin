@@ -22,6 +22,15 @@ Los comentarios anteriores no se editan ni se borran. Un push nuevo cancela
 la revisión en curso; una ejecución cancelada antes de publicar puede no dejar
 comentario.
 
+**Segunda solicitud ante una respuesta mal formada.** Desde el 2026-11-13,
+si la respuesta no cumple el esquema o cita líneas que no están en el diff, se
+pide **una** más antes de dar la revisión por no válida (en el PR #200 una sola
+comprobación sin campo invalidó la revisión entera, y repetirla a mano bastó).
+El registro de Actions nombra la regla incumplida de cada solicitud, nunca el
+contenido. Un corte de la API no se repite: el informe añade su código de causa
+(`length` cuando se agota el margen de salida, que sube de 4.000 a 8.000
+tokens). Que el margen anterior causara cortes está **sin confirmar**.
+
 **Un informe válido por commit.** Desde el 2026-11-11, si el PR ya tiene un
 informe válido de la misma base y la misma cabeza, editar el título o la
 descripción, reabrirlo o marcarlo listo **no repite** la revisión ni consume
