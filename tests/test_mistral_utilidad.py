@@ -360,6 +360,18 @@ class TestReintentoYCorte(unittest.TestCase):
         api.assert_called_once()
         self.assertIn("incompleta o no válida (`length`)", publicar.call_args.args[2])
 
+    def test_el_corte_se_mide_sin_contenido(self):
+        medidas = mr.medir_corte({"usage": {"completion_tokens": 8000}, "choices": [
+            {"message": {"content": "SECRETO\n" * 3 + " " * 10}}]})
+        self.assertEqual(medidas, "tokens_salida=8000 caracteres=34 espacios=13 "
+                                  "lineas=3 lineas_distintas=1")
+        self.assertEqual(mr.medir_corte({"choices": []}), "")
+        _, _, _, publicar, salida = self.main({"GH_TOKEN": ""}, False,
+            [mr.RespuestaIncompleta("length", medidas)])
+        self.assertNotIn("tokens_salida", publicar.call_args.args[2])
+        self.assertIn("::warning::Respuesta cortada: " + medidas,
+                      [c.args[0] for c in salida.call_args_list])
+
     def test_la_causa_se_reduce_a_letras(self):
         fallo = mr.RespuestaIncompleta("Length`\n## titulo <b>" + "x" * 50)
         self.assertRegex(fallo.causa, r"^[a-z_]{1,20}$")

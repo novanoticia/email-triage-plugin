@@ -389,9 +389,26 @@ class RespuestaIncompleta(ValueError):
     """La API terminó sin `stop`. `causa` es su código (`length` = se agotó
     MAX_SALIDA) reducido a letras: nunca lleva contenido de la respuesta."""
 
-    def __init__(self, causa):
+    def __init__(self, causa, medidas=""):
         ValueError.__init__(self, "Mistral no completó la revisión")
         self.causa = re.sub(r"[^a-z_]", "", str(causa or "").lower())[:20]
+        self.medidas = medidas
+
+
+def medir_corte(respuesta):
+    """Solo recuentos de una respuesta cortada, para el registro de Actions:
+    distinguen una respuesta larga de una que se repite o rellena con espacios."""
+    try:
+        contenido = respuesta["choices"][0]["message"]["content"]
+        tokens = respuesta.get("usage", {}).get("completion_tokens")
+    except (KeyError, IndexError, TypeError, AttributeError):
+        return ""
+    if not isinstance(contenido, str):
+        return "contenido no textual"
+    lineas = [l.strip() for l in contenido.splitlines() if l.strip()]
+    return ("tokens_salida=%s caracteres=%d espacios=%d lineas=%d lineas_distintas=%d"
+            % (tokens if isinstance(tokens, int) else "?", len(contenido),
+               sum(c.isspace() for c in contenido), len(lineas), len(set(lineas))))
 
 
 def llamar_mistral(mensajes, modelo, clave, json_mode=True):
@@ -411,7 +428,8 @@ def llamar_mistral(mensajes, modelo, clave, json_mode=True):
             try:
                 eleccion = respuesta["choices"][0]
                 if eleccion["finish_reason"] != "stop":
-                    raise RespuestaIncompleta(eleccion["finish_reason"])
+                    raise RespuestaIncompleta(eleccion["finish_reason"],
+                                              medir_corte(respuesta))
                 contenido = eleccion["message"]["content"]
             except (KeyError, IndexError, TypeError) as error:
                 raise ValueError("Respuesta de API de Mistral inválida") from error
@@ -747,6 +765,8 @@ def main():
         causa = getattr(fallo, "causa", "")
         if causa:
             error += " (`%s`)" % causa
+        if getattr(fallo, "medidas", ""):
+            print("::warning::Respuesta cortada: " + fallo.medidas)
     except (OSError, subprocess.CalledProcessError):
         error = "no se pudo preparar el diff o la guía del proyecto"
     # No mostrar cuerpos de error de la API: pueden contener datos del prompt.
