@@ -361,16 +361,38 @@ class TestReintentoYCorte(unittest.TestCase):
         self.assertIn("incompleta o no válida (`length`)", publicar.call_args.args[2])
 
     def test_el_corte_se_mide_sin_contenido(self):
-        medidas = mr.medir_corte({"usage": {"completion_tokens": 8000}, "choices": [
+        medidas = mr.medir_corte({"model": "Mistral-Large-X <b>",
+            "usage": {"completion_tokens": 8000}, "choices": [
             {"message": {"content": "SECRETO\n" * 3 + " " * 10}}]})
-        self.assertEqual(medidas, "tokens_salida=8000 caracteres=34 espacios=13 "
-                                  "lineas=3 lineas_distintas=1")
+        self.assertEqual(medidas, "modelo=mistral-large-xb tokens_salida=8000 "
+                         "caracteres=34 espacios=13 lineas=3 lineas_distintas=1")
         self.assertEqual(mr.medir_corte({"choices": []}), "")
         _, _, _, publicar, salida = self.main({"GH_TOKEN": ""}, False,
             [mr.RespuestaIncompleta("length", medidas)])
         self.assertNotIn("tokens_salida", publicar.call_args.args[2])
         self.assertIn("::warning::Respuesta cortada: " + medidas,
                       [c.args[0] for c in salida.call_args_list])
+
+    BLOQUES = [{"type": "thinking", "thinking": [{"type": "text", "text": "SECRETO" * 10}]},
+               {"type": "text", "text": '{"a":'}, {"type": "text", "text": " 1}"}]
+
+    def test_respuesta_en_bloques_solo_cuenta_el_texto(self):
+        self.assertEqual(mr.texto_de(self.BLOQUES), '{"a": 1}')
+        self.assertEqual(mr.texto_de("x"), "x")
+        self.assertIsNone(mr.texto_de([{"type": "text", "text": 3}]))
+        resp = mock.MagicMock()
+        resp.__enter__.return_value.read.return_value = json.dumps({"choices": [
+            {"message": {"content": self.BLOQUES}, "finish_reason": "stop"}]}).encode()
+        with mock.patch.object(mr.urllib.request, "urlopen", return_value=resp):
+            self.assertEqual(mr.llamar_mistral([], "m", "clave"), '{"a": 1}')
+
+    def test_el_corte_en_bloques_separa_razonamiento_y_texto(self):
+        medidas = mr.medir_corte({"model": "m", "choices": [
+            {"message": {"content": self.BLOQUES}}]})
+        self.assertEqual(medidas, "modelo=m tokens_salida=? bloques=3 caracteres_text=8 "
+                         "caracteres_thinking=70 caracteres=8 espacios=1 lineas=1 "
+                         "lineas_distintas=1")
+        self.assertNotIn("SECRETO", medidas)
 
     def test_la_causa_se_reduce_a_letras(self):
         fallo = mr.RespuestaIncompleta("Length`\n## titulo <b>" + "x" * 50)

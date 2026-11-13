@@ -395,20 +395,58 @@ class RespuestaIncompleta(ValueError):
         self.medidas = medidas
 
 
+def texto_de(contenido):
+    """Texto de la respuesta. Los modelos con razonamiento devuelven una lista
+    de bloques (`thinking` y `text`) en vez de una cadena: solo cuenta `text`."""
+    if isinstance(contenido, list):
+        partes = [b.get("text") for b in contenido
+                  if isinstance(b, dict) and b.get("type") == "text"]
+        if all(isinstance(p, str) for p in partes):
+            return "".join(partes)
+        return None
+    return contenido
+
+
+def _caracteres(valor):
+    if isinstance(valor, str):
+        return len(valor)
+    if isinstance(valor, dict):
+        return sum(_caracteres(v) for k, v in valor.items() if k != "type")
+    if isinstance(valor, list):
+        return sum(_caracteres(v) for v in valor)
+    return 0
+
+
 def medir_corte(respuesta):
     """Solo recuentos de una respuesta cortada, para el registro de Actions:
-    distinguen una respuesta larga de una que se repite o rellena con espacios."""
+    distinguen una respuesta larga de una que se repite, rellena con espacios
+    o gasta el margen en razonar. El modelo y los tipos de bloque se reducen
+    a un alfabeto fijo: nada del contenido llega al registro."""
     try:
         contenido = respuesta["choices"][0]["message"]["content"]
-        tokens = respuesta.get("usage", {}).get("completion_tokens")
+        uso = respuesta.get("usage")
+        tokens = uso.get("completion_tokens") if isinstance(uso, dict) else None
+        modelo = re.sub(r"[^a-z0-9.-]", "", str(respuesta.get("model") or "").lower())[:40]
     except (KeyError, IndexError, TypeError, AttributeError):
         return ""
-    if not isinstance(contenido, str):
-        return "contenido no textual"
-    lineas = [l.strip() for l in contenido.splitlines() if l.strip()]
-    return ("tokens_salida=%s caracteres=%d espacios=%d lineas=%d lineas_distintas=%d"
-            % (tokens if isinstance(tokens, int) else "?", len(contenido),
-               sum(c.isspace() for c in contenido), len(lineas), len(set(lineas))))
+    medidas = ["modelo=%s" % (modelo or "?"),
+               "tokens_salida=%s" % (tokens if isinstance(tokens, int) else "?")]
+    if isinstance(contenido, list):
+        por_tipo = {}
+        for bloque in contenido:
+            tipo = bloque.get("type") if isinstance(bloque, dict) else None
+            tipo = re.sub(r"[^a-z_]", "", str(tipo or "otro").lower())[:20] or "otro"
+            por_tipo[tipo] = por_tipo.get(tipo, 0) + _caracteres(bloque)
+        medidas.append("bloques=%d" % len(contenido))
+        medidas.extend("caracteres_%s=%d" % par for par in sorted(por_tipo.items()))
+    texto = texto_de(contenido)
+    if isinstance(texto, str):
+        lineas = [l.strip() for l in texto.splitlines() if l.strip()]
+        medidas.append("caracteres=%d espacios=%d lineas=%d lineas_distintas=%d" % (
+            len(texto), sum(c.isspace() for c in texto), len(lineas), len(set(lineas))))
+    else:
+        medidas.append("contenido no textual")
+    return " ".join(medidas)
 
 
 def llamar_mistral(mensajes, modelo, clave, json_mode=True):
@@ -430,7 +468,7 @@ def llamar_mistral(mensajes, modelo, clave, json_mode=True):
                 if eleccion["finish_reason"] != "stop":
                     raise RespuestaIncompleta(eleccion["finish_reason"],
                                               medir_corte(respuesta))
-                contenido = eleccion["message"]["content"]
+                contenido = texto_de(eleccion["message"]["content"])
             except (KeyError, IndexError, TypeError) as error:
                 raise ValueError("Respuesta de API de Mistral inválida") from error
             if not isinstance(contenido, str) or not contenido.strip():
