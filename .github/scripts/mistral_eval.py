@@ -43,7 +43,39 @@ mr = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(mr)
 
 CASOS = os.path.join(os.path.dirname(_AQUI), "eval", "casos.json")
-MAX_LLAMADAS = 80  # tope de solicitudes por ejecución: cada una cuesta dinero
+MAX_LLAMADAS = 80  # tope de peticiones HTTP por ejecución: cada una cuesta dinero
+
+
+class PresupuestoAgotado(RuntimeError):
+    """Se alcanzó MAX_LLAMADAS: la evaluación se detiene con lo que lleva."""
+
+
+class Presupuesto:
+    """Cuenta las peticiones HTTP reales, no las llamadas a `llamar_mistral`.
+
+    Cada llamada puede hacer hasta tres peticiones (errores transitorios o un
+    parámetro que el modelo no admite), y cada revisión hasta
+    INTENTOS_RESPUESTA llamadas: contar revisiones dejaba pasar varias veces
+    el tope anunciado (Codex, PR #203). El tope se aplica en el transporte.
+    """
+
+    def __init__(self, maximo):
+        self.maximo, self.usadas = maximo, 0
+        self._abrir = mr.urllib.request.urlopen
+
+    def abrir(self, *args, **kwargs):
+        if self.usadas >= self.maximo:
+            raise PresupuestoAgotado()
+        self.usadas += 1
+        return self._abrir(*args, **kwargs)
+
+    def __enter__(self):
+        mr.urllib.request.urlopen = self.abrir
+        return self
+
+    def __exit__(self, *exc):
+        mr.urllib.request.urlopen = self._abrir
+        return False
 
 
 def git(*args):
@@ -102,7 +134,13 @@ def objetivos(caso):
 
 
 def lineas_citadas(diff, archivo, fragmento):
-    """Números de línea (en la cabeza) de las líneas del diff que cita un fragmento."""
+    """Números de línea (en la cabeza) de las líneas del diff que cita un fragmento.
+
+    Una línea eliminada no existe en la cabeza: cuentan las dos que la rodean,
+    como en `mr.lineas_cambiadas`. Quitar una guarda es un defecto que solo se
+    puede citar por la línea borrada, y `mr.cita_en` acepta esa evidencia
+    (Codex, PR #203).
+    """
     citadas = set()
     for linea in str(fragmento).splitlines():
         limpio = linea.strip()
@@ -112,8 +150,10 @@ def lineas_citadas(diff, archivo, fragmento):
                 citadas.add(limpio[1:].strip())
     numeros = set()
     for ruta, linea, numero in mr._lineas_de_hunks(diff):
-        if ruta == archivo and not linea.startswith("-") and linea[1:].strip() in citadas:
+        if ruta == archivo and linea[1:].strip() in citadas:
             numeros.add(numero)
+            if linea.startswith("-") and numero > 1:
+                numeros.add(numero - 1)
     return numeros
 
 
@@ -164,14 +204,17 @@ def revisar(caso, modelo, clave):
     destino = objetivos(caso)
     registro["estado"] = "valida"
     for h in resultado[1]:
-        registro["hallazgos"].append({
-            "severidad": h["severidad"], "archivo": h["archivo"],
-            "problema": mr._linea(h["problema"], 400),
-            "donde": clasificar(h, diff[:mr.MAX_DIFF], destino)})
+        # Campos completos ya validados: sin el escenario y el fragmento no se
+        # puede etiquetar si el hallazgo es el defecto conocido u otra cosa.
+        registro["hallazgos"].append(dict(
+            {c: h[c] for c in ("severidad", "archivo", "fragmento", "problema",
+                               "escenario", "arreglo")},
+            donde=clasificar(h, diff[:mr.MAX_DIFF], destino)))
     for c in json.loads(texto)["comprobaciones"]:
         if c["estado"] == "pendiente":
             registro["pendientes"].append({
-                "archivo": c["archivo"], "escenario": mr._linea(c["escenario"], 300),
+                "archivo": c["archivo"], "escenario": c["escenario"],
+                "conclusion": c["conclusion"],
                 "donde": "archivo" if c["archivo"] in destino else "fuera"})
     return registro
 
@@ -229,10 +272,13 @@ def resumir(casos, resultados, modelo, repeticiones):
                 partes.append("- Repetición %d: sin hallazgos ni pendientes." % i)
             for h in r["hallazgos"]:
                 partes.append("- Repetición %d, hallazgo %s [%s] en %s: %s" % (
-                    i, h["severidad"], h["donde"], mr._codigo(h["archivo"], 120), h["problema"]))
+                    i, h["severidad"], h["donde"], mr._codigo(h["archivo"], 120),
+                    mr._linea(h["problema"], 400)))
+                partes.append("  - Escenario: %s" % mr._linea(h["escenario"], 400))
             for p in r["pendientes"]:
                 partes.append("- Repetición %d, pendiente [%s] en %s: %s" % (
-                    i, p["donde"], mr._codigo(p["archivo"], 120), p["escenario"]))
+                    i, p["donde"], mr._codigo(p["archivo"], 120),
+                    mr._linea(p["escenario"], 300)))
     return "\n".join(partes) + "\n"
 
 
@@ -269,9 +315,10 @@ def main(argv=None):
     if not args.ejecutar:
         print(listar(casos))
         return 0
-    if args.repeticiones < 1 or (
-            len(casos) * args.repeticiones * mr.INTENTOS_RESPUESTA > MAX_LLAMADAS):
-        print("::error::Hasta %d solicitudes por ejecución: reduce casos o repeticiones."
+    # Mínimo seguro: una petición por revisión. Los reintentos se descuentan
+    # del mismo tope en el transporte y pueden agotar la evaluación antes.
+    if args.repeticiones < 1 or len(casos) * args.repeticiones > MAX_LLAMADAS:
+        print("::error::Hasta %d peticiones por ejecución: reduce casos o repeticiones."
               % MAX_LLAMADAS)
         return 2
     clave = os.environ.get("MISTRAL_API_KEY", "")
@@ -279,23 +326,36 @@ def main(argv=None):
         print("::error::Falta MISTRAL_API_KEY: la evaluación no se ha ejecutado.")
         return 2
     modelo = os.environ.get("MISTRAL_MODEL") or "codestral-latest"
-    resultados = {}
-    for c in casos:
-        resultados[c["id"]] = []
-        for n in range(args.repeticiones):
-            registro = revisar(c, modelo, clave)
-            resultados[c["id"]].append(registro)
-            print("%s repetición %d: %s, %d hallazgo(s)" % (
-                c["id"], n + 1, registro["estado"], len(registro["hallazgos"])))
+    resultados = {c["id"]: [] for c in casos}
+    agotado = False
+    with Presupuesto(MAX_LLAMADAS) as presupuesto:
+        try:
+            for c in casos:
+                for n in range(args.repeticiones):
+                    antes = presupuesto.usadas
+                    registro = revisar(c, modelo, clave)
+                    registro["solicitudes"] = presupuesto.usadas - antes
+                    resultados[c["id"]].append(registro)
+                    print("%s repetición %d: %s, %d hallazgo(s), %d petición(es)" % (
+                        c["id"], n + 1, registro["estado"],
+                        len(registro["hallazgos"]), registro["solicitudes"]))
+        except PresupuestoAgotado:
+            agotado = True
     informe = resumir(casos, resultados, modelo, args.repeticiones)
+    informe += "\nPeticiones HTTP a la API: %d de %d permitidas.\n" % (
+        presupuesto.usadas, MAX_LLAMADAS)
+    if agotado:
+        informe += ("\n**Evaluación incompleta:** se alcanzó el tope de peticiones; "
+                    "faltan revisiones. Las cifras de arriba son parciales.\n")
     mr.escribir_resumen(informe)
     print(informe)
     if args.salida:
         with open(args.salida, "w", encoding="utf-8") as fh:
             json.dump({"modelo": modelo, "repeticiones": args.repeticiones,
+                       "peticiones": presupuesto.usadas, "incompleta": agotado,
                        "casos": casos, "resultados": resultados},
                       fh, ensure_ascii=False, indent=2)
-    return 0
+    return 1 if agotado else 0
 
 
 if __name__ == "__main__":

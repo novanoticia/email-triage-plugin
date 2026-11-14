@@ -55,15 +55,19 @@ negativos (#108, #114, #116, #123, #140).
 - `repeticiones`: revisiones por caso (2 por defecto).
 - `solo`: ids separados por comas; vacío evalúa todos.
 
-El resultado sale en el resumen de la ejecución y, completo, en el artefacto
-`mistral-eval`. Usa el secreto `MISTRAL_API_KEY` y la variable
+El resultado sale abreviado en el resumen de la ejecución. El artefacto
+`mistral-eval` guarda cada hallazgo entero (fragmento, problema, escenario y
+arreglo): es lo que hay que leer para etiquetar. Usa el secreto `MISTRAL_API_KEY` y la variable
 `MISTRAL_MODEL` del repositorio, como el revisor.
 
 **Coste.** Cada revisión es una solicitud (dos si la respuesta llega mal
 formada). Con `mistral-large-latest` y razonamiento, del orden de 10.000
 tokens de salida más la entrada (guía, contexto y diff: decenas de miles de
-tokens). Doce casos a dos repeticiones son al menos 24 solicitudes. Hay un
-tope de 80 por ejecución. Para probar barato: `solo` con un caso y una
+tokens). Doce casos a dos repeticiones son al menos 24 peticiones. Hay un
+tope de 80 **peticiones HTTP reales** por ejecución, contadas en el
+transporte: incluye los reintentos por errores transitorios. Si se alcanza,
+la evaluación se detiene, publica lo que lleva marcado como incompleto y
+termina en error. Para probar barato: `solo` con un caso y una
 repetición.
 
 Sin `--ejecutar`, el script solo lista los casos y sus objetivos y no llama

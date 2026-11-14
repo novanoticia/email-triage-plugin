@@ -119,6 +119,16 @@ class TestClasificar(unittest.TestCase):
         self.assertEqual(ev.lineas_citadas(DIFF, "b.py", "y = x + 1"), set())
         self.assertEqual(ev.lineas_citadas(DIFF, "a.py", "}"), set())
 
+    def test_una_linea_eliminada_cuenta_por_sus_vecinas(self):
+        # Quitar una guarda solo se puede citar por la linea borrada (Codex, PR #203).
+        diff = ("diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n"
+                "@@ -1,4 +1,3 @@\n def f(x):\n-    if x is None: return 0\n"
+                "     return x + 1\n \n")
+        self.assertEqual(ev.lineas_citadas(diff, "a.py", "if x is None: return 0"), {1, 2})
+        hallazgo = {"archivo": "a.py", "fragmento": "-    if x is None: return 0"}
+        self.assertTrue(mr.cita_en(hallazgo["fragmento"], mr.indice_diff(diff)["a.py"]))
+        self.assertEqual(ev.clasificar(hallazgo, diff, {"a.py": [(1, 2, "f")]}), "funcion")
+
     def test_funcion_archivo_o_fuera(self):
         def h(archivo, fragmento):
             return {"archivo": archivo, "fragmento": fragmento}
@@ -154,8 +164,9 @@ class TestRevisar(unittest.TestCase):
         registro, api = self.revisar([texto])
         self.assertEqual(registro["estado"], "valida")
         self.assertEqual(registro["solicitudes"], 1)
-        self.assertEqual(registro["hallazgos"][0]["donde"], "funcion")
-        self.assertEqual(registro["pendientes"][0]["donde"], "archivo")
+        self.assertEqual(registro["hallazgos"][0], dict(HALLAZGO, donde="funcion"))
+        self.assertEqual(registro["pendientes"][0], {
+            "archivo": "a.py", "escenario": "e", "conclusion": "c", "donde": "archivo"})
         # El asunto del commit es el titulo; no hay descripcion que delate el arreglo.
         usuario = api.call_args.args[0][1]["content"]
         self.assertIn("asunto", usuario)
@@ -166,6 +177,15 @@ class TestRevisar(unittest.TestCase):
         self.assertEqual((registro["estado"], api.call_count), ("invalida", 2))
         self.assertEqual(registro["hallazgos"], [])
 
+    def test_el_registro_conserva_el_hallazgo_entero_para_etiquetarlo(self):
+        largo = dict(HALLAZGO, problema="p" * 900, escenario="entrada " + "e" * 900,
+                     arreglo="a" * 900)
+        texto = json.dumps({"resumen": "R", "hallazgos": [largo],
+                            "comprobaciones": COMPROBACIONES})
+        registro, _ = self.revisar([texto])
+        for campo in ("problema", "escenario", "arreglo", "fragmento"):
+            self.assertEqual(registro["hallazgos"][0][campo], largo[campo])
+
     def test_corte_y_error_de_api_se_registran_sin_reintentar(self):
         registro, api = self.revisar([mr.RespuestaIncompleta("length")])
         self.assertEqual((registro["estado"], registro["detalle"]), ("cortada", "length"))
@@ -175,13 +195,53 @@ class TestRevisar(unittest.TestCase):
         self.assertEqual((registro["estado"], registro["detalle"]), ("error", "HTTP 500"))
 
 
+class TestPresupuesto(unittest.TestCase):
+    def test_cuenta_peticiones_http_reales_y_corta_en_el_transporte(self):
+        fallo = mr.urllib.error.HTTPError(mr.API, 503, "e", {}, io.BytesIO(b""))
+        original = mr.urllib.request.urlopen
+        with mock.patch.object(mr.urllib.request, "urlopen", side_effect=fallo) as abrir, \
+                mock.patch.object(mr.time, "sleep"):
+            with ev.Presupuesto(4) as presupuesto:
+                # Una llamada con errores transitorios son tres peticiones, no una.
+                with self.assertRaises(mr.urllib.error.HTTPError):
+                    mr.llamar_mistral([], "m", "clave")
+                self.assertEqual(presupuesto.usadas, 3)
+                with self.assertRaises(ev.PresupuestoAgotado):
+                    mr.llamar_mistral([], "m", "clave")
+                self.assertEqual((presupuesto.usadas, abrir.call_count), (4, 4))
+            self.assertIs(mr.urllib.request.urlopen, abrir)   # se restaura al salir
+        self.assertIs(mr.urllib.request.urlopen, original)
+
+    def test_agotado_deja_informe_parcial_y_falla(self):
+        salida = io.StringIO()
+        registro = {"estado": "valida", "detalle": "", "solicitudes": 0,
+                    "recortado": False, "hallazgos": [], "pendientes": []}
+        with tempfile.TemporaryDirectory() as d, \
+                mock.patch.dict(os.environ, {"MISTRAL_API_KEY": "clave"}), \
+                mock.patch.object(ev, "cargar_casos", return_value=[POSITIVO, NEGATIVO]), \
+                mock.patch.object(ev, "revisar",
+                                  side_effect=[registro, ev.PresupuestoAgotado()]), \
+                mock.patch.object(mr, "escribir_resumen"), redirect_stdout(salida):
+            ruta = os.path.join(d, "r.json")
+            codigo = ev.main(["--ejecutar", "--repeticiones", "1", "--salida", ruta])
+            with open(ruta, encoding="utf-8") as fh:
+                guardado = json.load(fh)
+        self.assertEqual(codigo, 1)
+        self.assertTrue(guardado["incompleta"])
+        self.assertEqual((len(guardado["resultados"]["p"]), guardado["resultados"]["n"]),
+                         (1, []))
+        self.assertIn("Evaluación incompleta", salida.getvalue())
+
+
 class TestInforme(unittest.TestCase):
     def test_cuenta_lo_que_senala_la_funcion_y_lista_para_etiquetar(self):
         def r(estado, donde=None):
             return {"estado": estado, "detalle": "length" if estado == "cortada" else "",
                     "solicitudes": 1, "recortado": False, "pendientes": [],
                     "hallazgos": [{"severidad": "alta", "archivo": "a.py",
-                                   "problema": "texto del hallazgo", "donde": donde}]
+                                   "problema": "texto del hallazgo", "fragmento": "x",
+                                   "escenario": "entrada concreta", "arreglo": "a",
+                                   "donde": donde}]
                     if donde else []}
         resultados = {"p": [r("valida", "funcion"), r("cortada")],
                       "n": [r("valida", "archivo"), r("valida")]}
@@ -194,6 +254,7 @@ class TestInforme(unittest.TestCase):
         self.assertIn("| `p` | positivo | 1/2 | 1/1 | 1 | 0 |", informe)
         self.assertIn("| `n` | negativo | 2/2 | — | 1 | 0 |", informe)
         self.assertIn("hallazgo alta [funcion] en `a.py`: texto del hallazgo", informe)
+        self.assertIn("  - Escenario: entrada concreta", informe)
         self.assertIn("Repetición 2: cortada (length).", informe)
         self.assertIn("Repetición 2: sin hallazgos ni pendientes.", informe)
 
