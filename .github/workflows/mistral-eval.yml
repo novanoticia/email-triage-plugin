@@ -17,6 +17,9 @@ on:
       esfuerzo:
         description: Esfuerzo de razonamiento, low, medium o high (vacío = el del revisor)
         default: ''
+      max_salida:
+        description: Tope de tokens de salida, 4000 a 64000 (vacío = el del revisor)
+        default: ''
 
 concurrency:
   group: mistral-eval
@@ -58,10 +61,11 @@ jobs:
           SOLO: ${{ inputs.solo }}
           MODELO: ${{ inputs.modelo }}
           ESFUERZO: ${{ inputs.esfuerzo }}
+          MAX_SALIDA: ${{ inputs.max_salida }}
         run: >
           python3 .github/scripts/mistral_eval.py --ejecutar
           --repeticiones "$REPETICIONES" --solo "$SOLO"
-          --modelo "$MODELO" --esfuerzo "$ESFUERZO"
+          --modelo "$MODELO" --esfuerzo "$ESFUERZO" --max-salida "$MAX_SALIDA"
           --salida mistral-eval.json
 
       - name: Guardar el resultado
