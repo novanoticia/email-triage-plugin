@@ -81,8 +81,11 @@ Actions, y si no se puede leer el historial se revisa igualmente.
   evaluación y lo citó con sus dos líneas, y se perdía la revisión entera.
   El prompt sigue pidiendo una sola línea.
 
-El modelo se elige con la variable de Actions `MISTRAL_MODEL` (por defecto
-`codestral-latest`). La clave se configura como secreto `MISTRAL_API_KEY`.
+El modelo se elige con la variable de Actions `MISTRAL_MODEL` (si falta,
+`codestral-latest`). Desde el 2026-11-15, por decisión del mantenedor, vale
+`zai-glm-5-3-flash`: la comparación con casos reales está en
+[`evaluacion-mistral.md`](evaluacion-mistral.md#resultados-2026-11-15).
+La clave se configura como secreto `MISTRAL_API_KEY`.
 
 ## Cómo se lee el informe
 

@@ -128,3 +128,57 @@ python3 .github/scripts/mistral_eval.py
 Si se usa la evaluación para ajustar el prompt, hay que separar casos de
 ajuste y de evaluación: medir con los mismos casos con los que se ajustó solo
 mide el ajuste.
+
+## Resultados (2026-11-15)
+
+Una repetición por caso: dan tendencia, no porcentajes. Cada hallazgo se
+etiquetó a mano leyendo su problema y su escenario; «señala la función» no
+basta. Costes calculados con los tokens que declara la API y la tarifa de la
+página oficial de precios de Mistral (USD por millón, entrada / salida):
+Large 4 0,70 / 2,10; GLM 5.3 1,40 / 4,40; GLM 5.3 Flash 0,15 / 0,50;
+DeepSeek V4.1 Flash 0,30 / 1,20. Las ejecuciones #2 a #4 son anteriores al
+caso de control (12 casos). Faltan a propósito: #1 (no forma parte de esta
+comparación), #5 (Large 4 con esfuerzo `high`, cancelada a los 90 minutos sin
+datos) y #7 y #10 (GLM 5.3 Flash antes del PR #210: el control salía inválido
+por citar dos líneas; las sustituye #11).
+
+| Ejecución | Modelo | Control | Defectos reales | Ruido en negativos | Coste |
+|---|---|---|---|---|---|
+| #2 | `mistral-large-latest` (Large 4) | — | 0 de 7 | 1 hallazgo inflado | ~0,75 $ (estimado) |
+| #3 | `mistral-large-2512` (Large 3) | — | 0 de 7 | 7 hallazgos especulativos | ~0,22 $ (estimado) |
+| #4 | `codestral-latest` | — | 0 de 7 | 3 hallazgos inútiles | ~0,12 $ (estimado) |
+| #6, #8, #9 | `deepseek-v4-1-flash-1017` | acierto | 1 de 2 medidos (p125, exacto) | sin datos | 0,35 + 0,13 + 0,32 $ |
+| #11 | `zai-glm-5-3-flash` | acierto | 0 de 7 | ninguno | 0,08 $ |
+| #12 | `mistral-large-latest` (Large 4) | acierto | — (solo el control) | — | 0,02 $ |
+| #13 | `zai-glm-5-3` | acierto | 0 de 7 (p126 cortada) | ninguno | 0,74 $ |
+
+Lo que se aprendió:
+
+- **Todos los modelos fiables ven el defecto evidente y ninguno ve los
+  reales.** El control descarta que «0 de 7» signifique que no leen el diff:
+  los defectos del historial piden algo que este revisor no tiene (contexto
+  de otros archivos, conocer el proyecto). La detección sigue siendo de Codex.
+- **DeepSeek V4.1 Flash es el único que acertó un defecto real** (p125, con
+  el escenario de `compactar --dias 30` y un segundo hallazgo real), pero no
+  termina: agotó la salida razonando en 12 de 13 casos con 16.000 tokens, en
+  2 de 3 con 32.000 y en 2 de 2 con 128.000 (siempre hasta el último token).
+  El esfuerzo `low` no lo frena. Descartado como revisor.
+- **GLM 5.3 Flash** perdía el control por citar dos líneas seguidas (el
+  validador solo admitía una); desde el PR #210 se aceptan tramos
+  consecutivos de un mismo hunk y sale 13 de 13 válidas, sin ruido, en unos
+  30 s por revisión. **GLM 5.3** completo da lo mismo a nueve veces el coste.
+- Las tres revisiones de esta jornada que se cortaron por la espera de 180 s
+  (PR #206 una vez, PR #210 dos) fueron revisiones de PR con Large 4; ninguna
+  revisión de la evaluación la agotó (con topes de salida grandes la espera
+  crece sola desde el PR #209). Causa probable, sin verificar: Large 4 tarda
+  a veces más de 180 s según el diff.
+
+**Decisión del mantenedor (2026-11-15):** el revisor de los PR pasa a
+`zai-glm-5-3-flash` (variable `MISTRAL_MODEL`): el mismo valor que Large 4
+como segunda opinión barata, a ~0,006 $ por revisión frente a ~0,04 $, más
+rápido y sin ruido medido. Es un identificador fijo, sin `-latest`; los
+modelos de terceros rotan rápido en Mistral (GLM 5.2 se retiró un mes después
+de quedar obsoleto), así que hay que vigilar su fecha de retirada en la
+página de modelos. Gasto medido de las ejecuciones #6 a #13 (incluidas #7,
+~0,08 $, y #10, menos de 0,01 $, que no salen en la tabla): ~1,73 $. Las #2 a
+#4 son de una sesión anterior y su coste es una estimación (~1,09 $).
