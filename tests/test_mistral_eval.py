@@ -245,6 +245,36 @@ class TestPresupuesto(unittest.TestCase):
             self.assertIs(mr.urllib.request.urlopen, abrir)   # se restaura al salir
         self.assertIs(mr.urllib.request.urlopen, original)
 
+    def respuesta(self, cuerpo):
+        r = mock.MagicMock()
+        r.__enter__.return_value = r
+        r.read.return_value = json.dumps(cuerpo).encode("utf-8")
+        return r
+
+    def test_suma_los_tokens_que_declara_la_api(self):
+        buena = {"choices": [{"finish_reason": "stop", "message": {"content": "{}"}}],
+                 "usage": {"prompt_tokens": 30000, "completion_tokens": 9000}}
+        sin_uso = {"choices": [{"finish_reason": "stop", "message": {"content": "{}"}}],
+                   "usage": {"prompt_tokens": "muchos", "completion_tokens": True}}
+        with mock.patch.object(mr.urllib.request, "urlopen", side_effect=[
+                self.respuesta(buena), self.respuesta(buena), self.respuesta(sin_uso)]):
+            with ev.Presupuesto(5) as presupuesto:
+                for _ in range(3):
+                    self.assertEqual(mr.llamar_mistral([], "m", "clave"), "{}")
+        self.assertEqual((presupuesto.entrada, presupuesto.salida), (60000, 18000))
+        self.assertEqual((presupuesto.respondidas, presupuesto.sin_esfuerzo), (2, 0))
+
+    def test_avisa_si_el_modelo_no_admite_el_esfuerzo(self):
+        rechazo = mr.urllib.error.HTTPError(
+            mr.API, 400, "e", {}, io.BytesIO(b"reasoning_effort is not supported"))
+        buena = {"choices": [{"finish_reason": "stop", "message": {"content": "{}"}}],
+                 "usage": {"prompt_tokens": 10, "completion_tokens": 5}}
+        with mock.patch.object(mr.urllib.request, "urlopen",
+                               side_effect=[rechazo, self.respuesta(buena)]):
+            with ev.Presupuesto(5) as presupuesto:
+                mr.llamar_mistral([], "m", "clave")
+        self.assertEqual((presupuesto.usadas, presupuesto.sin_esfuerzo), (2, 1))
+
     def test_agotado_deja_informe_parcial_y_falla(self):
         salida = io.StringIO()
         registro = {"estado": "valida", "detalle": "", "solicitudes": 0,
@@ -338,6 +368,50 @@ class TestMain(unittest.TestCase):
         self.assertEqual(len(guardado["resultados"]["p"]), 3)
         self.assertNotIn("clave", json.dumps(guardado))
         self.assertIn("Evaluación del revisor de Mistral (`modelo-x`", salida)
+
+    def test_modelo_y_esfuerzo_solo_para_la_evaluacion(self):
+        vistos = []
+        con_clave = {"MISTRAL_API_KEY": "clave", "MISTRAL_MODEL": "modelo-x"}
+        previo = mr.ESFUERZO
+        with tempfile.TemporaryDirectory() as d:
+            ruta = os.path.join(d, "r.json")
+            salida = io.StringIO()
+            registro = {"estado": "valida", "detalle": "", "solicitudes": 1,
+                        "recortado": False, "hallazgos": [], "pendientes": []}
+            with mock.patch.dict(os.environ, con_clave), \
+                    mock.patch.object(ev, "cargar_casos", return_value=[POSITIVO]), \
+                    mock.patch.object(ev, "revisar", side_effect=lambda c, m, k: (
+                        vistos.append((m, mr.ESFUERZO)), dict(registro))[1]), \
+                    mock.patch.object(mr, "escribir_resumen"), redirect_stdout(salida):
+                codigo = ev.main(["--ejecutar", "--repeticiones", "1", "--salida", ruta,
+                                  "--modelo", "mistral-large-2512", "--esfuerzo", "high"])
+            with open(ruta, encoding="utf-8") as fh:
+                guardado = json.load(fh)
+        self.assertEqual(codigo, 0)
+        self.assertEqual(vistos, [("mistral-large-2512", "high")])
+        self.assertEqual(mr.ESFUERZO, previo)          # se restaura al acabar
+        self.assertEqual((guardado["modelo"], guardado["esfuerzo"]),
+                         ("mistral-large-2512", "high"))
+        self.assertEqual(guardado["tokens"]["entrada"], 0)
+        self.assertIn("Esfuerzo de razonamiento pedido: `high`", salida.getvalue())
+
+    def test_vacios_usan_la_variable_y_el_esfuerzo_del_revisor(self):
+        codigo, revisar, salida = self.main(
+            ["--ejecutar", "--solo", "p", "--repeticiones", "1",
+             "--modelo", "", "--esfuerzo", ""],
+            {"MISTRAL_API_KEY": "clave", "MISTRAL_MODEL": "modelo-x"})
+        self.assertEqual(codigo, 0)
+        self.assertEqual(revisar.call_args.args[1], "modelo-x")
+        self.assertIn("pedido: `%s`" % mr.ESFUERZO, salida)
+
+    def test_rechaza_modelo_o_esfuerzo_raros_sin_llamar(self):
+        con_clave = {"MISTRAL_API_KEY": "clave"}
+        for extra in (["--modelo", "m\"; rm -rf /"], ["--modelo", "a b"],
+                      ["--modelo", "x" * 81], ["--esfuerzo", "máximo"]):
+            with self.subTest(extra=extra):
+                codigo, revisar, _ = self.main(["--ejecutar"] + extra, con_clave)
+                self.assertEqual(codigo, 2)
+                revisar.assert_not_called()
 
 
 if __name__ == "__main__":

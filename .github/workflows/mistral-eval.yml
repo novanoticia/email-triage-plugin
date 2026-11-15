@@ -11,6 +11,12 @@ on:
       solo:
         description: Ids de casos separados por comas (vacío = todos)
         default: ''
+      modelo:
+        description: Modelo solo para esta evaluación (vacío = MISTRAL_MODEL)
+        default: ''
+      esfuerzo:
+        description: Esfuerzo de razonamiento, low, medium o high (vacío = el del revisor)
+        default: ''
 
 concurrency:
   group: mistral-eval
@@ -46,9 +52,12 @@ jobs:
           MISTRAL_MODEL: ${{ vars.MISTRAL_MODEL }}
           REPETICIONES: ${{ inputs.repeticiones }}
           SOLO: ${{ inputs.solo }}
+          MODELO: ${{ inputs.modelo }}
+          ESFUERZO: ${{ inputs.esfuerzo }}
         run: >
           python3 .github/scripts/mistral_eval.py --ejecutar
           --repeticiones "$REPETICIONES" --solo "$SOLO"
+          --modelo "$MODELO" --esfuerzo "$ESFUERZO"
           --salida mistral-eval.json
 
       - name: Guardar el resultado
