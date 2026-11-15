@@ -354,12 +354,45 @@ class TestReintentoYCorte(unittest.TestCase):
         self.assertTrue(any(c.args[0].startswith("::error::")
                             for c in salida.call_args_list))
 
-    def test_corte_de_la_api_nombra_la_causa_y_no_reintenta(self):
+    def test_corte_por_length_se_pide_otra_vez(self):
+        # Desde el 2026-11-15 (antes no se reintentaba): GLM 5.3 Flash se
+        # quedó una vez escribiendo espacios hasta agotar MAX_SALIDA, y la
+        # misma revisión relanzada salió bien (repo-auditor-ia, PR #26).
+        codigo, _, api, publicar, salida = self.main(
+            {"GH_TOKEN": ""}, False,
+            [mr.RespuestaIncompleta("length", "tokens_salida=16000"), self.VALIDA])
+        self.assertEqual(codigo, 0)
+        self.assertEqual(api.call_count, 2)
+        self.assertIn(mr.MARCA_OK % ("b1", "c1"), publicar.call_args.args[2])
+        avisos = [c.args[0] for c in salida.call_args_list if "cortada" in c.args[0]]
+        self.assertEqual(avisos, ["::warning::Respuesta cortada (solicitud 1 de 2), "
+                                  "se pide otra: tokens_salida=16000"])
+
+    def test_dos_cortes_fallan_con_su_causa_sin_tercera(self):
         codigo, _, api, publicar, _ = self.main(
-            {"GH_TOKEN": ""}, False, [mr.RespuestaIncompleta("length"), self.VALIDA])
+            {"GH_TOKEN": ""}, False, [mr.RespuestaIncompleta("length")] * 2 + [self.VALIDA])
         self.assertEqual(codigo, 1)
-        api.assert_called_once()
+        self.assertEqual(api.call_count, mr.INTENTOS_RESPUESTA)
         self.assertIn("incompleta o no válida (`length`)", publicar.call_args.args[2])
+
+    def test_un_corte_y_una_mal_formada_comparten_el_tope(self):
+        codigo, _, api, publicar, _ = self.main(
+            {"GH_TOKEN": ""}, False,
+            [mr.RespuestaIncompleta("length"), self.ROTA, self.VALIDA])
+        self.assertEqual(codigo, 1)
+        self.assertEqual(api.call_count, mr.INTENTOS_RESPUESTA)
+        self.assertIn("Revisión no válida", publicar.call_args.args[2])
+
+    def test_otro_corte_nombra_la_causa_y_no_reintenta(self):
+        # `model_length` (el contexto no cabe) o `error` no mejoran repitiendo.
+        for causa in ("model_length", "error"):
+            with self.subTest(causa=causa):
+                codigo, _, api, publicar, _ = self.main(
+                    {"GH_TOKEN": ""}, False, [mr.RespuestaIncompleta(causa), self.VALIDA])
+                self.assertEqual(codigo, 1)
+                api.assert_called_once()
+                self.assertIn("incompleta o no válida (`%s`)" % causa,
+                              publicar.call_args.args[2])
 
     def test_el_corte_se_mide_sin_contenido(self):
         medidas = mr.medir_corte({"model": "Mistral-Large-X <b>",
@@ -369,7 +402,7 @@ class TestReintentoYCorte(unittest.TestCase):
                          "caracteres=34 espacios=13 lineas=3 lineas_distintas=1")
         self.assertEqual(mr.medir_corte({"choices": []}), "")
         _, _, _, publicar, salida = self.main({"GH_TOKEN": ""}, False,
-            [mr.RespuestaIncompleta("length", medidas)])
+            [mr.RespuestaIncompleta("length", medidas)] * mr.INTENTOS_RESPUESTA)
         self.assertNotIn("tokens_salida", publicar.call_args.args[2])
         self.assertIn("::warning::Respuesta cortada: " + medidas,
                       [c.args[0] for c in salida.call_args_list])
