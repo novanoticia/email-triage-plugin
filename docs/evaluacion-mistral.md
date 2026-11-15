@@ -50,7 +50,7 @@ negativos (#108, #114, #116, #123, #140).
 
 ## Cómo ejecutarla
 
-**Actions → Mistral Eval → Run workflow.** Dos campos:
+**Actions → Mistral Eval → Run workflow.** Cuatro campos:
 
 - `repeticiones`: revisiones por caso (2 por defecto).
 - `solo`: ids separados por comas; vacío evalúa todos.
