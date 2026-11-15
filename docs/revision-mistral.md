@@ -27,10 +27,15 @@ si la respuesta no cumple el esquema o cita líneas que no están en el diff, se
 pide **una** más antes de dar la revisión por no válida (en el PR #200 una sola
 comprobación sin campo invalidó la revisión entera, y repetirla a mano bastó).
 El registro de Actions nombra la regla incumplida de cada solicitud, nunca el
-contenido. Un corte de la API no se repite: el informe añade su código de causa
-(`length` cuando se agota el margen de salida, que sube de 4.000 a 16.000
-tokens) y el registro de Actions dice el modelo servido y cuánto ocupó el
-razonamiento y cuánto la respuesta, sin contenido.
+contenido. Un corte de la API añade al informe su código de causa (`length`
+cuando se agota el margen de salida, que sube de 4.000 a 16.000 tokens) y el
+registro de Actions dice el modelo servido y cuánto ocupó el razonamiento y
+cuánto la respuesta, sin contenido. Desde el 2026-11-15 un corte por `length`
+**también se repite una vez**, dentro del mismo tope de dos solicitudes: GLM 5.3
+Flash escribió una vez 25.000 caracteres en una sola línea, casi la mitad
+espacios, hasta agotar el margen, y la misma revisión relanzada salió bien
+(`repo-auditor-ia`, PR #26). Los demás cortes (`model_length`, `error`) no se
+repiten: no mejoran pidiendo otra vez.
 
 **Razonamiento bajo.** `mistral-large-latest` pasó a razonar antes de
 responder y devuelve el contenido en bloques (`thinking` y `text`). En el PR

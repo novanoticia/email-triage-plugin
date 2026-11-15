@@ -412,6 +412,10 @@ def espera_reintento(error, intento):
 MAX_SALIDA = 16000
 # Una respuesta mal formada (una comprobación sin campo, una cita inventada)
 # invalidaba la revisión entera: se pide una segunda antes de rendirse.
+# Desde el 2026-11-15 también una cortada por `length`: GLM 5.3 Flash
+# escribió una vez 25.000 caracteres en una línea (casi la mitad espacios)
+# hasta agotar MAX_SALIDA, y la misma revisión relanzada salió bien
+# (repo-auditor-ia, PR #26). Comparte el mismo tope de dos solicitudes.
 INTENTOS_RESPUESTA = 2
 # `mistral-large-latest` pasó a razonar antes de responder y gastaba el margen
 # entero en ello (PR #202: 31.129 caracteres de razonamiento, ninguno de
@@ -869,7 +873,14 @@ def main():
                 diff, leer_guia(), obtener_contexto(diff[:MAX_DIFF], pr["head"]["sha"]))
             rutas = obtener_rutas_diff(pr["base"]["sha"], pr["head"]["sha"])
             for solicitud in range(1, INTENTOS_RESPUESTA + 1):
-                texto = llamar_mistral(mensajes, modelo, clave)
+                try:
+                    texto = llamar_mistral(mensajes, modelo, clave)
+                except RespuestaIncompleta as corte:
+                    if corte.causa != "length" or solicitud == INTENTOS_RESPUESTA:
+                        raise
+                    print("::warning::Respuesta cortada (solicitud %d de %d), se pide "
+                          "otra: %s" % (solicitud, INTENTOS_RESPUESTA, corte.medidas))
+                    continue
                 diagnostico = []
                 del sin_verificar[:]  # solo cuentan las citas del último intento
                 resultado = interpretar(texto, diff[:MAX_DIFF],
