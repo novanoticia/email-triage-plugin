@@ -53,7 +53,7 @@ def _nombre_tramo(tramo):
 
 def _porcentaje(n, total):
     """Porcentaje de `n` sobre `total`; 0 si no hay correos."""
-    if total:
+    if not total:
         return 0.0
     return 100.0 * n / total
 
