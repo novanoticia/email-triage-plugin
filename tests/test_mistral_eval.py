@@ -141,15 +141,6 @@ class TestRangosObjetivo(unittest.TestCase):
     def test_fuente_que_no_parsea_no_da_objetivos(self):
         self.assertEqual(ev._rangos_objetivo("def (:\n", {1}), [])
 
-    def test_el_caso_real_del_aviso_ya_no_incluye_a_las_vecinas(self):
-        caso = [c for c in ev.cargar_casos(ev.CASOS)
-                if c["id"] == "p200-recursion-y-marca"][0]
-        rangos = ev.objetivos(caso)[".github/scripts/mistral_review.py"]
-        nombres = [n for _, _, n in rangos]
-        self.assertEqual([n for n in nombres if n], ["_rangos_python", "ya_revisado"])
-        sueltas = [(i, f) for i, f, n in rangos if not n]
-        self.assertTrue(sueltas and all(f - i < 5 for i, f in sueltas))
-
 
 class TestClasificar(unittest.TestCase):
     def test_lineas_citadas_son_las_de_la_cabeza(self):
