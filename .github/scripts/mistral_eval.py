@@ -46,10 +46,23 @@ _spec.loader.exec_module(mr)
 CASOS = os.path.join(os.path.dirname(_AQUI), "eval", "casos.json")
 ESFUERZOS = ("low", "medium", "high")
 MAX_LLAMADAS = 80  # tope de peticiones HTTP por ejecución: cada una cuesta dinero
-# Límites de `--max-salida`: por debajo no cabe una revisión; por encima, una
-# sola respuesta podría costar más que la ejecución entera prevista.
-MAX_SALIDA_MINIMA, MAX_SALIDA_MAXIMA = 4000, 64000
+# Límites de `--max-salida`: por debajo no cabe una revisión.
+# 256.000 a DeepSeek V4.1 Flash, decisión del mantenedor: con 32.000 cortó 2
+# de 3 revisiones (ejecución #8). Peor caso: 256.000 × 1,20 $/M ≈ 0,31 $ por
+# respuesta. Si el modelo no admite tanto, la API responde 400 sin cobrar.
+MAX_SALIDA_MINIMA, MAX_SALIDA_MAXIMA = 4000, 256000
 MAX_RECHAZADA = 20000  # caracteres que se guardan de cada respuesta rechazada
+# Espera por petición en la evaluación: la del revisor (180 s) o más si el tope
+# de salida lo pide. La API responde de una vez al terminar; DeepSeek tardó
+# ~145 s en 32.000 tokens (ejecución #8), así que con un tope mayor una espera
+# fija cortaría la conexión y reintentaría pagando otra vez.
+ESPERA_MINIMA = 180
+TOKENS_POR_SEGUNDO = 100  # conservador: medido ~220 con DeepSeek
+
+
+def espera_para(max_salida):
+    """Segundos de espera por petición para un tope de salida dado."""
+    return max(ESPERA_MINIMA, max_salida // TOKENS_POR_SEGUNDO)
 
 
 class PresupuestoAgotado(RuntimeError):
@@ -65,8 +78,8 @@ class Presupuesto:
     el tope anunciado (Codex, PR #203). El tope se aplica en el transporte.
     """
 
-    def __init__(self, maximo):
-        self.maximo, self.usadas = maximo, 0
+    def __init__(self, maximo, espera=None):
+        self.maximo, self.usadas, self.espera = maximo, 0, espera
         # Consumo real que declara la API en `usage`: el coste deja de ser una
         # estimación. `sin_esfuerzo` cuenta las respuestas obtenidas tras
         # retirar `reasoning_effort` (el modelo no lo admite): ahí el esfuerzo
@@ -83,6 +96,8 @@ class Presupuesto:
             raise PresupuestoAgotado()
         if self.omitir_esfuerzo:
             _quitar_esfuerzo(req)
+        if self.espera is not None:
+            kwargs["timeout"] = self.espera   # sustituye los 180 s del revisor
         self.usadas += 1
         return _Respuesta(self._abrir(req, *args, **kwargs), self, req)
 
@@ -495,7 +510,8 @@ def main(argv=None):
     texto_salida = args.max_salida.strip()
     if not texto_salida:
         max_salida = mr.MAX_SALIDA
-    elif texto_salida.isdigit() and (
+    # Solo 0-9: `isdigit()` acepta «²», que `int()` no convierte (Mistral, PR #208).
+    elif re.fullmatch(r"[0-9]{1,7}", texto_salida) and (
             MAX_SALIDA_MINIMA <= int(texto_salida) <= MAX_SALIDA_MAXIMA):
         max_salida = int(texto_salida)
     else:
@@ -518,7 +534,7 @@ def main(argv=None):
 
     # Solo cambia en este proceso: el revisor de los PR sigue con el suyo.
     with con_esfuerzo(esfuerzo), con_max_salida(max_salida), \
-            Presupuesto(MAX_LLAMADAS) as presupuesto:
+            Presupuesto(MAX_LLAMADAS, espera_para(max_salida)) as presupuesto:
         try:
             for c in casos:
                 for n in range(args.repeticiones):
@@ -543,9 +559,9 @@ def main(argv=None):
         presupuesto.usadas, MAX_LLAMADAS)
     informe += ("\nTokens según la API: %d de entrada y %d de salida, en %d respuesta(s) "
                 "con recuento. Esfuerzo de razonamiento pedido: `%s`. Tope de salida: "
-                "%d tokens por respuesta.\n" % (
+                "%d tokens por respuesta, con %d s de espera.\n" % (
                     presupuesto.entrada, presupuesto.salida, presupuesto.respondidas,
-                    esfuerzo, max_salida))
+                    esfuerzo, max_salida, presupuesto.espera))
     rechazadas = sum(len(r.get("rechazadas", ())) for rs in resultados.values() for r in rs)
     if rechazadas:
         informe += ("\n%d respuesta(s) rechazadas por el formato: su texto está en el "

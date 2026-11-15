@@ -71,10 +71,13 @@ entre los 7: los resultados se comparan aparte.
   esta evaluación. Vacío usa el del revisor. Si el modelo no lo admite, se
   retira solo y el informe lo dice.
 - `max_salida`: tope de tokens de salida por respuesta (`max_tokens`), de
-  4.000 a 64.000, solo para esta evaluación. Vacío usa el del revisor
+  4.000 a 256.000, solo para esta evaluación. Vacío usa el del revisor
   (16.000). Para modelos que razonan mucho: DeepSeek V4.1 Flash agotó los
-  16.000 en 12 de 13 casos (ejecución #6) y esas revisiones no se pudieron
-  medir. Subirlo encarece la salida en proporción.
+  16.000 en 12 de 13 casos (ejecución #6) y los 32.000 en 2 de 3 (#8).
+  Subirlo encarece la salida en proporción (peor caso con DeepSeek y
+  256.000: ~0,31 $ por respuesta). La espera por petición crece con el tope
+  (1 s por cada 100 tokens, mínimo 180 s), porque la API responde de una vez
+  al terminar. Si el modelo no admite tanto, la API responde 400 sin cobrar.
 
 El resultado sale abreviado en el resumen de la ejecución. El artefacto
 `mistral-eval` guarda cada hallazgo entero (fragmento, problema, escenario y
