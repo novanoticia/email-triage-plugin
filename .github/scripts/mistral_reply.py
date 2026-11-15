@@ -16,6 +16,12 @@ no decían nada) solo se comenta en el PR cuando hay un dictamen:
   código enviado (antes se rechazaba toda la respuesta por `multilinea`).
 - El fragmento enviado es la función más externa que contiene la línea, con
   sus guardas, si cabe; antes, la más interna (un cierre de tres líneas).
+
+Desde el 2026-11-15, una respuesta dentro de un hilo de revisión (con
+`in_reply_to_id`) no es una fuente: es la contestación a un hallazgo, no un
+hallazgo nuevo. Las respuestas de Claude a Codex, publicadas con la cuenta
+del mantenedor y firmadas, se contrastaban como si fueran hallazgos. Con
+`workflow_dispatch` sí se contrasta, porque el id lo elige una persona.
 """
 import ast
 import json
@@ -129,7 +135,7 @@ def seleccionar(evento, nombre, repo):
     elif nombre == "pull_request_review_comment":
         numero = evento["pull_request"]["number"]
         comentario = evento["comment"]
-        if not fuente_permitida(comentario):
+        if not fuente_permitida(comentario) or es_respuesta(comentario):
             return numero, []
         fuentes = api("repos/%s/pulls/%d/reviews/%d/comments" % (
             repo, numero, comentario["pull_request_review_id"]), paginar=True)
@@ -153,7 +159,13 @@ def seleccionar(evento, nombre, repo):
         fuentes = [fuente]
     else:
         return None, []
-    return numero, [x for x in fuentes if fuente_permitida(x)]
+    return numero, [x for x in fuentes if fuente_permitida(x)
+                    and (nombre == "workflow_dispatch" or not es_respuesta(x))]
+
+
+def es_respuesta(comentario):
+    """Contesta a otro comentario de línea dentro de su hilo."""
+    return bool(comentario.get("in_reply_to_id"))
 
 
 def marca_fuente(identificador, cabeza):
