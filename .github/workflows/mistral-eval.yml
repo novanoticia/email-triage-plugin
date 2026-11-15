@@ -47,6 +47,10 @@ jobs:
         run: python3 .github/scripts/mistral_eval.py --solo "$SOLO"
 
       - name: Evaluar
+        # Por debajo de los 90 del job: si se agota, el paso se corta y
+        # «Guardar el resultado» aún sube lo revisado (el JSON se guarda tras
+        # cada revisión). La ejecución #5 se canceló sin dejar nada.
+        timeout-minutes: 80
         env:
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
           MISTRAL_MODEL: ${{ vars.MISTRAL_MODEL }}
