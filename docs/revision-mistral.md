@@ -208,3 +208,5 @@ hilos ni sustituyen la revisión de Claude.
 La [auditoría del 29 de octubre de 2026](auditoria-mistral-2026-10-29.md)
 contrasta los primeros PR con el código histórico, documenta falsos positivos
 y propone una evaluación de calidad antes de nuevos ajustes del revisor.
+Esa evaluación existe desde el 2026-11-13: ver
+[evaluación con casos reales](evaluacion-mistral.md). Aún no tiene resultados.

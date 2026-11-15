@@ -1,0 +1,111 @@
+[
+  {
+    "id": "p123-limite-flotante",
+    "tipo": "positivo",
+    "base": "724bb6a266b72c09a944c91bfb65b3978a2a9434",
+    "cabeza": "f7c78f912825b876401308ff0a2c5e5925b58654",
+    "arreglo": "7bc8efb6c1ee4bab9bad1a64456ece14150edf99",
+    "defecto": "#123: [0.93,0.03,0.03,0.03] se rechazaba porque la desviación supera 0,02 por representación binaria; faltaba un margen (1e-9)."
+  },
+  {
+    "id": "p125-retencion-por-sello",
+    "tipo": "positivo",
+    "base": "cd8840a1adbb9a6a07bf142b1355a280ec27a3ed",
+    "cabeza": "525b989dbeb78dd464f8cae545e99562e12635ad",
+    "arreglo": "09633bb4a8a6c0fc8ed83f5069d6311f00b8b68e",
+    "defecto": "#125: la retención por días usaba el `ts` que escribe el modelo; con un `ts` de 1999 se purgaba un registro recién sellado."
+  },
+  {
+    "id": "p126-extracto-con-anadido",
+    "tipo": "positivo",
+    "base": "3fb426a87084db2f51d56a5dc99918907ca01d1d",
+    "cabeza": "9091accb4a341003666bd4cb1817b2723adf8b14",
+    "arreglo": "bf6f8e0da68d40f11ebee2f17a881df6f6a7e480",
+    "defecto": "#126: comprobar la entrega buscando una subcadena aceptaba un extracto con texto añadido.",
+    "ignorar": [
+      "scripts/i18n_baseline.py"
+    ]
+  },
+  {
+    "id": "p143-id-numerico",
+    "tipo": "positivo",
+    "base": "d07079a72c731397b633a1f260365e171daf302f",
+    "cabeza": "c0e0679d60ce1f60e54d0d04aaec37a1299d8aba",
+    "arreglo": "fa3ce89c08707de8a37b835653346f68b166bb34",
+    "defecto": "#143: al leer la respuesta del transcript, el id no se normalizaba igual que en la ruta con copia (id numérico)."
+  },
+  {
+    "id": "p199-preparar-su-mensaje",
+    "tipo": "positivo",
+    "base": "3b39f0ee5719b6166e8214c46069db6b48240c8f",
+    "cabeza": "1478b9bf68bb9e42c5e79c7cbc1a3de7b9c51205",
+    "arreglo": "388de94b2bf1633541dbbf287f7f8c19b6efee4b",
+    "defecto": "#199 (Codex): `preparar` entregaba un mensaje que su propia verificación de entregas no habría aceptado."
+  },
+  {
+    "id": "p200-ultima-linea-borrada",
+    "tipo": "positivo",
+    "base": "bf5b9c1c039448918affc94b9704c370040ece37",
+    "cabeza": "5ae4cf4db3453f8eb531fbe59bcf16f1d9bca841",
+    "arreglo": "c355ab625226bf52b6ae5a6da3d943508c56997b",
+    "defecto": "#200 (Codex): borrar la última línea de una función apuntaba fuera de ella y la función acortada no se enviaba como contexto."
+  },
+  {
+    "id": "p200-recursion-y-marca",
+    "tipo": "positivo",
+    "base": "bf5b9c1c039448918affc94b9704c370040ece37",
+    "cabeza": "c355ab625226bf52b6ae5a6da3d943508c56997b",
+    "arreglo": "75a413b5f4dd72c3609d57ef50d5c7f4bc768693",
+    "defecto": "#200 (Codex): una expresión muy profunda agotaba la recursión al recorrer el AST, y la marca de informe válido se reconocía en cualquier parte del comentario."
+  },
+  {
+    "id": "n108-none-por-lista",
+    "tipo": "negativo",
+    "base": "2b1524fda9b03232b40869109de0610c6b9ab756",
+    "cabeza": "9bc0492d77018042e23f759dd39088311bedcaf8",
+    "archivos": [
+      ".github/scripts/mistral_review.py"
+    ],
+    "defecto": "#108: Mistral pidió devolver lista vacía si falta `hallazgos`; `None` es el contrato de respuesta inválida."
+  },
+  {
+    "id": "n114-recorte-y-sha",
+    "tipo": "negativo",
+    "base": "ced59565f1aec63a0977e93bae6e13024d2ebef4",
+    "cabeza": "2be71a514f2de45a8282c9aec8422bfd002bdabd",
+    "archivos": [
+      ".github/scripts/mistral_review.py"
+    ],
+    "defecto": "#114: dos hallazgos falsos (evidencia fuera del recorte; SHA omitido en errores) que el código y sus tests desmienten."
+  },
+  {
+    "id": "n116-no-aplica-core",
+    "tipo": "negativo",
+    "base": "46846bae7abc43e99b47a89c5d12faef12f61492",
+    "cabeza": "487e6832badc7c2fd316278e387c3034f4f4c098",
+    "archivos": [
+      "plugins/email-triage/skills/email-triage/scripts/clasificadores.py"
+    ],
+    "defecto": "#116: Mistral afirmó que un `no_aplica` core llegaría al proveedor; el bloqueo lo impide."
+  },
+  {
+    "id": "n123-suma-y-division",
+    "tipo": "negativo",
+    "base": "724bb6a266b72c09a944c91bfb65b3978a2a9434",
+    "cabeza": "88d8131c9480e147be80938123571adffa8f568d",
+    "archivos": [
+      "plugins/email-triage/skills/email-triage/scripts/clasificadores.py"
+    ],
+    "defecto": "#123: dos hallazgos falsos sobre la suma 0,95 y la división por una suma menor que 1."
+  },
+  {
+    "id": "n140-umbrales-vacios",
+    "tipo": "negativo",
+    "base": "8fa79247873dc87a6e0dac31116c70d4faca7183",
+    "cabeza": "1d7f85b345cb49334b38decf39a1149987323fa1",
+    "archivos": [
+      "scripts/medir_ruido.py"
+    ],
+    "defecto": "#140: Mistral afirmó que `umbrales` devuelve [] con `tiers: {}`; devuelve [4, 0]."
+  }
+]

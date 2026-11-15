@@ -233,13 +233,11 @@ def lineas_cambiadas(diff):
     return cambios
 
 
-def _rangos_python(texto, lineas):
-    """Rangos (inicio, fin, nombre) que dan contexto a `lineas`; None si no parsea.
+def _funciones_python(texto):
+    """[(inicio, fin, nombre)] de las funciones más externas; None si no parsea.
 
-    Para cada línea cambiada, la función más externa que la contiene (un
-    cierre va con su función; un método, sin el resto de la clase). Fuera de
-    toda función, una ventana de VENTANA líneas. Solo se analiza la sintaxis:
-    el código del PR no se importa ni se ejecuta.
+    Un cierre va con su función; un método, sin el resto de la clase. Solo se
+    analiza la sintaxis: el código del PR no se importa ni se ejecuta.
     """
     try:
         arbol = ast.parse(texto)
@@ -263,6 +261,18 @@ def _rangos_python(texto, lineas):
                 # if/try/except/with/match pueden contener defs; en las
                 # expresiones, que son las que anidan sin límite, no se entra.
                 pila.append((hijo, prefijo))
+    return funciones
+
+
+def _rangos_python(texto, lineas):
+    """Rangos (inicio, fin, nombre) que dan contexto a `lineas`; None si no parsea.
+
+    Para cada línea cambiada, la función más externa que la contiene. Fuera
+    de toda función, una ventana de VENTANA líneas.
+    """
+    funciones = _funciones_python(texto)
+    if funciones is None:
+        return None
     total = texto.count("\n") + 1
     rangos = set()
     for n in lineas:

@@ -1,0 +1,60 @@
+name: Mistral Eval
+
+# Evaluación manual del revisor con casos reales del historial
+# (.github/eval/casos.json). No se lanza sola: cada solicitud cuesta dinero.
+on:
+  workflow_dispatch:
+    inputs:
+      repeticiones:
+        description: Revisiones por caso
+        default: '2'
+      solo:
+        description: Ids de casos separados por comas (vacío = todos)
+        default: ''
+
+concurrency:
+  group: mistral-eval
+  cancel-in-progress: false
+
+jobs:
+  mistral-eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Los casos son commits antiguos: hace falta toda la historia.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Comprobar casos y objetivos sin llamar a la API
+        env:
+          SOLO: ${{ inputs.solo }}
+        run: python3 .github/scripts/mistral_eval.py --solo "$SOLO"
+
+      - name: Evaluar
+        env:
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          MISTRAL_MODEL: ${{ vars.MISTRAL_MODEL }}
+          REPETICIONES: ${{ inputs.repeticiones }}
+          SOLO: ${{ inputs.solo }}
+        run: >
+          python3 .github/scripts/mistral_eval.py --ejecutar
+          --repeticiones "$REPETICIONES" --solo "$SOLO"
+          --salida mistral-eval.json
+
+      - name: Guardar el resultado
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mistral-eval
+          path: mistral-eval.json
+          if-no-files-found: ignore
