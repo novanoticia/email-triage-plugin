@@ -215,6 +215,20 @@ class TestRevisar(unittest.TestCase):
         self.assertEqual((registro["estado"], api.call_count), ("invalida", 2))
         self.assertEqual(registro["hallazgos"], [])
 
+    def test_guarda_el_texto_de_las_respuestas_rechazadas(self):
+        registro, _ = self.revisar(["no json", "tampoco"])
+        self.assertEqual([r["texto"] for r in registro["rechazadas"]], ["no json", "tampoco"])
+        self.assertTrue(all(r["detalle"] for r in registro["rechazadas"]))
+        # Valida al segundo intento: queda la primera, rechazada.
+        texto = json.dumps({"resumen": "R", "hallazgos": [HALLAZGO],
+                            "comprobaciones": COMPROBACIONES})
+        registro, _ = self.revisar(["x" * (ev.MAX_RECHAZADA + 50), texto])
+        self.assertEqual(registro["estado"], "valida")
+        self.assertEqual(len(registro["rechazadas"]), 1)
+        rechazada = registro["rechazadas"][0]
+        self.assertEqual(len(rechazada["texto"]), ev.MAX_RECHAZADA)
+        self.assertEqual(rechazada["caracteres"], ev.MAX_RECHAZADA + 50)
+
     def test_el_registro_conserva_el_hallazgo_entero_para_etiquetarlo(self):
         largo = dict(HALLAZGO, problema="p" * 900, escenario="entrada " + "e" * 900,
                      arreglo="a" * 900)
@@ -491,6 +505,44 @@ class TestMain(unittest.TestCase):
                          ("mistral-large-2512", "high"))
         self.assertEqual(guardado["tokens"]["entrada"], 0)
         self.assertIn("Esfuerzo de razonamiento pedido: `high`", salida.getvalue())
+
+    def test_max_salida_solo_para_la_evaluacion(self):
+        vistos = []
+        previo = mr.MAX_SALIDA
+        registro = {"estado": "valida", "detalle": "", "solicitudes": 1, "recortado": False,
+                    "hallazgos": [], "pendientes": [],
+                    "rechazadas": [{"detalle": "d", "caracteres": 1, "texto": "t"}]}
+        with tempfile.TemporaryDirectory() as d:
+            ruta = os.path.join(d, "r.json")
+            salida = io.StringIO()
+            with mock.patch.dict(os.environ, {"MISTRAL_API_KEY": "clave"}), \
+                    mock.patch.object(ev, "cargar_casos", return_value=[POSITIVO]), \
+                    mock.patch.object(ev, "revisar", side_effect=lambda c, m, k: (
+                        vistos.append(mr.MAX_SALIDA), dict(registro))[1]), \
+                    mock.patch.object(mr, "escribir_resumen"), redirect_stdout(salida):
+                codigo = ev.main(["--ejecutar", "--repeticiones", "1", "--salida", ruta,
+                                  "--max-salida", "32000"])
+            with open(ruta, encoding="utf-8") as fh:
+                guardado = json.load(fh)
+        self.assertEqual((codigo, vistos), (0, [32000]))
+        self.assertEqual(mr.MAX_SALIDA, previo)        # se restaura al acabar
+        self.assertEqual(guardado["max_salida"], 32000)
+        self.assertIn("Tope de salida: 32000 tokens", salida.getvalue())
+        self.assertIn("1 respuesta(s) rechazadas", salida.getvalue())
+        self.assertNotIn("`t`", salida.getvalue())     # el texto no va al resumen
+
+    def test_max_salida_vacio_usa_el_del_revisor_y_rechaza_valores_raros(self):
+        con_clave = {"MISTRAL_API_KEY": "clave"}
+        codigo, _, salida = self.main(["--ejecutar", "--solo", "p", "--repeticiones", "1",
+                                       "--max-salida", ""], con_clave)
+        self.assertEqual(codigo, 0)
+        self.assertIn("Tope de salida: %d tokens" % mr.MAX_SALIDA, salida)
+        for valor in ("3999", "64001", "abc", "-1", "1e4", "16000.0"):
+            with self.subTest(valor=valor):
+                codigo, revisar, _ = self.main(["--ejecutar", "--max-salida", valor],
+                                               con_clave)
+                self.assertEqual(codigo, 2)
+                revisar.assert_not_called()
 
     def test_vacios_usan_la_variable_y_el_esfuerzo_del_revisor(self):
         codigo, revisar, salida = self.main(

@@ -70,10 +70,20 @@ entre los 7: los resultados se comparan aparte.
 - `esfuerzo`: esfuerzo de razonamiento (`low`, `medium`, `high`) solo para
   esta evaluación. Vacío usa el del revisor. Si el modelo no lo admite, se
   retira solo y el informe lo dice.
+- `max_salida`: tope de tokens de salida por respuesta (`max_tokens`), de
+  4.000 a 64.000, solo para esta evaluación. Vacío usa el del revisor
+  (16.000). Para modelos que razonan mucho: DeepSeek V4.1 Flash agotó los
+  16.000 en 12 de 13 casos (ejecución #6) y esas revisiones no se pudieron
+  medir. Subirlo encarece la salida en proporción.
 
 El resultado sale abreviado en el resumen de la ejecución. El artefacto
 `mistral-eval` guarda cada hallazgo entero (fragmento, problema, escenario y
-arreglo): es lo que hay que leer para etiquetar. Usa el secreto `MISTRAL_API_KEY` y la variable
+arreglo): es lo que hay que leer para etiquetar. Si una respuesta se rechaza por el
+formato (cita que no es una línea del diff, JSON incompleto…), el campo
+`rechazadas` de esa revisión guarda el motivo y sus primeros 20.000
+caracteres: así se sabe si el modelo vio el defecto aunque fallara el formato
+(GLM 5.3 Flash en el control, ejecución #7). Ese texto solo va al artefacto,
+nunca al resumen. Usa el secreto `MISTRAL_API_KEY` y la variable
 `MISTRAL_MODEL` del repositorio, como el revisor.
 
 **Coste.** Cada revisión es una solicitud (dos si la respuesta llega mal

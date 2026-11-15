@@ -46,6 +46,10 @@ _spec.loader.exec_module(mr)
 CASOS = os.path.join(os.path.dirname(_AQUI), "eval", "casos.json")
 ESFUERZOS = ("low", "medium", "high")
 MAX_LLAMADAS = 80  # tope de peticiones HTTP por ejecución: cada una cuesta dinero
+# Límites de `--max-salida`: por debajo no cabe una revisión; por encima, una
+# sola respuesta podría costar más que la ejecución entera prevista.
+MAX_SALIDA_MINIMA, MAX_SALIDA_MAXIMA = 4000, 64000
+MAX_RECHAZADA = 20000  # caracteres que se guardan de cada respuesta rechazada
 
 
 class PresupuestoAgotado(RuntimeError):
@@ -161,6 +165,20 @@ def con_esfuerzo(valor):
         yield
     finally:
         mr.ESFUERZO = previo
+
+
+@contextlib.contextmanager
+def con_max_salida(valor):
+    """Fija `mr.MAX_SALIDA` (max_tokens) solo para la evaluación.
+
+    DeepSeek V4.1 Flash agotó los 16.000 tokens razonando en 12 de 13 casos
+    (ejecución #6): con el tope del revisor, sus revisiones no se pueden medir.
+    """
+    previo, mr.MAX_SALIDA = mr.MAX_SALIDA, valor
+    try:
+        yield
+    finally:
+        mr.MAX_SALIDA = previo
 
 
 def git(*args):
@@ -296,7 +314,8 @@ def revisar(caso, modelo, clave):
         mr.obtener_contexto(diff[:mr.MAX_DIFF], caso["cabeza"]))
     rutas = mr.obtener_rutas_diff(caso["base"], caso["cabeza"])
     registro = {"estado": "invalida", "detalle": "", "solicitudes": 0,
-                "recortado": recortado, "hallazgos": [], "pendientes": []}
+                "recortado": recortado, "hallazgos": [], "pendientes": [],
+                "rechazadas": []}
     try:
         for _ in range(mr.INTENTOS_RESPUESTA):
             registro["solicitudes"] += 1
@@ -308,6 +327,13 @@ def revisar(caso, modelo, clave):
             registro["detalle"] = ", ".join(diagnostico)
             if resultado is not None:
                 break
+            # Solo en el artefacto, nunca en el resumen: sin el texto no se
+            # sabe si el modelo vio el defecto y falló el formato (GLM 5.3
+            # Flash en el control, ejecución #7: cita de varias líneas).
+            registro["rechazadas"].append({
+                "detalle": registro["detalle"],
+                "caracteres": len(texto),
+                "texto": texto[:MAX_RECHAZADA]})
     except urllib.error.HTTPError as fallo:
         registro.update(estado="error", detalle="HTTP %d" % fallo.code)
         return registro
@@ -432,6 +458,9 @@ def main(argv=None):
     ap.add_argument("--esfuerzo", default="",
                     help="reasoning_effort solo para esta evaluación: low, medium o high "
                          "(vacío = el del revisor)")
+    ap.add_argument("--max-salida", default="",
+                    help="max_tokens solo para esta evaluación, de %d a %d "
+                         "(vacío = el del revisor)" % (MAX_SALIDA_MINIMA, MAX_SALIDA_MAXIMA))
     args = ap.parse_args(argv)
     casos = cargar_casos(args.casos)
     if args.solo.strip():
@@ -463,12 +492,22 @@ def main(argv=None):
     if esfuerzo not in ESFUERZOS:
         print("::error::Esfuerzo no válido: usa %s." % ", ".join(ESFUERZOS))
         return 2
+    texto_salida = args.max_salida.strip()
+    if not texto_salida:
+        max_salida = mr.MAX_SALIDA
+    elif texto_salida.isdigit() and (
+            MAX_SALIDA_MINIMA <= int(texto_salida) <= MAX_SALIDA_MAXIMA):
+        max_salida = int(texto_salida)
+    else:
+        print("::error::max_salida no válido: un entero de %d a %d."
+              % (MAX_SALIDA_MINIMA, MAX_SALIDA_MAXIMA))
+        return 2
     resultados = {c["id"]: [] for c in casos}
     agotado = cancelada = False
 
     def datos(en_curso):
         return {"modelo": modelo, "repeticiones": args.repeticiones,
-                "esfuerzo": esfuerzo, "en_curso": en_curso,
+                "esfuerzo": esfuerzo, "max_salida": max_salida, "en_curso": en_curso,
                 "peticiones": presupuesto.usadas, "incompleta": agotado or cancelada,
                 "cancelada": cancelada,
                 "tokens": {"entrada": presupuesto.entrada,
@@ -478,7 +517,8 @@ def main(argv=None):
                 "casos": casos, "resultados": resultados}
 
     # Solo cambia en este proceso: el revisor de los PR sigue con el suyo.
-    with con_esfuerzo(esfuerzo), Presupuesto(MAX_LLAMADAS) as presupuesto:
+    with con_esfuerzo(esfuerzo), con_max_salida(max_salida), \
+            Presupuesto(MAX_LLAMADAS) as presupuesto:
         try:
             for c in casos:
                 for n in range(args.repeticiones):
@@ -502,9 +542,14 @@ def main(argv=None):
     informe += "\nPeticiones HTTP a la API: %d de %d permitidas.\n" % (
         presupuesto.usadas, MAX_LLAMADAS)
     informe += ("\nTokens según la API: %d de entrada y %d de salida, en %d respuesta(s) "
-                "con recuento. Esfuerzo de razonamiento pedido: `%s`.\n" % (
+                "con recuento. Esfuerzo de razonamiento pedido: `%s`. Tope de salida: "
+                "%d tokens por respuesta.\n" % (
                     presupuesto.entrada, presupuesto.salida, presupuesto.respondidas,
-                    esfuerzo))
+                    esfuerzo, max_salida))
+    rechazadas = sum(len(r.get("rechazadas", ())) for rs in resultados.values() for r in rs)
+    if rechazadas:
+        informe += ("\n%d respuesta(s) rechazadas por el formato: su texto está en el "
+                    "artefacto `mistral-eval` (campo `rechazadas`).\n" % rechazadas)
     if presupuesto.sin_esfuerzo:
         informe += ("\n**El modelo no admite el esfuerzo de razonamiento:** %d "
                     "respuesta(s) llegaron sin él; en ellas no se aplicó. Tras el "
