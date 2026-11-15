@@ -75,9 +75,16 @@ transporte: incluye los reintentos por errores transitorios. Si se alcanza,
 la evaluación se detiene, publica lo que lleva marcado como incompleto y
 termina en error. El informe da los tokens de entrada y de salida que
 declara la API, para calcular el gasto con la tarifa del modelo. Un modelo
-que no admite el esfuerzo de razonamiento gasta dos peticiones por revisión:
-la rechazada y la repetida sin él. Para probar barato: `solo` con un caso y una
-repetición.
+que no admite el esfuerzo de razonamiento gasta una petición de más solo la
+primera vez: tras el rechazo, el resto de la ejecución ya no lo pide. Para
+probar barato: `solo` con un caso y una repetición.
+
+El JSON se guarda tras cada revisión y el paso «Evaluar» tiene su propio
+límite (80 minutos, por debajo de los 90 del job). Si la ejecución se cancela
+o se agota el tiempo, el artefacto `mistral-eval` conserva lo ya revisado:
+`en_curso: true` si el proceso murió a mitad, `cancelada: true` si llegó a
+cerrar tras la cancelación. La ejecución #5 (esfuerzo `high`, 12 casos) se
+canceló a los 90 minutos sin dejar nada; esto lo evita.
 
 Sin `--ejecutar`, el script solo lista los casos y sus objetivos y no llama
 a la API:

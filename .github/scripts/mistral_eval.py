@@ -68,11 +68,17 @@ class Presupuesto:
         # retirar `reasoning_effort` (el modelo no lo admite): ahí el esfuerzo
         # pedido no se aplicó.
         self.entrada = self.salida = self.respondidas = self.sin_esfuerzo = 0
+        # Tras el primer rechazo de `reasoning_effort`, las demás peticiones ya
+        # salen sin él: cada revisión gastaba una petición rechazada (400) y
+        # otra buena (ejecuciones #3 y #4: 26 y 24 de 80).
+        self.omitir_esfuerzo = False
         self._abrir = mr.urllib.request.urlopen
 
     def abrir(self, req, *args, **kwargs):
         if self.usadas >= self.maximo:
             raise PresupuestoAgotado()
+        if self.omitir_esfuerzo:
+            _quitar_esfuerzo(req)
         self.usadas += 1
         return _Respuesta(self._abrir(req, *args, **kwargs), self, req)
 
@@ -92,6 +98,7 @@ class Presupuesto:
         try:
             if "reasoning_effort" not in json.loads(req.data):
                 self.sin_esfuerzo += 1
+                self.omitir_esfuerzo = True
         except (ValueError, AttributeError, TypeError):
             pass
 
@@ -102,6 +109,29 @@ class Presupuesto:
     def __exit__(self, *exc):
         mr.urllib.request.urlopen = self._abrir
         return False
+
+
+def _quitar_esfuerzo(req):
+    """Retira `reasoning_effort` del cuerpo JSON de la petición, si lo lleva."""
+    try:
+        cuerpo = json.loads(req.data)
+    except (ValueError, TypeError):
+        return
+    if isinstance(cuerpo, dict) and "reasoning_effort" in cuerpo:
+        del cuerpo["reasoning_effort"]
+        req.data = json.dumps(cuerpo).encode("utf-8")
+
+
+def guardar(ruta, datos):
+    """Escribe el JSON entero de forma atómica (temporal + os.replace).
+
+    Se llama tras cada revisión: si el workflow se cancela (ejecución #5, 90
+    minutos sin artefacto), lo ya revisado queda en disco, nunca a medias.
+    """
+    temporal = ruta + ".tmp"
+    with open(temporal, "w", encoding="utf-8") as fh:
+        json.dump(datos, fh, ensure_ascii=False, indent=2)
+    os.replace(temporal, ruta)
 
 
 class _Respuesta:
@@ -425,7 +455,19 @@ def main(argv=None):
         print("::error::Esfuerzo no válido: usa %s." % ", ".join(ESFUERZOS))
         return 2
     resultados = {c["id"]: [] for c in casos}
-    agotado = False
+    agotado = cancelada = False
+
+    def datos(en_curso):
+        return {"modelo": modelo, "repeticiones": args.repeticiones,
+                "esfuerzo": esfuerzo, "en_curso": en_curso,
+                "peticiones": presupuesto.usadas, "incompleta": agotado or cancelada,
+                "cancelada": cancelada,
+                "tokens": {"entrada": presupuesto.entrada,
+                           "salida": presupuesto.salida,
+                           "respuestas": presupuesto.respondidas,
+                           "sin_esfuerzo": presupuesto.sin_esfuerzo},
+                "casos": casos, "resultados": resultados}
+
     # Solo cambia en este proceso: el revisor de los PR sigue con el suyo.
     with con_esfuerzo(esfuerzo), Presupuesto(MAX_LLAMADAS) as presupuesto:
         try:
@@ -435,11 +477,18 @@ def main(argv=None):
                     registro = revisar(c, modelo, clave)
                     registro["solicitudes"] = presupuesto.usadas - antes
                     resultados[c["id"]].append(registro)
+                    # flush: en el log de Actions se ve el avance caso a caso.
                     print("%s repetición %d: %s, %d hallazgo(s), %d petición(es)" % (
                         c["id"], n + 1, registro["estado"],
-                        len(registro["hallazgos"]), registro["solicitudes"]))
+                        len(registro["hallazgos"]), registro["solicitudes"]),
+                        flush=True)
+                    if args.salida:
+                        guardar(args.salida, datos(True))
         except PresupuestoAgotado:
             agotado = True
+        except KeyboardInterrupt:
+            # GitHub cancela con SIGINT: se cierra con lo ya revisado.
+            cancelada = True
     informe = resumir(casos, resultados, modelo, args.repeticiones)
     informe += "\nPeticiones HTTP a la API: %d de %d permitidas.\n" % (
         presupuesto.usadas, MAX_LLAMADAS)
@@ -449,25 +498,20 @@ def main(argv=None):
                     esfuerzo))
     if presupuesto.sin_esfuerzo:
         informe += ("\n**El modelo no admite el esfuerzo de razonamiento:** %d "
-                    "respuesta(s) llegaron tras retirarlo; en ellas no se aplicó.\n"
+                    "respuesta(s) llegaron sin él; en ellas no se aplicó. Tras el "
+                    "primer rechazo se dejó de pedir.\n"
                     % presupuesto.sin_esfuerzo)
     if agotado:
         informe += ("\n**Evaluación incompleta:** se alcanzó el tope de peticiones; "
                     "faltan revisiones. Las cifras de arriba son parciales.\n")
-    mr.escribir_resumen(informe)
-    print(informe)
+    if cancelada:
+        informe += ("\n**Evaluación cancelada:** se interrumpió a mitad; faltan "
+                    "revisiones. Las cifras de arriba son parciales.\n")
     if args.salida:
-        with open(args.salida, "w", encoding="utf-8") as fh:
-            json.dump({"modelo": modelo, "repeticiones": args.repeticiones,
-                       "esfuerzo": esfuerzo,
-                       "peticiones": presupuesto.usadas, "incompleta": agotado,
-                       "tokens": {"entrada": presupuesto.entrada,
-                                  "salida": presupuesto.salida,
-                                  "respuestas": presupuesto.respondidas,
-                                  "sin_esfuerzo": presupuesto.sin_esfuerzo},
-                       "casos": casos, "resultados": resultados},
-                      fh, ensure_ascii=False, indent=2)
-    return 1 if agotado else 0
+        guardar(args.salida, datos(False))   # antes del informe: lo más valioso
+    mr.escribir_resumen(informe)
+    print(informe, flush=True)
+    return 1 if agotado or cancelada else 0
 
 
 if __name__ == "__main__":

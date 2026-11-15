@@ -275,6 +275,29 @@ class TestPresupuesto(unittest.TestCase):
                 mr.llamar_mistral([], "m", "clave")
         self.assertEqual((presupuesto.usadas, presupuesto.sin_esfuerzo), (2, 1))
 
+    def test_tras_el_rechazo_deja_de_pedir_el_esfuerzo(self):
+        rechazo = mr.urllib.error.HTTPError(
+            mr.API, 400, "e", {}, io.BytesIO(b"reasoning_effort is not supported"))
+        buena = {"choices": [{"finish_reason": "stop", "message": {"content": "{}"}}],
+                 "usage": {"prompt_tokens": 10, "completion_tokens": 5}}
+        cuerpos = []
+
+        def abrir(req, *a, **k):
+            cuerpos.append(json.loads(req.data))
+            if len(cuerpos) == 1:
+                raise rechazo
+            return self.respuesta(buena)
+
+        with mock.patch.object(mr.urllib.request, "urlopen", side_effect=abrir):
+            with ev.Presupuesto(5) as presupuesto:
+                for _ in range(3):
+                    mr.llamar_mistral([], "m", "clave")
+        # Tres revisiones: 4 peticiones, no 6 (una rechazada por revision).
+        self.assertEqual((presupuesto.usadas, presupuesto.sin_esfuerzo), (4, 3))
+        self.assertIn("reasoning_effort", cuerpos[0])
+        self.assertTrue(all("reasoning_effort" not in c for c in cuerpos[1:]))
+        self.assertTrue(all(c["model"] == "m" for c in cuerpos))
+
     def test_agotado_deja_informe_parcial_y_falla(self):
         salida = io.StringIO()
         registro = {"estado": "valida", "detalle": "", "solicitudes": 0,
@@ -294,6 +317,59 @@ class TestPresupuesto(unittest.TestCase):
         self.assertEqual((len(guardado["resultados"]["p"]), guardado["resultados"]["n"]),
                          (1, []))
         self.assertIn("Evaluación incompleta", salida.getvalue())
+
+
+class TestGuardadoParcial(unittest.TestCase):
+    REGISTRO = {"estado": "valida", "detalle": "", "solicitudes": 0,
+                "recortado": False, "hallazgos": [], "pendientes": []}
+
+    def ejecutar(self, efectos):
+        salida = io.StringIO()
+        with tempfile.TemporaryDirectory() as d:
+            ruta = os.path.join(d, "r.json")
+            vistos = []
+
+            def revisar(caso, modelo, clave):
+                # Lo que hay en disco ANTES de cada revision.
+                if os.path.exists(ruta):
+                    with open(ruta, encoding="utf-8") as fh:
+                        vistos.append(json.load(fh))
+                efecto = efectos.pop(0)
+                if isinstance(efecto, BaseException):
+                    raise efecto
+                return dict(efecto)
+
+            with mock.patch.dict(os.environ, {"MISTRAL_API_KEY": "clave"}), \
+                    mock.patch.object(ev, "cargar_casos",
+                                      return_value=[POSITIVO, NEGATIVO]), \
+                    mock.patch.object(ev, "revisar", side_effect=revisar), \
+                    mock.patch.object(mr, "escribir_resumen"), redirect_stdout(salida):
+                codigo = ev.main(["--ejecutar", "--repeticiones", "1", "--salida", ruta])
+            with open(ruta, encoding="utf-8") as fh:
+                final = json.load(fh)
+            sobrantes = os.listdir(d)
+        return codigo, vistos, final, salida.getvalue(), sobrantes
+
+    def test_el_json_se_guarda_tras_cada_revision(self):
+        codigo, vistos, final, _, sobrantes = self.ejecutar(
+            [self.REGISTRO, self.REGISTRO])
+        self.assertEqual(codigo, 0)
+        # Antes de la segunda revision ya estaba en disco la primera.
+        self.assertEqual(len(vistos), 1)
+        self.assertTrue(vistos[0]["en_curso"])
+        self.assertEqual((len(vistos[0]["resultados"]["p"]),
+                          vistos[0]["resultados"]["n"]), (1, []))
+        self.assertFalse(final["en_curso"])
+        self.assertFalse(final["incompleta"])
+        self.assertEqual(sobrantes, ["r.json"])   # sin temporal olvidado
+
+    def test_una_cancelacion_deja_lo_revisado_y_falla(self):
+        codigo, _, final, salida, _ = self.ejecutar([self.REGISTRO, KeyboardInterrupt()])
+        self.assertEqual(codigo, 1)
+        self.assertTrue(final["cancelada"])
+        self.assertTrue(final["incompleta"])
+        self.assertEqual(len(final["resultados"]["p"]), 1)
+        self.assertIn("Evaluación cancelada", salida)
 
 
 class TestInforme(unittest.TestCase):
