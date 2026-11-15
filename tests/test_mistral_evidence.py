@@ -63,6 +63,59 @@ class TestEvidenciaMistral(unittest.TestCase):
         self.assertIsNone(mr.interpretar(
             respuesta(fragmento="contexto = True\nresultado = 2"), DIFF))
 
+    def test_acepta_lineas_seguidas_de_un_mismo_hunk(self):
+        # Decisión del mantenedor: GLM 5.3 Flash citaba el defecto con sus dos
+        # líneas y se perdía la revisión entera.
+        for fragmento in ("-resultado = 1\n+resultado = 2",
+                          " contexto = True\n-resultado = 1\n+resultado = 2",
+                          "contexto = True\n\nresultado = 1",      # en blanco: no cuenta
+                          "contexto = True\n-\nresultado = 1",     # «-» vacía: tampoco
+                          "    resultado = 1  \n  resultado = 2"):  # sangría libre
+            with self.subTest(fragmento=fragmento):
+                self.assertIsNotNone(mr.interpretar(respuesta(fragmento=fragmento), DIFF))
+
+    def test_rechaza_lineas_sueltas_inventadas_o_sin_contenido(self):
+        dos_hunks = ("diff --git a/c.py b/c.py\n--- a/c.py\n+++ b/c.py\n"
+                     "@@ -1 +1 @@\n-a = 0\n+a = 1\n@@ -20 +20 @@\n-b = 0\n+b = 1\n")
+        casos = ((DIFF, "a.py", "resultado = 2\notro = True"),   # en otro archivo
+                 (DIFF, "a.py", "resultado = 2\ncontexto = True"),  # orden invertido
+                 (DIFF, "a.py", "resultado = 2\ninventada = 3"),
+                 (DIFF, "a.py", "resultado = 2 \\\nmas"),
+                 (dos_hunks, "c.py", "a = 1\nb = 0"),             # hunks distintos
+                 (dos_hunks, "c.py", ")\n)"))
+        for diff, archivo, fragmento in casos:
+            with self.subTest(fragmento=fragmento):
+                diagnostico = []
+                self.assertIsNone(mr.interpretar(
+                    respuesta(archivo=archivo, fragmento=fragmento), diff,
+                    diagnostico=diagnostico))
+                self.assertTrue(diagnostico)
+
+    def test_el_control_tal_como_lo_cito_glm(self):
+        diff = ("diff --git a/scripts/d.py b/scripts/d.py\n--- a/scripts/d.py\n"
+                "+++ b/scripts/d.py\n@@ -50,2 +50,9 @@ def _nombre_tramo(tramo):\n"
+                "     return x\n \n"
+                "+def _porcentaje(n, total):\n"
+                '+    """Porcentaje de `n` sobre `total`; 0 si no hay correos."""\n'
+                "+    if total:\n+        return 0.0\n+    return 100.0 * n / total\n+\n+\n")
+        for fragmento in ("+    if total:\n+        return 0.0\n+    return 100.0 * n / total",
+                          # Cruza las líneas añadidas vacías, con su prefijo (Codex, PR #210).
+                          "+    return 100.0 * n / total\n+\n+",
+                          '+    """Porcentaje de `n` sobre `total`; 0 si no hay correos."""\n'
+                          "+    if total:",
+                          "    if total:\n        return 0.0"):
+            with self.subTest(fragmento=fragmento):
+                self.assertIsNotNone(mr.interpretar(
+                    respuesta(archivo="scripts/d.py", fragmento=fragmento), diff))
+
+    def test_bloques_por_hunk_y_en_orden(self):
+        dos_hunks = ("diff --git a/c.py b/c.py\n--- a/c.py\n+++ b/c.py\n"
+                     "@@ -1 +1 @@\n-a = 0\n+a = 1\n@@ -20 +20 @@\n-b = 0\n+b = 1\n")
+        self.assertEqual(mr.bloques_diff(dos_hunks), {
+            "c.py": [["-a = 0", "+a = 1"], ["-b = 0", "+b = 1"]]})
+        self.assertEqual(mr.bloques_diff(DIFF)["a.py"],
+                         [[" contexto = True", "-resultado = 1", "+resultado = 2"]])
+
     def test_cita_en_linea_recortada_no_se_acredita_como_linea_completa(self):
         diff = DIFF[:DIFF.index("+resultado = 2")] + '+resultado = "tex'
         self.assertIsNone(mr.interpretar(

@@ -216,6 +216,24 @@ def indice_diff(diff):
     return archivos
 
 
+def bloques_diff(diff):
+    """Líneas de cada hunk, en orden, por ruta: {ruta: [[línea, ...], ...]}.
+
+    Un hunk empieza cuando el número de línea salta respecto al esperado (dos
+    hunks contiguos en el fichero quedan unidos, que es lo que son). Solo lo
+    usa `cita_consecutiva`, que necesita el orden que `indice_diff` pierde.
+    """
+    bloques = {}
+    esperado = {}
+    for archivo, linea, numero in _lineas_de_hunks(diff):
+        lista = bloques.setdefault(archivo, [])
+        if not lista or numero != esperado[archivo]:
+            lista.append([])
+        lista[-1].append(linea)
+        esperado[archivo] = numero if linea.startswith("-") else numero + 1
+    return bloques
+
+
 def lineas_cambiadas(diff):
     """Números de línea, en la cabeza, de lo añadido o eliminado por ruta.
 
@@ -546,6 +564,40 @@ def cita_en(fragmento, lineas):
     return any(linea[1:].strip() in candidatos for linea in lineas)
 
 
+def _misma_linea(trozo, linea):
+    """`trozo` (con o sin prefijo y sangría) es la línea `linea` del diff."""
+    limpio = trozo.strip()
+    candidatos = {limpio}
+    if limpio[:1] in ("+", "-"):
+        candidatos.add(limpio[1:].strip())
+    return linea[1:].strip() in candidatos
+
+
+def cita_consecutiva(fragmento, bloques):
+    """¿Es `fragmento` un tramo de líneas SEGUIDAS de un mismo hunk?
+
+    Decisión del mantenedor (GLM 5.3 Flash, ejecuciones #7 y #10 de la
+    evaluación: vio el defecto del control y lo citó con sus dos líneas, y
+    se perdía la revisión entera). Cada línea se compara como en `cita_en`
+    (sangría y prefijo libres, resto exacto); las líneas en blanco no
+    cuentan en ningún lado; al menos una debe tener letras o números. Dos
+    líneas reales pero separadas no valen: el modelo no puede componer una
+    cita con trozos sueltos del diff.
+    """
+    # En blanco = sin contenido tras quitar el prefijo, igual que en el diff:
+    # «+» solo es una línea añadida vacía (revisión de Codex, PR #210).
+    trozos = [t for t in fragmento.split("\n")
+              if t.strip() and t.strip() not in ("+", "-")]
+    if not trozos or not any(ch.isalnum() for t in trozos for ch in t):
+        return False
+    for bloque in bloques or ():
+        lineas = [l for l in bloque if l[1:].strip()]
+        for inicio in range(len(lineas) - len(trozos) + 1):
+            if all(_misma_linea(t, l) for t, l in zip(trozos, lineas[inicio:])):
+                return True
+    return False
+
+
 def causa_cita(fragmento, archivo, archivos):
     """Por qué una cita no coincide con el diff, como código sin contenido.
 
@@ -612,6 +664,7 @@ def interpretar(texto, diff=None, exigir_comprobaciones=False,
     campos = ("severidad", "archivo", "fragmento", "problema", "escenario", "arreglo")
     hallazgos = datos["hallazgos"]
     archivos = indice_diff(diff) if diff is not None else None
+    bloques = bloques_diff(diff) if diff is not None else None
     citas = []
     for i, h in enumerate(hallazgos):
         if not isinstance(h, dict) or any(
@@ -622,7 +675,8 @@ def interpretar(texto, diff=None, exigir_comprobaciones=False,
         causa = None
         if archivos is not None:
             lineas = archivos.get(h["archivo"], set())
-            if not cita_en(h["fragmento"], lineas):
+            if not (cita_en(h["fragmento"], lineas) or cita_consecutiva(
+                    h["fragmento"], bloques.get(h["archivo"]))):
                 causa = causa_cita(h["fragmento"], h["archivo"], archivos)
         citas.append((h, causa))
     fallidas = ["hallazgo_%d_cita_fuera_del_diff(%s)" % (i, causa)
