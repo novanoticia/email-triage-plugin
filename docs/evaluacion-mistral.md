@@ -179,4 +179,6 @@ como segunda opinión barata, a ~0,006 $ por revisión frente a ~0,04 $, más
 rápido y sin ruido medido. Es un identificador fijo, sin `-latest`; los
 modelos de terceros rotan rápido en Mistral (GLM 5.2 se retiró un mes después
 de quedar obsoleto), así que hay que vigilar su fecha de retirada en la
-página de modelos. Gasto total de la evaluación de esta jornada: ~1,73 $.
+página de modelos. Gasto medido de las ejecuciones #6 a #13 (incluidas #7,
+~0,08 $, y #10, menos de 0,01 $, que no salen en la tabla): ~1,73 $. Las #2 a
+#4 son de una sesión anterior y su coste es una estimación (~1,09 $).
