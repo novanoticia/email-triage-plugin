@@ -96,6 +96,11 @@ def cargar_casos(ruta):
         for clave in claves:
             if not c.get(clave):
                 raise ValueError("caso %s: falta %s" % (c.get("id"), clave))
+        for clave in ("archivos", "ignorar"):
+            # Una cadena suelta se recorrería letra a letra sin avisar.
+            if clave in c and not (isinstance(c[clave], list) and all(
+                    isinstance(x, str) and x for x in c[clave])):
+                raise ValueError("caso %s: %s no es una lista de rutas" % (c["id"], clave))
         for clave in ("base", "cabeza", "arreglo"):
             # SHA completo y nada más: `$` admitiría un salto de línea final.
             if clave in c and not re.fullmatch(r"[0-9a-f]{40}", str(c[clave])):

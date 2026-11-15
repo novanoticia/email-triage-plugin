@@ -58,6 +58,9 @@ class TestCasos(unittest.TestCase):
                  [dict(POSITIVO, cabeza=SHA + "; rm -rf /")],
                  [dict(POSITIVO, cabeza=SHA + "\n")],
                  [dict(POSITIVO, cabeza=SHA[:7])],
+                 [dict(NEGATIVO, archivos="scripts/a.py")],
+                 [dict(NEGATIVO, archivos=["scripts/a.py", 3])],
+                 [dict(POSITIVO, ignorar="scripts/a.py")],
                  [POSITIVO, dict(POSITIVO)])
         for casos in malos:
             with self.subTest(casos=casos), self.assertRaises(ValueError):
