@@ -137,7 +137,10 @@ basta. Costes calculados con los tokens que declara la API y la tarifa de la
 página oficial de precios de Mistral (USD por millón, entrada / salida):
 Large 4 0,70 / 2,10; GLM 5.3 1,40 / 4,40; GLM 5.3 Flash 0,15 / 0,50;
 DeepSeek V4.1 Flash 0,30 / 1,20. Las ejecuciones #2 a #4 son anteriores al
-caso de control (12 casos).
+caso de control (12 casos). Faltan a propósito: #1 (no forma parte de esta
+comparación), #5 (Large 4 con esfuerzo `high`, cancelada a los 90 minutos sin
+datos) y #7 y #10 (GLM 5.3 Flash antes del PR #210: el control salía inválido
+por citar dos líneas; las sustituye #11).
 
 | Ejecución | Modelo | Control | Defectos reales | Ruido en negativos | Coste |
 |---|---|---|---|---|---|
