@@ -24,7 +24,17 @@ cabeza y el arreglo (funciones Python que no son tests). `ignorar` excluye
 archivos que el arreglo tocó sin ser el defecto.
 
 Hoy hay 7 positivos (#123, #125, #126, #143, #199 y dos de #200) y 5
-negativos (#108, #114, #116, #123, #140).
+negativos (#108, #114, #116, #123, #140), más un **caso de control**
+(`c1-guarda-invertida`, con `"control": true`).
+
+El control es un defecto sintético y evidente: `_porcentaje` en
+`scripts/distribucion_tiers.py` con la guarda invertida, que se ve entero en
+un diff de pocas líneas. Su defecto y su arreglo son dos commits seguidos del
+mismo PR, así que en `main` solo queda la versión correcta. Sirve para separar
+dos lecturas de un 0 de 7: si un modelo tampoco ve el control, no ve defectos
+evidentes; si lo ve y falla los reales, los casos reales piden algo que el
+revisor no recibe (contexto de otros archivos, conocer el proyecto). No cuenta
+entre los 7: los resultados se comparan aparte.
 
 ## Lo que no mide
 

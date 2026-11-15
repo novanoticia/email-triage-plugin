@@ -51,6 +51,13 @@ def _nombre_tramo(tramo):
     return "%s a %s (sin el %s)" % (desde, hasta, hasta)
 
 
+def _porcentaje(n, total):
+    """Porcentaje de `n` sobre `total`; 0 si no hay correos."""
+    if not total:
+        return 0.0
+    return 100.0 * n / total
+
+
 def _otras_penalizaciones(r):
     """True si el correo pierde puntos por algo que no es `calidad_epistemica`:
     riesgo, coste, reglas duras o puntos extra negativos."""
@@ -133,7 +140,7 @@ def main(argv):
     print("tiers:")
     for tier in ("REPLY_NEEDED", "REVIEW", "READING_LATER", "ARCHIVE"):
         n = d["tiers"].get(tier, 0)
-        print("   %-14s %4d  (%.0f %%)" % (tier, n, 100.0 * n / d["correos"] if d["correos"] else 0))
+        print("   %-14s %4d  (%.0f %%)" % (tier, n, _porcentaje(n, d["correos"])))
     print("ARCHIVE por tramo de score (con otras penalizaciones = riesgo, coste o reglas):")
     for t in d["tramos_archive"]:
         print("   %-22s %4d  (con otras penalizaciones: %d)"

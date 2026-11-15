@@ -1,5 +1,14 @@
 [
   {
+    "id": "c1-guarda-invertida",
+    "tipo": "positivo",
+    "control": true,
+    "base": "c84d7f7d38282f904face076c2650125b2eb4917",
+    "cabeza": "5841467b87b1f13c6ef7b1ffba17ce05d884466d",
+    "arreglo": "fbedbfba30639917427396e1dd83ffaf10cb8827",
+    "defecto": "Control sintético: `_porcentaje` tiene la guarda invertida (`if total: return 0.0`); con correos devuelve siempre 0 y sin correos divide por cero. Se ve entero en el diff: un revisor que no lo señale no ve defectos evidentes."
+  },
+  {
     "id": "p123-limite-flotante",
     "tipo": "positivo",
     "base": "724bb6a266b72c09a944c91bfb65b3978a2a9434",

@@ -61,6 +61,8 @@ class TestCasos(unittest.TestCase):
                  [dict(NEGATIVO, archivos="scripts/a.py")],
                  [dict(NEGATIVO, archivos=["scripts/a.py", 3])],
                  [dict(POSITIVO, ignorar="scripts/a.py")],
+                 [dict(POSITIVO, control="sí")],
+                 [dict(NEGATIVO, control=True)],
                  [POSITIVO, dict(POSITIVO)])
         for casos in malos:
             with self.subTest(casos=casos), self.assertRaises(ValueError):
@@ -70,6 +72,9 @@ class TestCasos(unittest.TestCase):
         casos = ev.cargar_casos(ev.CASOS)
         self.assertTrue(any(c["tipo"] == "positivo" for c in casos))
         self.assertTrue(any(c["tipo"] == "negativo" for c in casos))
+        # Hay un control, y solo cuenta aparte (positivo marcado).
+        self.assertEqual([c["id"] for c in casos if c.get("control")],
+                         ["c1-guarda-invertida"])
         for c in casos:
             for clave in ("base", "cabeza", "arreglo"):
                 if clave in c:
@@ -396,6 +401,22 @@ class TestInforme(unittest.TestCase):
         self.assertIn("  - Escenario: entrada concreta", informe)
         self.assertIn("Repetición 2: cortada (length).", informe)
         self.assertIn("Repetición 2: sin hallazgos ni pendientes.", informe)
+
+    def test_el_control_se_cuenta_aparte_de_los_defectos_reales(self):
+        def r(donde):
+            return {"estado": "valida", "detalle": "", "solicitudes": 1,
+                    "recortado": False, "pendientes": [],
+                    "hallazgos": [{"severidad": "alta", "archivo": "a.py",
+                                   "problema": "p", "fragmento": "x", "escenario": "e",
+                                   "arreglo": "a", "donde": donde}]}
+        control = dict(POSITIVO, id="c", control=True)
+        informe = ev.resumir([POSITIVO, control], {"p": [r("fuera")], "c": [r("funcion")]},
+                             "m", 1)
+        # El acierto en el control no sube el recuento de defectos reales.
+        self.assertIn("en 0 de 1 casos", informe)
+        self.assertIn("**Control (defecto sintético evidente", informe)
+        self.assertIn("señala la función en 1 de 1 revisiones válidas", informe)
+        self.assertIn("| `c` | control | 1/1 | 1/1 | 1 | 0 |", informe)
 
 
 class TestMain(unittest.TestCase):
