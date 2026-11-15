@@ -73,6 +73,13 @@ Actions, y si no se puede leer el historial se revisa igualmente.
   cambios de permisos y binarios sin hunks. Esto no valida la verdad del análisis.
 - Hallazgos solo con escenario concreto y una cita literal del diff del archivo.
   Se admite que no haya hallazgos; una respuesta sin comprobaciones es inválida.
+- La cita es una línea completa del diff (sangría y prefijo libres) o, desde
+  la decisión del mantenedor de 2026-11-15, **varias líneas seguidas de un
+  mismo hunk**, cada una completa; las líneas en blanco no cuentan. Dos líneas
+  reales pero separadas, de hunks o archivos distintos, siguen rechazando la
+  respuesta. Motivo: GLM 5.3 Flash vio el defecto del caso de control de la
+  evaluación y lo citó con sus dos líneas, y se perdía la revisión entera.
+  El prompt sigue pidiendo una sola línea.
 
 El modelo se elige con la variable de Actions `MISTRAL_MODEL` (por defecto
 `codestral-latest`). La clave se configura como secreto `MISTRAL_API_KEY`.
