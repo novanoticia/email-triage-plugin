@@ -270,6 +270,20 @@ class TestPresupuesto(unittest.TestCase):
         r.read.return_value = json.dumps(cuerpo).encode("utf-8")
         return r
 
+    def test_la_espera_crece_con_el_tope_de_salida(self):
+        self.assertEqual(ev.espera_para(16000), 180)      # la del revisor
+        self.assertEqual(ev.espera_para(128000), 1280)
+        buena = {"choices": [{"finish_reason": "stop", "message": {"content": "{}"}}],
+                 "usage": {"prompt_tokens": 1, "completion_tokens": 1}}
+        with mock.patch.object(mr.urllib.request, "urlopen",
+                               return_value=self.respuesta(buena)) as abrir:
+            with ev.Presupuesto(5, espera=1280):
+                mr.llamar_mistral([], "m", "clave")
+            self.assertEqual(abrir.call_args.kwargs["timeout"], 1280)
+            with ev.Presupuesto(5):                       # sin espera: la del revisor
+                mr.llamar_mistral([], "m", "clave")
+            self.assertEqual(abrir.call_args.kwargs["timeout"], 180)
+
     def test_suma_los_tokens_que_declara_la_api(self):
         buena = {"choices": [{"finish_reason": "stop", "message": {"content": "{}"}}],
                  "usage": {"prompt_tokens": 30000, "completion_tokens": 9000}}
@@ -527,7 +541,8 @@ class TestMain(unittest.TestCase):
         self.assertEqual((codigo, vistos), (0, [32000]))
         self.assertEqual(mr.MAX_SALIDA, previo)        # se restaura al acabar
         self.assertEqual(guardado["max_salida"], 32000)
-        self.assertIn("Tope de salida: 32000 tokens", salida.getvalue())
+        self.assertIn("Tope de salida: 32000 tokens por respuesta, con 320 s de espera",
+                      salida.getvalue())
         self.assertIn("1 respuesta(s) rechazadas", salida.getvalue())
         self.assertNotIn("`t`", salida.getvalue())     # el texto no va al resumen
 
@@ -537,7 +552,8 @@ class TestMain(unittest.TestCase):
                                        "--max-salida", ""], con_clave)
         self.assertEqual(codigo, 0)
         self.assertIn("Tope de salida: %d tokens" % mr.MAX_SALIDA, salida)
-        for valor in ("3999", "64001", "abc", "-1", "1e4", "16000.0"):
+        for valor in ("3999", "256001", "abc", "-1", "1e4", "16000.0", "²", "١٢٠٠٠",
+                      "9" * 20):
             with self.subTest(valor=valor):
                 codigo, revisar, _ = self.main(["--ejecutar", "--max-salida", valor],
                                                con_clave)

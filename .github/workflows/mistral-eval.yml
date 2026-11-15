@@ -18,7 +18,7 @@ on:
         description: Esfuerzo de razonamiento, low, medium o high (vacío = el del revisor)
         default: ''
       max_salida:
-        description: Tope de tokens de salida, 4000 a 64000 (vacío = el del revisor)
+        description: Tope de tokens de salida, 4000 a 256000 (vacío = el del revisor)
         default: ''
 
 concurrency:
