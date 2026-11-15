@@ -106,11 +106,36 @@ def cargar_casos(ruta):
     return casos
 
 
+def _rangos_objetivo(texto, lineas):
+    """Rangos donde un hallazgo cuenta como acierto; [] si no parsea.
+
+    Las funciones que contienen una línea cambiada y, fuera de toda función,
+    solo esa línea. No se usa `mr._rangos_python`: da contexto, y su ventana
+    alrededor de un cambio de módulo abarca funciones que el arreglo no tocó
+    (Codex, PR #203: un hallazgo en una vecina contaba como detección).
+    """
+    funciones = mr._funciones_python(texto)
+    if funciones is None:
+        return []
+    rangos = set()
+    for n in lineas:
+        dentro = [f for f in funciones if f[0] <= n <= f[1]]
+        rangos.add(dentro[0] if dentro else (n, n, ""))
+    unidos = []
+    for inicio, fin, nombre in sorted(rangos):
+        # Solo se juntan líneas de módulo seguidas: nunca con una función.
+        if unidos and not nombre and not unidos[-1][2] and inicio == unidos[-1][1] + 1:
+            unidos[-1] = (unidos[-1][0], fin, "")
+        else:
+            unidos.append((inicio, fin, nombre))
+    return unidos
+
+
 def objetivos(caso):
     """{archivo: [(inicio, fin, nombre)]} donde debería caer un hallazgo.
 
     Positivo: funciones de `cabeza` (código Python, no tests) que el arreglo
-    tocó. Se calcula con el diff al revés (arreglo → cabeza), cuyo lado nuevo
+    tocó, y las líneas sueltas de módulo que cambió. Se calcula con el diff al revés (arreglo → cabeza), cuyo lado nuevo
     es la cabeza. Negativo: los archivos enteros de los hallazgos falsos.
     """
     if caso["tipo"] == "negativo":
@@ -127,7 +152,7 @@ def objetivos(caso):
             texto = git("show", "%s:%s" % (caso["cabeza"], archivo))
         except subprocess.CalledProcessError:
             continue  # el arreglo creó el archivo: en la cabeza no hay dónde apuntar
-        rangos = mr._rangos_python(texto, lineas)
+        rangos = _rangos_objetivo(texto, lineas)
         if rangos:
             destino[archivo] = rangos
     return destino

@@ -112,6 +112,45 @@ class TestObjetivos(unittest.TestCase):
         self.assertEqual(ev.objetivos(NEGATIVO), {"a.py": []})
 
 
+class TestRangosObjetivo(unittest.TestCase):
+    """El objetivo no es el contexto: una vecina sin tocar no cuenta (Codex, PR #203)."""
+
+    FUENTE = (
+        "def antes():\n"        # 1
+        "    return 1\n"        # 2
+        "\n"                    # 3
+        "MARCA = 'x'\n"         # 4
+        "OTRA = 'y'\n"          # 5
+        "\n"                    # 6
+        "def despues():\n"      # 7
+        "    return 2\n"        # 8
+    )
+
+    def test_un_cambio_de_modulo_no_arrastra_las_funciones_vecinas(self):
+        rangos = ev._rangos_objetivo(self.FUENTE, {4, 5})
+        self.assertEqual(rangos, [(4, 5, "")])
+        # El contexto del revisor sí las abarca: por eso no sirve de objetivo.
+        contexto = mr._rangos_python(self.FUENTE, {4, 5})
+        self.assertTrue(any(i <= 2 <= f for i, f, _ in contexto))
+
+    def test_una_linea_de_modulo_pegada_a_una_funcion_no_se_une_a_ella(self):
+        fuente = "X = 1\ndef f():\n    return X\n"
+        self.assertEqual(ev._rangos_objetivo(fuente, {1, 3}),
+                         [(1, 1, ""), (2, 3, "f")])
+
+    def test_fuente_que_no_parsea_no_da_objetivos(self):
+        self.assertEqual(ev._rangos_objetivo("def (:\n", {1}), [])
+
+    def test_el_caso_real_del_aviso_ya_no_incluye_a_las_vecinas(self):
+        caso = [c for c in ev.cargar_casos(ev.CASOS)
+                if c["id"] == "p200-recursion-y-marca"][0]
+        rangos = ev.objetivos(caso)[".github/scripts/mistral_review.py"]
+        nombres = [n for _, _, n in rangos]
+        self.assertEqual([n for n in nombres if n], ["_rangos_python", "ya_revisado"])
+        sueltas = [(i, f) for i, f, n in rangos if not n]
+        self.assertTrue(sueltas and all(f - i < 5 for i, f in sueltas))
+
+
 class TestClasificar(unittest.TestCase):
     def test_lineas_citadas_son_las_de_la_cabeza(self):
         self.assertEqual(ev.lineas_citadas(DIFF, "a.py", "y = x + 1"), {2})
