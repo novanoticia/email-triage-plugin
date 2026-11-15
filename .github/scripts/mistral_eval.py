@@ -28,6 +28,7 @@ la guía es la del árbol actual, no la de entonces.
 Solo stdlib. Sin `--ejecutar` no llama a la API: lista casos y objetivos.
 """
 import argparse
+import contextlib
 import importlib.util
 import json
 import os
@@ -43,6 +44,7 @@ mr = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(mr)
 
 CASOS = os.path.join(os.path.dirname(_AQUI), "eval", "casos.json")
+ESFUERZOS = ("low", "medium", "high")
 MAX_LLAMADAS = 80  # tope de peticiones HTTP por ejecución: cada una cuesta dinero
 
 
@@ -61,13 +63,37 @@ class Presupuesto:
 
     def __init__(self, maximo):
         self.maximo, self.usadas = maximo, 0
+        # Consumo real que declara la API en `usage`: el coste deja de ser una
+        # estimación. `sin_esfuerzo` cuenta las respuestas obtenidas tras
+        # retirar `reasoning_effort` (el modelo no lo admite): ahí el esfuerzo
+        # pedido no se aplicó.
+        self.entrada = self.salida = self.respondidas = self.sin_esfuerzo = 0
         self._abrir = mr.urllib.request.urlopen
 
-    def abrir(self, *args, **kwargs):
+    def abrir(self, req, *args, **kwargs):
         if self.usadas >= self.maximo:
             raise PresupuestoAgotado()
         self.usadas += 1
-        return self._abrir(*args, **kwargs)
+        return _Respuesta(self._abrir(req, *args, **kwargs), self, req)
+
+    def anotar(self, datos, req):
+        """Suma los tokens de una respuesta. Solo números: nada del contenido."""
+        try:
+            uso = json.loads(datos).get("usage")
+            entrada, salida = uso.get("prompt_tokens"), uso.get("completion_tokens")
+        except (ValueError, AttributeError):
+            return
+        for n in (entrada, salida):
+            if not isinstance(n, int) or isinstance(n, bool) or n < 0:
+                return
+        self.entrada += entrada
+        self.salida += salida
+        self.respondidas += 1
+        try:
+            if "reasoning_effort" not in json.loads(req.data):
+                self.sin_esfuerzo += 1
+        except (ValueError, AttributeError, TypeError):
+            pass
 
     def __enter__(self):
         mr.urllib.request.urlopen = self.abrir
@@ -76,6 +102,35 @@ class Presupuesto:
     def __exit__(self, *exc):
         mr.urllib.request.urlopen = self._abrir
         return False
+
+
+class _Respuesta:
+    """La respuesta HTTP tal cual, pero dejando ver sus tokens al presupuesto."""
+
+    def __init__(self, respuesta, presupuesto, req):
+        self._respuesta, self._presupuesto, self._req = respuesta, presupuesto, req
+
+    def __enter__(self):
+        self._respuesta.__enter__()
+        return self
+
+    def __exit__(self, *exc):
+        return self._respuesta.__exit__(*exc)
+
+    def read(self, *args):
+        datos = self._respuesta.read(*args)
+        self._presupuesto.anotar(datos, self._req)
+        return datos
+
+
+@contextlib.contextmanager
+def con_esfuerzo(valor):
+    """Fija `mr.ESFUERZO` mientras dura la evaluación y lo restaura al salir."""
+    previo, mr.ESFUERZO = mr.ESFUERZO, valor
+    try:
+        yield
+    finally:
+        mr.ESFUERZO = previo
 
 
 def git(*args):
@@ -333,6 +388,11 @@ def main(argv=None):
     ap.add_argument("--repeticiones", type=int, default=2)
     ap.add_argument("--salida", help="ruta del JSON con cada revisión")
     ap.add_argument("--ejecutar", action="store_true", help="llamar a la API de Mistral")
+    ap.add_argument("--modelo", default="",
+                    help="modelo solo para esta evaluación (vacío = MISTRAL_MODEL)")
+    ap.add_argument("--esfuerzo", default="",
+                    help="reasoning_effort solo para esta evaluación: low, medium o high "
+                         "(vacío = el del revisor)")
     args = ap.parse_args(argv)
     casos = cargar_casos(args.casos)
     if args.solo.strip():
@@ -355,10 +415,19 @@ def main(argv=None):
     if not clave:
         print("::error::Falta MISTRAL_API_KEY: la evaluación no se ha ejecutado.")
         return 2
-    modelo = os.environ.get("MISTRAL_MODEL") or "codestral-latest"
+    modelo = args.modelo.strip() or os.environ.get("MISTRAL_MODEL") or "codestral-latest"
+    # El id viaja en el cuerpo JSON y en el informe: solo su alfabeto.
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,79}", modelo):
+        print("::error::Modelo no válido: solo letras, números, punto, guion y dos puntos.")
+        return 2
+    esfuerzo = args.esfuerzo.strip() or mr.ESFUERZO
+    if esfuerzo not in ESFUERZOS:
+        print("::error::Esfuerzo no válido: usa %s." % ", ".join(ESFUERZOS))
+        return 2
     resultados = {c["id"]: [] for c in casos}
     agotado = False
-    with Presupuesto(MAX_LLAMADAS) as presupuesto:
+    # Solo cambia en este proceso: el revisor de los PR sigue con el suyo.
+    with con_esfuerzo(esfuerzo), Presupuesto(MAX_LLAMADAS) as presupuesto:
         try:
             for c in casos:
                 for n in range(args.repeticiones):
@@ -374,6 +443,14 @@ def main(argv=None):
     informe = resumir(casos, resultados, modelo, args.repeticiones)
     informe += "\nPeticiones HTTP a la API: %d de %d permitidas.\n" % (
         presupuesto.usadas, MAX_LLAMADAS)
+    informe += ("\nTokens según la API: %d de entrada y %d de salida, en %d respuesta(s) "
+                "con recuento. Esfuerzo de razonamiento pedido: `%s`.\n" % (
+                    presupuesto.entrada, presupuesto.salida, presupuesto.respondidas,
+                    esfuerzo))
+    if presupuesto.sin_esfuerzo:
+        informe += ("\n**El modelo no admite el esfuerzo de razonamiento:** %d "
+                    "respuesta(s) llegaron tras retirarlo; en ellas no se aplicó.\n"
+                    % presupuesto.sin_esfuerzo)
     if agotado:
         informe += ("\n**Evaluación incompleta:** se alcanzó el tope de peticiones; "
                     "faltan revisiones. Las cifras de arriba son parciales.\n")
@@ -382,7 +459,12 @@ def main(argv=None):
     if args.salida:
         with open(args.salida, "w", encoding="utf-8") as fh:
             json.dump({"modelo": modelo, "repeticiones": args.repeticiones,
+                       "esfuerzo": esfuerzo,
                        "peticiones": presupuesto.usadas, "incompleta": agotado,
+                       "tokens": {"entrada": presupuesto.entrada,
+                                  "salida": presupuesto.salida,
+                                  "respuestas": presupuesto.respondidas,
+                                  "sin_esfuerzo": presupuesto.sin_esfuerzo},
                        "casos": casos, "resultados": resultados},
                       fh, ensure_ascii=False, indent=2)
     return 1 if agotado else 0

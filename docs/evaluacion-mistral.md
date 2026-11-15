@@ -50,10 +50,16 @@ negativos (#108, #114, #116, #123, #140).
 
 ## Cómo ejecutarla
 
-**Actions → Mistral Eval → Run workflow.** Dos campos:
+**Actions → Mistral Eval → Run workflow.** Cuatro campos:
 
 - `repeticiones`: revisiones por caso (2 por defecto).
 - `solo`: ids separados por comas; vacío evalúa todos.
+- `modelo`: un modelo solo para esta evaluación (por ejemplo
+  `mistral-large-2512` o `codestral-latest`). Vacío usa `MISTRAL_MODEL`. El
+  revisor de los PR no cambia: sirve para comparar modelos sin tocarlo.
+- `esfuerzo`: esfuerzo de razonamiento (`low`, `medium`, `high`) solo para
+  esta evaluación. Vacío usa el del revisor. Si el modelo no lo admite, se
+  retira solo y el informe lo dice.
 
 El resultado sale abreviado en el resumen de la ejecución. El artefacto
 `mistral-eval` guarda cada hallazgo entero (fragmento, problema, escenario y
@@ -67,7 +73,10 @@ tokens). Doce casos a dos repeticiones son al menos 24 peticiones. Hay un
 tope de 80 **peticiones HTTP reales** por ejecución, contadas en el
 transporte: incluye los reintentos por errores transitorios. Si se alcanza,
 la evaluación se detiene, publica lo que lleva marcado como incompleto y
-termina en error. Para probar barato: `solo` con un caso y una
+termina en error. El informe da los tokens de entrada y de salida que
+declara la API, para calcular el gasto con la tarifa del modelo. Un modelo
+que no admite el esfuerzo de razonamiento gasta dos peticiones por revisión:
+la rechazada y la repetida sin él. Para probar barato: `solo` con un caso y una
 repetición.
 
 Sin `--ejecutar`, el script solo lista los casos y sus objetivos y no llama
