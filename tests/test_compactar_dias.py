@@ -116,6 +116,27 @@ class TestCompactarDias(unittest.TestCase):
                 self.assertFalse(out["ok"])
         self.assertEqual(len(self.leer()), 1)
 
+    def test_dias_desbordantes_conservan_todo(self):
+        # 10**9 no cabe en un timedelta; 800000 sí, pero el corte cae antes
+        # del año 1. En ambos casos nada es antiguo (hallazgo de Mistral).
+        self.escribir([iso(40), iso(1)])
+        for enorme in (800000, 999999999, 10 ** 9, 10 ** 30):
+            with self.subTest(dias=enorme):
+                out = th.cmd_compactar(self.ruta, dias=enorme, ahora=AHORA)
+                self.assertTrue(out["ok"], out)
+                self.assertEqual(out["eliminadas"], 0)
+                json.dumps(out)
+        self.assertEqual(len(self.leer()), 2)
+
+    def test_cli_con_dias_desbordantes_devuelve_json(self):
+        self.escribir([iso(40)])
+        r = subprocess.run([sys.executable, os.path.join(DIR_SCRIPTS, "triage_helpers.py"),
+                            "compactar", "--archivo", self.ruta, "--dias", "1000000000"],
+                           capture_output=True, text=True)
+        out = json.loads(r.stdout)
+        self.assertTrue(out["ok"], r.stderr)
+        self.assertEqual(out["eliminadas"], 0)
+
     def test_cli(self):
         # Fechas relativas a hoy: el CLI usa la hora real.
         ahora = datetime.now(timezone.utc)

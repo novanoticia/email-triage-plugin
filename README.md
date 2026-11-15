@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.28.4
+# Email Triage Plugin v3.28.5
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -88,6 +88,15 @@ internas del skill.
 
 Translation: AI-generated, not reviewed by a human. / Traduction générée par une IA, non
 relue par un humain. / Traducción generada por una IA, sin revisión humana.
+
+## Novedades en v3.28.5
+
+- **`compactar --dias` ya no se rompe con un número enorme.** Con un valor
+  como `1000000000`, la fecha de corte no cabe en el calendario y el comando
+  terminaba con un error de Python y sin respuesta JSON. Ahora entiende lo
+  obvio: si el corte queda antes de cualquier fecha posible, nada es antiguo
+  y se conserva todo. Lo encontró el revisor de Mistral en la primera pasada
+  de su evaluación con casos reales.
 
 ## Novedades en v3.28.4
 

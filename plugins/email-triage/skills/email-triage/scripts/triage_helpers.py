@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.28.4).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.28.5).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -3327,9 +3327,14 @@ def _contar_y_recientes(ruta, dias, ahora):
     reescribió el log con un script propio). Manda `ts_registro`, la hora
     real del append que pone `registrar`: un `ts` del modelo antiguo o
     erróneo no puede purgar una línea recién escrita (revisión Codex P1,
-    PR #125)."""
+    PR #125). v3.28.5: si `dias` es tan grande que el corte no cabe en una
+    fecha, nada es antiguo y se conserva todo (antes, OverflowError sin
+    capturar y ningún JSON por stdout)."""
     total, recientes = 0, []
-    corte = ahora - timedelta(days=dias)
+    try:
+        corte = ahora - timedelta(days=dias)
+    except OverflowError:
+        corte = None
     with open(ruta, encoding="utf-8", errors="replace") as fh:
         for ln in fh:
             total += 1
@@ -3340,7 +3345,7 @@ def _contar_y_recientes(ruta, dias, ahora):
             ts = None
             if isinstance(doc, dict):
                 ts = _parse_ts(doc.get("ts_registro")) or _parse_ts(doc.get("ts"))
-            if ts is None or ts >= corte:
+            if ts is None or corte is None or ts >= corte:
                 recientes.append(ln)
     return total, recientes
 
