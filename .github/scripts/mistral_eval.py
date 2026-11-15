@@ -190,6 +190,9 @@ def cargar_casos(ruta):
             # SHA completo y nada más: `$` admitiría un salto de línea final.
             if clave in c and not re.fullmatch(r"[0-9a-f]{40}", str(c[clave])):
                 raise ValueError("caso %s: %s no es un SHA completo" % (c["id"], clave))
+        if "control" in c and not (c["control"] is True and c["tipo"] == "positivo"):
+            # Un control es un positivo sintético que se cuenta aparte.
+            raise ValueError("caso %s: control solo admite true, en un positivo" % c["id"])
         if c["id"] in vistos:
             raise ValueError("caso repetido: %s" % c["id"])
         vistos.add(c["id"])
@@ -345,7 +348,8 @@ def resumir(casos, resultados, modelo, repeticiones):
             "%s: %d" % (e, sum(r["estado"] == e for r in ejecuciones))
             for e in ("invalida", "cortada", "error")
             if any(r["estado"] == e for r in ejecuciones)) or "sin fallos"))
-    positivos = [c for c in casos if c["tipo"] == "positivo"]
+    positivos = [c for c in casos if c["tipo"] == "positivo" and not c.get("control")]
+    controles = [c for c in casos if c.get("control")]
     negativos = [c for c in casos if c["tipo"] == "negativo"]
 
     def senala(r):
@@ -357,6 +361,11 @@ def resumir(casos, resultados, modelo, repeticiones):
         partes.append("- **Defectos reales:** en %d de %d casos algún hallazgo señala la "
                       "función que luego se corrigió; en %d de %d revisiones válidas."
                       % (alguna, len(positivos), sum(senala(r) for r in ok), len(ok)))
+    if controles:
+        ok = [r for c in controles for r in resultados[c["id"]] if r["estado"] == "valida"]
+        partes.append("- **Control (defecto sintético evidente, fuera del recuento de "
+                      "arriba):** algún hallazgo señala la función en %d de %d revisiones "
+                      "válidas." % (sum(senala(r) for r in ok), len(ok)))
     if negativos:
         ok = [r for c in negativos for r in resultados[c["id"]] if r["estado"] == "valida"]
         total = sum(len(r["hallazgos"]) for r in ok)
@@ -371,7 +380,7 @@ def resumir(casos, resultados, modelo, repeticiones):
         rs = resultados[c["id"]]
         ok = [r for r in rs if r["estado"] == "valida"]
         partes.append("| `%s` | %s | %d/%d | %s | %d | %d |" % (
-            c["id"], c["tipo"], len(ok), len(rs),
+            c["id"], "control" if c.get("control") else c["tipo"], len(ok), len(rs),
             "%d/%d" % (sum(senala(r) for r in ok), len(ok))
             if c["tipo"] == "positivo" else "—",
             sum(len(r["hallazgos"]) for r in ok), sum(len(r["pendientes"]) for r in ok)))

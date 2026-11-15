@@ -47,6 +47,13 @@ class TestDistribucion(unittest.TestCase):
         tramos = {t["tramo"]: t["correos"] for t in d["tramos_archive"]}
         self.assertEqual(tramos, {(-2, None): 1, (-5, -2): 1, (-10, -5): 2, (None, -10): 1})
 
+    def test_porcentaje(self):
+        # Mismo resultado que la expresión a la que sustituyó; sin correos, 0
+        # (su versión con la guarda invertida es el caso de control de
+        # .github/eval/casos.json).
+        self.assertEqual(dt._porcentaje(1, 4), 25.0)
+        self.assertEqual(dt._porcentaje(0, 0), 0.0)
+
     def test_riesgo_negativo_cuenta_como_otra_penalizacion(self):
         r = fila(1, -1, "ARCHIVE")
         r["ejes"]["riesgo_manipulacion"] = -3
