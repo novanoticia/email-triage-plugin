@@ -584,8 +584,11 @@ def cita_consecutiva(fragmento, bloques):
     líneas reales pero separadas no valen: el modelo no puede componer una
     cita con trozos sueltos del diff.
     """
-    trozos = [t for t in fragmento.split("\n") if t.strip()]
-    if len(trozos) < 2 or not any(ch.isalnum() for t in trozos for ch in t):
+    # En blanco = sin contenido tras quitar el prefijo, igual que en el diff:
+    # «+» solo es una línea añadida vacía (revisión de Codex, PR #210).
+    trozos = [t for t in fragmento.split("\n")
+              if t.strip() and t.strip() not in ("+", "-")]
+    if not trozos or not any(ch.isalnum() for t in trozos for ch in t):
         return False
     for bloque in bloques or ():
         lineas = [l for l in bloque if l[1:].strip()]

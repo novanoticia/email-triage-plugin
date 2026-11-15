@@ -69,6 +69,7 @@ class TestEvidenciaMistral(unittest.TestCase):
         for fragmento in ("-resultado = 1\n+resultado = 2",
                           " contexto = True\n-resultado = 1\n+resultado = 2",
                           "contexto = True\n\nresultado = 1",      # en blanco: no cuenta
+                          "contexto = True\n-\nresultado = 1",     # «-» vacía: tampoco
                           "    resultado = 1  \n  resultado = 2"):  # sangría libre
             with self.subTest(fragmento=fragmento):
                 self.assertIsNotNone(mr.interpretar(respuesta(fragmento=fragmento), DIFF))
@@ -98,6 +99,10 @@ class TestEvidenciaMistral(unittest.TestCase):
                 '+    """Porcentaje de `n` sobre `total`; 0 si no hay correos."""\n'
                 "+    if total:\n+        return 0.0\n+    return 100.0 * n / total\n+\n+\n")
         for fragmento in ("+    if total:\n+        return 0.0\n+    return 100.0 * n / total",
+                          # Cruza las líneas añadidas vacías, con su prefijo (Codex, PR #210).
+                          "+    return 100.0 * n / total\n+\n+",
+                          '+    """Porcentaje de `n` sobre `total`; 0 si no hay correos."""\n'
+                          "+    if total:",
                           "    if total:\n        return 0.0"):
             with self.subTest(fragmento=fragmento):
                 self.assertIsNotNone(mr.interpretar(
