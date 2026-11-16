@@ -30,10 +30,10 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-    uses: novanoticia/mistral-review/.github/workflows/reply.yml@v1
+    uses: novanoticia/mistral-review/.github/workflows/reply.yml@v1.2
     with:
       # Debe coincidir con la etiqueta de `uses:` (versión fija de mistral-review).
-      ref: v1
+      ref: v1.2
       model: ${{ vars.MISTRAL_MODEL }}
       reply_model: ${{ vars.MISTRAL_REPLY_MODEL }}
       excluded: |
