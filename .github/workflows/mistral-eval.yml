@@ -21,6 +21,16 @@ on:
       max_salida:
         description: Tope de tokens de salida, 4000 a 256000 (vacío = el del revisor)
         default: ''
+      proveedor:
+        description: Proveedor del modelo; openrouter exige `modelo` (organización/modelo) y el secreto OPENROUTER_API_KEY
+        type: choice
+        options:
+          - mistral
+          - openrouter
+        default: mistral
+      proveedor_final:
+        description: Solo con OpenRouter, proveedor final fijo (p. ej. z-ai); vacío = lo elige OpenRouter
+        default: ''
 
 concurrency:
   group: mistral-eval
@@ -40,6 +50,9 @@ jobs:
       esfuerzo: ${{ inputs.esfuerzo }}
       max_salida: ${{ inputs.max_salida }}
       model: ${{ vars.MISTRAL_MODEL }}
+      # Solo esta evaluación: la revisión de los PR sigue en Mistral.
+      provider: ${{ inputs.proveedor }}
+      openrouter_provider: ${{ inputs.proveedor_final }}
       excluded: |
         tests/i18n/linea_base.json
         plugins/email-triage/skills/email-triage/i18n/es.yaml
@@ -49,3 +62,4 @@ jobs:
         CLAUDE.md
     secrets:
       MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
