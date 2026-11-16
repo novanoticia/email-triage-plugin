@@ -11,6 +11,15 @@ lo que es suyo:
   (**Actions → Mistral Eval → Run workflow**), con las mismas entradas que
   antes (`repeticiones`, `solo`, `modelo`, `esfuerzo`, `max_salida`) y el
   artefacto `mistral-eval`.
+- **Proveedor de la evaluación** (desde mistral-review `v1.2`): `proveedor`
+  elige `mistral` (por defecto) u `openrouter`, y `proveedor_final` fija el
+  proveedor de OpenRouter (por ejemplo `z-ai`), para que la comparación sea
+  reproducible. Con OpenRouter, `modelo` es obligatorio con la forma
+  `organización/modelo` (por ejemplo `z-ai/glm-5.3-flash`) y hace falta el
+  secreto `OPENROUTER_API_KEY`; si falta, la evaluación se detiene sin
+  llamar a la API. Solo afecta a la evaluación: la revisión de los PR sigue
+  en Mistral. Configuración, privacidad y costes: [README de
+  mistral-review](https://github.com/novanoticia/mistral-review#usar-openrouter-opcional).
 
 El método, sus límites, cómo añadir un caso y los resultados del
 2026-11-15 (con la decisión de usar `zai-glm-5-3-flash`) están en
