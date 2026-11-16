@@ -11,100 +11,39 @@ identificado en el título. La revisión se ejecuta mediante su API y el
 comentario lo publica GitHub Actions del proyecto. Su asistencia se reconoce
 en [CONTRIBUTORS.md](../CONTRIBUTORS.md).
 
-## Cuándo se ejecuta
+## Dónde vive
 
-Al crear el PR, marcarlo listo para revisión, subir commits, reabrirlo o editar
-su título o descripción. Cada ejecución que obtiene un resultado publica un
-**comentario nuevo**, identificado con el SHA de la cabeza del PR y un enlace
-a la ejecución y al intento de Actions. Los reintentos del mismo commit también
-se conservan por separado, incluidos los resultados inválidos o fallos de API.
-Los comentarios anteriores no se editan ni se borran. Un push nuevo cancela
-la revisión en curso; una ejecución cancelada antes de publicar puede no dejar
-comentario.
+Desde el 2026-11-16 el código, las pruebas y la documentación detallada viven
+en [novanoticia/mistral-review](https://github.com/novanoticia/mistral-review),
+compartidos con otros repos. Este repo solo tiene tres workflows cortos que lo
+llaman:
 
-**Segunda solicitud ante una respuesta mal formada.** Desde el 2026-11-13,
-si la respuesta no cumple el esquema o cita líneas que no están en el diff, se
-pide **una** más antes de dar la revisión por no válida (en el PR #200 una sola
-comprobación sin campo invalidó la revisión entera, y repetirla a mano bastó).
-El registro de Actions nombra la regla incumplida de cada solicitud, nunca el
-contenido. Un corte de la API añade al informe su código de causa (`length`
-cuando se agota el margen de salida, que sube de 4.000 a 16.000 tokens) y el
-registro de Actions dice el modelo servido y cuánto ocupó el razonamiento y
-cuánto la respuesta, sin contenido. Desde el 2026-11-15 un corte por `length`
-**también se repite una vez**, dentro del mismo tope de dos solicitudes: GLM 5.3
-Flash escribió una vez 25.000 caracteres en una sola línea, casi la mitad
-espacios, hasta agotar el margen, y la misma revisión relanzada salió bien
-(`repo-auditor-ia`, PR #26). Los demás cortes (`model_length`, `error`) no se
-repiten: no mejoran pidiendo otra vez.
+| Workflow | Qué hace | Reutilizable que llama |
+|---|---|---|
+| `mistral-review.yml` | Revisa cada PR. Check `mistral-review / mistral-review`. | `review.yml` |
+| `mistral-reply.yml` | Contrasta los hallazgos de otras IAs (Codex, Claude…). | `reply.yml` |
+| `mistral-eval.yml` | Evaluación manual con casos reales. | `eval.yml` |
 
-**Razonamiento bajo.** `mistral-large-latest` pasó a razonar antes de
-responder y devuelve el contenido en bloques (`thinking` y `text`). En el PR
-#202, con un margen de 8.000 tokens, los gastó en razonar y no escribió nada:
-esa era la causa de los informes «no completada». Con razonamiento bajo usó
-unos 6.500 tokens en razonar y se cortó a media respuesta; por eso el margen
-es de 16.000. El revisor lee los bloques `text`
-y envía `reasoning_effort: "low"`; si el modelo no admite el parámetro, lo
-retira y repite la solicitud. Para no depender de adónde apunte `-latest`,
-fija un modelo concreto en la variable `MISTRAL_MODEL`.
+Antes había aquí una copia propia (`.github/scripts/mistral_review.py`,
+`mistral_reply.py`, `mistral_eval.py` y sus tests). La historia de cada
+decisión —segunda solicitud, cortes por `length`, un informe por commit,
+modelos que razonan, contraste de respuestas— está en
+[docs/revision.md](https://github.com/novanoticia/mistral-review/blob/main/docs/revision.md)
+de ese repo; las referencias `email-triage-plugin#N` son PR de aquí.
 
-**Un informe válido por commit.** Desde el 2026-11-11, si el PR ya tiene un
-informe válido de la misma base y la misma cabeza, editar el título o la
-descripción, reabrirlo o marcarlo listo **no repite** la revisión ni consume
-la API: el resumen de Actions dice «no repetida». Antes, abrir un borrador y
-marcarlo listo dejaba dos informes distintos del mismo commit (PR #198 y
-#199). Para pedir otro del mismo commit, usa «Re-run jobs»: los reintentos
-manuales siempre revisan. Un informe inválido o un fallo de API no cuentan
-como revisión hecha. Solo se reconoce la marca en comentarios de GitHub
-Actions, y si no se puede leer el historial se revisa igualmente.
+## Lo propio de este repo
 
-## Qué recibe y qué debe devolver
-
-- Guía `REVIEW.md`, o `CLAUDE.md` si no existe la primera; máximo 60.000
-  caracteres, que hoy cubren `CLAUDE.md` entero (con 20.000 se quedaba fuera
-  casi la mitad). Si algún día se recorta, el modelo recibe el aviso.
-- Título, descripción y diff con diez líneas de contexto, hasta 150.000 caracteres.
-- Contexto de los archivos Python cambiados, leído con `git show` del commit:
-  **las funciones completas de la versión nueva que contienen las líneas
-  cambiadas**, con sus números de línea (un método va sin el resto de su
-  clase; un cambio fuera de toda función lleva una ventana de 15 líneas).
-  Primero el código y después los tests. Hasta 10.000 caracteres por archivo
-  y 40.000 en total, cortando por líneas enteras. Solo se analiza la sintaxis;
-  no ejecuta el código. Los recortes se indican; no se incluyen
-  automáticamente dependencias sin cambios. Antes se enviaba el principio de
-  cada archivo, que en `triage_helpers.py` era solo el docstring.
-- Entre una y seis comprobaciones con archivo, escenario, conclusión y estado
-  `revisado` o `pendiente`. Son razonamientos por lectura, no pruebas ejecutadas.
-  Sus rutas se contrastan con el inventario de Git, incluidos renombrados puros,
-  cambios de permisos y binarios sin hunks. Esto no valida la verdad del análisis.
-- Hallazgos solo con escenario concreto y una cita literal del diff del archivo.
-  Se admite que no haya hallazgos; una respuesta sin comprobaciones es inválida.
-- La cita es una línea completa del diff (sangría y prefijo libres) o, desde
-  la decisión del mantenedor de 2026-11-15, **varias líneas seguidas de un
-  mismo hunk**, cada una completa; las líneas en blanco no cuentan. Dos líneas
-  reales pero separadas, de hunks o archivos distintos, siguen rechazando la
-  respuesta. Motivo: GLM 5.3 Flash vio el defecto del caso de control de la
-  evaluación y lo citó con sus dos líneas, y se perdía la revisión entera.
-  El prompt sigue pidiendo una sola línea.
-
-El modelo se elige con la variable de Actions `MISTRAL_MODEL` (si falta,
-`codestral-latest`). Desde el 2026-11-15, por decisión del mantenedor, vale
-`zai-glm-5-3-flash`: la comparación con casos reales está en
-[`evaluacion-mistral.md`](evaluacion-mistral.md#resultados-2026-11-15).
-La clave se configura como secreto `MISTRAL_API_KEY`.
-
-## Cómo se lee el informe
-
-La primera línea tras el resumen es **Resultado**: cuántos hallazgos, cuántas
-comprobaciones pendientes y cuántas sin defecto aparente. Después van los
-hallazgos, luego las comprobaciones **pendientes** (lo que el modelo no pudo
-decidir y conviene mirar a mano o con un test) y, plegadas, las que no
-encontraron defecto. El prompt pide que cada comprobación intente romper el
-cambio con una entrada que los tests del diff no ejerciten, y que cada
-hallazgo sobreviva a un intento de refutación o pase a «pendiente».
-
-**Verificado y propuesto.** Qué se envía, qué se publica y cuándo está fijado
-por tests. Que el prompt nuevo mejore el razonamiento del modelo **no está
-medido**: hay que contrastarlo en PR reales (ver la auditoría enlazada abajo).
+- **Excluidos** (parámetro `excluded` de los tres workflows): los generados
+  `tests/i18n/linea_base.json` y
+  `plugins/email-triage/skills/email-triage/i18n/es.yaml`.
+- **Guía** (parámetro `guides`): `REVIEW.md` si existe, si no `CLAUDE.md`,
+  como antes. El orden por defecto del revisor compartido pone `AGENTS.md`
+  delante, y aquí `AGENTS.md` solo resume `CLAUDE.md` para otros agentes.
+- **Modelo**: variable de repositorio `MISTRAL_MODEL` (hoy
+  `zai-glm-5-3-flash`, decisión del mantenedor del 2026-11-15) y, solo para
+  el contraste, `MISTRAL_REPLY_MODEL` opcional.
+- **Casos de la evaluación**: `.github/eval/casos.json`, commits de este
+  repo. Método y resultados: [evaluación con casos reales](evaluacion-mistral.md).
 
 ## Cómo interpretar el resultado y continuar
 
@@ -122,111 +61,11 @@ medido**: hay que contrastarlo en PR reales (ver la auditoría enlazada abajo).
 6. Si no hay clave, el resumen indica «revisión omitida». Los forks no reciben
    secretos de GitHub; el job termina sin error, pero no cuenta como revisión.
 
-Las pruebas locales simulan la API. La calidad de detección debe contrastarse
-en PR reales, especialmente con regresiones conocidas que antes no detectó.
-
-## Respuestas a otras IAs, sin reparar código
-
-El workflow **Mistral Reply to AI Reviews** añade un contraste separado cuando
-otra IA publica una revisión o un comentario admitido en un PR. **Mistral solo
-lee y comenta.** No ejecuta los tests del PR ni modifica archivos. Tampoco aplica
-parches, crea commits o fusiona cambios. Las reparaciones corresponden a Claude y al
-mantenedor. El token tiene `contents: read` y `pull-requests: write`.
-
-- **Solo se comenta en el PR cuando hay un dictamen** (desde el 2026-11-11).
-  En los PR #199 y #200, seis de los siete comentarios del contraste no decían
-  nada: «Falta contexto para concluir» o «no completado». Ahora:
-  - «Falta contexto para concluir» se queda en el resumen de Actions, sin
-    marca, para que otra ejecución pueda volver a intentarlo. Si una review
-    tiene varias fuentes, se comentan solo las que tienen dictamen.
-  - Una respuesta que no supera la validación deja su aviso y su diagnóstico
-    en el resumen de Actions y un `::warning::`, no en el PR.
-  - Los fallos de la API de Mistral o de GitHub **sí** se siguen avisando en
-    el PR y en rojo: eso es algo roto, no una opinión que falta.
-  - Un comentario que solo es una orden a otro bot («@codex review») no es
-    una fuente aunque lleve la firma de Claude: hacen falta al menos 40 letras
-    o números propios, sin contar firma ni menciones. Los bots admitidos no
-    pasan por este filtro.
-  - Una cita de varias líneas vale si **cada** línea es una línea completa
-    del código enviado; antes rechazaba toda la respuesta (`multilinea`).
-  - El fragmento enviado es la función más externa que contiene la línea, si
-    cabe en el presupuesto, para que lleguen sus guardas; si no cabe, la más
-    interna, como antes.
-
-  Que el modelo acierte más con estos cambios **no está medido**; lo fijado
-  por tests es qué se envía y qué se publica.
-- Se reconocen las cuentas bot de Codex, Claude, Copilot, CodeRabbit y Gemini
-  enumeradas en `mistral_reply.py`, comprobando también que sean cuentas Bot.
-  Los comentarios con firma «Generated by/with … Claude» de un propietario,
-  miembro o colaborador se admiten como asistencia declarada de Claude; la
-  firma por sí sola no demuestra quién los redactó.
-- Desde el 2026-11-15, una respuesta dentro de un hilo de revisión no es una
-  fuente: contesta a un hallazgo, no lo plantea. Las respuestas de Claude a
-  Codex salían con la cuenta del mantenedor y su firma, y se contrastaban como
-  hallazgos. Lanzado a mano (`workflow_dispatch`) sí se contrasta, porque el
-  comentario lo elige una persona.
-- Una review agrupa sus hallazgos de línea en un único contraste. Los resúmenes
-  de estado de Codex no disparan un debate. No se responde a GitHub Actions ni
-  a las marcas propias de Mistral; las menciones del texto generado se neutralizan
-  para no invocar otros bots.
-- El nuevo comentario enlaza cada fuente y distingue **de acuerdo**, **no se
-  sostiene con el contexto disponible**, **ya corregido** o **pendiente**.
-  Los dictámenes concluyentes deben citar líneas completas del código enviado;
-  como en la revisión, no cuentan la sangría ni los espacios de los extremos,
-  y el resto debe coincidir carácter a carácter. Declarar
-  «ya corregido» requiere citas del original y de la cabeza; si falta alguno,
-  corresponde dejarlo pendiente. Las citas no garantizan la verdad del juicio.
-- Se conserva el comentario anterior. Las marcas identifican fuente y SHA
-  para evitar repetirla en reintentos; se vuelve a comprobar el historial antes
-  de publicar. Un cambio de SHA durante el análisis descarta la publicación.
-  La deduplicación es de mejor esfuerzo cuando coinciden activaciones manuales
-  y automáticas. Si falla la API, se publica en el PR un aviso enlazado a las
-  fuentes, sin dictamen ni marca que impida reintentarlo. Si lo que falla es
-  la validación, el aviso va al resumen de Actions e incluye el diagnóstico: códigos
-  propios con el índice de la respuesta y de la cita, y la causa de cada cita
-  rechazada (`parcial`, `sin_coincidencia`, `archivo_sin_cambios`…), sin
-  texto devuelto por el modelo. Un `sin_coincidencia` se afina, solo como
-  diagnóstico (la cita sigue rechazada): `escapado` si coincidiría sin los
-  escapes JSON con que se envió el código (`\"`), `fuera_de_ventana` si la
-  línea está en el archivo de esa versión pero no en el fragmento enviado, y
-  `otra_version` si solo está en la otra versión. Si el hallazgo se hizo
-  sobre la cabeza actual (mismo commit), «original» y «cabeza» son la misma
-  versión y una cita vale para ambas; no se aplica a los comentarios LEFT.
-  Origen: los tres rechazos del PR #157 eran `sin_coincidencia` sin más.
-- **Rechazo del modelo ≠ fallo.** Que la respuesta no supere la validación
-  (sin JSON válido, citas sin coincidencia, fuentes desconocidas…) es el freno
-  funcionando, no algo roto en el PR: el job emite `::warning::`, deja el
-  aviso con el diagnóstico en el resumen de Actions y termina con **0** (sin
-  cruz roja). Solo los fallos
-  de infraestructura —error de la API de Mistral, de GitHub al leer o publicar,
-  de `git fetch`— emiten `::error::` y terminan con **1**. La validación de
-  citas no cambia: un contraste rechazado sigue sin contar como dictamen.
-- El contraste usa el mismo modelo que la revisión (`MISTRAL_MODEL`), salvo
-  que exista la variable de Actions `MISTRAL_REPLY_MODEL`: entonces usa esa
-  solo aquí, para probar otro modelo (p. ej. `codestral-latest`) sin tocar la
-  revisión. El título del contraste publicado muestra el modelo usado.
-- Solo se procesan automáticamente PR abiertos del propio repositorio. Como
-  límite de coste, se omiten revisiones con más de seis fuentes y se explica
-  en Actions; pueden contrastarse sus hallazgos individualmente de forma manual.
-  Cada comentario se limita a 6.000 caracteres y cada fragmento de código a
-  10.000, con ventanas de contexto o funciones completas cuando caben.
-
-El script se ejecuta siempre desde la **rama predeterminada**, no desde el código
-del PR. El código a contrastar solo se lee con `git show`; nunca se importa ni
-se ejecuta. Por ello esta función empezará a responder después de fusionar el
-workflow y el script. No actúa retroactivamente sobre comentarios existentes.
-GitHub no inicia otros workflows por los eventos generados con `GITHUB_TOKEN`;
-si otra herramienta publica de ese modo, hace falta una activación manual.
-
-Para contrastar un hallazgo anterior: **Actions → Mistral Reply to AI Reviews →
-Run workflow**, indicando `pr_number` y `review_comment_id`. El segundo es el
-número de la URL `#discussion_r…` del hallazgo de línea. La activación manual
-también permite PR cerrados; no los reabre ni modifica su código. Las respuestas
-se añaden a la conversación del PR con enlaces a las fuentes, no resuelven los
-hilos ni sustituyen la revisión de Claude.
+Para contrastar un hallazgo anterior de otra IA: **Actions → Mistral Reply to
+AI Reviews → Run workflow**, con `pr_number` y `review_comment_id` (el número
+de la URL `#discussion_r…` del hallazgo de línea). Mistral solo lee y comenta:
+no aplica parches, no crea commits ni fusiona cambios.
 
 La [auditoría del 29 de octubre de 2026](auditoria-mistral-2026-10-29.md)
-contrasta los primeros PR con el código histórico, documenta falsos positivos
-y propone una evaluación de calidad antes de nuevos ajustes del revisor.
-Esa evaluación existe desde el 2026-11-13: ver
-[evaluación con casos reales](evaluacion-mistral.md). Aún no tiene resultados.
+contrasta los primeros PR con el código histórico y documenta falsos
+positivos.
