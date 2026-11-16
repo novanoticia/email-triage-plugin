@@ -10,30 +10,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # El revisor vive en novanoticia/mistral-review; aquí solo se llama.
   mistral-review:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
     permissions:
       pull-requests: write
       contents: read
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          # El diff se calcula con git (base...cabeza): hace falta historia.
-          fetch-depth: 0
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      # El script vive en .github/scripts/mistral_review.py (solo stdlib).
-      # Modelo: variable de repositorio MISTRAL_MODEL (Settings → Secrets and
-      # variables → Actions → Variables); sin ella, codestral-latest.
-      - name: Mistral AI Review
-        env:
-          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
-          MISTRAL_MODEL: ${{ vars.MISTRAL_MODEL }}
-          GH_TOKEN: ${{ github.token }}
-        run: python3 .github/scripts/mistral_review.py
+    uses: novanoticia/mistral-review/.github/workflows/review.yml@main
+    with:
+      model: ${{ vars.MISTRAL_MODEL }}
+      # Generados: se regeneran con scripts, no se revisan.
+      excluded: |
+        tests/i18n/linea_base.json
+        plugins/email-triage/skills/email-triage/i18n/es.yaml
+      # CLAUDE.md es la guía canónica; AGENTS.md solo la resume para otros agentes.
+      guides: |
+        REVIEW.md
+        CLAUDE.md
+    secrets:
+      MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}

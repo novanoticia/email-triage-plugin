@@ -1,7 +1,8 @@
 name: Mistral Eval
 
-# Evaluación manual del revisor con casos reales del historial
-# (.github/eval/casos.json). No se lanza sola: cada solicitud cuesta dinero.
+# Evaluación manual del revisor con casos reales del historial de este repo
+# (.github/eval/casos.json; plantilla en mistral-review/ejemplos/eval-casos.json).
+# No se lanza sola: cada solicitud cuesta dinero.
 on:
   workflow_dispatch:
     inputs:
@@ -27,51 +28,22 @@ concurrency:
 
 jobs:
   mistral-eval:
-    runs-on: ubuntu-latest
-    timeout-minutes: 90
     permissions:
       contents: read
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          # Los casos son commits antiguos: hace falta toda la historia.
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Comprobar casos y objetivos sin llamar a la API
-        env:
-          SOLO: ${{ inputs.solo }}
-        run: python3 .github/scripts/mistral_eval.py --solo "$SOLO"
-
-      - name: Evaluar
-        # Por debajo de los 90 del job: si se agota, el paso se corta y
-        # «Guardar el resultado» aún sube lo revisado (el JSON se guarda tras
-        # cada revisión). La ejecución #5 se canceló sin dejar nada.
-        timeout-minutes: 80
-        env:
-          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
-          MISTRAL_MODEL: ${{ vars.MISTRAL_MODEL }}
-          REPETICIONES: ${{ inputs.repeticiones }}
-          SOLO: ${{ inputs.solo }}
-          MODELO: ${{ inputs.modelo }}
-          ESFUERZO: ${{ inputs.esfuerzo }}
-          MAX_SALIDA: ${{ inputs.max_salida }}
-        run: >
-          python3 .github/scripts/mistral_eval.py --ejecutar
-          --repeticiones "$REPETICIONES" --solo "$SOLO"
-          --modelo "$MODELO" --esfuerzo "$ESFUERZO" --max-salida "$MAX_SALIDA"
-          --salida mistral-eval.json
-
-      - name: Guardar el resultado
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: mistral-eval
-          path: mistral-eval.json
-          if-no-files-found: ignore
+    uses: novanoticia/mistral-review/.github/workflows/eval.yml@main
+    with:
+      repeticiones: ${{ inputs.repeticiones }}
+      solo: ${{ inputs.solo }}
+      modelo: ${{ inputs.modelo }}
+      esfuerzo: ${{ inputs.esfuerzo }}
+      max_salida: ${{ inputs.max_salida }}
+      model: ${{ vars.MISTRAL_MODEL }}
+      excluded: |
+        tests/i18n/linea_base.json
+        plugins/email-triage/skills/email-triage/i18n/es.yaml
+      # CLAUDE.md es la guía canónica; AGENTS.md solo la resume para otros agentes.
+      guides: |
+        REVIEW.md
+        CLAUDE.md
+    secrets:
+      MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
