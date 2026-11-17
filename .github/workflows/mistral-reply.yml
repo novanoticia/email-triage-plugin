@@ -34,12 +34,15 @@ jobs:
     with:
       # Debe coincidir con la etiqueta de `uses:` (versión fija de mistral-review).
       ref: v1.3
-      model: ${{ vars.MISTRAL_MODEL }}
-      # Vacío (sin la variable) = Mistral. Para OpenRouter: MISTRAL_PROVIDER=openrouter,
-      # MISTRAL_MODEL con forma organización/modelo y el secreto OPENROUTER_API_KEY.
+      # Proveedor: MISTRAL_PROVIDER vacío o `mistral` = Mistral con MISTRAL_MODEL;
+      # `openrouter` = OpenRouter con OPENROUTER_MODEL (forma organización/modelo; sin ella falla)
+      # y el secreto OPENROUTER_API_KEY. Cambiar de proveedor = cambiar solo MISTRAL_PROVIDER.
+      model: ${{ vars.MISTRAL_PROVIDER == 'openrouter' && vars.OPENROUTER_MODEL || vars.MISTRAL_PROVIDER != 'openrouter' && vars.MISTRAL_MODEL || '' }}
       provider: ${{ vars.MISTRAL_PROVIDER }}
       openrouter_provider: ${{ vars.OPENROUTER_PROVIDER }}
-      reply_model: ${{ vars.MISTRAL_REPLY_MODEL }}
+      # MISTRAL_REPLY_MODEL es un modelo de Mistral: solo se usa con Mistral; con
+      # OpenRouter el contraste usa el mismo modelo que la revisión.
+      reply_model: ${{ vars.MISTRAL_PROVIDER != 'openrouter' && vars.MISTRAL_REPLY_MODEL || '' }}
       excluded: |
         tests/i18n/linea_base.json
         plugins/email-triage/skills/email-triage/i18n/es.yaml
