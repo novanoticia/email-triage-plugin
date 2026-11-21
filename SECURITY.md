@@ -13,7 +13,7 @@ afecta a la versión más reciente.
 
 Si descubres una posible vulnerabilidad, escribe de forma privada a:
 
-novanoticia@icloud.comm
+novanoticia@icloud.com
 
 No abras una incidencia pública (Issue) con detalles que permitan
 explotar el problema o acceder a información privada.
