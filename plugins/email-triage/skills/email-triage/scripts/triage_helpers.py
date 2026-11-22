@@ -215,7 +215,8 @@ su clase (CM2, auditoría 2026-07-19):
   7. 'limpiar-tmp' (v3.21.23): BORRA de <base>/tmp/ lo que tenga más de N
                            horas (12 por defecto), sin seguir symlinks ni salir
                            de tmp/; con --dry-run solo cuenta.
-Sin sus flags, 'calibrar', 'scoring' y 'sanitizar' no escriben nada. Ningún
+Resolver el estado sin hogar utilizable puede crear su directorio privado.
+Sin sus flags, 'calibrar', 'scoring' y 'sanitizar' no escriben datos. Ningún
 subcomando mueve correos.
 """
 import argparse
@@ -225,6 +226,7 @@ import json
 import math
 import os
 import re
+import stat
 import sys
 import tempfile
 import unicodedata
@@ -232,6 +234,7 @@ import urllib.parse
 from collections import defaultdict, deque
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+from pathlib import Path
 
 # ════════════════════════════════════════════════════════════════
 # Dónde vive el estado del usuario
@@ -242,8 +245,8 @@ from typing import Optional
 #
 # Pero `~` no es fiable fuera de un Mac/Linux normal. Comprobado en Mistral
 # Vibe Work: $HOME vale "/", así que `~/.email-triage` resuelve a la RAÍZ y el
-# skill intenta escribir allí. Se resuelve una sola vez, con escotilla
-# explícita, y si no hay hogar utilizable se cae a un temporal — DICIÉNDOLO,
+# skill intenta escribir allí. Hay una salida explícita, y si no hay hogar
+# utilizable se usa un directorio temporal privado y se avisa,
 # porque el estado que no persiste hay que anunciarlo: el fallo silencioso es
 # justo lo que lleva a dar por escrito un registro que nunca se escribió.
 
@@ -252,25 +255,86 @@ _DIR_ESTADO = ".email-triage"
 
 
 def _hogar_utilizable() -> Optional[str]:
+class EstadoTemporalInseguro(OSError):
+    def __init__(self, ruta):
+        super().__init__(
+            f"No se puede usar el estado temporal en {ruta}. "
+            f"Configura {ENV_BASE_ESTADO} con una ruta privada escribible."
+        )
+
+
     """El hogar del usuario, o None si no sirve para colgar estado de él."""
     hogar = os.path.expanduser("~")
     if not hogar or hogar == "~":          # expanduser no supo resolverlo
         return None
     hogar = os.path.abspath(hogar)
-    if hogar == os.sep:                    # $HOME="/" (Mistral Vibe Work)
+    if os.path.realpath(hogar) == os.sep:   # $HOME="/" o alias de la raíz
         return None
     return hogar if os.path.isdir(hogar) else None
 
 
 def base_estado() -> str:
-    """Directorio de estado: $EMAIL_TRIAGE_HOME, si no `~`, si no un temporal."""
+def _validar_contenido_temporal(base, uid):
+    """Comprueba el estado reutilizado sin seguir enlaces."""
+    pendientes = [base]
+    while pendientes:
+        try:
+            entradas = os.scandir(pendientes.pop())
+        except FileNotFoundError:
+            continue  # Una limpieza concurrente pudo quitar una subcarpeta.
+        with entradas:
+            for entrada in entradas:
+                try:
+                    info = entrada.stat(follow_symlinks=False)
+                except FileNotFoundError:
+                    continue  # Rotación o limpieza de un fichero concurrente.
+                if info.st_uid != uid or info.st_mode & 0o022:
+                    raise EstadoTemporalInseguro(entrada.path)
+                if stat.S_ISDIR(info.st_mode):
+                    pendientes.append(entrada.path)
+                elif not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                    raise EstadoTemporalInseguro(entrada.path)
+
+
+def _base_estado_temporal() -> str:
+    """Prepara una base 0700 por UID, estable entre invocaciones del CLI."""
+    uid = os.geteuid()
+    try:
+        temporal = Path(os.path.realpath(tempfile.gettempdir()))
+        # El sticky bit de /tmp impide que otro UID reemplace una entrada
+        # propia. Se comprueba toda la ruta real para detectar ancestros
+        # sustituibles, también cuando el entorno configura TMPDIR.
+        for directorio in (*reversed(temporal.parents), temporal):
+            info = directorio.lstat()
+            if (not stat.S_ISDIR(info.st_mode) or info.st_uid not in (0, uid)
+                    or (info.st_mode & 0o022 and not info.st_mode & stat.S_ISVTX)):
+                raise EstadoTemporalInseguro(directorio)
+        base = temporal / f"{_DIR_ESTADO}-{uid}"
+        try:
+            base.mkdir(mode=0o700)
+        except FileExistsError:
+            pass  # Otro proceso del mismo usuario pudo inicializarla.
+        info = base.lstat()
+        if (not stat.S_ISDIR(info.st_mode) or info.st_uid != uid
+                or stat.S_IMODE(info.st_mode) != 0o700):
+            raise EstadoTemporalInseguro(base)
+        _validar_contenido_temporal(base, uid)
+    except EstadoTemporalInseguro:
+        raise
+    except OSError as error:
+        ruta = error.filename or "el directorio del sistema"
+        raise EstadoTemporalInseguro(ruta) from error
+    return str(base)
+
+
+    """Resuelve $EMAIL_TRIAGE_HOME, el hogar o una base temporal privada."""
     forzada = (os.environ.get(ENV_BASE_ESTADO) or "").strip()
     if forzada:
         return os.path.abspath(os.path.expanduser(forzada))
     hogar = _hogar_utilizable()
     if hogar is not None:
         return os.path.join(hogar, _DIR_ESTADO)
-    return os.path.join(tempfile.gettempdir(), _DIR_ESTADO)
+    return _base_estado_temporal()
 
 
 def _borrar_crudo(ruta) -> dict:
@@ -311,7 +375,10 @@ def cmd_limpiar_tmp(horas=HORAS_LIMPIAR_TMP, dry_run=False) -> dict:
             or not 0 <= horas <= 24 * 365):
         return {"ok": False, "error": "horas debe ser un número entre 0 y "
                 "8760"}
-    raiz = os.path.join(base_estado(), "tmp")
+    try:
+        raiz = ruta_estado("tmp")
+    except EstadoTemporalInseguro as error:
+        return {"ok": False, "error": str(error)}
     out = {"ok": True, "tmp": raiz, "horas": horas, "dry_run": dry_run,
            "borrados": 0, "bytes_liberados": 0, "recientes": 0, "errores": []}
     flags_dir = (os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
@@ -3200,7 +3267,8 @@ def _aviso_ruta_fuera(ruta):
 
 def cmd_registrar(ruta: str, registro: dict,
                   _desde_cerrar_deshacer: bool = False,
-                  _desde_vectores: bool = False) -> dict:
+                  _desde_vectores: bool = False,
+                  _desde_cerrar_lote: bool = False) -> dict:
     """Append atómico de `registro` como una línea JSON en `ruta`.
 
     Serializa a JSON de una sola línea y lo añade bajo fcntl.flock
@@ -6046,8 +6114,8 @@ def _construir_parser():
     p = argparse.ArgumentParser(description=__doc__)
     sub = p.add_subparsers(dest="cmd", required=True)
     pa = sub.add_parser("ajustes")
-    pa.add_argument("--correcciones",
-                    default=_expandir("~/.email-triage/correcciones.jsonl"))
+    pa.add_argument("--correcciones", type=_expandir,
+                    default="~/.email-triage/correcciones.jsonl")
     ps = sub.add_parser("sanitizar")
     ps.add_argument("--archivo")
     ps.add_argument("--max-chars", type=int, default=1500)
@@ -6062,8 +6130,8 @@ def _construir_parser():
                     help="tras sanear, borra --archivo y --metadatos (solo "
                          "dentro de <base>/tmp/) — v3.21.11")
     psc = sub.add_parser("scoring")
-    psc.add_argument("--config",
-                     default=_expandir("~/.email-triage/config.yaml"))
+    psc.add_argument("--config", type=_expandir,
+                     default="~/.email-triage/config.yaml")
     psc.add_argument("--brief", action="store_true",
                      help="salida compacta: solo score/tier/ejes (ahorra tokens)")
     psc.add_argument("--config-veloz", default=None,
@@ -6081,13 +6149,13 @@ def _construir_parser():
                           "invocación (append con flock) en vez de "
                           "sobrescribir; lo lee diagnostico-ejes — v3.21.5")
     ppb = sub.add_parser("planificar-bloques")
-    ppb.add_argument("--config",
-                     default=_expandir("~/.email-triage/config.yaml"))
+    ppb.add_argument("--config", type=_expandir,
+                     default="~/.email-triage/config.yaml")
     ppb.add_argument("--datos", default=None,
                      help='JSON {"ids": [...]}; sin él se lee de stdin')
     pv = sub.add_parser("validar-config")
-    pv.add_argument("--config",
-                    default=_expandir("~/.email-triage/config.yaml"))
+    pv.add_argument("--config", type=_expandir,
+                    default="~/.email-triage/config.yaml")
     pv.add_argument("--plantilla", nargs="?", const=RUTA_PLANTILLA,
                     default=None, metavar="RUTA",
                     help="compara con la plantilla del plugin (por defecto la "
@@ -6119,8 +6187,8 @@ def _construir_parser():
                      help="vectors.jsonl (append vía registrar)")
     pvc.add_argument("--desglose", required=True, metavar="RUTA",
                      help="fichero escrito por scoring --desglose")
-    pvc.add_argument("--config",
-                     default=_expandir("~/.email-triage/config.yaml"))
+    pvc.add_argument("--config", type=_expandir,
+                     default="~/.email-triage/config.yaml")
     pvc.add_argument("--config-veloz", default=None,
                      help="la misma capa veloz que se pasó a scoring")
     pvc.add_argument("--config-ensayo", default=None,
@@ -6145,8 +6213,7 @@ def _construir_parser():
     pv.add_argument("--datos", default=None,
                     help='JSON {"session_id":..,"esperados":N}; sin él, stdin')
     pc = sub.add_parser("compactar")
-    pc.add_argument("--archivo",
-                    default=_expandir("~/.email-triage/correcciones.jsonl"))
+    pc.add_argument("--archivo", default="~/.email-triage/correcciones.jsonl")
     pc.add_argument("--max-lineas", type=int, default=MAX_CORRECCIONES,
                     help="líneas a conservar (por defecto %d)" % MAX_CORRECCIONES)
     pc.add_argument("--dry-run", action="store_true",
@@ -6157,8 +6224,8 @@ def _construir_parser():
     pdx = sub.add_parser("diagnostico-ejes")
     pdx.add_argument("--desglose", nargs="+", required=True, metavar="RUTA",
                      help="uno o más ficheros escritos por scoring --desglose")
-    pdx.add_argument("--config",
-                     default=_expandir("~/.email-triage/config.yaml"),
+    pdx.add_argument("--config", type=_expandir,
+                     default="~/.email-triage/config.yaml",
                      help="solo para los umbrales de tier")
     pdp = sub.add_parser("diagnostico-plantillas")
     pdp.add_argument("--desglose", nargs="+", default=None, metavar="RUTA",
@@ -6168,8 +6235,8 @@ def _construir_parser():
     pco.add_argument("--datos", default=None,
                      help='JSON {"correos": [{"id", "remitente", "asunto", '
                           '"cuerpo"?}]}; sin él se lee de stdin')
-    pco.add_argument("--config",
-                     default=_expandir("~/.email-triage/config.yaml"))
+    pco.add_argument("--config", type=_expandir,
+                     default="~/.email-triage/config.yaml")
     pcal = sub.add_parser("calibrar")
     pcal.add_argument("--datos", default=None,
                       help='JSON {"correos": [{"remitente", "asunto"}, ...]}; '
@@ -6556,4 +6623,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except EstadoTemporalInseguro as error:
+        print(json.dumps({"ok": False, "error": str(error)}, ensure_ascii=False))

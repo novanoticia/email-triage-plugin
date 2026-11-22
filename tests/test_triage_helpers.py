@@ -14,11 +14,14 @@ import json
 import os
 import random
 import shutil
+import stat
+import subprocess
 import sys
 import tempfile
 import threading
 import unittest
 from datetime import datetime, timedelta, timezone
+from unittest import mock
 
 _RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _RAIZ not in sys.path:
@@ -3204,7 +3207,10 @@ class TestBaseEstado(unittest.TestCase):
 
     def setUp(self):
         self._env = {k: os.environ.get(k) for k in ("HOME", "EMAIL_TRIAGE_HOME")}
-        self._tmp = tempfile.mkdtemp()
+        self._tmp = os.path.realpath(tempfile.mkdtemp())
+        temporal = mock.patch.object(th.tempfile, "gettempdir", return_value=self._tmp)
+        temporal.start()
+        self.addCleanup(temporal.stop)
 
     def tearDown(self):
         for k, v in self._env.items():
@@ -3228,14 +3234,115 @@ class TestBaseEstado(unittest.TestCase):
     def test_home_raiz_no_escribe_en_la_raiz(self):
         self._poner(HOME="/")
         base = th.base_estado()
-        self.assertNotEqual(base, "/.email-triage")
-        self.assertFalse(base.startswith("//"))
-        self.assertTrue(base.startswith(tempfile.gettempdir()))
+        self.assertEqual(os.path.dirname(base), self._tmp)
+        info = os.lstat(base)
+        self.assertTrue(stat.S_ISDIR(info.st_mode))
+        self.assertEqual(stat.S_IMODE(info.st_mode), 0o700)
+        self.assertEqual(info.st_uid, os.geteuid())
         self.assertTrue(th.base_estado_es_efimera())
 
     def test_home_inexistente_tambien_cae_a_temporal(self):
         self._poner(HOME=os.path.join(self._tmp, "no", "existe"))
         self.assertTrue(th.base_estado_es_efimera())
+
+    def test_alias_de_la_raiz_tambien_cae_a_temporal(self):
+        alias = os.path.join(self._tmp, "alias")
+        os.symlink("/", alias)
+        self._poner(HOME=alias)
+        self.assertTrue(th.base_estado_es_efimera())
+        self.assertEqual(os.path.dirname(th.base_estado()), self._tmp)
+
+    def test_ignora_la_base_temporal_antigua(self):
+        anterior = os.path.join(self._tmp, ".email-triage")
+        os.mkdir(anterior, 0o700)
+        self._poner(HOME="/")
+        self.assertNotEqual(th.base_estado(), anterior)
+
+    def test_exige_permisos_privados_en_la_base_reutilizada(self):
+        self._poner(HOME="/")
+        base = th.base_estado()
+        os.chmod(base, 0o755)
+        with self.assertRaisesRegex(th.EstadoTemporalInseguro, "EMAIL_TRIAGE_HOME"):
+            th.base_estado()
+        self.assertEqual(stat.S_IMODE(os.stat(base).st_mode), 0o755)
+
+    def test_la_base_temporal_debe_ser_un_directorio_real(self):
+        self._poner(HOME="/")
+        base = th.base_estado()
+        os.rmdir(base)
+        destino = os.path.join(self._tmp, "destino")
+        os.mkdir(destino, 0o700)
+        os.symlink(destino, base)
+        with self.assertRaises(th.EstadoTemporalInseguro):
+            th.base_estado()
+        self.assertTrue(os.path.islink(base))
+
+    def test_rechaza_escritura_ajena_en_ancestros_del_temporal(self):
+        compartido = os.path.join(self._tmp, "compartido")
+        os.mkdir(compartido)
+        os.chmod(compartido, 0o777)
+        temporal = os.path.join(compartido, "temporal")
+        os.mkdir(temporal, 0o700)
+        self._poner(HOME="/")
+        with mock.patch.object(th.tempfile, "gettempdir", return_value=temporal):
+            with self.assertRaises(th.EstadoTemporalInseguro):
+                th.base_estado()
+            os.chmod(compartido, 0o1777)
+            self.assertEqual(os.path.dirname(th.base_estado()), temporal)
+
+    def test_rechaza_estado_temporal_con_enlaces_o_escritura_ajena(self):
+        self._poner(HOME="/")
+        base = th.base_estado()
+        config = os.path.join(base, "config.yaml")
+        with open(config, "w", encoding="utf-8") as archivo:
+            archivo.write("{}\n")
+        os.chmod(config, 0o644)
+        self.assertEqual(th.base_estado(), base)
+        os.chmod(config, 0o666)
+        with self.assertRaises(th.EstadoTemporalInseguro):
+            th.base_estado()
+        os.chmod(config, 0o644)
+        otro = os.path.join(base, "otro.yaml")
+        os.symlink(config, otro)
+        with self.assertRaises(th.EstadoTemporalInseguro):
+            th.base_estado()
+
+    def _cli(self, *args):
+        script = os.path.join(DIR_SCRIPTS, "triage_helpers.py")
+        return subprocess.run(
+            [sys.executable, script, *args], text=True, capture_output=True,
+            env=dict(os.environ, TMPDIR=self._tmp), check=True, timeout=15)
+
+    def test_ayuda_no_prepara_el_estado_temporal(self):
+        self._poner(HOME="/")
+        salida = self._cli("--help")
+        self.assertIn("estado-log", salida.stdout)
+        self.assertEqual(os.listdir(self._tmp), [])
+
+    def test_registro_temporal_compartido_por_invocaciones_cli(self):
+        self._poner(HOME="/")
+        registro = {"session_id": "20261018-100000", "message_id": "ficticio",
+                    "status": "moved", "tier": "ARCHIVE", "score": 1,
+                    "modo_scoring": "determinista",
+                    "from_folder": "INBOX", "to_folder": "Archive"}
+        escritura = self._cli("registrar", "--ruta", th.RUTA_SESSION_LOG,
+                              "--registro", json.dumps(registro))
+        escrito = json.loads(escritura.stdout)
+        self.assertTrue(escrito["ok"], escrito)
+        lectura = self._cli("estado-log", "--session", registro["session_id"])
+        leido = json.loads(lectura.stdout)
+        self.assertTrue(leido["ok"], leido)
+        self.assertEqual(leido["correos"][0]["message_id"], registro["message_id"])
+
+    def test_config_temporal_inseguro_da_error_legible_en_cli(self):
+        self._poner(HOME="/")
+        base = th.base_estado()
+        os.chmod(base, 0o755)
+        salida = self._cli("validar-config")
+        error = json.loads(salida.stdout)
+        self.assertFalse(error["ok"])
+        self.assertIn("EMAIL_TRIAGE_HOME", error["error"])
+        self.assertEqual(salida.stderr, "")
 
     def test_escotilla_explicita_manda_sobre_todo(self):
         destino = os.path.join(self._tmp, "estado")
