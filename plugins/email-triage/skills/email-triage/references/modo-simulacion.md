@@ -3,6 +3,10 @@ toda sesión necesita. El SKILL.md deja un stub con la condición de entrada
 y las garantías de seguridad, y apunta aquí. -->
 
 **Modo `simulacion`** (dry-run):
+- Selecciona capacidades de buzón de solo lectura en el cliente para la
+  sesión de clasificación. Si el cliente ofrece un permiso general de
+  escritura que no puede separar, limita el análisis a datos que la
+  persona proporcione por una vía saneada.
 - Ejecuta TODO el pipeline completo (PASO 0.B ajustes aprendidos, PASO 1.C
   detección de hilos, PASO 1.B sanitización, PASO 4 scoring epistémico)
   exactamente igual que una sesión real

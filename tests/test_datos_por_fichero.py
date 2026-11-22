@@ -55,10 +55,11 @@ class TestNingunDatoPorLaShell(unittest.TestCase):
 
 
 class TestSanitizarConMetadatos(unittest.TestCase):
-    """Se EJECUTA el comando tal como lo documenta el SKILL.md."""
+    """Se ejecuta el ejemplo offline del subcomando sanitizar."""
 
     def setUp(self):
-        with open(DOCS[0], encoding="utf-8") as f:
+        referencia = os.path.join(SKILL, "references", "sanitizacion-manual.md")
+        with open(referencia, encoding="utf-8") as f:
             t = f.read()
         self.cmd = next(b for b in RE_BASH.findall(t) if " sanitizar " in b)
 

@@ -38,6 +38,10 @@ lo pide), se hace dry-run notificando los movimientos hipotéticos.
 
 **Modo `rutina`** (NUEVO en v3.3 — activo cuando `modo_rutina: true`):
 - El usuario NO está presente. Cero preguntas, cero confirmaciones.
+- Para mover, la tarea programada necesita permiso de escritura
+  concedido por el cliente y acotado al proveedor, cuenta, buzón de
+  origen y destinos configurados. Si el cliente solo ofrece un permiso
+  general, presenta en el resumen qué se propone mover.
 - Sobrescribe `interaccion.modo` con los parámetros de
   `interaccion.rutina` durante esta ejecución.
 - **Scoring determinista obligatorio, con degradación segura si falla.** En

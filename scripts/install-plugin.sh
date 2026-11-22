@@ -225,17 +225,16 @@ else
 fi
 
 # ── 5c. Verificación de integridad de la instalación (issue #12) ──
-# La vía canónica del PASO 1 (references/mail-consolidado.applescript) da la
-# sanitización determinista de un solo round-trip. Si falta, el SKILL degrada
-# en SILENCIO al fallback manual S0–S5. Aquí avisamos si el árbol quedó
-# incompleto — sin abortar: una instalación sana no añade ruido.
+# Comprueba también los dos archivos necesarios para que la captura pueda
+# sanear el correo antes de entregarlo al agente.
 SKILL_DIR="$MARKETPLACE_DIR/plugins/$PLUGIN_NAME/skills/$PLUGIN_NAME"
 ESPERADOS=(
   "SKILL.md"
   "config.yaml"
   "config-veloz.yaml"
   "scripts/triage_helpers.py"
-  "references/mail-consolidado.applescript"
+  "scripts/leer_mailapp.py"
+  "scripts/leer_mailapp.applescript"
 )
 # CM2 (auditoría 2026-08-07): el resto de referencias NO se enumera a mano. La
 # divulgación progresiva mueve pasos enteros a references/ (1.C hilos, 2
@@ -259,8 +258,8 @@ if [ ${#faltan[@]} -gt 0 ]; then
   for rel in "${faltan[@]}"; do
     echo "     - $rel"
   done
-  echo "   El plugin puede caer al fallback manual (S0–S5 por el modelo) en vez"
-  echo "   de la vía canónica del PASO 1. Reinstala para restaurarlos:"
+  echo "   La captura de correo requiere el lector y el saneador completos."
+  echo "   Reinstala para restaurarlos:"
   echo "     bash scripts/install-plugin.sh"
 else
   echo "🔎 Integridad del skill verificada (${#ESPERADOS[@]}/${#ESPERADOS[@]} ficheros)"

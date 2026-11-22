@@ -149,7 +149,10 @@ end tell
 -- triage_helpers.py montar-mover: cuenta, carpetas y message-ids ya
 -- escapados. Escríbelo a un fichero y ejecútalo con osascript.
 tell application "Mail"
-    set acct to account "<<CUENTA>>"
+    set identificadorCuenta to "<<CUENTA>>"
+    set cuentas to (accounts whose name is identificadorCuenta)
+    if (count of cuentas) is not 1 then error "Cuenta no disponible o ambigua"
+    set acct to item 1 of cuentas
     set srcBox to mailbox "<<ORIGEN>>" of acct
     set revBox to mailbox "<<DESTINO_REVIEW>>" of acct
     set arcBox to mailbox "<<DESTINO_ARCHIVE>>" of acct
@@ -158,13 +161,33 @@ tell application "Mail"
     set okRev to 0
     set failRev to {}
     repeat with theID in toReview
+        set midBuscado to (contents of theID)
         set moved to false
         try
-            set hits to (messages of srcBox whose message id is theID)
-            if (count of hits) > 0 then
-                move (item 1 of hits) to revBox
-                set okRev to okRev + 1
-                set moved to true
+            set hits to (messages of srcBox whose message id is midBuscado)
+            if (count of hits) is 1 then
+                set candidato to item 1 of hits
+                set idCandidato to id of candidato
+                considering case
+                    if (message id of candidato is midBuscado) then
+                        set previos to (messages of revBox whose message id is midBuscado)
+                        if (count of previos) is 0 then
+                            move candidato to revBox
+                            repeat with comprobacion from 1 to 3
+                                set restantes to (messages of srcBox whose id is idCandidato)
+                                set llegados to (messages of revBox whose id is idCandidato)
+                                if (count of restantes) is 0 and (count of llegados) is 1 then
+                                    if message id of (item 1 of llegados) is midBuscado then
+                                        set okRev to okRev + 1
+                                        set moved to true
+                                        exit repeat
+                                    end if
+                                end if
+                                if comprobacion < 3 then delay 1
+                            end repeat
+                        end if
+                    end if
+                end considering
             end if
         end try
         if not moved then set end of failRev to (theID as string)
@@ -172,18 +195,37 @@ tell application "Mail"
     set okArc to 0
     set failArc to {}
     repeat with theID in toArchive
+        set midBuscado to (contents of theID)
         set moved to false
         try
-            set hits to (messages of srcBox whose message id is theID)
-            if (count of hits) > 0 then
-                move (item 1 of hits) to arcBox
-                set okArc to okArc + 1
-                set moved to true
+            set hits to (messages of srcBox whose message id is midBuscado)
+            if (count of hits) is 1 then
+                set candidato to item 1 of hits
+                set idCandidato to id of candidato
+                considering case
+                    if (message id of candidato is midBuscado) then
+                        set previos to (messages of arcBox whose message id is midBuscado)
+                        if (count of previos) is 0 then
+                            move candidato to arcBox
+                            repeat with comprobacion from 1 to 3
+                                set restantes to (messages of srcBox whose id is idCandidato)
+                                set llegados to (messages of arcBox whose id is idCandidato)
+                                if (count of restantes) is 0 and (count of llegados) is 1 then
+                                    if message id of (item 1 of llegados) is midBuscado then
+                                        set okArc to okArc + 1
+                                        set moved to true
+                                        exit repeat
+                                    end if
+                                end if
+                                if comprobacion < 3 then delay 1
+                            end repeat
+                        end if
+                    end if
+                end considering
             end if
         end try
         if not moved then set end of failArc to (theID as string)
     end repeat
-    delay 2
     -- QW2 (auditoria 2026-07-17): reportar QUE mids fallaron, no solo
     -- cuantos. Un "8/10" sin lista dejaba el diagnostico ciego.
     set AppleScript's text item delimiters to ","

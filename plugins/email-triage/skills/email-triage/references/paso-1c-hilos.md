@@ -10,14 +10,13 @@ individuales o hilos agrupados. Esto es lo que garantiza que `presion_accion`
 y `hilo_esperando_respuesta` se evalúen sobre el hilo completo, no sobre
 un fragmento aislado.
 
-**Vía preferente (determinista, v3.8.19)**: para iCloud, no agrupes a ojo — la
-normalización de asunto y la unión por participante compartido son
-deterministas y reproducibles con `triage_helpers.py agrupar-hilos`. Pásale
-los metadatos ya recogidos (SCRIPT 1A) y usa las `unidades` que devuelve:
+**Mail.app**: usa una unidad por mensaje. Ejecuta
+`triage_helpers.py agrupar-hilos` con `solo_individuales: true` y los
+metadatos saneados. Si el helper falta, conserva una unidad por mensaje.
 
 ```bash
 # agrupar-hilos.json:
-#   {"correos":[{"id":1,"remitente":"A <a@x.com>","asunto":"Reunión"},
+#   {"solo_individuales":true,"correos":[{"id":1,"remitente":"A <a@x.com>","asunto":"Reunión"},
 #   {"id":2,"remitente":"B <x.com>","asunto":"Re: Reunión"}]}
 python3 "<ruta-del-skill>/scripts/triage_helpers.py" agrupar-hilos < ~/.email-triage/tmp/agrupar-hilos.json
 ```
@@ -26,22 +25,21 @@ Devuelve `{"unidades":[{tipo, clave_hilo, count, participantes, miembros}]}`;
 cada hilo trae además `extras_hilo` (v3.22.16): las reglas de hilo del 4.J
 ya calculadas. Suma `extras_hilo.puntos` a `extra_points` y no las cuentes
 a mano.
-En Gmail sigue mandando el hilo nativo (paso 0 de abajo); el algoritmo manual
-que sigue es la especificación que `agrupar-hilos` implementa (fallback si el
-script no está disponible).
+En Gmail sigue mandando el hilo nativo verificado por el proveedor. El
+algoritmo de asunto y participante de los pasos 1 y 2 sigue disponible
+para análisis: el helper marca esas agrupaciones como `relacion_hilo:
+heuristica`. Al preparar movimientos, conserva la propuesta y la
+confirmación para cada mensaje individual de Mail.app.
 
 ### Algoritmo de agrupación
 
-**0. Gmail: usar el hilo nativo (v3.5)**
+**0. Gmail y el hilo nativo**
 
-Si el proveedor es Gmail, NO usar la heurística de asunto: el MCP de
-Gmail ya agrupa por `threadId` nativo (basado en References/In-Reply-To,
-más fiable que cualquier heurística). Cada thread devuelto ES la unidad
-de evaluación. Como el hilo nativo incluye también los mensajes
-enviados por el usuario, `usuario_es_ultimo_en_responder` se lee
-directamente del último mensaje del thread (señal con
-`verificacion: nativa`). Los pasos 1-2 siguientes aplican SOLO a
-iCloud/Mail.app.
+Usa el `threadId` nativo si un conector compatible con el PASO 1 entrega
+al agente el hilo ya saneado. En ese caso, el hilo completo es la unidad
+de evaluación y la señal `usuario_es_ultimo_en_responder` se toma del último
+mensaje cuando el conector permita verificarlo. Sin esa captura, omite la
+verificación del hilo. Los pasos 1 y 2 aplican a iCloud/Mail.app.
 
 **1. Normalizar el asunto de cada mensaje**
 
@@ -53,13 +51,12 @@ Eliminar prefijos de respuesta/reenvío para obtener el asunto raíz:
 
 **2. Agrupar por clave_hilo + participante común**
 
-Dos mensajes pertenecen al mismo hilo si:
+Dos mensajes pueden compartir contexto de análisis si:
 - Tienen la misma `clave_hilo`, Y
 - Comparten al menos un participante (el dominio del remitente de uno
   aparece como dominio del remitente del otro, o el mismo remitente exacto)
 
-Esto evita falsos positivos con asuntos genéricos como "Hola" o "Reunión"
-entre remitentes sin relación.
+Una coincidencia de asunto y dominio puede incluir correos independientes.
 
 **3. Clasificar el resultado**
 
@@ -189,10 +186,10 @@ Estos criterios deben considerar el hilo completo, no solo el último mensaje:
 
 #### Tier y movimiento del hilo
 
-El tier se asigna al **hilo completo**. Al mover, mover **todos los mensajes
-del hilo** juntos usando el patrón de referencias del PASO 1. Nunca mover
-un mensaje de un hilo sin mover el resto — dejaría el hilo partido entre
-carpetas.
+El movimiento conjunto se reserva para un hilo nativo de Gmail cuyos
+miembros hayan sido incluidos en la confirmación. Para Mail.app, asigna
+un número y un tier a cada mensaje y construye el lote a partir de los
+mensajes concretos incluidos en la confirmación (PASO 4.K).
 
 En el session log (PASO 4.I), registrar una entrada por mensaje del hilo,
 todas con el mismo `thread_id: [clave_hilo]`, para que el undo revierta

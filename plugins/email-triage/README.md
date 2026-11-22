@@ -9,9 +9,9 @@ cuatro destinos: `REPLY_NEEDED`, `REVIEW`, `READING_LATER` y `ARCHIVE`.
 
 ## Qué hace
 
-- Lee metadatos y, cuando hace falta, cuerpos de mensajes mediante las
-  capacidades de correo que ya tenga configuradas el cliente: Mail.app en
-  macOS, un conector de Gmail u otro proveedor compatible.
+- Lee metadatos y, cuando hace falta, cuerpos de mensajes mediante Mail.app
+  en macOS. Los demás proveedores requieren un conector que aplique S0–S5
+  antes de mostrar el correo al agente.
 - Sanitiza el contenido antes de analizarlo para reducir el riesgo de
   inyección de instrucciones desde un correo.
 - Calcula puntuaciones reproducibles con scripts locales de Python y explica
@@ -47,13 +47,12 @@ datos del plan y conexión con los que se ejecute el plugin. Los registros
 opcionales se guardan en el equipo del usuario, bajo
 `~/.email-triage/` (o en `EMAIL_TRIAGE_HOME` cuando se configura), y pueden
 contener metadatos, puntuaciones, explicaciones, destinos y correcciones. Los
-cuerpos crudos temporales se eliminan después de su lectura.
+cuerpos crudos de Mail.app permanecen en memoria durante la captura y el saneo.
 
 Si el usuario elige Mail.app, el acceso y los movimientos ocurren mediante
-AppleScript en su Mac. Si elige Gmail u otro conector externo, los datos
-necesarios pasan por ese conector y quedan sujetos a la política de privacidad
-del proveedor que el usuario haya configurado. El plugin no empaqueta ni
-selecciona ese servicio: su archivo `.mcp.json` no declara servidores.
+AppleScript en su Mac. En otros proveedores, cualquier conector compatible
+estará sujeto a la política de privacidad de su proveedor. El archivo
+`.mcp.json` del plugin no declara servidores.
 
 Política de privacidad completa: [Privacy](https://github.com/novanoticia/email-triage-plugin/blob/main/PRIVACY.md).
 

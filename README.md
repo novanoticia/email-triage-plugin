@@ -23,9 +23,10 @@ urgente?», sino **«¿leer esto cambiaría algo concreto para mí?»**.
 
 ## Qué hace
 
-Lee tu bandeja de entrada (iCloud mediante Mail.app, o Gmail mediante un
-conector), evalúa cada correo con 30 criterios epistémicos y propone uno de
-cuatro destinos, siempre con una explicación breve:
+Lee tu bandeja de entrada mediante Mail.app en macOS, evalúa cada correo con
+30 criterios epistémicos y propone uno de cuatro destinos con una explicación
+breve. Para Gmail u otro proveedor, el cliente necesita un conector que sanee
+asunto, remitente, extractos y cuerpo antes de entregar el correo al agente.
 
 | Destino | Qué significa | Qué hace con el correo |
 |---|---|---|
@@ -364,7 +365,7 @@ El validador del backend de Anthropic rechaza archivos `.yaml` dentro de plugins
 Mail.app debe estar abierto para que el skill acceda al correo. Verifica en Ajustes del Sistema → Privacidad y Seguridad → Automatización que Claude/Cowork tenga permiso para controlar Mail.app.
 
 ### "No puedo acceder a Gmail" o conector no disponible
-Verifica que el conector Gmail MCP esté activo en Configuración → Conectores de Cowork. Si el token ha expirado, desconéctalo y vuelve a conectar.
+El plugin carece de un adaptador Gmail que aplique S0–S5 antes de devolver el correo al agente. La captura se detiene cuando el cliente solo ofrece las herramientas MCP directas de Gmail.
 
 ### Carpeta no encontrada
 Los nombres de carpeta en `config.yaml` deben coincidir exactamente con los de tu cliente de correo (incluyendo mayúsculas).
@@ -449,8 +450,8 @@ El resultado no es un simple "urgente/no urgente" sino un filtro de: valor decis
 >
 > **Qué necesita el cliente para ejecutarlo.** El skill viaja a cualquier cliente
 > conformante, pero para *actuar* sobre el correo el cliente tiene que poder hacer dos
-> cosas: **alcanzar el buzón** (Mail.app en macOS, el MCP de Gmail, u otra vía de acceso
-> a la cuenta) y **ejecutar los scripts de `scripts/`** — Python 3.9+, solo stdlib, para
+> cosas: **alcanzar el buzón con saneo previo al agente** y **ejecutar los
+> scripts de `scripts/`** — Python 3.9+, solo stdlib, para
 > el sanitizado S0–S5 y la aritmética del scoring. Un cliente que cumpla ambas cosas lo
 > ejecuta; uno que no, puede leer el skill y razonar con sus criterios, pero no mover
 > nada. Está declarado en el campo `compatibility`, que es donde la especificación de
@@ -561,9 +562,15 @@ necesariamente las palabras exactas de quien las tomó.
 
 Este plugin no envía el contenido de los correos a servidores operados por este proyecto.
 
-- En macOS, trabaja localmente mediante Mail.app y AppleScript.
-- Puede utilizar un acceso a Gmail u otro proveedor si el usuario configura un conector en su cliente de IA.
-- Los datos locales de configuración, calibración y registro se guardan en el directorio de estado del plugin (`EMAIL_TRIAGE_HOME` o una ubicación equivalente).
+- En macOS, el lector de Mail.app mantiene la captura cruda en la memoria del
+  proceso local hasta aplicar S0–S5.
+- La captura en Gmail u otro proveedor requiere un conector que entregue al
+  agente únicamente correo ya saneado.
+- El plugin guarda la configuración, la calibración y el registro en
+  `~/.email-triage/` o en la ruta indicada por `EMAIL_TRIAGE_HOME`. En
+  entornos sin directorio personal utilizable, las invocaciones del CLI usan
+  una misma carpeta temporal privada por usuario. Para conservar el historial,
+  configura `EMAIL_TRIAGE_HOME` con una ruta persistente.
 - El proyecto no incorpora telemetría, analítica ni servicios remotos propios.
 
 Si en una versión futura se añade un servicio remoto operado por el proyecto, se publicará una política de privacidad antes de habilitarlo.

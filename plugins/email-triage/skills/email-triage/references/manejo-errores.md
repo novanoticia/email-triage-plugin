@@ -4,9 +4,9 @@
 
 ## MANEJO DE ERRORES Y RESILIENCIA
 
-Este skill depende de conectores externos (Mail.app vía osascript, Gmail MCP)
-que pueden fallar por múltiples razones. El skill DEBE ser resiliente y nunca
-dejar al usuario sin feedback.
+Aplica estas pautas al lector local de Mail.app y a los conectores que
+cumplen los requisitos de captura del PASO 1. Si el host solo ofrece
+llamadas directas a Gmail MCP, detén la captura y explica por qué.
 
 ### Principio general
 
@@ -22,7 +22,7 @@ Si una operación falla, el skill debe:
 | Error | Causa probable | Acción |
 |-------|---------------|--------|
 | osascript timeout / no responde | Mail.app cerrado o colgado | Informar: "Mail.app no responde. ¿Está abierto?" y ofrecer reintento |
-| Gmail MCP no disponible | Conector no instalado o token expirado | Informar: "No puedo acceder a Gmail. Verifica que el conector Gmail MCP esté activo en Configuración → Conectores" |
+| Conector Gmail compatible no disponible | Conector no instalado o token expirado | Detén la captura. Para un conector que ya cumpla el PASO 1, informa: "No puedo acceder a Gmail. Verifica que el conector Gmail MCP esté activo en Configuración → Conectores" |
 | Carpeta no encontrada | Nombre incorrecto en config.yaml | Listar carpetas disponibles y pedir al usuario que elija |
 | Permiso denegado (osascript) | macOS bloqueó el acceso | Informar: "macOS necesita permiso para controlar Mail.app. Ve a Ajustes del Sistema → Privacidad → Automatización" |
 
@@ -96,10 +96,12 @@ reply chains son basura para el motor de inferencia y generan falsos positivos.
 
 ### Modo degradado
 
-Si el skill no puede acceder al cuerpo del correo (fallo de `content` en
-Mail.app, o imposibilidad de llamar a `gmail_read_message`):
+Si el lector devuelve metadatos saneados de identidad verificada y el
+cuerpo está inaccesible, mantén ese registro como solo metadatos. Si falta
+una captura saneada o falla la verificación de identidad, detén el análisis
+de esa fila y exclúyela de los movimientos.
 
-1. **No abortar** — continuar con asunto + remitente + fecha
+1. Continúa con asunto y remitente saneados y fecha.
 2. Marcar los correos afectados con `[solo metadatos]` en la explicación
 3. Aplicar solo los criterios evaluables sin cuerpo: hard rules, criterios
    1-5 (Grupo A + Grupo B), y criterio 28 (entangled truths por metadatos)
