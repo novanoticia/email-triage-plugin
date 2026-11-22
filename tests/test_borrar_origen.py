@@ -92,10 +92,13 @@ class TestBorrarOrigen(unittest.TestCase):
         self.assertTrue(os.path.exists(cuerpo))
         self.assertTrue(os.path.exists(meta))
 
-    def test_el_skill_lo_usa(self):
-        with open(os.path.join(os.path.dirname(DIR_SCRIPTS), "SKILL.md"),
+    def test_la_documentacion_de_archivos_legados_indica_la_limpieza(self):
+        raiz = os.path.dirname(DIR_SCRIPTS)
+        with open(os.path.join(raiz, "references", "sanitizacion-manual.md"),
                   encoding="utf-8") as f:
             self.assertIn("--borrar-origen", f.read())
+        with open(os.path.join(raiz, "SKILL.md"), encoding="utf-8") as f:
+            self.assertIn("scripts/leer_mailapp.py", f.read())
 
 
 if __name__ == "__main__":

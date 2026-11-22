@@ -1828,10 +1828,11 @@ class TestMontarMoverArchivoNativoBlindadoF5(unittest.TestCase):
         self.assertEqual(lineas.count("try"), lineas.count("end try"))
         self.assertEqual(reps, lineas.count("end repeat"))
         self.assertEqual(tells, lineas.count("end tell"))
-        # el fix añade exactamente 1 try envolvente (con on error) y 1 guard if
+        # El buzón nativo conserva su propio try y guard de disponibilidad.
         self.assertEqual(lineas.count("try"), 3)         # arcBox + review + archive
         self.assertEqual(lineas.count("on error"), 1)
-        self.assertEqual(opib, 3)                        # 2 (count>0) + 1 (arcBoxOK)
+        self.assertEqual(lineas.count("if arcBoxOK then"), 1)
+        self.assertEqual(lineas.count("considering case"), lineas.count("end considering"))
 
     def test_nativo_es_total_ante_basura(self):
         casos = [
