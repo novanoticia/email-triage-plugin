@@ -21,6 +21,17 @@ cuatro destinos: `REPLY_NEEDED`, `REVIEW`, `READING_LATER` y `ARCHIVE`.
 - Puede guardar, de forma local y configurable, registros de sesión,
   puntuaciones, explicaciones y correcciones para calibrar decisiones futuras.
 
+## Primeros pasos
+
+1. Instala y activa el plugin siguiendo el
+   [inicio rápido](https://github.com/novanoticia/email-triage-plugin#inicio-rápido).
+2. Rellena `~/.email-triage/config.yaml`: tu nombre, un perfil breve (trabajo e
+   intereses), el proveedor (`icloud`, `gmail` u `otro`) y la cuenta.
+3. Prueba sin riesgo: escribe «simula el triaje» o `/triage dry-run`. No mueve
+   nada.
+4. Cuando te convenza, escribe `/triage`: te enseña la propuesta y pide
+   confirmación antes de mover. Para deshacer, «deshaz el triaje».
+
 ## Datos que utiliza y dónde van
 
 El plugin puede acceder al remitente, asunto, fecha, identificador y contenido
@@ -51,7 +62,8 @@ Política de privacidad completa: [Privacy](https://github.com/novanoticia/email
 - macOS para la integración con Mail.app mediante AppleScript, o un conector de
   correo compatible configurado por el usuario.
 - Python 3.9 o posterior para los scripts deterministas. El núcleo usa la
-  biblioteca estándar; PyYAML es opcional para validar la configuración.
+  biblioteca estándar; PyYAML es necesario para mover correos (sin él, el
+  plugin clasifica y propone, pero no mueve nada).
 
 El plugin no usa lanzadores `npx` ni `uvx` y no instala paquetes al ejecutarse.
 
