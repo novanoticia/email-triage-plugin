@@ -14,7 +14,7 @@ compatibility: >
   PyYAML es necesario para mover correo.
 license: Apache-2.0
 metadata:
-  version: "3.28.7"
+  version: "3.28.8"
   author: novanoticia
 ---
 
