@@ -189,5 +189,23 @@ class TestCerrarDeshacer(unittest.TestCase):
         self.assertFalse(json.loads(r.stdout)["ok"])
 
 
+    def test_cli_stdin_conserva_message_id(self):
+        mid = "o'brien+undo&review@example.invalid"
+        self._log(_mov(S1, mid), _mov(S1, "normal@example.invalid"), _cierre(S1, 2))
+        datos = {"session_id": S1, "revertidos": [mid],
+                 "fallidos": ["normal@example.invalid"]}
+        ruta_datos = os.path.join(self.d.name, "resultado.json")
+        with open(ruta_datos, "w", encoding="utf-8") as fh:
+            json.dump(datos, fh)
+        with open(ruta_datos, encoding="utf-8") as fh:
+            r = subprocess.run([sys.executable, SCRIPT, "cerrar-deshacer",
+                                "--ruta", self.ruta], stdin=fh,
+                               capture_output=True, text=True, timeout=30, check=True)
+        out = json.loads(r.stdout)
+        self.assertTrue(out["ok"], out)
+        evento = json.loads(self._lineas()[-1])
+        self.assertEqual(evento["revertidos"], datos["revertidos"])
+        self.assertEqual(evento["fallidos"], datos["fallidos"])
+
 if __name__ == "__main__":
     unittest.main()

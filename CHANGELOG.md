@@ -4,6 +4,12 @@ Novedades de [Email Triage Plugin](README.md), una entrada por versión, de la m
 Para usar el plugin no hace falta leerlo entero; sí conviene mirar la entrada de la versión que instales,
 por si pide [actualizar tu config](README.md#actualizar-cuando-cambia-la-estructura-del-config).
 
+## Novedades en v3.28.7
+
+- **Deshacer triaje**. La guía indica cómo pasar el resultado a `cerrar-deshacer`
+  mediante un fichero JSON. Una prueba comprueba que los identificadores con
+  signos de puntuación llegan completos al registro.
+
 ## Novedades en v3.28.6
 
 Solo documentación; el comportamiento del plugin no cambia.

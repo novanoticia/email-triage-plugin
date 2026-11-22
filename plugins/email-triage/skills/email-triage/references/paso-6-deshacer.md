@@ -61,12 +61,16 @@ Se activa cuando el usuario dice "deshaz el triaje", "undo", "revierte los movim
    No abortar — revertir los que sí se pueda.
 
 6. **Registrar el resultado** (v3.21.18: con el script, no a mano). Al
-   terminar, una sola llamada con los message_id tal como los dio
-   `estado-log --session`:
+   terminar, guarda un objeto JSON con `session_id`, `revertidos` y `fallidos`
+   en un fichero de `~/.email-triage/tmp/` con la herramienta de escritura de
+   ficheros. Para las dos listas, copia cada `message_id` tal como lo devolvió
+   `estado-log --session`. Elige un nombre de fichero propio de esta ejecución,
+   independiente de los datos del correo. Pasa el fichero por stdin en una
+   sola llamada, siguiendo la regla F8:
 
    ```bash
-   python3 <scripts>/triage_helpers.py cerrar-deshacer --datos \
-     '{"session_id":"<id>","revertidos":["<id1>",...],"fallidos":["<id2>",...]}'
+   python3 "<ruta-del-skill>/scripts/triage_helpers.py" cerrar-deshacer \
+     < "$HOME/.email-triage/tmp/<fichero-del-resultado>.json"
    ```
 
    Añade `"incluir_sin_cerrar": true` solo si el punto 2 lo usó. El script
