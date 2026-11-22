@@ -6,9 +6,11 @@ write-ahead y la condición de entrada: antes del primer movimiento real. -->
 
 ### Cuándo registrar
 
-Registrar una entrada por cada correo que se vaya a mover, inmediatamente
-antes de ejecutar el `move` (write-ahead: si el proceso muere a mitad del
-movimiento, el log conserva el rastro).
+Registrar una entrada por cada correo autorizado antes de ejecutar el lote
+(write-ahead). En Mail.app, incluye el `lote_id` devuelto por `montar-mover`,
+`mail_account_id` y el `mail_id` de la instancia confirmada. Usa los buzones
+reales para `from_folder` y `to_folder` (`Archive` si se eligió archivo
+nativo). Ejecuta solo tras registrar todas las entradas del lote.
 
 ### Formato de entrada
 
@@ -21,19 +23,19 @@ Un movimiento sin `score` es **regla manual** y solo si la persona lo pide
 `tier`/`score` a `null`, y se confirma diciendo que no se puntuó. `registrar`
 rechaza cualquier otro movimiento sin `score`.
 
-El log es **append-only (v3.5)**: NUNCA editar líneas ya escritas —
-editar líneas concretas de un JSONL es frágil y, si falla a mitad,
-corrompe justo el archivo que permite revertir. `status: pending`
-significa "movimiento lanzado". Si el `move` FALLA, añadir (append) una
-línea de evento e informar al usuario:
+El log es **append-only**. `status: pending` conserva el intento previsto.
+Para los lotes de Mail.app el recibo distingue `confirmado`, `fallido` y
+`no_verificado` por instancia. Para el flujo legado sin recibo JSON, un
+movimiento fallido se registra así:
 
 ```
 {"event":"move_failed","session_id":"...","message_id":"<id>","ts":"ISO8601"}
 ```
 
-Al terminar el SCRIPT 3, **cierra el lote** pegando su return literal (sin
-resumirlo): `cerrar-lote` lo parsea y registra cuántos se movieron y cuáles
-fallaron. Sin cierre, el PASO 5.V da `sin_cerrar`.
+Al terminar el SCRIPT 3, **cierra el lote** pasando su salida literal en
+`salida`. En Mail.app, `cerrar-lote` coteja el recibo con el registro previo
+y lo guarda una sola vez. Informa por separado de las instancias
+`no_verificado` antes de cualquier reintento.
 
 ```bash
 # cerrar-lote.json: {"session_id":"<SID>","salida":"<return del SCRIPT 3>"}
@@ -55,17 +57,15 @@ python3 "<ruta-del-skill>/scripts/triage_helpers.py" registrar --ruta ~/.email-t
 ```
 
 El mismo helper sirve para `correcciones.jsonl`. Devuelve `{"ok":true,...}` o
-`{"ok":false,"error":...}`; si falla, avisa al usuario y continúa el triaje.
+`{"ok":false,"error":...}`. Si falla, avisa al usuario y continúa en modo
+propuesta.
 Si trae `bloquea_movimiento`, ese correo **no se mueve** (ni por el fallback).
 Si trae `aviso_ruta`, la línea se escribió fuera de la base de estado y nadie la
 leerá: dilo con la ruta, no muevas más y **no copies las líneas a mano** al log
 real; vuelve a registrar en la ruta correcta.
 
-**Fallback**: si no puedes ejecutar Python, usar Desktop Commander (`write_file`)
-para añadir la línea a `~/.email-triage/session_log.jsonl` (crear el directorio
-con `create_directory` la primera vez). El log es una red de seguridad, no un
-requisito para operar; su única regla es que sea **append-only** — con el
-helper, además, concurrente-seguro.
+Si no puedes ejecutar el helper de registro, presenta el lote para que la
+persona lo aplique manualmente.
 
 La retención del log vive en el SKILL.md (PASO 4.I), porque se aplica al
 cerrar cualquier sesión, haya o no movimientos.

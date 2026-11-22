@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.28.7).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.28.8).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -215,7 +215,8 @@ su clase (CM2, auditoría 2026-07-19):
   7. 'limpiar-tmp' (v3.21.23): BORRA de <base>/tmp/ lo que tenga más de N
                            horas (12 por defecto), sin seguir symlinks ni salir
                            de tmp/; con --dry-run solo cuenta.
-Sin sus flags, 'calibrar', 'scoring' y 'sanitizar' no escriben nada. Ningún
+Resolver el estado sin hogar utilizable puede crear su directorio privado.
+Sin sus flags, 'calibrar', 'scoring' y 'sanitizar' no escriben datos. Ningún
 subcomando mueve correos.
 """
 import argparse
@@ -225,12 +226,15 @@ import json
 import math
 import os
 import re
+import stat
 import sys
 import tempfile
 import unicodedata
 import urllib.parse
+import uuid
 from collections import defaultdict, deque
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Optional
 
 # ════════════════════════════════════════════════════════════════
@@ -242,13 +246,21 @@ from typing import Optional
 #
 # Pero `~` no es fiable fuera de un Mac/Linux normal. Comprobado en Mistral
 # Vibe Work: $HOME vale "/", así que `~/.email-triage` resuelve a la RAÍZ y el
-# skill intenta escribir allí. Se resuelve una sola vez, con escotilla
-# explícita, y si no hay hogar utilizable se cae a un temporal — DICIÉNDOLO,
+# skill intenta escribir allí. Hay una salida explícita, y si no hay hogar
+# utilizable se usa un directorio temporal privado y se avisa,
 # porque el estado que no persiste hay que anunciarlo: el fallo silencioso es
 # justo lo que lleva a dar por escrito un registro que nunca se escribió.
 
 ENV_BASE_ESTADO = "EMAIL_TRIAGE_HOME"
 _DIR_ESTADO = ".email-triage"
+
+
+class EstadoTemporalInseguro(OSError):
+    def __init__(self, ruta):
+        super().__init__(
+            f"No se puede usar el estado temporal en {ruta}. "
+            f"Configura {ENV_BASE_ESTADO} con una ruta privada escribible."
+        )
 
 
 def _hogar_utilizable() -> Optional[str]:
@@ -257,20 +269,73 @@ def _hogar_utilizable() -> Optional[str]:
     if not hogar or hogar == "~":          # expanduser no supo resolverlo
         return None
     hogar = os.path.abspath(hogar)
-    if hogar == os.sep:                    # $HOME="/" (Mistral Vibe Work)
+    if os.path.realpath(hogar) == os.sep:   # $HOME="/" o alias de la raíz
         return None
     return hogar if os.path.isdir(hogar) else None
 
 
+def _validar_contenido_temporal(base, uid):
+    """Comprueba el estado reutilizado sin seguir enlaces."""
+    pendientes = [base]
+    while pendientes:
+        try:
+            entradas = os.scandir(pendientes.pop())
+        except FileNotFoundError:
+            continue  # Una limpieza concurrente pudo quitar una subcarpeta.
+        with entradas:
+            for entrada in entradas:
+                try:
+                    info = entrada.stat(follow_symlinks=False)
+                except FileNotFoundError:
+                    continue  # Rotación o limpieza de un fichero concurrente.
+                if info.st_uid != uid or info.st_mode & 0o022:
+                    raise EstadoTemporalInseguro(entrada.path)
+                if stat.S_ISDIR(info.st_mode):
+                    pendientes.append(entrada.path)
+                elif not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                    raise EstadoTemporalInseguro(entrada.path)
+
+
+def _base_estado_temporal() -> str:
+    """Prepara una base 0700 por UID, estable entre invocaciones del CLI."""
+    uid = os.geteuid()
+    try:
+        temporal = Path(os.path.realpath(tempfile.gettempdir()))
+        # El sticky bit de /tmp impide que otro UID reemplace una entrada
+        # propia. Se comprueba toda la ruta real para detectar ancestros
+        # sustituibles, también cuando el entorno configura TMPDIR.
+        for directorio in (*reversed(temporal.parents), temporal):
+            info = directorio.lstat()
+            if (not stat.S_ISDIR(info.st_mode) or info.st_uid not in (0, uid)
+                    or (info.st_mode & 0o022 and not info.st_mode & stat.S_ISVTX)):
+                raise EstadoTemporalInseguro(directorio)
+        base = temporal / f"{_DIR_ESTADO}-{uid}"
+        try:
+            base.mkdir(mode=0o700)
+        except FileExistsError:
+            pass  # Otro proceso del mismo usuario pudo inicializarla.
+        info = base.lstat()
+        if (not stat.S_ISDIR(info.st_mode) or info.st_uid != uid
+                or stat.S_IMODE(info.st_mode) != 0o700):
+            raise EstadoTemporalInseguro(base)
+        _validar_contenido_temporal(base, uid)
+    except EstadoTemporalInseguro:
+        raise
+    except OSError as error:
+        ruta = error.filename or "el directorio del sistema"
+        raise EstadoTemporalInseguro(ruta) from error
+    return str(base)
+
+
 def base_estado() -> str:
-    """Directorio de estado: $EMAIL_TRIAGE_HOME, si no `~`, si no un temporal."""
+    """Resuelve $EMAIL_TRIAGE_HOME, el hogar o una base temporal privada."""
     forzada = (os.environ.get(ENV_BASE_ESTADO) or "").strip()
     if forzada:
         return os.path.abspath(os.path.expanduser(forzada))
     hogar = _hogar_utilizable()
     if hogar is not None:
         return os.path.join(hogar, _DIR_ESTADO)
-    return os.path.join(tempfile.gettempdir(), _DIR_ESTADO)
+    return _base_estado_temporal()
 
 
 def _borrar_crudo(ruta) -> dict:
@@ -311,7 +376,10 @@ def cmd_limpiar_tmp(horas=HORAS_LIMPIAR_TMP, dry_run=False) -> dict:
             or not 0 <= horas <= 24 * 365):
         return {"ok": False, "error": "horas debe ser un número entre 0 y "
                 "8760"}
-    raiz = os.path.join(base_estado(), "tmp")
+    try:
+        raiz = ruta_estado("tmp")
+    except EstadoTemporalInseguro as error:
+        return {"ok": False, "error": str(error)}
     out = {"ok": True, "tmp": raiz, "horas": horas, "dry_run": dry_run,
            "borrados": 0, "bytes_liberados": 0, "recientes": 0, "errores": []}
     flags_dir = (os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
@@ -3046,6 +3114,13 @@ def _valida_movimiento(registro):
     fallo de escritura, y ese correo NO se mueve, ni por el fallback."""
     if not registro.get("to_folder"):
         return None              # correcciones, eventos, telemetría: libres
+    if "lote_id" in registro:
+        lote, cuenta = registro.get("lote_id"), registro.get("mail_account_id")
+        if (not isinstance(lote, str) or not _RE_LOTE_MAIL.fullmatch(lote)
+                or not isinstance(cuenta, str) or not cuenta.strip()
+                or _identidad_movimiento_mail(registro) is None):
+            return {"ok": False, "bloquea_movimiento": True,
+                    "error": "el movimiento requiere lote, cuenta e identidad de Mail.app"}
     error = _negativa_movimiento(registro)
     if error:
         error["bloquea_movimiento"] = True
@@ -3120,6 +3195,89 @@ def _negativa_movimiento(registro):
 
 
 EVENTO_CIERRE = "move_batch_done"
+_RE_LOTE_MAIL = re.compile(r"[0-9a-f]{32}")
+_ESTADOS_MOVIMIENTO_MAIL = ("confirmado", "fallido", "no_verificado")
+
+
+def _identidad_movimiento_mail(fila):
+    mid, instancia = fila.get("message_id"), fila.get("mail_id")
+    origen, destino = fila.get("from_folder"), fila.get("to_folder")
+    if (all(isinstance(v, str) and v for v in (mid, origen, destino))
+            and type(instancia) is int and 0 < instancia < 2**31):
+        return mid, instancia, origen, destino
+    return None
+
+
+def _resultado_lote_mail(recibo):
+    if not isinstance(recibo, dict):
+        return None
+    lote, cuenta = recibo.get("lote_id"), recibo.get("mail_account_id")
+    filas = recibo.get("resultados")
+    if (not isinstance(lote, str) or not _RE_LOTE_MAIL.fullmatch(lote)
+            or not isinstance(cuenta, str) or not cuenta.strip()
+            or not isinstance(filas, list) or not filas):
+        return None
+    mids, ids = set(), set()
+    resultados = []
+    for fila in filas:
+        if not isinstance(fila, dict):
+            return None
+        identidad = _identidad_movimiento_mail(fila)
+        estado = fila.get("estado")
+        if identidad is None or estado not in _ESTADOS_MOVIMIENTO_MAIL:
+            return None
+        mid, instancia, origen, destino = identidad
+        if mid in mids or instancia in ids:
+            return None
+        mids.add(mid)
+        ids.add(instancia)
+        resultados.append({"message_id": mid, "mail_id": instancia,
+                           "from_folder": origen, "to_folder": destino,
+                           "estado": estado})
+    fallidos = [f["message_id"] for f in resultados if f["estado"] != "confirmado"]
+    return {"lote_id": lote, "mail_account_id": cuenta, "resultados": resultados,
+            "n_ok": len(resultados) - len(fallidos), "n_lanzados": len(resultados),
+            "fallidos": fallidos}
+
+
+def _reconciliar_cierre(fd, evento):
+    """Revisa el write-ahead y detecta reintentos bajo el lock del diario."""
+    lote = evento.get("lote_id")
+    sid = evento["session_id"]
+    esperados = set()
+    cierre_previo = None
+    with os.fdopen(os.dup(fd), encoding="utf-8", errors="replace") as diario:
+        diario.seek(0)
+        for linea in diario:
+            registro = _registro_json(linea)
+            if not registro or registro.get("session_id") != sid:
+                continue
+            if registro.get("event") == EVENTO_CIERRE:
+                if lote and registro.get("lote_id") == lote:
+                    cierre_previo = _resultado_lote_mail(registro)
+                continue
+            if not registro.get("to_folder") or not registro.get("lote_id"):
+                continue
+            if not lote:
+                return {"ok": False, "error": "el lote de Mail.app requiere "
+                        "el recibo JSON de montar-mover"}
+            if registro["lote_id"] == lote:
+                identidad = _identidad_movimiento_mail(registro)
+                if (identidad is None or identidad in esperados
+                        or registro.get("mail_account_id") != evento["mail_account_id"]):
+                    return {"ok": False, "error": "el registro previo del lote no es inequívoco"}
+                esperados.add(identidad)
+    if lote:
+        resultado = _resultado_lote_mail(evento)
+        if cierre_previo is not None and resultado == cierre_previo:
+            return {"ok": True, "escrito": False, "bytes": 0}
+        if cierre_previo is not None:
+            return {"ok": False, "error": "el lote ya tiene un cierre distinto"}
+        recibidos = {_identidad_movimiento_mail(fila) for fila in resultado["resultados"]}
+        if esperados != recibidos:
+            return {"ok": False, "error": "el recibo no coincide con los movimientos "
+                    "registrados antes de ejecutar el lote"}
+    return None
 
 
 def _valida_cierre(registro):
@@ -3140,6 +3298,11 @@ def _valida_cierre(registro):
             or any(not isinstance(m, str) for m in fallidos)):
         return {"ok": False, "error": "%s: fallidos debe ser una lista de "
                 "message-ids" % EVENTO_CIERRE}
+    if "lote_id" in registro:
+        recibo = _resultado_lote_mail(registro)
+        if recibo is None or any(registro.get(k) != recibo[k]
+                                 for k in ("n_ok", "n_lanzados", "fallidos")):
+            return {"ok": False, "error": "el recibo y el cierre de Mail.app no coinciden"}
     return None
 
 
@@ -3200,7 +3363,8 @@ def _aviso_ruta_fuera(ruta):
 
 def cmd_registrar(ruta: str, registro: dict,
                   _desde_cerrar_deshacer: bool = False,
-                  _desde_vectores: bool = False) -> dict:
+                  _desde_vectores: bool = False,
+                  _desde_cerrar_lote: bool = False) -> dict:
     """Append atómico de `registro` como una línea JSON en `ruta`.
 
     Serializa a JSON de una sola línea y lo añade bajo fcntl.flock
@@ -3224,6 +3388,10 @@ def cmd_registrar(ruta: str, registro: dict,
                 or _valida_vector(ruta, _desde_vectores is True))
     if invalido:
         return invalido
+    cierre = registro.get("event") == EVENTO_CIERRE
+    if cierre and "lote_id" in registro and (
+            not _desde_cerrar_lote or _resultado_lote_mail(registro) is None):
+        return {"ok": False, "error": "los recibos de Mail.app se guardan con cerrar-lote"}
     try:
         json.dumps(registro, ensure_ascii=False)   # falla pronto, sin lock
     except (TypeError, ValueError) as e:
@@ -3239,9 +3407,9 @@ def cmd_registrar(ruta: str, registro: dict,
         linea = json.dumps(sellado, ensure_ascii=False, separators=(",", ":"))
         linea = linea.replace("\r", " ").replace("\n", " ")   # una sola línea
         return (linea + "\n").encode("utf-8")
-    ruta = _expandir(ruta)
-    directorio = os.path.dirname(ruta) or "."
     try:
+        ruta = _expandir(ruta)
+        directorio = os.path.dirname(ruta) or "."
         _asegurar_dir_privado(directorio)
     except OSError as e:
         return {"ok": False, "error": "no se pudo preparar %s: %s" % (ruta, e)}
@@ -3255,7 +3423,8 @@ def cmd_registrar(ruta: str, registro: dict,
     # ruta) queda bloqueado y no puede reemplazar hasta que soltemos.
     for _ in range(5):
         try:
-            fd = os.open(ruta, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+            acceso = os.O_RDWR if cierre else os.O_WRONLY
+            fd = os.open(ruta, acceso | os.O_CREAT | os.O_APPEND, 0o600)
         except OSError as e:
             return {"ok": False,
                     "error": "no se pudo preparar %s: %s" % (ruta, e)}
@@ -3269,6 +3438,12 @@ def cmd_registrar(ruta: str, registro: dict,
                 lock = None   # sin flock (no-Unix): O_APPEND ya es atómico
             if lock is not None and not _fd_apunta_a(fd, ruta):
                 continue      # rotado bajo el lock: el finally cierra y reintenta
+            if cierre:
+                if lock is None:
+                    return {"ok": False, "error": "no se pudo bloquear el diario para cerrar el lote"}
+                respuesta = _reconciliar_cierre(fd, registro)
+                if respuesta is not None:
+                    return dict(respuesta, ruta=ruta)
             datos = _linea_sellada()
             os.write(fd, datos)
             out = {"ok": True, "bytes": len(datos), "ruta": ruta}
@@ -3526,11 +3701,16 @@ _RE_FALLIDOS = re.compile(r"fallidos_(review|archive|reply):\[([^\]]*)\]")
 
 
 def _parsear_salida_mover(texto):
-    """{"n_ok", "n_lanzados", "fallidos"} a partir del return del SCRIPT 3, o
-    None si el texto no tiene esa forma. Determinista: el modelo pega la
-    salida tal cual y no suma nada de cabeza."""
+    """Lee el recibo JSON de Mail.app o la salida de texto legada."""
+    if isinstance(texto, dict):
+        return _resultado_lote_mail(texto)
     if not isinstance(texto, str):
         return None
+    if texto.lstrip().startswith("{"):
+        try:
+            return _resultado_lote_mail(json.loads(texto))
+        except (ValueError, RecursionError):
+            return None
     movidos = _RE_MOVIDOS.findall(texto)
     if not movidos:
         return None
@@ -3560,13 +3740,12 @@ def cmd_cerrar_lote(ruta: str, datos: dict) -> dict:
         return {"ok": False, "error": "session_id ausente o no es una cadena"}
     parsed = _parsear_salida_mover(datos.get("salida"))
     if parsed is None:
-        return {"ok": False, "error": "la salida no tiene la forma del SCRIPT "
-                "3 de montar-mover (movidos_review:N/M ...); pega su return "
-                "literal, sin resumirlo"}
+        return {"ok": False, "error": "la salida del SCRIPT 3 de montar-mover "
+                "es inválida; pasa el recibo original"}
     evento = {"event": EVENTO_CIERRE, "session_id": sid.strip(),
               "ts": datetime.now(timezone.utc).isoformat(timespec="seconds")}
     evento.update(parsed)
-    out = cmd_registrar(ruta, evento)
+    out = cmd_registrar(ruta, evento, _desde_cerrar_lote=True)
     if out.get("ok"):
         out = dict(out)
         out.update(parsed)
@@ -3632,6 +3811,7 @@ def cmd_verificar_sesion(datos: dict) -> dict:
 
     encontrados, truncado = [], False
     cierres, fallidos_ev = [], set()
+    intentos_mail = defaultdict(list)
     por_origen = {"triaje": 0, "regla_manual": 0, "otro": 0}
     try:
         # QW1 (auditoría 2026-08-07, F1): session_log.jsonl es APPEND-ONLY, así
@@ -3672,6 +3852,8 @@ def cmd_verificar_sesion(datos: dict) -> dict:
                 continue
             mid = reg.get("message_id")
             encontrados.append(mid if isinstance(mid, str) else None)
+            if isinstance(reg.get("lote_id"), str):
+                intentos_mail[reg["lote_id"]].append(_identidad_movimiento_mail(reg))
             o = reg.get("origen", "triaje")
             por_origen[o if o in ORIGENES_MOVIMIENTO else "otro"] += 1
     except FileNotFoundError:
@@ -3697,12 +3879,27 @@ def cmd_verificar_sesion(datos: dict) -> dict:
 
     # v3.21.4: el recuento solo prueba que se REGISTRÓ; el cierre prueba que
     # el script de mover terminó y dice cuántos movió de verdad.
-    fallidos = sorted(fallidos_ev.union(
-        *[set(c.get("fallidos", [])) for c in cierres]))
-    n_ok = sum(c["n_ok"] for c in cierres)
+    recibos_mail = {c["lote_id"]: c for c in cierres if isinstance(c.get("lote_id"), str)}
+    cierres_legados = [c for c in cierres if "lote_id" not in c]
+    fallidos_legados = fallidos_ev.union(*[set(c.get("fallidos", []))
+                                          for c in cierres_legados])
+    fallidos = sorted(fallidos_legados.union(*[set(c.get("fallidos", []))
+                                              for c in recibos_mail.values()]))
+    n_ok_legados = sum(c["n_ok"] for c in cierres_legados)
+    n_ok = n_ok_legados + sum(c["n_ok"] for c in recibos_mail.values())
+    n_legados = registrados - sum(map(len, intentos_mail.values()))
+    falta_recibo = intentos_mail.keys() - recibos_mail.keys()
+    lotes_cuadran = (intentos_mail.keys() == recibos_mail.keys()
+                     and all(len(filas) == len(set(filas))
+                             and set(filas) == {
+                                 _identidad_movimiento_mail(f)
+                                 for f in recibos_mail[lote]["resultados"]}
+                             for lote, filas in intentos_mail.items()))
     if not cierres:
         cierre = "legado" if _sesion_legado(sid) else "sin_cerrar"
-    elif n_ok + len(fallidos) != registrados:
+    elif falta_recibo:
+        cierre = "sin_cerrar"
+    elif not lotes_cuadran or n_ok_legados + len(fallidos_legados) != n_legados:
         cierre = "descuadre"
     else:
         cierre = "confirmado"
@@ -3717,6 +3914,11 @@ def cmd_verificar_sesion(datos: dict) -> dict:
               # de una regla manual pedida por la persona (no son triaje).
               "por_origen": por_origen,
               "cierre": cierre, "n_ok": n_ok, "fallidos": fallidos}
+    if recibos_mail:
+        salida["no_verificados"] = [
+            fila["message_id"] for recibo in recibos_mail.values()
+            for fila in recibo["resultados"] if fila["estado"] == "no_verificado"
+        ]
     if truncado:
         salida["truncado"] = True
         salida["aviso"] = ("se leyeron las últimas %d líneas de %d; compacta "
@@ -3758,8 +3960,8 @@ def _estado_sesiones(registros):
         sid = reg.get("session_id")
         if not isinstance(sid, str) or not sid.strip():
             continue
-        s = sesiones.setdefault(sid, {"correos": {}, "cierres": [],
-                                      "fallidos": set(), "ts": None,
+        s = sesiones.setdefault(sid, {"correos": {}, "cierres": [], "recibos_mail": {},
+                                      "fallidos": set(), "ambiguos": set(), "ts": None,
                                       "ultimo_sello": None})
         ev = reg.get("event")
         mid = reg.get("message_id")
@@ -3774,7 +3976,14 @@ def _estado_sesiones(registros):
         if ev == EVENTO_CIERRE:
             if _valida_cierre(reg) is None:
                 s["cierres"].append(reg)
-                s["fallidos"].update(reg.get("fallidos", []))
+                recibo = _resultado_lote_mail(reg)
+                if recibo is None:
+                    s["fallidos"].update(reg.get("fallidos", []))
+                else:
+                    s["recibos_mail"][recibo["lote_id"]] = {
+                        _identidad_movimiento_mail(fila): fila["estado"]
+                        for fila in recibo["resultados"]
+                    }
             continue
         if ev == EVENTO_DESHACER:
             # v3.21.18: una línea de cerrar-deshacer equivale a un undone /
@@ -3811,6 +4020,12 @@ def _estado_sesiones(registros):
         # Un movimiento nuevo del mismo mid (reintento) abre otra época:
         # el fallo anterior ya no describe este movimiento.
         s["fallidos"].discard(mid)
+        anterior = s["correos"].get(mid)
+        if anterior is not None:
+            previo = anterior["reg"]
+            if (_identidad_movimiento_mail(reg) != _identidad_movimiento_mail(previo)
+                    or reg.get("mail_account_id") != previo.get("mail_account_id")):
+                s["ambiguos"].add(mid)
         s["correos"][mid] = {"reg": reg, "undo": None}
     return sesiones
 
@@ -3845,11 +4060,16 @@ def _antiguedad(sello, ahora):
 
 
 def _resumen_sesion(sid, s, detalle, incluir_sin_cerrar=False, ahora=None):
-    n_ok = sum(c["n_ok"] for c in s["cierres"])
+    n_ok_legado = sum(c["n_ok"] for c in s["cierres"] if "lote_id" not in c)
     registrados = len(s["correos"])
-    if not s["cierres"]:
+    registros_mail = [c["reg"] for c in s["correos"].values()
+                      if isinstance(c["reg"].get("lote_id"), str)]
+    if any(_identidad_movimiento_mail(r) not in s["recibos_mail"].get(r["lote_id"], {})
+           for r in registros_mail):
+        cierre = "sin_cerrar"
+    elif not s["cierres"]:
         cierre = "legado" if _sesion_legado(sid) else "sin_cerrar"
-    elif n_ok + len(s["fallidos"]) != registrados:
+    elif n_ok_legado + len(s["fallidos"]) != registrados - len(registros_mail):
         cierre = "descuadre"
     else:
         cierre = "confirmado"
@@ -3857,13 +4077,22 @@ def _resumen_sesion(sid, s, detalle, incluir_sin_cerrar=False, ahora=None):
     n_sin_confirmar = 0
     for mid, c in s["correos"].items():
         reg = c["reg"]
-        if mid in s["fallidos"]:
+        lote = reg.get("lote_id")
+        resultado_mail = None
+        if isinstance(lote, str):
+            resultado_mail = s["recibos_mail"].get(lote, {}).get(
+                _identidad_movimiento_mail(reg), "registrado")
+        if mid in s["ambiguos"]:
+            estado = "ambiguo"
+        elif resultado_mail in ("fallido", "no_verificado", "registrado"):
+            estado = resultado_mail
+        elif resultado_mail is None and mid in s["fallidos"]:
             estado = "fallido"
         elif c["undo"] == "undone":
             estado = "deshecho"
         elif c["undo"] == "undo_failed":
             estado = "undo_fallido"
-        elif cierre == "confirmado":
+        elif resultado_mail == "confirmado" or cierre == "confirmado":
             estado = "movido"
         else:
             estado = "registrado"
@@ -3873,12 +4102,15 @@ def _resumen_sesion(sid, s, detalle, incluir_sin_cerrar=False, ahora=None):
         # nadie verificó. Solo con incluir_sin_cerrar, que pide la persona.
         # undo_fallido tampoco: un intento fallido con el opt-in no prueba
         # que el movimiento original ocurriera.
-        sin_confirmar = (estado in ("registrado", "undo_fallido")
-                         and cierre not in ("confirmado", "legado")
-                         and not incluir_sin_cerrar)
+        sin_confirmar = (
+            resultado_mail == "registrado"
+            or (resultado_mail is None and estado in ("registrado", "undo_fallido")
+                and cierre not in ("confirmado", "legado") and not incluir_sin_cerrar)
+        )
         deshacible = (estado in ("movido", "registrado", "undo_fallido")
                       and reg.get("status") in STATUS_DESHACIBLES
-                      and not sin_confirmar)
+                      and not sin_confirmar
+                      and (resultado_mail is None or resultado_mail == "confirmado"))
         if sin_confirmar and reg.get("status") in STATUS_DESHACIBLES:
             n_sin_confirmar += 1
         tier = reg.get("tier") if isinstance(reg.get("tier"), str) else "?"
@@ -3889,6 +4121,10 @@ def _resumen_sesion(sid, s, detalle, incluir_sin_cerrar=False, ahora=None):
                   "from_folder": reg.get("from_folder"),
                   "to_folder": reg.get("to_folder"), "tier": tier,
                   "estado": estado, "deshacible": deshacible}
+        if (_identidad_movimiento_mail(reg) is not None
+                and isinstance(reg.get("mail_account_id"), str)
+                and reg["mail_account_id"].strip()):
+            correo.update(mail_id=reg["mail_id"], mail_account_id=reg["mail_account_id"])
         if inyeccion:
             correo["injection_subject"] = True
         correos.append(correo)
@@ -3899,6 +4135,9 @@ def _resumen_sesion(sid, s, detalle, incluir_sin_cerrar=False, ahora=None):
                "deshacibles": sum(c["deshacible"] for c in correos),
                "sin_confirmar": n_sin_confirmar,
                "cierre": cierre, "por_estado": por_estado}
+    requieren_revision = por_estado.get("ambiguo", 0) + por_estado.get("no_verificado", 0)
+    if requieren_revision:
+        resumen["requieren_revision"] = requieren_revision
     if detalle:
         resumen["por_tier"] = por_tier
         resumen["correos"] = correos
@@ -3998,6 +4237,9 @@ def cmd_estado_log(ruta=None, session=None, ultimas=ULTIMAS_SESIONES,
                     if not r["deshacibles"] and r["sin_confirmar"]]
         if sin_conf:
             salida["sesiones_sin_confirmar"] = sin_conf[:ultimas]
+        por_revisar = [r for r in resumenes if r.get("requieren_revision")]
+        if por_revisar:
+            salida["sesiones_por_revisar"] = por_revisar[:ultimas]
         if not ofrecibles:
             salida["aviso"] = ("No hay sesiones con movimientos por "
                                "deshacer." if sesiones else
@@ -4083,6 +4325,32 @@ def cmd_cerrar_deshacer(ruta, datos) -> dict:
         return {"ok": True, "session_id": sid, "escrito": False,
                 "ya_deshechos": ya_deshechos, "n_revertidos": 0,
                 "n_fallidos": 0, "deshacibles_restantes": estado["deshacibles"]}
+    esperados = {}
+    for mids, confirmado in ((revertidos, True), (fallidos, False)):
+        for mid in mids:
+            correo = por_mid[mid]
+            if "mail_id" in correo:
+                identidad = (correo["mail_account_id"], mid, correo["mail_id"],
+                             correo["to_folder"], correo["from_folder"])
+                esperados[identidad] = confirmado
+    if esperados:
+        entradas = datos.get("recibos_mail")
+        if not isinstance(entradas, list):
+            return {"ok": False, "error": "el deshacer de Mail.app requiere sus recibos JSON"}
+        recibidos = {}
+        for entrada in entradas:
+            recibo = _resultado_lote_mail(entrada)
+            if recibo is None:
+                return {"ok": False, "error": "recibo de deshacer de Mail.app inválido"}
+            for fila in recibo["resultados"]:
+                identidad = (recibo["mail_account_id"], *_identidad_movimiento_mail(fila))
+                if identidad in recibidos:
+                    return {"ok": False, "error": "instancia repetida en recibos de deshacer"}
+                recibidos[identidad] = fila["estado"] == "confirmado"
+        recibidos = {identidad: confirmado for identidad, confirmado in recibidos.items()
+                     if identidad[1] not in ya_deshechos}
+        if recibidos != esperados:
+            return {"ok": False, "error": "los recibos no corresponden al deshacer solicitado"}
     evento = {"event": EVENTO_DESHACER, "session_id": sid,
               "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
               "revertidos": revertidos, "fallidos": fallidos,
@@ -4877,25 +5145,61 @@ def _lista_applescript(valores):
     return "{" + ", ".join(applescript_quote(v) for v in valores) + "}"
 
 
-def _bloque_repeat_mover(ok, fail, lista, box):
-    """Bloque `repeat` estándar: mueve por message-id (filtro `whose`, robusto
-    durante sincronización) y acumula en `fail` los mids que no se movieron
-    (QW2). review/archive/reply comparten esta estructura; centralizarla evita
-    que una copia divergiera de las otras (misma lección que _mid_sospechoso)."""
+def _bloque_repeat_mover(ok, fail, lista, box, identidades=None):
+    """Mueve una coincidencia inequívoca y verifica su identidad en destino."""
+    iniciar = preparar = comprobacion = intento = resultado = ""
+    if identidades is not None:
+        iniciar = '    set indiceID to 0\n'
+        preparar = (
+            '        set indiceID to indiceID + 1\n'
+            '        set idRevisado to item indiceID of ' + identidades + '\n'
+            '        set estadoMovimiento to "fallido"\n'
+        )
+        comprobacion = ' and idCandidato is idRevisado'
+        intento = '                            set estadoMovimiento to "no_verificado"\n'
+        resultado = (
+            '        if moved then set estadoMovimiento to "confirmado"\n'
+            '        set end of resultados to (item indiceID of recibos'
+            + lista + ') & estadoMovimiento & ' + applescript_quote('"}') + '\n'
+        )
     return (
         '    set ' + ok + ' to 0\n'
         '    set ' + fail + ' to {}\n'
+        + iniciar +
         '    repeat with theID in ' + lista + '\n'
+        + preparar +
+        '        set midBuscado to (contents of theID)\n'
         '        set moved to false\n'
         '        try\n'
-        '            set hits to (messages of srcBox whose message id is theID)\n'
-        '            if (count of hits) > 0 then\n'
-        '                move (item 1 of hits) to ' + box + '\n'
-        '                set ' + ok + ' to ' + ok + ' + 1\n'
-        '                set moved to true\n'
+        '            set hits to (messages of srcBox whose message id is midBuscado)\n'
+        '            if (count of hits) is 1 then\n'
+        '                set candidato to item 1 of hits\n'
+        '                set idCandidato to id of candidato\n'
+        '                considering case\n'
+        '                    if (message id of candidato is midBuscado)' + comprobacion + ' then\n'
+        '                        set previos to (messages of ' + box + ' whose message id is midBuscado)\n'
+        '                        if (count of previos) is 0 then\n'
+        + intento +
+        '                            move candidato to ' + box + '\n'
+        '                            repeat with comprobacion from 1 to 3\n'
+        '                                set restantes to (messages of srcBox whose id is idCandidato)\n'
+        '                                set llegados to (messages of ' + box + ' whose id is idCandidato)\n'
+        '                                if (count of restantes) is 0 and (count of llegados) is 1 then\n'
+        '                                    if message id of (item 1 of llegados) is midBuscado then\n'
+        '                                        set ' + ok + ' to ' + ok + ' + 1\n'
+        '                                        set moved to true\n'
+        '                                        exit repeat\n'
+        '                                    end if\n'
+        '                                end if\n'
+        '                                if comprobacion < 3 then delay 1\n'
+        '                            end repeat\n'
+        '                        end if\n'
+        '                    end if\n'
+        '                end considering\n'
         '            end if\n'
         '        end try\n'
         '        if not moved then set end of ' + fail + ' to (theID as string)\n'
+        + resultado +
         '    end repeat\n'
     )
 
@@ -4929,8 +5233,14 @@ def cmd_montar_mover(datos: dict) -> dict:
         return {"ok": False, "error": "se esperaba un objeto JSON con cuenta/"
                 "origen/destino_review [+ destino_archive/destino_reply_needed/"
                 "mids_review/mids_archive/mids_reply_needed]"}
+    if datos.get("simulacion", False) is not False:
+        return {"ok": False, "error": "el modo simulación no genera un script de movimiento"}
     # cuenta/origen/destino_review siguen siendo obligatorios no vacíos.
-    req_txt = ("cuenta", "origen", "destino_review")
+    cuenta_id = datos.get("mail_account_id")
+    if cuenta_id is not None and (
+            not isinstance(cuenta_id, str) or not cuenta_id.strip()):
+        return {"ok": False, "error": "mail_account_id debe ser texto no vacío"}
+    req_txt = ("origen", "destino_review") if cuenta_id else ("cuenta", "origen", "destino_review")
     faltan = [k for k in req_txt
               if not isinstance(datos.get(k), str) or not datos.get(k).strip()]
     if faltan:
@@ -4975,6 +5285,23 @@ def cmd_montar_mover(datos: dict) -> dict:
     if internos:
         return _error_ids_internos(internos)
 
+    instancias = datos.get("instancias_mail")
+    if instancias is not None:
+        if not isinstance(instancias, dict) or any(
+                type(i) is not int or not 0 < i < 2**31
+                for i in instancias.values()):
+            return {"ok": False, "error": "instancias_mail debe asociar cada "
+                    "Message-ID con un id interno positivo de Mail.app"}
+        mids = [str(mid) for _, lista in listas for mid in lista]
+        if any(mid not in instancias for mid in mids):
+            return {"ok": False, "error": "falta la instancia de Mail.app "
+                    "para un Message-ID del lote"}
+        if len({instancias[mid] for mid in mids}) != len(mids):
+            return {"ok": False, "error": "hay instancias repetidas en el lote"}
+    if instancias is not None and cuenta_id is None:
+        return {"ok": False, "error": "instancias_mail requiere mail_account_id"}
+    lote_id = uuid.uuid4().hex if instancias is not None else None
+
     sospechosos = []
     for etiqueta, lst in listas:
         for i, v in enumerate(lst):
@@ -4983,7 +5310,6 @@ def cmd_montar_mover(datos: dict) -> dict:
                 sospechosos.append({"lista": etiqueta, "indice": i,
                                     "valor": str(v)[:120], "motivo": motivo})
 
-    cuenta = applescript_quote(datos["cuenta"])
     origen = applescript_quote(datos["origen"])
     dest_rev = applescript_quote(datos["destino_review"])
     # Buzón de archive: la carpeta configurada, o el buzón nativo "Archive".
@@ -4996,7 +5322,21 @@ def cmd_montar_mover(datos: dict) -> dict:
         '-- triage_helpers.py montar-mover: cuenta, carpetas y message-ids ya\n'
         '-- escapados. Escríbelo a un fichero y ejecútalo con osascript.\n'
         'tell application "Mail"\n'
-        '    set acct to account ' + cuenta + '\n'
+    )
+    campo_cuenta, valor_cuenta = ("id", cuenta_id) if cuenta_id else ("name", datos["cuenta"])
+    cab += (
+        '    set identificadorCuenta to ' + applescript_quote(valor_cuenta) + '\n'
+        '    set cuentas to (accounts whose ' + campo_cuenta + ' is identificadorCuenta)\n'
+        '    if (count of cuentas) is not 1 then error "Cuenta no disponible o ambigua"\n'
+        '    set acct to item 1 of cuentas\n'
+    )
+    if cuenta_id is not None:
+        cab += (
+            '    considering case\n'
+            '        if id of acct is not identificadorCuenta then error "La cuenta cambió desde la revisión"\n'
+            '    end considering\n'
+        )
+    cab += (
         '    set srcBox to mailbox ' + origen + ' of acct\n'
         '    set revBox to mailbox ' + dest_rev + ' of acct\n'
     )
@@ -5035,28 +5375,56 @@ def cmd_montar_mover(datos: dict) -> dict:
     if reply_needed_movido:
         cab += '    set toReply to ' + _lista_applescript(mids_rn) + '\n'
 
-    cuerpo = _bloque_repeat_mover("okRev", "failRev", "toReview", "revBox")
+    if lote_id:
+        cab += '    set resultados to {}\n'
+
+    def _fila(mid, destino):
+        return {"message_id": str(mid), "mail_id": instancias[str(mid)],
+                "from_folder": datos["origen"], "to_folder": destino}
+
+    def _bloque(ok, fail, lista, box, mids, destino):
+        nombre = None
+        prefijo = ""
+        if lote_id:
+            nombre = "instancias" + lista
+            ids = ", ".join(str(instancias[str(mid)]) for mid in mids)
+            prefijo = '    set ' + nombre + ' to {' + ids + '}\n'
+            partes = [json.dumps(_fila(mid, destino))[:-1] + ',"estado":"'
+                      for mid in mids]
+            prefijo += '    set recibos' + lista + ' to ' + _lista_applescript(partes) + '\n'
+        return prefijo + _bloque_repeat_mover(ok, fail, lista, box, nombre)
+
+    destino_archivo = "Archive" if archivo_nativo else dest_arc_raw
+    cuerpo = _bloque("okRev", "failRev", "toReview", "revBox", mids_rev, datos["destino_review"])
+    bloque_archive = _bloque("okArc", "failArc", "toArchive", "arcBox", mids_arc, destino_archivo)
     if archivo_nativo:
         # Guard F5: el bloque de archive solo corre si el buzón nativo se
         # resolvió (arcBoxOK); si no, okArc=0 y TODOS los mids van a failArc,
         # que el return expone como fallidos_archive (+ archivo_nativo_fallido:1).
+        fallos_archivo = ""
+        if lote_id:
+            partes = [json.dumps(dict(_fila(mid, destino_archivo), estado="fallido"))
+                      for mid in mids_arc]
+            fallos_archivo = (
+                '        set resultados to resultados & ' + _lista_applescript(partes) + '\n'
+            )
         cuerpo += (
             '    if arcBoxOK then\n'
-            + _bloque_repeat_mover("okArc", "failArc", "toArchive", "arcBox")
-            + '    else\n'
+            + bloque_archive +
+            '    else\n'
             '        set okArc to 0\n'
             '        set failArc to toArchive\n'
+            + fallos_archivo +
             '    end if\n'
         )
     else:
-        cuerpo += _bloque_repeat_mover("okArc", "failArc", "toArchive", "arcBox")
+        cuerpo += bloque_archive
     if reply_needed_movido:
-        cuerpo += _bloque_repeat_mover("okRep", "failRep", "toReply", "rnBox")
+        cuerpo += _bloque("okRep", "failRep", "toReply", "rnBox", mids_rn, dest_rn_raw)
 
     # Return con QW2 (QUÉ mids fallaron, no solo cuántos). El bloque de reply
     # solo aporta sus contadores si de verdad se movió.
     ret = (
-        '    delay 2\n'
         '    -- QW2 (auditoria 2026-07-17): reportar QUE mids fallaron, no solo\n'
         '    -- cuantos. Un "8/10" sin lista dejaba el diagnostico ciego.\n'
         "    set AppleScript's text item delimiters to \",\"\n"
@@ -5076,8 +5444,16 @@ def cmd_montar_mover(datos: dict) -> dict:
     ret += ('"] | src_restantes:" & (count of (messages of srcBox))\n'
             'end tell\n')
 
+    if lote_id:
+        encabezado = json.dumps({"lote_id": lote_id, "mail_account_id": cuenta_id})
+        ret = (
+            "    set AppleScript's text item delimiters to \",\"\n"
+            '    return ' + applescript_quote(encabezado[:-1] + ',"resultados":[')
+            + ' & (resultados as text) & "]}"\n'
+            'end tell\n'
+        )
     script = cab + cuerpo + ret
-    return {"ok": True, "script": script, "sospechosos": sospechosos,
+    salida = {"ok": True, "script": script, "sospechosos": sospechosos,
             "n_review": len(mids_rev), "n_archive": len(mids_arc),
             "n_reply_needed": (len(mids_rn)
                                if (reply_needed_movido
@@ -5087,6 +5463,9 @@ def cmd_montar_mover(datos: dict) -> dict:
                                      and isinstance(mids_rn, list)) else 0),
             "archivo_nativo": archivo_nativo,
             "reply_needed_movido": reply_needed_movido}
+    if lote_id:
+        salida["lote_id"] = lote_id
+    return salida
 
 def cmd_montar_consulta_enviados(datos: dict) -> dict:
     """Monta la consulta a Enviados de PASO 1.C con cuenta, clave_hilo y
@@ -5374,15 +5753,19 @@ def cmd_agrupar_hilos(datos: dict) -> dict:
     if any(not isinstance(c, dict) for c in correos):
         return {"ok": False, "error": "cada correo debe ser un objeto JSON"}
 
+    solo_individuales = datos.get("solo_individuales", False)
+    if type(solo_individuales) is not bool:
+        return {"ok": False, "error": "'solo_individuales' debe ser booleano"}
+
     # Buckets por clave_hilo (los de clave vacía son individuales directos).
     buckets = defaultdict(list)      # clave -> [índices de entrada]
     individuales_forzados = []
     for i, c in enumerate(correos):
         clave = _clave_hilo(c.get("asunto"))
-        if clave:
+        if clave and not solo_individuales:
             buckets[clave].append(i)
         else:
-            individuales_forzados.append(i)
+            individuales_forzados.append((i, clave))
 
     unidades = []
 
@@ -5438,15 +5821,16 @@ def cmd_agrupar_hilos(datos: dict) -> dict:
                 "miembros": miembros,
             }
             if len(miembros) >= 2:
+                unidad["relacion_hilo"] = "heuristica"
                 unidad["extras_hilo"] = _extras_hilo(len(miembros), participantes)
             unidades.append(unidad)
 
-    for i in individuales_forzados:
+    for i, clave in individuales_forzados:
         c = correos[i]
         r = (c.get("remitente") or "").strip()
         unidades.append({
             "tipo": "individual",
-            "clave_hilo": "",
+            "clave_hilo": clave,
             "count": 1,
             "participantes": [r] if r else [],
             "orden_entrada": i,
@@ -6046,8 +6430,8 @@ def _construir_parser():
     p = argparse.ArgumentParser(description=__doc__)
     sub = p.add_subparsers(dest="cmd", required=True)
     pa = sub.add_parser("ajustes")
-    pa.add_argument("--correcciones",
-                    default=_expandir("~/.email-triage/correcciones.jsonl"))
+    pa.add_argument("--correcciones", type=_expandir,
+                    default="~/.email-triage/correcciones.jsonl")
     ps = sub.add_parser("sanitizar")
     ps.add_argument("--archivo")
     ps.add_argument("--max-chars", type=int, default=1500)
@@ -6062,8 +6446,8 @@ def _construir_parser():
                     help="tras sanear, borra --archivo y --metadatos (solo "
                          "dentro de <base>/tmp/) — v3.21.11")
     psc = sub.add_parser("scoring")
-    psc.add_argument("--config",
-                     default=_expandir("~/.email-triage/config.yaml"))
+    psc.add_argument("--config", type=_expandir,
+                     default="~/.email-triage/config.yaml")
     psc.add_argument("--brief", action="store_true",
                      help="salida compacta: solo score/tier/ejes (ahorra tokens)")
     psc.add_argument("--config-veloz", default=None,
@@ -6081,13 +6465,13 @@ def _construir_parser():
                           "invocación (append con flock) en vez de "
                           "sobrescribir; lo lee diagnostico-ejes — v3.21.5")
     ppb = sub.add_parser("planificar-bloques")
-    ppb.add_argument("--config",
-                     default=_expandir("~/.email-triage/config.yaml"))
+    ppb.add_argument("--config", type=_expandir,
+                     default="~/.email-triage/config.yaml")
     ppb.add_argument("--datos", default=None,
                      help='JSON {"ids": [...]}; sin él se lee de stdin')
     pv = sub.add_parser("validar-config")
-    pv.add_argument("--config",
-                    default=_expandir("~/.email-triage/config.yaml"))
+    pv.add_argument("--config", type=_expandir,
+                    default="~/.email-triage/config.yaml")
     pv.add_argument("--plantilla", nargs="?", const=RUTA_PLANTILLA,
                     default=None, metavar="RUTA",
                     help="compara con la plantilla del plugin (por defecto la "
@@ -6119,8 +6503,8 @@ def _construir_parser():
                      help="vectors.jsonl (append vía registrar)")
     pvc.add_argument("--desglose", required=True, metavar="RUTA",
                      help="fichero escrito por scoring --desglose")
-    pvc.add_argument("--config",
-                     default=_expandir("~/.email-triage/config.yaml"))
+    pvc.add_argument("--config", type=_expandir,
+                     default="~/.email-triage/config.yaml")
     pvc.add_argument("--config-veloz", default=None,
                      help="la misma capa veloz que se pasó a scoring")
     pvc.add_argument("--config-ensayo", default=None,
@@ -6145,8 +6529,7 @@ def _construir_parser():
     pv.add_argument("--datos", default=None,
                     help='JSON {"session_id":..,"esperados":N}; sin él, stdin')
     pc = sub.add_parser("compactar")
-    pc.add_argument("--archivo",
-                    default=_expandir("~/.email-triage/correcciones.jsonl"))
+    pc.add_argument("--archivo", default="~/.email-triage/correcciones.jsonl")
     pc.add_argument("--max-lineas", type=int, default=MAX_CORRECCIONES,
                     help="líneas a conservar (por defecto %d)" % MAX_CORRECCIONES)
     pc.add_argument("--dry-run", action="store_true",
@@ -6157,8 +6540,8 @@ def _construir_parser():
     pdx = sub.add_parser("diagnostico-ejes")
     pdx.add_argument("--desglose", nargs="+", required=True, metavar="RUTA",
                      help="uno o más ficheros escritos por scoring --desglose")
-    pdx.add_argument("--config",
-                     default=_expandir("~/.email-triage/config.yaml"),
+    pdx.add_argument("--config", type=_expandir,
+                     default="~/.email-triage/config.yaml",
                      help="solo para los umbrales de tier")
     pdp = sub.add_parser("diagnostico-plantillas")
     pdp.add_argument("--desglose", nargs="+", default=None, metavar="RUTA",
@@ -6168,8 +6551,8 @@ def _construir_parser():
     pco.add_argument("--datos", default=None,
                      help='JSON {"correos": [{"id", "remitente", "asunto", '
                           '"cuerpo"?}]}; sin él se lee de stdin')
-    pco.add_argument("--config",
-                     default=_expandir("~/.email-triage/config.yaml"))
+    pco.add_argument("--config", type=_expandir,
+                     default="~/.email-triage/config.yaml")
     pcal = sub.add_parser("calibrar")
     pcal.add_argument("--datos", default=None,
                       help='JSON {"correos": [{"remitente", "asunto"}, ...]}; '
@@ -6406,7 +6789,11 @@ def main():
         except json.JSONDecodeError as e:
             out = {"ok": False, "error": "JSON inválido: %s" % e}
         else:
-            out = cmd_montar_mover(data)
+            if isinstance(data, dict) and data.get("instancias_mail") is None:
+                out = {"ok": False, "error": "falta instancias_mail. Usa los "
+                       "identificadores de la captura antes de mover"}
+            else:
+                out = cmd_montar_mover(data)
     elif args.cmd == "montar-consulta-enviados":
         crudo = (args.datos if args.datos is not None
                  else sys.stdin.read(MAX_INGESTA_BYTES))
@@ -6556,4 +6943,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except EstadoTemporalInseguro as error:
+        print(json.dumps({"ok": False, "error": str(error)}, ensure_ascii=False))

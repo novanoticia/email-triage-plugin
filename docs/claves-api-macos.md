@@ -12,14 +12,10 @@ envían extractos a otro proveedor:
 | **Evaluadores LLM: Mistral** | Mistral AI | `MISTRAL_API_KEY` | <https://console.mistral.ai> → **API Keys** | [`references/evaluadores.md`](../plugins/email-triage/skills/email-triage/references/evaluadores.md) |
 | **Evaluadores LLM: OpenAI** | OpenAI | `OPENAI_API_KEY` (la misma de Decisions) | <https://platform.openai.com> → **API keys** | [`references/evaluadores.md`](../plugins/email-triage/skills/email-triage/references/evaluadores.md) |
 
-Son claves **distintas y no intercambiables**: cada capa lee solo la suya. El
-plugin las lee de la variable de entorno y nunca de un archivo. En macOS lo más
-seguro es guardarlas en el **Llavero** y hacer que Terminal las lea al abrirse:
-así no quedan escritas en ningún archivo de texto.
-
-Son cuatro pasos por clave. Lo que va en los recuadros grises se copia tal cual en
-Terminal (Aplicaciones → Utilidades → Terminal). Si solo usas una capa, haz solo
-los comandos de esa clave.
+Cada proveedor usa su propia clave. Guárdala en el Llavero de inicio de sesión
+de macOS. Cuando quieras usar el plugin en Claude Code, inicia una sesión desde
+Terminal con la clave del proveedor que has elegido. El plugin la lee de una
+variable de entorno.
 
 ## 1. Consigue la clave
 
@@ -48,195 +44,113 @@ los comandos de esa clave.
 
 ## 2. Guárdala en el Llavero
 
-**No la pegues en el aviso de contraseña** (`password data for new item`): ese aviso
-recorta lo pegado a 128 caracteres. Una clave `sk-proj-` de OpenAI tiene más (164
-en una prueba real); la de TypeSafe puede tenerlos o no, así que usa el mismo método
-siempre. Una clave guardada a medias hace que el proveedor responda que no es válida
-(`invalid_api_key` en OpenAI). Guárdala desde el portapapeles:
+1. Abre **Acceso a Llaveros** desde Spotlight y selecciona el llavero **Inicio
+   de sesión**. Para ver el nombre corto de tu cuenta del Mac, abre Terminal y
+   ejecuta `id -un`.
+2. Pulsa **⌘N** para crear un ítem de contraseña. En **Nombre del ítem**,
+   escribe la variable de la tabla, por ejemplo `OPENAI_API_KEY`. En **Nombre
+   de cuenta**, escribe el nombre corto obtenido en el paso anterior.
+3. Pega la clave completa en el campo **Contraseña** y guarda el ítem. Para
+   actualizar una clave ya guardada, abre su ítem en **Inicio de sesión**,
+   muestra la contraseña y edítala. Reemplaza después el contenido del
+   portapapeles copiando texto que puedas dejar ahí.
 
-**Una clave cada vez, y en este orden.** El portapapeles solo guarda una cosa, y la
-orden `security` guarda lo que haya en él **en el momento de pulsar Enter**. Copiar el
-comando desde esta guía también usa el portapapeles: si lo ejecutas sin más, se
-guardaría el texto del comando en vez de la clave. Y si ejecutas las órdenes de varias
-claves seguidas, todas quedan con la misma clave (las dos cosas pasaron en
-pruebas reales). Por eso, para cada clave:
+Si el Llavero pide acceso para `security`, elige **Permitir** para concederlo
+solo en esa ocasión. Puedes revisar permisos anteriores en el ítem, en
+**Control de acceso**. [Atajos de Acceso a Llaveros](https://support.apple.com/en-ie/guide/keychain-access/kyca699a9058/mac)
+y [permisos del Llavero](https://support.apple.com/en-gb/guide/mac-help/kychn002/26/mac/26).
 
-1. **Copia la línea de comando** de abajo (es una sola línea) y **pégala en
-   Terminal sin pulsar Enter**.
-2. **Copia la clave** en la web del proveedor, con su botón de copiar.
-3. **Vuelve a Terminal y pulsa Enter.** Primero verás la longitud de lo copiado:
-   apúntala para el paso 4 (si sale un número pequeño, de unas decenas, lo que había
-   en el portapapeles era otra cosa: repite desde el punto 1).
+## 3. Comprueba la clave con su proveedor
 
-**OpenAI (Decisions)**, clave de platform.openai.com (debe salir más de 128):
+Si configuraste la carga automática con una versión anterior de esta guía,
+elimina de `~/.zshrc` las líneas que añadiste para exportar estas claves
+(puedes abrir el archivo con `open -e ~/.zshrc`). Cierra las sesiones de Claude
+Code iniciadas con esas variables y abre una ventana nueva de Terminal.
 
-```bash
-pbpaste | wc -c; security add-generic-password -U -a "$USER" -s OPENAI_API_KEY -w "$(pbpaste)"; pbcopy < /dev/null
-```
-
-**TypeSafe (Jev)**, solo después de terminar la anterior, clave de
-console.typesafe.ai:
+Copia este bloque en Terminal. Tendrás el comando `clave_email_triage`
+disponible mientras esa ventana siga abierta.
 
 ```bash
-pbpaste | wc -c; security add-generic-password -U -a "$USER" -s TYPESAFE_API_KEY -w "$(pbpaste)"; pbcopy < /dev/null
+clave_email_triage() (
+  set +x
+  set +a
+  unset clave OPENAI_API_KEY TYPESAFE_API_KEY OPENROUTER_API_KEY GEMINI_API_KEY MISTRAL_API_KEY
+  LC_ALL=C
+  accion=${1:-}
+  proveedor=${2:-}
+  case "$accion" in
+    validar) ;;
+    ejecutar) [ "$#" -ge 3 ] || { echo "Falta el comando que se va a ejecutar." >&2; return 2; } ;;
+    *) echo "Uso: clave_email_triage {validar|ejecutar} proveedor [comando]" >&2; return 2 ;;
+  esac
+  cabecera='Authorization: Bearer '
+  case "$proveedor" in
+    openai)     variable=OPENAI_API_KEY; url=https://api.openai.com/v1/models ;;
+    typesafe)   variable=TYPESAFE_API_KEY; url=https://api.typesafe.ai/v1/models ;;
+    openrouter) variable=OPENROUTER_API_KEY; url=https://openrouter.ai/api/v1/key ;;
+    gemini)     variable=GEMINI_API_KEY
+                url=https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite
+                cabecera='x-goog-api-key: ' ;;
+    mistral)    variable=MISTRAL_API_KEY; url=https://api.mistral.ai/v1/models ;;
+    *) echo "Elige openai, typesafe, openrouter, gemini o mistral." >&2; return 2 ;;
+  esac
+  clave=$(/usr/bin/security find-generic-password -a "$(/usr/bin/id -un)" -s "$variable" -w) || return 1
+  case "$clave" in
+    ''|*[![:graph:]]*) echo "La clave guardada está vacía o tiene caracteres inválidos." >&2; return 1 ;;
+  esac
+  if [ "$accion" = validar ]; then
+    builtin printf '%s%s\n' "$cabecera" "$clave" |
+      /usr/bin/curl --disable --noproxy '*' --proto '=https' --max-time 20 \
+        --silent --output /dev/null --write-out '%{http_code}\n' --header @- "$url"
+  else
+    shift 2
+    export "$variable=$clave"
+    exec "$@"
+  fi
+)
 ```
 
-**OpenRouter**, siguiendo también los tres pasos anteriores con su propia clave:
+Ejecuta solo la línea del proveedor que quieres comprobar:
 
 ```bash
-pbpaste | wc -c; security add-generic-password -U -a "$USER" -s OPENROUTER_API_KEY -w "$(pbpaste)"; pbcopy < /dev/null
+clave_email_triage validar openai
+clave_email_triage validar typesafe
+clave_email_triage validar openrouter
+clave_email_triage validar gemini
+clave_email_triage validar mistral
 ```
 
-**Gemini**, clave de aistudio.google.com (suele salir 39 o 40):
+La consulta solo muestra el código HTTP. Entrega la cabecera a curl por la
+entrada estándar, sin poner la clave en sus argumentos, y consulta la API del
+proveedor sin enviar correo ni solicitar inferencia. El **200** confirma la
+autenticación de esa consulta. Un **401** suele indicar una clave ausente,
+inválida o revocada. Con Gemini, revisa también la clave ante un **400** y los
+permisos del proyecto ante un **403**. Un **404** indica que la ruta o el modelo
+no está disponible. Un **000** indica que no se recibió una respuesta HTTP.
+
+## 4. Abre Claude Code con la clave elegida
+
+En la misma ventana de Terminal, escribe la línea siguiente. Sustituye
+`openai` por el proveedor que vas a usar.
 
 ```bash
-pbpaste | wc -c; security add-generic-password -U -a "$USER" -s GEMINI_API_KEY -w "$(pbpaste)"; pbcopy < /dev/null
+clave_email_triage ejecutar openai claude
 ```
 
-**Mistral**, clave de console.mistral.ai:
+La clave se carga para esa ejecución y sus procesos hijos, incluidos los
+comandos que Claude Code lanza para el plugin. Por eso, usa esa sesión para el
+triaje y ciérrala al terminar. El plugin necesita heredar la variable del
+proceso que lo ejecuta. Este método está pensado para Claude Code iniciado
+desde Terminal. La app abierta desde el Dock y Cowork usan entornos propios y
+pueden devolver `credencial_ausente_o_invalida` aunque la comprobación anterior
+dé **200**.
 
-```bash
-pbpaste | wc -c; security add-generic-password -U -a "$USER" -s MISTRAL_API_KEY -w "$(pbpaste)"; pbcopy < /dev/null
-```
+Configura una capa externa por sesión. Si Claude no recibe la clave o el
+proveedor la rechaza, el triaje sigue con el principal.
 
-`-U` sustituye la clave anterior si ya había una con ese nombre; lo último
-(`pbcopy < /dev/null`) vacía el portapapeles.
-
-En el historial de Terminal queda `$(pbpaste)` escrito así, nunca la clave. El
-único coste es que, durante el instante que tarda el comando, la clave aparece en
-sus argumentos y otro proceso de tu mismo usuario podría verla: un riesgo muy bajo
-en un Mac personal.
-
-## 3. Haz que Terminal la cargue sola
-
-Ejecuta **una sola vez** la línea de cada clave que hayas guardado: cada vez que la
-ejecutas añade la misma línea al final de `~/.zshrc`.
-
-```bash
-# OpenAI (Decisions)
-echo 'export OPENAI_API_KEY="$(security find-generic-password -a "$USER" -s OPENAI_API_KEY -w 2>/dev/null)"' >> ~/.zshrc
-# TypeSafe (Jev)
-echo 'export TYPESAFE_API_KEY="$(security find-generic-password -a "$USER" -s TYPESAFE_API_KEY -w 2>/dev/null)"' >> ~/.zshrc
-# OpenRouter
-echo 'export OPENROUTER_API_KEY="$(security find-generic-password -a "$USER" -s OPENROUTER_API_KEY -w 2>/dev/null)"' >> ~/.zshrc
-# Gemini
-echo 'export GEMINI_API_KEY="$(security find-generic-password -a "$USER" -s GEMINI_API_KEY -w 2>/dev/null)"' >> ~/.zshrc
-# Mistral
-echo 'export MISTRAL_API_KEY="$(security find-generic-password -a "$USER" -s MISTRAL_API_KEY -w 2>/dev/null)"' >> ~/.zshrc
-```
-
-Después cierra Terminal y ábrelo de nuevo (o ejecuta `source ~/.zshrc`).
-
-La primera vez, macOS puede preguntar si `security` puede acceder al Llavero:
-pulsa **Permitir siempre** para que no vuelva a preguntar.
-
-## 4. Comprueba que funciona, sin mostrar la clave
-
-```bash
-echo "OpenAI:   ${#OPENAI_API_KEY} caracteres"
-echo "TypeSafe: ${#TYPESAFE_API_KEY} caracteres"
-echo "OpenRouter: ${#OPENROUTER_API_KEY} caracteres"
-echo "Gemini:   ${#GEMINI_API_KEY} caracteres"
-echo "Mistral:  ${#MISTRAL_API_KEY} caracteres"
-```
-
-Cada número debe coincidir con el que apuntaste en el paso 2 (un `0` es que esa
-clave no está cargada). Si usas varias, comprueba que no has guardado la misma
-clave para dos proveedores. Esta comprobación omite las variables vacías:
-
-```bash
-python3 - <<'PYTHON'
-import os
-from itertools import combinations
-
-nombres = ("OPENAI_API_KEY", "TYPESAFE_API_KEY", "OPENROUTER_API_KEY",
-           "GEMINI_API_KEY", "MISTRAL_API_KEY")
-cargadas = [(nombre, os.environ.get(nombre, "")) for nombre in nombres]
-cargadas = [(nombre, clave) for nombre, clave in cargadas if clave]
-repetidas = [(a, b) for (a, ka), (b, kb) in combinations(cargadas, 2) if ka == kb]
-if repetidas:
-    for a, b in repetidas:
-        print(f"IGUALES: {a} y {b}; repite el paso 2, una clave cada vez")
-elif len(cargadas) < 2:
-    print("Hay menos de dos claves cargadas; no se pueden comparar")
-else:
-    print("Las claves cargadas son distintas: bien")
-PYTHON
-```
- Si cambias una clave con Terminal abierto, ejecuta antes
-`source ~/.zshrc`: la variable solo se lee al abrir Terminal.
-
-Comprueba además que cada proveedor acepta su clave. OpenAI y TypeSafe consultan
-modelos; OpenRouter consulta la información de la clave autenticada (su catálogo
-de modelos es público y no sirve para validar una clave). Ninguna consulta envía
-correos ni solicita inferencia.
-
-```bash
-# OpenAI (Decisions)
-curl -s -o /dev/null -w "%{http_code}\n" https://api.openai.com/v1/models -H "Authorization: Bearer $OPENAI_API_KEY"
-# TypeSafe (Jev)
-curl -s -o /dev/null -w "%{http_code}\n" https://api.typesafe.ai/v1/models -H "Authorization: Bearer $TYPESAFE_API_KEY"
-```
-
-Para **OpenRouter**, comprueba la clave sin mostrar su información:
-
-```bash
-curl -s -o /dev/null -w "%{http_code}\n" https://openrouter.ai/api/v1/key -H "Authorization: Bearer $OPENROUTER_API_KEY"
-```
-
-Para **Gemini** y **Mistral** (consultan la ficha del modelo o la lista de
-modelos; no envían correos ni piden inferencia):
-
-```bash
-# Gemini: la clave va en la cabecera x-goog-api-key, nunca en la URL
-curl -s -o /dev/null -w "%{http_code}\n" https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite -H "x-goog-api-key: $GEMINI_API_KEY"
-# Mistral
-curl -s -o /dev/null -w "%{http_code}\n" https://api.mistral.ai/v1/models -H "Authorization: Bearer $MISTRAL_API_KEY"
-```
-
-**Ojo con Gemini:** una clave inválida no da `401`, sino **`400`** (comprobado
-con una clave falsa el 2026-10-31). Si la consulta de arriba da `400`, la clave
-está mal guardada o no existe: repite el paso 2. Si da `403`, la clave existe pero
-su proyecto no tiene activada la API de Gemini. `404` significaría que el modelo ya
-no existe con ese nombre. En `evaluadores.py`, cualquiera de ellos aparece como
-`http_400`, `http_403` o `http_404` y el triaje sigue con el principal. En
-**Mistral**, una clave inválida responde `401` (comprobado con una clave falsa el
-2026-10-31).
-
-Cada una debe responder **`200`**. Un **`401`** significa clave ausente o no válida
-(lo documenta [TypeSafe](https://docs.typesafe.ai/api/errors.md); en OpenAI se
-comprobó en una prueba real, con `invalid_api_key`). Si sale `401` con una
-longitud de 128 exactos, la clave se guardó recortada: repite el paso 2. Con la
-clave correcta pero mal cargada, `jev.py`, `decisions.py` o `openrouter.py` responden
-`credencial_ausente_o_invalida`; con una clave que el proveedor rechaza, `http_401`.
-En ambos casos el triaje sigue con el principal.
-
-## Importante
-
-- **Abre Claude Code desde ese Terminal** (escribiendo `claude`) para que herede las
-  variables. Si lo abres desde el Dock o como app de escritorio, puede que no las
-  vea. No está comprobado cómo pasan el entorno la app de escritorio ni Cowork: si
-  `decisions.py`, `jev.py` o `openrouter.py` responden `credencial_ausente_o_invalida`, lo más
-  probable es que la causa sea esa.
-- **Nunca pegues una clave** en el chat, en `config-decisions.yaml`,
-  `config-jev.yaml`, `config-openrouter.yaml` ni en ningún archivo del repositorio. El plugin no la necesita
-  en ningún otro sitio.
-- **No combines las capas en una sesión:** Decisions, Jev, OpenRouter, los evaluadores
-  LLM y la delegación nativa son alternativas. Si tienes varias activas, el modelo te preguntará cuál usar.
-- **Pon un límite de gasto** en la web del proveedor si lo ofrece (en OpenAI:
-  platform.openai.com → **Limits**). Es la protección más sencilla si algo sale mal.
-- **Para borrar una clave más adelante:**
-
-  ```bash
-  security delete-generic-password -a "$USER" -s OPENAI_API_KEY      # OpenAI
-  security delete-generic-password -a "$USER" -s TYPESAFE_API_KEY    # TypeSafe
-  security delete-generic-password -a "$USER" -s OPENROUTER_API_KEY  # OpenRouter
-  security delete-generic-password -a "$USER" -s GEMINI_API_KEY      # Gemini
-  security delete-generic-password -a "$USER" -s MISTRAL_API_KEY     # Mistral
-  ```
-
-  y quita su línea del final de `~/.zshrc` (por ejemplo con `open -e ~/.zshrc`,
-  que lo abre en TextEdit).
+Mantén la clave fuera del chat, de los archivos de configuración y del
+repositorio. Para retirarla, revócala en la web del proveedor y borra su ítem
+en **Acceso a Llaveros**.
 
 ## Siguiente paso
 
@@ -284,8 +198,7 @@ tokens.
    necesita y está cerrado, la fila sale `fallo_red_o_timeout` y el resto del
    lote se detiene; no se envía nada a otro sitio.
 
-En la prueba ficticia de abajo, usa `PROVEEDOR = "apple"` y salta el paso 3
-(no hay clave que comprobar).
+En la prueba ficticia de abajo, selecciona `proveedor=apple`.
 
 ## Ollama (sin clave, sin salir del Mac)
 
@@ -314,31 +227,27 @@ tests, que no viajan con el plugin instalado.
    cd ~ && git clone https://github.com/novanoticia/email-triage-plugin.git
    ```
 
-2. **Ve a la carpeta y ponte en la versión que quieres probar.** Mientras los
-   evaluadores no estén fusionados, en la rama del PR #149; después, en `main`:
+2. **Entra en el repositorio.** En Terminal:
 
    ```bash
-   cd ~/email-triage-plugin && git fetch origin && git checkout codex/evaluadores-structured-outputs && git pull
+   cd ~/email-triage-plugin
    ```
 
-3. **Comprueba que la clave está cargada** (paso 4: debe salir un número mayor
-   que 0). Cambia `GEMINI_API_KEY` por `MISTRAL_API_KEY` u `OPENAI_API_KEY` si
-   pruebas otro proveedor:
+3. **Ejecuta la prueba.** Copia el bloque entero en la misma ventana donde
+   definiste `clave_email_triage`. Elige `gemini`, `mistral`, `openai`,
+   `apple` u `ollama` en la primera línea.
 
    ```bash
-   echo "${#GEMINI_API_KEY} caracteres"
-   ```
-
-4. **Ejecuta la prueba.** Copia el bloque entero, pégalo en Terminal y pulsa
-   Enter. Para otro proveedor, cambia `"gemini"` por `"mistral"`, `"openai"` o `"apple"` en
-   la línea `PROVEEDOR`:
-
-   ```bash
-   python3 - <<'PYTHON'
-   PROVEEDOR = "gemini"
+   proveedor=gemini
+   case "$proveedor" in
+     apple|ollama) ejecutar=(python3 -) ;;
+     *) ejecutar=(clave_email_triage ejecutar "$proveedor" python3 -) ;;
+   esac
+   "${ejecutar[@]}" "$proveedor" <<'PYTHON'
    import copy, json, os, subprocess, sys, tempfile
    from pathlib import Path
 
+   PROVEEDOR = sys.argv[1]
    sys.path.insert(0, "plugins/email-triage/skills/email-triage/scripts")
    from tests.test_jev import lote  # un correo ficticio; nunca uno real
 
@@ -368,7 +277,7 @@ tests, que no viajan con el plugin instalado.
    PYTHON
    ```
 
-5. **Lee el resultado.** Salen dos bloques, `comparar` e `hibrido`:
+4. **Lee el resultado.** Salen dos bloques, `comparar` e `hibrido`:
 
    | Motivo de la fila | Qué significa |
    |---|---|
@@ -376,8 +285,8 @@ tests, que no viajan con el plugin instalado.
    | `propuesta_validada` o `reevaluar_tier_o_umbral` (en `hibrido`) | Todo bien. Lo segundo solo dice que el principal tendría que revisar ese tier. |
    | `scoring_incompleto` (en `hibrido`) | Funciona: el modelo excluyó algún criterio no core con `__no_aplica__` que no se podía puntuar sin cambiar el resultado y, por seguridad, esa fila vuelve al principal. Desde v3.24.4 las exclusiones equivalentes a la opción a 0 puntos se puntúan así (`no_aplica_puntuado_como`) y ya no frenan. |
    | `evaluador_con_dudas` | Funciona, pero el modelo anotó dudas sobre el correo ficticio. No es un fallo del adaptador. |
-   | `credencial_ausente_o_invalida` (con `llamadas: 0`) | La clave no está cargada en esta Terminal: paso 4 de esta guía. |
-   | `http_400` | En Gemini, casi siempre clave inválida; si la clave da `200` en el paso 4, es que Google no acepta la forma de la petición. Guarda el resultado: hay que revisar el adaptador. |
+   | `credencial_ausente_o_invalida` (con `llamadas: 0`) | Revisa la clave del proveedor con el paso 3 de esta guía. |
+   | `http_400` | En Gemini, casi siempre clave inválida; si la clave da `200` en el paso 3, es que Google no acepta la forma de la petición. Guarda el resultado: hay que revisar el adaptador. |
    | `modelo_inesperado` | El proveedor respondió con otro nombre de modelo (por ejemplo, con un sufijo de versión). Guarda el resultado: hay que revisar el adaptador. |
    | `esquema_no_conforme`, `eco_distinto` u otro | La respuesta llegó, pero no pasó una validación. Guarda el resultado: hay que revisar el adaptador (la columna `detalle` no lleva contenido del correo). |
 

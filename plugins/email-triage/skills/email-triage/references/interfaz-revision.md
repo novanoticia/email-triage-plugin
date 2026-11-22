@@ -22,6 +22,11 @@ números no se reasignan aunque cambie un tier: toda respuesta de la persona, el
 (PASO 4.I) y el informe (PASO 5.R) se resuelven por esa tabla, nunca por la posición del
 correo en la carpeta.
 
+En Mail.app, cada `#N` corresponde a una sola instancia. Muestra cada
+mensaje con su propio número antes de confirmar el lote, aunque coincidan
+asunto y dominio. En Gmail, un número puede representar un hilo nativo
+con sus miembros incluidos en la propuesta.
+
 **Formato compacto (por defecto).** Una tabla por tier, en el orden 🔴 🟡 🔵 ⚪, con
 una línea por unidad:
 

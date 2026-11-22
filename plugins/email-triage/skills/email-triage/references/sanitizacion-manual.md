@@ -1,7 +1,19 @@
 # Especificación manual del pipeline de sanitización S0–S5
 
 > Extraído del SKILL.md en v3.4 para reducir su tamaño en contexto.
-> Leer bajo demanda con Desktop Commander.
+> Referencia de implementación para desarrollo. La lectura de un correo
+> real pasa por el lector del PASO 1. Estos pasos no son una vía de
+> captura manual dentro del contexto del agente.
+
+Ejemplo de diagnóstico offline con ficheros de prueba sintéticos:
+
+```bash
+# meta_N.json contiene {"asunto": "...", "remitente": "..."}.
+python3 "<ruta-del-skill>/scripts/triage_helpers.py" sanitizar \
+  --archivo ~/.email-triage/tmp/tbody_N.txt \
+  --metadatos ~/.email-triage/tmp/meta_N.json --borrar-origen \
+  --max-chars <valor de puntuacion.max_caracteres_cuerpo del config>
+```
 
 **Paso S0 — Detección de prompt injection**
 

@@ -4,6 +4,19 @@ Novedades de [Email Triage Plugin](README.md), una entrada por versión, de la m
 Para usar el plugin no hace falta leerlo entero; sí conviene mirar la entrada de la versión que instales,
 por si pide [actualizar tu config](README.md#actualizar-cuando-cambia-la-estructura-del-config).
 
+## Novedades en v3.28.8
+
+- **Mail.app.** La captura sanea el correo antes de entregarlo al agente.
+  Los movimientos se verifican por cuenta, instancia y buzón. Deshacer usa
+  el recibo del movimiento inverso. Las sesiones antiguas sin identidad
+  de la instancia se revisan manualmente.
+- **Gmail.** El triaje requiere un conector que sanee el correo antes de
+  entregarlo al agente.
+- **Estado y credenciales.** La instalación protege el perfil personal
+  antes de migrarlo. El estado temporal usa un directorio privado por
+  usuario y la guía de macOS guarda y valida las claves sin usar argumentos
+  de proceso para transportarlas.
+
 ## Novedades en v3.28.7
 
 - **Deshacer triaje**. La guía indica cómo pasar el resultado a `cerrar-deshacer`

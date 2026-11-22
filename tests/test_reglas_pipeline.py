@@ -185,7 +185,8 @@ class TestIdsInternosDeMail(unittest.TestCase):
                                     mids_reply_needed=[123])["ok"])
 
     def test_el_skill_lo_documenta(self):
-        self.assertIn("nunca el `id` numérico de Mail", _leer("SKILL.md"))
+        skill = " ".join(_leer("SKILL.md").split())
+        self.assertIn("con el Message-ID RFC, el `mail_id` interno y el `mail_account_id`", skill)
 
     def test_mids_legitimos_no_cambian(self):
         out = self._mover(mids_review=["CAF=1234@mail.gmail.com"])
@@ -322,10 +323,10 @@ class TestEsperaSinSleepEncadenado(unittest.TestCase):
                         malos.append("%s:%d" % (os.path.basename(f), n))
         self.assertEqual(malos, [])
 
-    def test_la_doctrina_lo_prohibe(self):
-        doc = _leer("references", "paso-1-doctrina-ejecucion.md")
-        self.assertIn("Nunca encadenes `sleep N; cat …`", doc)
-        self.assertIn("run_in_background", doc)
+    def test_la_doctrina_espera_al_proceso_antes_de_relanzar(self):
+        doc = " ".join(_leer("references", "paso-1-doctrina-ejecucion.md").split())
+        self.assertIn("espera el resultado del propio proceso", doc)
+        self.assertIn("comprueba el estado de ese proceso antes de relanzar", doc)
 
 
 

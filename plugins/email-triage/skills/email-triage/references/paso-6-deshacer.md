@@ -51,10 +51,12 @@ Se activa cuando el usuario dice "deshaz el triaje", "undo", "revierte los movim
    `status: pending` o `moved` (logs de versiones previas) que NO tenga un
    evento `move_failed` ni `undone` posterior con su `message_id` (ni figure
    en los `fallidos` de su `move_batch_done`, desde v3.21.4), mover el
-   correo de `to_folder` de vuelta a `from_folder` usando el patrón de
-   referencias seguro del PASO 1. Si el correo no está en `to_folder` (el
-   move original falló sin registrarse, o alguien lo movió a mano), el
-   `move` fallará limpiamente y cae en el punto 5.
+   correo de `to_folder` de vuelta a `from_folder`. En Mail.app usa
+   `montar-mover` con esos buzones invertidos, la pareja
+   `message_id`/`mail_id` y `mail_account_id` del diario. Registra en
+   `revertidos` solo los recibos con estado `confirmado`. Si falta la
+   identidad (diario antiguo) o el resultado es incierto, presenta el
+   mensaje para revisión manual en Mail.app.
 
 5. **Resultado parcial**: si algún correo no puede revertirse (ya fue movido
    a otra carpeta manualmente, eliminado, etc.), informar cuáles fallaron.
@@ -72,6 +74,9 @@ Se activa cuando el usuario dice "deshaz el triaje", "undo", "revierte los movim
    python3 "<ruta-del-skill>/scripts/triage_helpers.py" cerrar-deshacer \
      < "$HOME/.email-triage/tmp/<fichero-del-resultado>.json"
    ```
+
+   Para Mail.app, añade `recibos_mail` con los objetos JSON del movimiento
+   inverso. El cierre coteja cuenta, instancia y buzones invertidos.
 
    Añade `"incluir_sin_cerrar": true` solo si el punto 2 lo usó. El script
    comprueba que cada correo es de esa sesión y deshacible; si uno no lo es

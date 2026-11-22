@@ -25,12 +25,10 @@ To triage your mail, the plugin may read, for the messages it processes:
 
 ## Where the data goes
 
-- **Your email provider.** Mail is read and moved through the mail access you
-  have already set up: Mail.app on macOS (via AppleScript, locally on your
-  Mac) or an email connector you choose, such as a Gmail connector. When you
-  use a connector, data passes through it under that provider's own privacy
-  policy. The plugin does not bundle or choose that service; its `.mcp.json`
-  declares no servers.
+- **Your email provider.** Mail.app access uses AppleScript locally on macOS.
+  Other providers require a connector that sanitizes mail before delivering
+  it to the assistant. Data passing through that connector is subject to
+  the provider's privacy policy. The plugin's `.mcp.json` declares no servers.
 - **Proveedor de IA del cliente.** Para evaluar cada mensaje, el modelo del
   cliente recibe metadatos y texto sanitizados como parte de la conversación.
   En Claude Code/Cowork es la conexión de Claude que ya utiliza el usuario; en
@@ -45,7 +43,8 @@ To triage your mail, the plugin may read, for the messages it processes:
 If logging is enabled, the plugin writes files under `~/.email-triage/` (or
 under the folder set in `EMAIL_TRIAGE_HOME`). These can contain message
 metadata, scores, explanations, chosen destinations and your corrections.
-Temporary raw message bodies are deleted after they are read.
+The Mail.app reader processes raw message bodies in memory before emitting
+sanitized results.
 
 These files never leave your computer through the plugin. You can view, edit
 or delete them at any time, for example by removing the `~/.email-triage/`

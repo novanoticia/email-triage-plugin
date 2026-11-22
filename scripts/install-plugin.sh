@@ -7,14 +7,15 @@ set -euo pipefail
 #
 # Flujo:
 #   1. Verifica dependencias (git, python3).
-#   2. Clona (o actualiza con fetch + reset) el marketplace en la
+#   2. Protege ~/.email-triage/ y rescata la configuración antigua si procede.
+#   3. Clona (o actualiza con fetch + reset) el marketplace en la
 #      ruta correcta que Claude Code/Cowork esperan:
 #        ~/.claude/plugins/marketplaces/email-triage-plugin/
-#   3. Lee la versión dinámicamente desde plugin.json.
-#   4. Ejecuta fix-cowork-version.sh para sincronizar el plugin
+#   4. Lee la versión dinámicamente desde plugin.json.
+#   5. Ejecuta fix-cowork-version.sh para sincronizar el plugin
 #      con la caché de Claude Code y con el rpm de Cowork.
-#   5. Crea ~/.email-triage/ para logs de sesión y telemetría.
-#   6. Imprime instrucciones claras de siguiente paso.
+#   6. Crea la configuración personal desde la plantilla si hace falta.
+#   7. Imprime instrucciones claras de siguiente paso.
 # ═══════════════════════════════════════════════════════════════
 
 PLUGIN_NAME="email-triage"
@@ -22,6 +23,8 @@ GITHUB_REPO="novanoticia/email-triage-plugin"
 BRANCH="main"
 MARKETPLACE_DIR="$HOME/.claude/plugins/marketplaces/email-triage-plugin"
 TELEMETRY_DIR="$HOME/.email-triage"
+USER_CONFIG="$TELEMETRY_DIR/config.yaml"
+REPO_CONFIG="plugins/$PLUGIN_NAME/skills/$PLUGIN_NAME/config.yaml"
 
 # Flag opt-in (issue #4): --cowork reenvía a fix-cowork-version.sh el
 # parcheo del rpm efímero de Cowork. Por defecto NO se toca el rpm: en
@@ -51,7 +54,90 @@ if [ ${#missing_deps[@]} -gt 0 ]; then
   exit 1
 fi
 
-# ── 2. Clonar o actualizar el repo ─────────────────────────────
+# ── Preparar el estado privado antes de migrar o actualizar el repo ──
+# Este instalador también se distribuye como un único archivo descargable.
+preparar_config_personal() {
+  python3 -I - "$TELEMETRY_DIR" "$@" <<'PYTHON'
+import os
+import secrets
+import shutil
+import stat
+import subprocess
+import sys
+
+
+def existe_config(directorio):
+    try:
+        datos = os.stat("config.yaml", dir_fd=directorio, follow_symlinks=False)
+    except FileNotFoundError:
+        return False
+    if not stat.S_ISREG(datos.st_mode) or datos.st_uid != os.geteuid():
+        raise OSError("config.yaml debe ser un archivo regular de tu propiedad")
+    return True
+
+
+def preparar(ruta, origen=None):
+    os.umask(0o077)
+    try:
+        os.mkdir(ruta, 0o700)
+    except FileExistsError:
+        pass
+
+    # Fijar el directorio por descriptor mantiene las escrituras dentro
+    # del mismo directorio que acabamos de comprobar.
+    directorio = os.open(ruta, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        if os.fstat(directorio).st_uid != os.geteuid():
+            raise OSError("el directorio debe ser de tu propiedad")
+        if sys.platform == "darwin":
+            # Una ACL de macOS puede dar acceso pese a los permisos 0700.
+            subprocess.run(
+                ["/bin/chmod", "-N", f"/dev/fd/{directorio}"],
+                pass_fds=(directorio,), check=True,
+            )
+        if stat.S_IMODE(os.fstat(directorio).st_mode) != 0o700:
+            os.fchmod(directorio, 0o700)
+        if stat.S_IMODE(os.fstat(directorio).st_mode) != 0o700:
+            raise OSError("no se pudieron verificar los permisos 0700")
+        if existe_config(directorio):
+            return "existente"
+        if origen is None:
+            return "ausente"
+
+        with open(origen, "rb") as entrada:
+            temporal = f".config-{secrets.token_hex(8)}.tmp"
+            salida = os.open(temporal, os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                             0o600, dir_fd=directorio)
+            try:
+                with os.fdopen(salida, "wb") as copia:
+                    shutil.copyfileobj(entrada, copia)
+                # Publicar el archivo completo sin sustituir una configuración
+                # que otra ejecución haya creado entretanto.
+                try:
+                    os.link(temporal, "config.yaml", src_dir_fd=directorio,
+                            dst_dir_fd=directorio, follow_symlinks=False)
+                except FileExistsError:
+                    if existe_config(directorio):
+                        return "existente"
+                    raise
+            finally:
+                os.unlink(temporal, dir_fd=directorio)
+        return "creado"
+    finally:
+        os.close(directorio)
+
+
+try:
+    print(preparar(*sys.argv[1:]))
+except (OSError, subprocess.CalledProcessError) as error:
+    sys.exit(f"❌ No se pudo preparar el estado privado en {sys.argv[1]}: {error}")
+PYTHON
+}
+
+ESTADO_CONFIG=$(preparar_config_personal)
+echo "🔒 Estado privado verificado: $TELEMETRY_DIR (permisos 700)"
+
+# ── Clonar o actualizar el repo ───────────────────────────────
 mkdir -p "$(dirname "$MARKETPLACE_DIR")"
 
 if [ -d "$MARKETPLACE_DIR/.git" ]; then
@@ -62,15 +148,19 @@ if [ -d "$MARKETPLACE_DIR/.git" ]; then
   # de abajo lo destruiría sin aviso. Si todavía no existe el config
   # personal de v3.4+ y el del repo difiere de su plantilla original
   # (HEAD local), rescatarlo ANTES de tocar nada.
-  RESCATE_USER_CONFIG="$TELEMETRY_DIR/config.yaml"
-  RESCATE_REPO_CONFIG="plugins/$PLUGIN_NAME/skills/$PLUGIN_NAME/config.yaml"
-  if [ ! -f "$RESCATE_USER_CONFIG" ] && [ -f "$MARKETPLACE_DIR/$RESCATE_REPO_CONFIG" ]; then
-    if ! git -C "$MARKETPLACE_DIR" diff HEAD --quiet -- "$RESCATE_REPO_CONFIG" 2>/dev/null; then
-      mkdir -p "$TELEMETRY_DIR"
-      cp "$MARKETPLACE_DIR/$RESCATE_REPO_CONFIG" "$RESCATE_USER_CONFIG"
-      echo "🛟 Config personalizado detectado en el repo (formato v3.3)."
-      echo "   Rescatado a: $RESCATE_USER_CONFIG"
-      echo "   (sobrevivirá a esta y a todas las actualizaciones futuras)"
+  if [ "$ESTADO_CONFIG" = "ausente" ] && [ -f "$MARKETPLACE_DIR/$REPO_CONFIG" ]; then
+    if git -C "$MARKETPLACE_DIR" diff HEAD --quiet -- "$REPO_CONFIG"; then
+      :
+    else
+      if [ "$?" -ne 1 ]; then
+        echo "❌ No se pudo comprobar si el config del repo está personalizado." >&2
+        exit 1
+      fi
+      ESTADO_CONFIG=$(preparar_config_personal "$MARKETPLACE_DIR/$REPO_CONFIG")
+      if [ "$ESTADO_CONFIG" = "creado" ]; then
+        echo "🛟 Config personalizado detectado en el repo (formato v3.3)."
+        echo "   Rescatado a: $USER_CONFIG"
+      fi
     fi
   fi
 
@@ -93,7 +183,7 @@ else
   echo "✅ Repo clonado"
 fi
 
-# ── 3. Leer versión dinámicamente desde plugin.json ────────────
+# ── Leer versión dinámicamente desde plugin.json ──────────────
 PLUGIN_JSON="$MARKETPLACE_DIR/plugins/$PLUGIN_NAME/.claude-plugin/plugin.json"
 if [ ! -f "$PLUGIN_JSON" ]; then
   echo "❌ No se encuentra $PLUGIN_JSON"
@@ -108,7 +198,7 @@ if [ -z "$VERSION" ]; then
 fi
 echo "📋 Versión detectada: v$VERSION"
 
-# ── 4. Sincronizar caché de Claude Code (rpm de Cowork solo con --cowork) ──
+# ── Sincronizar caché de Claude Code (rpm de Cowork solo con --cowork) ──
 FIX_SCRIPT="$MARKETPLACE_DIR/fix-cowork-version.sh"
 if [ -f "$FIX_SCRIPT" ]; then
   echo ""
@@ -124,45 +214,27 @@ else
   echo "⚠️  fix-cowork-version.sh no encontrado — omitiendo sync"
 fi
 
-# ── 5. Crear directorio de telemetría/sesión ───────────────────
-# Contiene metadatos de correo (asuntos, remitentes) en JSONL con retención
-# indefinida, así que se fija a 700: solo el dueño puede leerlo. Se aplica
-# SIEMPRE (mkdir + chmod), también sobre directorios preexistentes creados
-# por versiones anteriores sin permisos restrictivos.
-if [ ! -d "$TELEMETRY_DIR" ]; then
-  # 700 desde el propio mkdir: cierra la ventana entre crear y chmod en la
-  # que el directorio quedaría con los permisos del umask (world-readable).
-  mkdir -p -m 700 "$TELEMETRY_DIR"
-  echo "📂 Creado: $TELEMETRY_DIR (para session logs y telemetría)"
-fi
-chmod 700 "$TELEMETRY_DIR" 2>/dev/null \
-  && echo "🔒 Permisos de $TELEMETRY_DIR fijados a 700 (solo el dueño)" \
-  || echo "⚠️  No se pudieron fijar permisos 700 en $TELEMETRY_DIR (revísalo a mano)"
-
-# ── 5b. Config personal persistente (NUEVO en v3.4) ────────────
+# ── Config personal persistente (desde v3.4) ──────────────────
 # El config del usuario vive FUERA del repo para sobrevivir a
 # `git reset --hard` en actualizaciones y no acabar en git.
-USER_CONFIG="$TELEMETRY_DIR/config.yaml"
-TEMPLATE_CONFIG="$MARKETPLACE_DIR/plugins/$PLUGIN_NAME/skills/$PLUGIN_NAME/config.yaml"
-if [ -f "$USER_CONFIG" ]; then
+ESTADO_CONFIG=$(preparar_config_personal "$MARKETPLACE_DIR/$REPO_CONFIG")
+if [ "$ESTADO_CONFIG" = "existente" ]; then
   echo "🔒 Config personal preservado: $USER_CONFIG (no se ha tocado)"
 else
-  cp "$TEMPLATE_CONFIG" "$USER_CONFIG"
   echo "📝 Creado config personal desde plantilla: $USER_CONFIG"
 fi
 
 # ── 5c. Verificación de integridad de la instalación (issue #12) ──
-# La vía canónica del PASO 1 (references/mail-consolidado.applescript) da la
-# sanitización determinista de un solo round-trip. Si falta, el SKILL degrada
-# en SILENCIO al fallback manual S0–S5. Aquí avisamos si el árbol quedó
-# incompleto — sin abortar: una instalación sana no añade ruido.
+# Comprueba también los dos archivos necesarios para que la captura pueda
+# sanear el correo antes de entregarlo al agente.
 SKILL_DIR="$MARKETPLACE_DIR/plugins/$PLUGIN_NAME/skills/$PLUGIN_NAME"
 ESPERADOS=(
   "SKILL.md"
   "config.yaml"
   "config-veloz.yaml"
   "scripts/triage_helpers.py"
-  "references/mail-consolidado.applescript"
+  "scripts/leer_mailapp.py"
+  "scripts/leer_mailapp.applescript"
 )
 # CM2 (auditoría 2026-08-07): el resto de referencias NO se enumera a mano. La
 # divulgación progresiva mueve pasos enteros a references/ (1.C hilos, 2
@@ -186,8 +258,8 @@ if [ ${#faltan[@]} -gt 0 ]; then
   for rel in "${faltan[@]}"; do
     echo "     - $rel"
   done
-  echo "   El plugin puede caer al fallback manual (S0–S5 por el modelo) en vez"
-  echo "   de la vía canónica del PASO 1. Reinstala para restaurarlos:"
+  echo "   La captura de correo requiere el lector y el saneador completos."
+  echo "   Reinstala para restaurarlos:"
   echo "     bash scripts/install-plugin.sh"
 else
   echo "🔎 Integridad del skill verificada (${#ESPERADOS[@]}/${#ESPERADOS[@]} ficheros)"

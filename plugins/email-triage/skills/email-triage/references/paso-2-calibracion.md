@@ -11,7 +11,8 @@ descripción conceptual: es un análisis cuantitativo que produce datos usables.
 
 1. Accede a `carpetas.historial` (por defecto "Conservar").
 
-2. Lee los últimos 100 correos con asunto, remitente y fecha.
+2. Lee los últimos 100 correos con la operación de metadatos saneados del
+   PASO 1. Conserva asunto, remitente y fecha para la calibración.
 
 3. **Extrae las métricas exactas CON EL SCRIPT** (CM2/F11): la aritmética
    de conteos ya no se hace mentalmente — mismo lote, mismo perfil,
