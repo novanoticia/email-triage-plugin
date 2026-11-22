@@ -44,7 +44,7 @@ class TestVersion(unittest.TestCase):
 class TestChangelog(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.readme = leer("README.md")
+        cls.readme = leer("CHANGELOG.md")  # desde v3.28.6 el changelog sale del README
         cls.sec = seccion_novedades(cls.readme, VERSION)
 
     def test_la_seccion_historica_existe_y_la_actual_es_la_primera(self):
