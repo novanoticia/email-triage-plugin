@@ -98,7 +98,7 @@ python3 scripts/i18n_extraer.py generar    # regenera i18n/es.yaml desde el orig
 Los gates de CI (`.github/workflows/tests.yml`) deben quedar en verde:
 tests, integridad de `config.yaml` (30 criterios exactos, cero claves booleanas
 — gotcha YAML 1.1: `"si":` y `"no":` siempre entre comillas), coherencia de
-versiones en los 9 sitios, unicidad de scripts, changelog del README en
+versiones en los 9 sitios, unicidad de scripts, `CHANGELOG.md` en
 sincronía con la versión (la sección `## Novedades en vX.Y.Z` de la versión
 actual debe existir y ser la primera), un fuzz de totalidad que exige que los
 puntos de entrada (`scoring`/`montar-mover`/`sanitizar`/`calibrar`) nunca

@@ -116,7 +116,7 @@ print(f"✅ Coherencia OK: semver v{new} (7 sitios) · major.minor v{mm} (H1 + c
 PY
 
 echo ""
-echo "Siguiente: revisa 'git diff', añade la entrada de changelog en README.md"
+echo "Siguiente: revisa 'git diff', añade la entrada de changelog en CHANGELOG.md"
 echo "y corre los tests antes de commit/tag."
 echo ""
 echo "📢 Para PUBLICAR el release v$NEW: en GitHub → pestaña 'Actions' → 'release'"

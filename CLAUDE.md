@@ -136,9 +136,10 @@ python3 scripts/i18n_validar.py
    `major.minor` de `config.yaml` y el **H1 del `SKILL.md`** deben coincidir.
 4. **Unicidad de scripts** — `triage_helpers.py`/`test_triage_helpers.py` en una
    sola ruta canónica; sin árbol paralelo.
-5. **Changelog del README** — si `plugin.json` dice vX.Y.Z, el README debe tener
+5. **Changelog** — si `plugin.json` dice vX.Y.Z, `CHANGELOG.md` debe tener
    la sección `## Novedades en vX.Y.Z` y debe ser la primera: el bump mecaniza
-   el H1, esto mecaniza el recordatorio de escribir la entrada.
+   el H1, esto mecaniza el recordatorio de escribir la entrada. (Hasta v3.28.6
+   el changelog vivía dentro del `README.md`.)
 6. **Fuzz de totalidad** — un mutador de semilla rotativa comprueba que
    `cmd_scoring_dispatch`, `cmd_montar_mover` y `cmd_sanitizar` nunca lanzan y
    siempre devuelven un dict serializable, para CUALQUIER entrada. Convierte
@@ -162,7 +163,7 @@ derivó en el pasado. Usa siempre:
 ```
 
 Actualiza los 9 sitios de una pasada y valida con el mismo criterio del CI.
-Luego añade la entrada de changelog en `README.md` a mano y corre los tests.
+Luego añade la entrada de changelog en `CHANGELOG.md` a mano y corre los tests.
 
 Ojo con uno: el semver del `SKILL.md` está en **`metadata.version`**, indentado.
 El `sed` del bump se acota al bloque de frontmatter para no pisar otro
@@ -547,7 +548,7 @@ validan mecanismos, no la calidad de los modelos ni compatibilidad real del host
 ## Cómo cortar un release (checklist)
 
 1. `./scripts/bump-version.sh X.Y.Z`
-2. Añade `## Novedades en vX.Y.Z` al principio del changelog de `README.md`.
+2. Añade `## Novedades en vX.Y.Z` al principio de `CHANGELOG.md`.
 3. Corre los tests y, si tocaste versiones, revisa `git diff`.
 4. Commit + push + PR; espera los gates en verde antes de mergear.
 

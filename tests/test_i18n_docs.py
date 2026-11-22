@@ -52,7 +52,7 @@ class TestAclaracionS0(unittest.TestCase):
     def test_el_changelog_no_se_adelanta_a_la_version(self):
         # Task 12 sube la versión y añade «## Novedades en v3.14.0»; hasta entonces
         # la primera sección de novedades debe seguir siendo la de la versión vigente.
-        m = re.search(r"(?m)^## Novedades en v([0-9.]+)", leer("README.md"))
+        m = re.search(r"(?m)^## Novedades en v([0-9.]+)", leer("CHANGELOG.md"))
         self.assertIsNotNone(m)
 
 
@@ -66,9 +66,12 @@ class TestReadme(unittest.TestCase):
                   "generada por una IA"):
             self.assertIn(s, self.t)
 
-    def test_la_seccion_va_antes_del_changelog(self):
+    def test_el_changelog_vive_fuera_y_el_readme_lo_enlaza(self):
+        # Desde v3.28.6 el historial está en CHANGELOG.md: el README no lo
+        # duplica (la sección de idioma ya no puede quedar enterrada tras él).
         r = leer("README.md")
-        self.assertLess(r.index("## Language / Langue"), r.index("## Novedades en v"))
+        self.assertNotRegex(r, r"(?m)^## Novedades en v")
+        self.assertIn("](CHANGELOG.md)", r)
 
     def test_declara_lo_que_no_se_traduce_y_el_texto_libre(self):
         for s in ("texto libre", "no está revisado", "tiers"):

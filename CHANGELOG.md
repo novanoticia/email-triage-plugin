@@ -1,0 +1,2016 @@
+# Historial de cambios
+
+Novedades de [Email Triage Plugin](README.md), una entrada por versión, de la más reciente a la más antigua.
+Para usar el plugin no hace falta leerlo entero; sí conviene mirar la entrada de la versión que instales,
+por si pide [actualizar tu config](README.md#actualizar-cuando-cambia-la-estructura-del-config).
+
+## Novedades en v3.28.6
+
+Solo documentación; el comportamiento del plugin no cambia.
+
+- **README reorganizado para usarlo**: arriba van qué hace (tabla de destinos), un inicio rápido en 7 pasos y una tabla de uso diario; después requisitos, instalación, configuración y problemas frecuentes; el historial de cambios pasa al final, sin tocar.
+- **Correcciones**: la lista de modos de interacción no incluía el modo por defecto, `por_tier`; el modo veloz decía «12 core» y son 13.
+- **README del plugin**: añade «Primeros pasos» y describe PyYAML como necesario para mover correos (desde v3.21.12), no como opcional.
+
+## Novedades en v3.28.5
+
+- **`compactar --dias` ya no se rompe con un número enorme.** Con un valor
+  como `1000000000`, la fecha de corte no cabe en el calendario y el comando
+  terminaba con un error de Python y sin respuesta JSON. Ahora entiende lo
+  obvio: si el corte queda antes de cualquier fecha posible, nada es antiguo
+  y se conserva todo. Lo encontró el revisor de Mistral en la primera pasada
+  de su evaluación con casos reales.
+
+## Novedades en v3.28.4
+
+- **Los modelos nativos ya no pierden un lote entero por una evidencia.** En
+  una prueba real, Haiku dejó sin evidencia el mismo criterio en los 7 correos
+  de un lote, y los 7 se descartaron. El contrato del evaluador dice ahora que
+  cada veredicto lleva la suya y que lo compruebe antes de entregar. Cuando
+  falta alguna, el script dice qué criterio fue.
+- **Por qué OpenAI perdía un tercio de los correos.** 31 de 84 filas salían
+  con «criterio core omitido», pero el esquema de OpenAI no permite excluir
+  un criterio core. Lo que pasaba era otra cosa: el modelo excluía un criterio
+  no core y dejaba vacía la razón. La instrucción de ese campo decía «vacía si
+  hay veredicto», y excluir también es un veredicto. Ahora dice cuándo la razón
+  es obligatoria, y el script indica qué criterio falló. Es una hipótesis
+  sacada del código: falta confirmarla con una pasada real.
+- **Un script prepara el mensaje para Haiku.** Hasta ahora la sesión montaba
+  el mensaje con un script improvisado y lo volvía a teclear a mano: así entró
+  una coma en un correo y un final recompuesto en otro. `modelos.py preparar`
+  monta el mensaje, el lote y sus comprobaciones a partir de los mismos textos
+  saneados, y deja en el principal los correos que no se pueden delegar. Copiar
+  el mensaje en la llamada al evaluador sigue siendo a mano, porque el
+  evaluador no tiene herramientas; si cambia algo, la comprobación con el
+  transcript lo detecta, como antes.
+
+## Novedades en v3.28.3
+
+- **Sesiones de hasta 2000 correos con un evaluador externo.** La regla de
+  tandas de la v3.28.2 se quedó en 500 correos por sesión porque el informe
+  final no aceptaba más y porque, por encima de 500, el freno que detecta
+  veredictos asignados en serie (`plantilla_cercana`) dejaba de medir: buscaba
+  correos parecidos comparándolos todos con todos, y con 2000 tardaba 16
+  segundos en cada paso. Ahora solo compara los que pueden parecerse, con el
+  mismo resultado exacto (fijado por un test contra el método anterior): con
+  2000 correos ficticios, cada paso tarda menos de medio segundo y el freno
+  los mide todos. El informe acepta 2000 correos y la regla de tandas sube a
+  2000.
+- **Pausa para confirmar el gasto.** Si una sesión necesita más de dos
+  ejecuciones del evaluador, después de la primera se te dice cuánto ha costado
+  y cuánto costarían todas a ese ritmo, y no se sigue hasta que lo confirmas.
+- **Qué no cambia.** Cada ejecución sigue admitiendo como mucho 50 correos y
+  su `max_llamadas`, y la regla sigue siendo una instrucción para el modelo,
+  no un freno del script.
+
+## Novedades en v3.28.2
+
+- **Una sola regla para pasar del tope de llamadas.** Cada evaluador externo
+  (Jev, Decisions, OpenRouter, Ollama y los evaluadores LLM) tiene un tope de
+  llamadas por ejecución. Hasta ahora la regla para cubrir más correos que ese
+  tope estaba escrita solo para los evaluadores LLM, y en una prueba real el
+  mismo tope se aplicó de dos formas: Decisions se partió en dos tandas y
+  Gemini no. Ahora la regla es común y está en `SKILL.md`: solo si pides más
+  correos de los que caben en una ejecución («sobre 100»; cada una admite como
+  mucho 50), se lanzan más, cada una con los correos que faltan y con el mismo
+  evaluador y modelo, hasta 500 correos por sesión entre todas y sin reenviar
+  ninguno (500 es lo máximo que acepta el informe final de una sesión). Si una
+  falla o el proveedor se detiene, no se lanzan más. Sin un número, una sola
+  ejecución, diciendo cuántos quedan fuera. Es una regla para el modelo, no un
+  freno del script.
+- **Cada veredicto sale de leer el correo en la sesión.** En una prueba real,
+  para comparar con Gemini, la sesión reutilizó los veredictos de una
+  simulación anterior sin releer los textos y generó otros con un script propio
+  por categoría. Ahora `SKILL.md` lo prohíbe en real y en rutina. Solo en
+  simulación, para comparar proveedores sobre los mismos correos, se pueden
+  reutilizar los de una simulación anterior, y el informe tiene que decirlo y
+  con cuántos. Es una regla para el modelo; el freno mecánico contra veredictos
+  en serie sigue siendo la detección de plantillas.
+- **Saber por qué una palabra clave no puntúa.** Las palabras clave casan por
+  palabra completa, así que una raíz como «cognitiv» no casa nunca con
+  «cognitiva». Ahora el cálculo de filtros devuelve qué palabras clave no han
+  casado con ningún correo, cuáles aparecen solo como comienzo de una palabra
+  más larga (escríbelas enteras) y cuántos correos llegaron sin cuerpo, porque
+  en esos una palabra del cuerpo no puede casar. Solo devuelve palabras de tu
+  configuración y recuentos, nunca texto de los correos.
+
+## Novedades en v3.28.1
+
+- **Menos respuestas descartadas cuando el boletín se recorta.** Para
+  comprobar que un evaluador externo leyó el correo, el plugin le pide que copie
+  el principio y el final del texto que recibió (el «eco»). Cuando el texto
+  llega recortado y termina en «[truncado]», Gemini copia a veces solo las dos
+  últimas palabras y la marca («área d [truncado]»), y esa respuesta se
+  descartaba. Ahora vale: nadie que no haya recibido el texto sabe dónde cae el
+  corte. Con una sola palabra y la marca sigue sin valer. En la medición del
+  banco de boletines largos, esto recupera una de las dos respuestas
+  descartadas.
+- **Las instrucciones del skill ocupan menos.** El bloque de ajustes aprendidos
+  de correcciones anteriores pasa de `SKILL.md` a
+  `references/ajustes-aprendidos.md`, y `SKILL.md` deja un aviso de cuándo
+  leerlo: solo hace falta si hay correcciones. `SKILL.md` se carga entero en
+  cada sesión y estaba a 5 bytes de su límite; ahora le sobran unos 2,8 KB. El
+  comportamiento no cambia.
+
+## Novedades en v3.28.0
+
+- **Autores que lees sin prisa: `filtros.remitentes_lectura`.** En las pruebas
+  reales, los ensayos de autores que sigues no caían en un sitio estable: el
+  modelo principal los subía a `REVIEW`, junto a lo urgente, y los evaluadores
+  externos los bajaban a `ARCHIVE`. Con correos inventados pasa lo mismo: seis
+  ensayos parecidos quedaron entre −9 y +5 puntos, cuando la banda de
+  `READING_LATER` va de 0 a 3. Ahora puedes poner a esos autores en la lista
+  nueva (su dirección o su dominio, como en `remitentes_prioritarios`), y sus
+  correos saldrán siempre en `READING_LATER`, ni más arriba ni más abajo.
+  El score sigue igual; el script anota el cambio en `lectura_aplicada`. Solo
+  un plazo explícito o una petición de respuesta forzada los dejan subir, y la
+  protección ante inyecciones sigue mandando. Si un remitente está también en
+  `remitentes_prioritarios`, manda la lista nueva y no recibe el +3.
+  `validar-config` avisa si pones un dominio compartido como `@substack.com` o
+  `@gmail.com`, o si una entrada coincide con prioritarios o ignorados. La
+  lista viene vacía: si no la rellenas, nada cambia.
+
+## Novedades en v3.27.7
+
+- **El ensayo P3 ya no se puede saltar en silencio.** Con
+  `scoring.ensayo_p3: true` en tu config, `scoring` se niega a puntuar si la
+  llamada no trae `--config-ensayo` con una capa que exista, y dice cómo
+  arreglarlo. Antes puntuaba con los criterios de siempre sin avisar: en una
+  prueba real, un lote de 50 correos se quedó sin el ensayo y las
+  comparaciones con otros modelos mezclaron veredictos con y sin él. Si no
+  usas el ensayo, nada cambia.
+
+## Novedades en v3.27.6
+
+Dos cambios medidos con el banco de 120 correos inventados:
+
+- **El eco acepta un final corto si es exacto.** Con los evaluadores externos,
+  el `fin` del eco también vale si sus tres últimas palabras son exactamente
+  las tres últimas del texto. Gemini copiaba solo el final de la frase y se
+  perdía un 7 % de las filas. Dos palabras no bastan y el `inicio` sigue
+  exigiendo 4 de 6 (decisión del mantenedor).
+- **`ruido_social` ya no castiga lo «burocrático».** La pregunta queda en
+  «¿Es señal real o ritual social (cortesía, saludo, felicitación)?». Los
+  boletines y las normativas ya los penalizan `evidencia_filtrada` y la regla
+  de remitente masivo. Si tu `~/.email-triage/config.yaml` es una copia
+  antigua de la plantilla, cambia esa línea a mano para tener el efecto en tu
+  triaje. [Auditoría](docs/auditoria-reading-later.md).
+
+## Novedades en v3.27.5
+
+La instrucción contrafáctica de los evaluadores externos (v3.27.4) ya no trata
+como confirmación un aviso de cambio o de acceso a tus cuentas («tu contraseña
+se ha cambiado; si no fuiste tú…»): si pudo no ser la persona, el aviso sí
+cambia algo. En las mediciones 18 a 21, Gemini mandaba ese aviso a
+`ARCHIVE` o `READING_LATER` en 4 de cada 5 pasadas. No cambian los pesos, los
+umbrales ni el triaje sin evaluador externo.
+[Mediciones](docs/mediciones-evaluadores.md).
+
+## Novedades en v3.27.4
+
+El prompt de los evaluadores externos (`hibrido` y `comparar` con Gemini,
+OpenAI y el resto) recuerda la pregunta contrafáctica: confirmar algo que la
+persona ya esperaba no cambia nada, y un dato nuevo que obligue o permita actuar
+de otra forma, sí. En las mediciones 15 y 16, Gemini mandaba a `REVIEW` avisos
+de una línea («tu reserva está confirmada»), y dos de ellos salían como
+propuesta validada. No cambian los pesos, los umbrales ni el triaje sin
+evaluador externo. [Mediciones](docs/mediciones-evaluadores.md).
+
+## Novedades en v3.27.3
+
+La comprobación del `eco` mira ahora solo el principio y el final de lo que
+devuelve el modelo, sin límite de longitud. Gemini no cuenta palabras: al
+pedirle ocho, unas veces daba 3 y otras 14, y los ecos largos con los extremos
+correctos volvían al principal sin motivo. Sigue exigiendo 4 de las 6 palabras
+de referencia en orden, y un eco cortado o con texto ajeno sigue fallando.
+[Mediciones](docs/mediciones-evaluadores.md).
+
+## Novedades en v3.27.2
+
+Evaluadores LLM: el `eco` pide ahora **ocho** palabras por extremo en vez de
+seis, con una instrucción más corta. Con seis, Gemini devolvía 2-3 en el final
+y en un correo llegó a copiar la propia instrucción dentro del eco (8 de 40
+filas volvían al principal por eso). La comprobación del eco sigue pidiendo 4
+de las 6 palabras de referencia, en orden; solo admite ahora esas 2 palabras de
+más aunque sean fechas u horas.
+[Mediciones](docs/mediciones-evaluadores.md).
+
+## Novedades en v3.27.1
+
+Evaluadores LLM: el `eco` pide ahora que su `fin` termine en la última palabra
+del texto. En la última medición con Gemini (34 de 40), los 6 correos que
+volvían al principal por `eco_distinto` tenían el principio bien y el final
+cortado unas palabras antes. La comprobación del eco no cambia.
+[Mediciones](docs/mediciones-evaluadores.md).
+
+## Novedades en v3.27.0
+
+Cuarta opción de decisión, junto a Jev, OpenAI Decisions y OpenRouter: los
+**modelos de decisión de Ollama** (`d1` y `tev1:4b`) en tu propio Mac, sin clave
+y sin que el correo salga de él. Mismo contrato que Jev, mismos frenos.
+Aviso honesto: en una sonda con 12 correos inventados ninguna fila pasó el freno
+de confianza del modo `hibrido`, así que hoy sirve para **comparar** con el
+principal en local y sin coste, no para delegar el triaje. Desactivado por
+defecto. [Configuración](docs/modelos-locales-macos.md).
+
+## Novedades en v3.26.2
+
+Evaluador local `ollama`: cada respuesta tiene ahora un tope de 3.450 tokens, el
+mismo margen que reserva la comprobación de contexto. En una medición real, sin
+tope, un correo generó durante más de 5 minutos, detuvo el lote y dejó a Ollama
+ocupado con la respuesta abandonada, así que la ejecución siguiente falló desde
+el primer correo. Con el tope, un correo que se enreda solo se descarta a sí
+mismo.
+
+## Novedades en v3.26.1
+
+Evaluador local `ollama`: antes del primer correo, el plugin pregunta a Ollama
+(`/api/ps`, solo lectura y solo en `127.0.0.1`) con cuánto contexto tiene
+cargado `qwen3.5` y calcula cuánto necesita la petición. Si no basta —el caso
+típico es que la app de la barra de menús arrancó su propio servidor con 4.096
+tokens— se detiene con `contexto_insuficiente` **sin enviar ningún correo**, en
+vez de recortar la petición en silencio o acabar en `fallo_red_o_timeout`. Si el
+modelo no está cargado, `modelo_no_cargado`: cárgalo antes con
+`ollama run qwen3.5:latest ""`. Los demás proveedores no cambian.
+[Guía de Ollama](docs/modelos-locales-macos.md).
+
+## Novedades en v3.26.0
+
+Nuevo evaluador LLM **local**: `ollama`, con el modelo `qwen3.5`. Es la única
+opción del plugin en la que el correo **no sale del Mac**: el plugin habla solo
+con `ollama serve` en `127.0.0.1:11434`, sin clave y sin proxy, y no hay coste
+por token. Es lento: unos 110 s por correo en un Mac de 16 GB, por eso este
+proveedor admite `timeout_segundos` de hasta 600 (los demás siguen en 60). Hay
+que arrancarlo con `OLLAMA_CONTEXT_LENGTH=16384` o recortaría la petición.
+Contrato comprobado en un Mac real con un correo ficticio; desactivado por
+defecto. [Instalación, modelos y configuración](docs/modelos-locales-macos.md).
+
+## Novedades en v3.25.1
+
+Evaluadores LLM: el prompt y el esquema piden el `eco` del **campo `texto`**, no
+del asunto, con seis palabras exactas por extremo. En una medición real con Apple
+`pcc` y 40 correos inventados, 21 filas volvían al principal por `eco_distinto`:
+unas 11 copiaban desde el asunto y unas 8 traían solo 2-3 palabras. La
+comprobación del eco no cambia. [Mediciones](docs/mediciones-evaluadores.md).
+
+## Novedades en v3.25.0
+
+Nuevo proveedor de los evaluadores LLM: **Apple Foundation Models** a través de
+`fm serve` (macOS 27), con el modelo `pcc` de Private Cloud Compute. No necesita
+clave: el plugin solo habla con `127.0.0.1`, sin proxy, y `fm serve` reenvía la
+petición a Apple, así que los correos salen del Mac y requiere el mismo doble
+consentimiento. El modelo local `system` no se admite porque la petición no cabe
+en sus 4.096 tokens. Contrato comprobado en un Mac real con un correo ficticio;
+desactivado por defecto. [Cómo activarlo](docs/claves-api-macos.md).
+
+## Novedades en v3.24.5
+
+Evaluadores LLM: el prompt y la descripción de `dudas` piden anotar solo lo que
+impida elegir la opción de algún criterio, y usar `__no_aplica__` donde no hay
+nada que citar. En una medición real con Gemini, las dudas que descartaban filas
+eran datos ausentes que no cambiaban ningún veredicto. No se relaja ningún
+freno: cualquier duda sigue bloqueando y la evidencia vacía sigue rechazándose.
+
+## Novedades en v3.24.4
+
+`hibrido` (evaluadores LLM, Jev, Decisions y OpenRouter): un `__no_aplica__` en
+un criterio no core con una sola opción a 0 puntos se puntúa con esa opción si
+el score y el tier no cambian, y la fila lo declara en
+`no_aplica_puntuado_como`. Medición real con Gemini y 12 correos ficticios: los
+mismos 6 criterios excluidos en 10 de 10 filas evaluadas, y todas frenadas por
+`scoring_incompleto` sin que la exclusión cambiara nada. Si la equivalencia no
+se cumple, el freno sigue igual. `comparar` no cambia.
+
+## Novedades en v3.24.3
+
+Jev, Decisions y OpenRouter en `hibrido` aplican los mismos frenos que los
+evaluadores LLM: una fila marcada `plantilla` vuelve al principal sin propuesta
+ni `payload_scoring` y deja de contar como validada, y un fallo inesperado a
+mitad de lote ya no deja propuestas de las filas anteriores en la salida
+`ok: false`. Solo añade frenos; `comparar` no cambia.
+
+## Novedades en v3.24.2
+
+Limpieza sin cambio de comportamiento en los evaluadores LLM: Gemini usa el
+transporte común (la clave sigue en `x-goog-api-key`, nunca en la URL) y el
+mensaje de sistema se monta una vez por lote, eligiendo la instrucción sin
+`__incierto__` al construir las preguntas en vez de reescribirla después. Los
+prompts y las peticiones enviadas son idénticos a los de v3.24.1.
+
+## Novedades en v3.24.1
+
+Jev, Decisions y OpenRouter en `hibrido`: un `__no_aplica__` del proveedor en un
+criterio no core dejaba el scoring incompleto y aun así la fila contaba como
+propuesta validada con `payload_scoring`. Ahora sale `scoring_incompleto`, vuelve
+al principal y conserva la exclusión, como ya hacían los evaluadores LLM. El modo
+`comparar` no cambia. Los avisos del contraste de Mistral a otras IAs indican
+ahora por qué se rechazó la respuesta, y las citas sin sangría cuentan.
+
+## Novedades en v3.24.0
+
+Evaluadores LLM opcionales con Structured Outputs de OpenAI, Mistral y Gemini,
+en `comparar` y `hibrido`. Devuelven evidencias y resumen, validan el esquema y
+conservan el scoring y la revisión del principal. Doble consentimiento; cualquier
+duda o fallo bloquea la propuesta, sin permisos automáticos de movimiento.
+Desactivados por defecto; las capas anteriores mantienen su comportamiento.
+[Configuración, fallos y prueba ficticia](plugins/email-triage/skills/email-triage/references/evaluadores.md).
+Pruebas con transporte simulado; pendiente de validación real con cada proveedor.
+La guía del Llavero pasa a [`docs/claves-api-macos.md`](docs/claves-api-macos.md),
+con Gemini, Mistral y una prueba ficticia real; la ruta antigua remite a ella.
+
+## Novedades en v3.23.1
+
+- OpenRouter añade categorías de ayuda para errores sin exponer mensajes HTTP,
+  documenta la validación de confianza al cambiar de modelo y amplía las pruebas
+  de configuración, autenticación, saldo, timeout y respuestas incompatibles.
+  Conserva los códigos originales y los umbrales existentes.
+
+## Novedades en v3.23.0
+
+- **OpenRouter como tercera opción de decisión**, junto a Jev y OpenAI Decisions.
+  Modelo inicial `microsoft/microsoft-decision-1`; cambiar `modelo` permite usar
+  otro modelo compatible con la API Decisions sin cambiar endpoint ni clave.
+  Configuración independiente en `config-openrouter.yaml`, credencial
+  `OPENROUTER_API_KEY`, comparación e híbrido con los mismos frenos existentes.
+  Desactivado por defecto; costes desconocidos para no extrapolar tarifas.
+  [Guía de configuración](plugins/email-triage/skills/email-triage/references/openrouter.md).
+  Verificado con transporte simulado; pendiente de validación con la API real.
+
+## Novedades en v3.22.26
+
+- **`razonamiento_dirigido` deja de sacar correos de la comparación.**
+  Diagnóstico real (2026-10-29, ensayo P3): de 13 correos que `comparar`
+  dejaba fuera por un core «no aplica» del principal, 12 eran por este
+  criterio, en avisos y boletines sin ninguna decisión que explorar. Al
+  proveedor no se le ofrecía esa respuesta por ser core.
+  - **Qué cambia:** solo en `comparar`, Jev y Decisions también pueden
+    responder `__no_aplica__` en `razonamiento_dirigido`; el principal que
+    lo declara «no aplica» sigue siendo comparable, y que los dos lo digan
+    cuenta como coincidencia.
+  - **Qué no cambia:** cualquier otro core «no aplica» sigue dejando el
+    correo fuera, un core incierto sigue frenando y `hibrido` es idéntico.
+    Sin el ensayo P3 activo, nada cambia.
+
+## Novedades en v3.22.25
+
+- **Jev y Decisions ya pueden decir si coincide el tier, aunque duden.**
+  Diagnóstico real (2026-10-29, 41 correos): los dos proveedores dejan
+  entre 26 y 30 criterios dudosos por correo (probabilidad máxima mediana
+  0,52). Con cualquier umbral de confianza entre 0,8 y 0,3 ningún correo
+  pasaba el freno, así que `comparar` nunca comparaba un tier. Sin el
+  freno, 12 de 14 correos daban el mismo tier que el principal.
+  - **Qué cambia:** en `comparar`, cada correo sin un criterio core
+    incierto trae `propuesta_sin_freno` (score y tier), y la salida trae
+    `comparacion_sin_freno` con cuántos coinciden en tier.
+  - **Qué no cambia:** el freno, los motivos, `propuesta` y `comparacion`
+    siguen igual. Es informativo: no mueve nada, no alimenta el aprendizaje
+    y en `hibrido` no existe.
+
+## Novedades en v3.22.24
+
+- **La delegación nativa ya no acepta veredictos retocados por el principal.**
+  Prueba real (2026-10-28): el especialista (Haiku) no entregó su respuesta
+  y el principal sacó el JSON del transcript del agente con un script
+  propio. `validar` comprobaba lo que el especialista **recibió** y qué
+  herramientas usó, pero no lo que **contestó**.
+  - **Qué cambia:** con `transcript_especialista`, `validar` lee la última
+    respuesta que el especialista escribió. Si el principal no pasa
+    `respuesta`, la toma de ahí (`respuesta_desde_transcript: true`) y
+    desaparece el paso de copiarla. Si la pasa, cada fila distinta de la
+    escrita sale `respuesta_distinta` y no cuenta. Sin ninguna respuesta
+    escrita, `respuesta_no_emitida`.
+  - **Qué no cambia:** sin transcript, `validar` funciona igual. Sigue sin
+    escribir nada y sin red.
+
+## Novedades en v3.22.23
+
+- **Jev y Decisions ya no aceptan un config hecho a medida por el modelo.**
+  Prueba real (2026-10-28): para esquivar un error, el modelo pasó a
+  `jev.py` copias temporales de la capa, una de ellas con `modo: hibrido`
+  cuando la del usuario decía `comparar`.
+  - **Qué cambia:** si `--config-jev` / `--config-decisions` no apunta al
+    fichero de la base de estado y activa la capa, el de la base tiene que
+    existir, ser válido y coincidir en activación, consentimiento, modo y
+    modelo; la copia no puede pedir más llamadas, menos confianza mínima ni
+    más tolerancia. Si no, el CLI responde `config_fuera_de_base`,
+    `config_base_invalida` o `config_no_coincide_con_base`, sin enviar nada.
+  - **Qué no cambia:** con la ruta por defecto todo funciona igual, y una
+    copia inactiva o ausente se trata como siempre (desactivada). El freno
+    vive en `clasificadores.py` (`capa_desde_disco`).
+
+## Novedades en v3.22.22
+
+- **Jev y Decisions pueden aceptar un correo con dudas que no cambian el
+  tier (opt-in).** Un solo criterio `__incierto__` o con confianza baja
+  descartaba el correo entero. La medición real (`scripts/medir_ruido.py`,
+  `gpt-6-luna`, perfil real) dio 15 de 30 criterios inestables entre
+  tiradas, pero los 4 correos con el mismo tier en las 5.
+  - **Qué cambia:** con `tolerancia_dudas: N` (1–3) en `config-jev.yaml` o
+    `config-decisions.yaml`, si hay como mucho N criterios dudosos, el
+    script prueba todas sus respuestas posibles (y la exclusión en los no
+    core) con el scoring real. Si todas dan el mismo tier, el correo sigue
+    y lleva `dudas_irrelevantes` (criterios, tier, combinaciones y rango de
+    score). Si una sola cambia el tier, se descarta como antes. Un criterio
+    core `__incierto__` nunca se tolera: la propuesta quedaría sin él y no
+    sería comparable con el principal.
+  - **En `hibrido`:** solo se anota `dudas_irrelevantes`; el freno actúa
+    igual, con su motivo y sin propuesta. Ningún veredicto dudoso entra en
+    un triaje real hasta medirlo con correos reales.
+  - **Qué no cambia:** `tolerancia_dudas: 0` es el valor por defecto; sin
+    tocar la capa, los frenos actúan igual que antes.
+
+## Novedades en v3.22.21
+
+- **Jev y Decisions dejan de contar como desacuerdo un falso desacuerdo.**
+  Se midió el mismo correo 5 veces con `gpt-6-luna`, en 3 tandas de 20
+  llamadas (`scripts/medir_ruido.py`, nuevo). En los criterios cuyo «no»
+  vale 0 puntos, el modelo alterna entre `no` y `__no_aplica__`. Para el
+  score es lo mismo, pero la comparación lo contaba como desacuerdo.
+  - **Qué cambia:** `por_criterio` añade `equivalentes` y
+    `coinciden_equivalentes`, y `comparacion_por_criterio` añade
+    `tasa_coincidencia_equivalente`. Solo cuenta la opción literal `no`, no
+    `neutral` ni `mixto`. `medir_ruido.py` muestra las dos columnas.
+  - **Qué no cambia:** `coinciden`, `difieren` y `tasa_coincidencia`
+    significan lo mismo que antes. No cambian los frenos que descartan un
+    correo, ni el scoring, los tiers, el modo `hibrido` o las preguntas
+    que se envían.
+
+## Novedades en v3.22.20
+
+- **Documentación: el eco del esquema, verificado con OpenAI.** Se repitió
+  la prueba con la descripción nueva de v3.22.19 y el `eco` llegó con seis
+  palabras por extremo, que `eco_coincide` acepta contra el ancla. Queda
+  anotado también que 4 de 30 veredictos cambiaron entre ejecuciones con el
+  mismo correo y modelo: es ruido del modelo, no un fallo del esquema.
+  - **Qué no cambia:** el código. Solo cambian `modelos-nativos.md` y la
+    versión.
+
+## Novedades en v3.22.19
+
+- **El esquema del evaluador nativo, probado con una API real.** OpenAI en
+  modo `strict` (`gpt-6-luna`, Chat Completions) aceptó el esquema y su
+  respuesta salió conforme, con los 30 criterios cubiertos. Anthropic sigue
+  sin probar con API real.
+  - **Qué cambia:** la prueba sacó un fallo. El modelo copió el correo
+    entero en `eco`, y un eco así no coincide con el ancla, de modo que la
+    respuesta no habría contado. El esquema pide ahora, campo a campo, las
+    seis primeras y las seis últimas palabras del extracto.
+  - **Qué no cambia:** `validar`, `normalizar` y la forma del esquema. Solo
+    cambian sus descripciones.
+
+## Novedades en v3.22.18
+
+- **Esquema JSON portable para la respuesta del evaluador nativo.** Los
+  hosts con salida estructurada (Anthropic, OpenAI en modo `strict`, Gemini,
+  Mistral) pueden obligar al especialista a responder con la forma exacta
+  del contrato, en vez de confiar en que la copie bien.
+  - **Qué cambia:** nuevo `scripts/esquema.py` con `generar` (esquema desde
+    los criterios activos del config efectivo, sin tipos unión para no
+    pasar el límite de 16 de Anthropic), `normalizar` (reparte los
+    objetos por criterio en la forma que espera `validar`) y
+    `comprobar`. El de la plantilla queda en
+    `references/esquema-evaluador.json`, vigilado por un test.
+  - **Qué no cambia:** `validar`, el agente, `SKILL.md`, Jev y Decisions.
+    Usar el esquema es opcional; sin él todo funciona como antes, y lo que
+    el esquema no puede garantizar lo sigue comprobando `validar`.
+
+## Novedades en v3.22.17
+
+- **El plugin puede comprobar si el modelo leyó el cuerpo entero.** En un
+  experimento real, `sanitizar` entregó 2500 caracteres por correo y el
+  script auxiliar que escribió el modelo los recortó a 900 antes de
+  leerlos. Nada lo detectó, y el experimento dejó de medir lo que buscaba.
+  - **Qué cambia:** `scoring` acepta por correo `ancla_extracto` (el que
+    devuelve `sanitizar`) y `eco_lectura` (6 palabras del principio y del
+    final del texto que el modelo leyó). Si no coinciden, marca
+    `lectura_recortada`, el lote trae `alerta_lectura` con los ids y el
+    informe lo avisa arriba con los números de correo.
+  - **Qué no cambia:** score, tier y movimientos. Es solo un aviso, y sin
+    esos dos campos todo funciona como antes.
+  - **Límite:** detecta el recorte accidental, no la trampa: un eco copiado
+    del ancla pasa la comprobación.
+
+## Novedades en v3.22.16
+
+- **Los avisos automáticos ya no puntúan como conversación.** En una prueba
+  real, 4 avisos de `noreply@statuspage.io` agrupados en hilo sumaron +2
+  por «profundidad» y «único participante externo»; en otra sesión el
+  modelo no lo hizo. Esas reglas de hilo las sumaba el modelo de cabeza.
+  - **Qué cambia:** `agrupar-hilos` devuelve en cada hilo `extras_hilo`
+    (`puntos`, `detalle`, `omitidos`) con las reglas del 4.J ya calculadas,
+    y el modelo suma `puntos` a `extra_points`. Si todos los participantes
+    son buzones automáticos (`noreply`, `notifications`, `alerts`,
+    `mailer-daemon`…), profundidad y participante único no puntúan; el −1
+    por hilo muy largo se mantiene.
+  - **Qué no cambia:** `scoring`, los correos individuales y las palabras
+    clave de tu config (si un aviso sube por una palabra clave tuya, eso es
+    tu preferencia, no la regla de hilos).
+
+## Novedades en v3.22.15
+
+- **El informe ya no reutiliza datos de otra sesión.** En una prueba real
+  falló un script auxiliar del modelo y quedó en `tmp/` el `informe.json` de
+  la sesión anterior. `informe` lo leyó y volvió a escribir el informe de
+  esa sesión sin avisar. No se perdió nada, pero pudo pasar.
+  - **Qué cambia:** `informe --archivo RUTA --borrar-origen` lee el JSON de
+    un fichero y lo borra en cuanto el informe queda escrito, igual que
+    `sanitizar --borrar-origen` hace con los cuerpos. Solo borra dentro de
+    `~/.email-triage/tmp/`. Si el informe falla, el JSON se queda para
+    corregirlo.
+  - **Aviso nuevo:** si ya existía un informe de esa sesión y se reemplaza,
+    la respuesta trae `sobrescrito` con la hora del anterior. La referencia
+    del PASO 5.R pide al modelo que lo diga si no estaba rehaciendo ese
+    mismo informe.
+  - **Lo que no cambia:** `informe` por stdin o con `--datos` funciona como
+    antes.
+
+## Novedades en v3.22.14
+
+- **Evaluación por bloques (opcional, desactivada por defecto).** Ataca la
+  causa de los veredictos de plantilla. Hasta ahora el principal evaluaba
+  unos 50 correos con 30 criterios y los puntuaba todos de una vez; en 8 de
+  10 sesiones reales con 30 criterios apareció la huella de plantilla.
+  - **Cómo se activa:** en `~/.email-triage/config.yaml`, dentro de
+    `scoring`, pon `bloques: true`. `tamano_bloque` (10 por defecto, de 2 a
+    25) fija cuántos correos entran en cada bloque.
+  - **Qué hace:** el subcomando nuevo `planificar-bloques` reparte las
+    unidades en bloques equilibrados (23 correos con tamaño 10 dan 8, 8 y 7).
+    Un hilo es una sola unidad, así que nunca se parte. El modelo evalúa y
+    puntúa un bloque antes de leer el siguiente.
+  - **Qué se exige:** con bloques activos, `scoring` rechaza un lote mayor
+    que `tamano_bloque` y una llamada sin `--desglose-append`. Así las
+    huellas de plantilla se miden siempre sobre toda la sesión (v3.22.13).
+  - **Veredictos idénticos entre bloques:** la alerta de plantilla
+    (`plantilla`, 5 o más correos iguales) también se mide sobre la sesión
+    con `--desglose-append`. Sin esto, 6 correos iguales en dos bloques de 3
+    se escapaban. Los de bloques anteriores van en `ids_previos` y
+    `vectores` no los usa.
+  - **Lo que no cambia:** sin `bloques: true`, todo sigue igual. La
+    delegación a modelos y los clasificadores externos no pasan por esta
+    regla.
+  - **Límites:** que el modelo puntúe bloque a bloque no prueba que lea con
+    cuidado; lo que lo vigila son las huellas acumuladas. Falta probarlo
+    con correos reales.
+
+## Novedades en v3.22.13
+
+- **Huellas de plantilla sobre toda la sesión.** Es la primera pieza de la
+  evaluación por bloques. Hasta ahora las huellas se medían solo sobre el
+  lote que se puntuaba: con lotes de 4 correos o menos, ningún correo podía
+  tener 4 vecinos y `plantilla_cercana` no frenaba nunca.
+  - **Qué cambia:** con `scoring --desglose RUTA --desglose-append`, las
+    huellas se miden sobre lo ya puntuado en la sesión más el lote nuevo.
+    Si un correo se vuelve a puntuar, cuenta su última pasada. La salida
+    añade `huellas_acumuladas`.
+  - **Correos de lotes anteriores:** su resultado ya salió sin la marca, así
+    que se nombran en `ids_previos`. El principal debe repuntuarlos o copiar
+    la marca a su registro. `vectores` recalcula las huellas sobre toda la
+    sesión y no los usa para el aprendizaje.
+  - **También correo a correo:** el scoring individual acumula igual que un
+    lote de uno.
+  - **Desglose que no se puede leer entero:** si pasa del límite de lectura
+    o está roto, no se acumula a medias; la salida lo dice en
+    `huellas_acumuladas_omitidas`.
+  - **Lo que no cambia:** sin `--desglose-append` todo sigue igual. Hoy ese
+    flag solo se usa con `telemetria.guardar_desglose` o `guardar_vector`.
+  - **Límites:** en `registrar`, el freno de los `ids_previos` depende de
+    que el principal copie la marca. `alerta_plantilla` (veredictos idénticos) sigue
+    midiéndose por lote; `plantilla_cercana` ya cubre ese caso con 20
+    criterios o más.
+
+## Novedades en v3.22.12
+
+- **`plantilla_cercana` pasa de aviso a freno.** La v3.22.11 la midió sin
+  bloquear nada y `diagnostico-plantillas` la pasó por 16 sesiones reales.
+  Con los 30 criterios, la huella separó dos grupos sin mezclarlos:
+  - las sesiones sin diccionario por defecto tenían 0 correos casi iguales;
+  - las sesiones con diccionario tenían 7 o más.
+  
+  Dos de las sesiones con diccionario están comprobadas: en ellas el
+  principal usó un diccionario por defecto con retoques.
+  - **Qué cambia:** `registrar` rechaza como triaje un movimiento marcado
+    `plantilla_cercana`, igual que hace con `plantilla`, y `vectores` no
+    lo usa para el aprendizaje.
+  - **Qué hacer si salta:** se puede volver a evaluar ese correo criterio a
+    criterio, o moverlo como `regla_manual` si la persona lo decide.
+  - **Lo que no cambia:** `criterios_inmoviles` sigue siendo solo un aviso,
+    porque no señala correos concretos.
+  - **Límites:** solo hay dos sesiones de referencia sin diccionario, y no
+    sabemos con certeza qué sesiones fueron honestas. El freno depende de
+    que el principal copie la marca al registro, igual que ya ocurre con
+    `plantilla`.
+
+## Novedades en v3.22.11
+
+- **Aviso de plantilla con retoques (informativo).** En una prueba real, el
+  principal escribió los veredictos de 47 correos con un diccionario por
+  defecto y cambió solo 1-3 criterios en cada uno. Con un solo cambio, los
+  correos ya no son idénticos y la alerta de plantilla de v3.21.7 no saltaba.
+  - **Qué cambia:** `scoring` y el informe añaden `huellas_plantilla` con
+    dos señales:
+    - `criterios_inmoviles`: en un lote variado (10 o más correos en 3 o
+      más tiers), muchos criterios con el mismo valor en casi todos.
+    - `plantilla_cercana`: correos casi iguales a otros cuatro o más (3
+      veredictos de diferencia como mucho) que, aun así, caen en tiers
+      distintos.
+  - **Qué no salta:** diez promociones evaluadas de verdad se parecen, pero
+    van todas al mismo tier, así que no saltan.
+  - **Solo informativo:** no bloquea ningún movimiento. Antes de que frene
+    hay que calibrarlo con tus sesiones reales usando
+    `triage_helpers.py diagnostico-plantillas`, que solo lee los desgloses
+    guardados y dice qué sesiones habrían saltado.
+  - **`SKILL.md`:** prohíbe expresamente construir veredictos desde un
+    diccionario por defecto.
+  - **Cuando no se puede medir:** si el lote es muy grande (más de 500
+    correos) o tiene pocos criterios, como en el modo veloz, la salida trae
+    `huellas_plantilla_omitidas`. Así queda claro que no se midió, en vez de
+    dar a entender que no había plantilla.
+
+## Novedades en v3.22.10
+
+- **El freno de herramientas se comprueba en el transcript.** Desde v3.22.7
+  el principal tiene que declarar cuántas acciones hizo el subagente
+  (`acciones_especialista`), pero ese dato lo copia él: en una prueba real
+  omitió el campo para que la respuesta contara.
+  - **Qué cambia:** cuando `validar` recibe `transcript_especialista`, lee
+    también las herramientas que el subagente usó de verdad (los bloques
+    `tool_use` del registro). Eso manda sobre lo declarado.
+  - **Resultado:** cualquier herramienta que no sea la entrega
+    `SubagentHandback` deja la respuesta sin contar
+    (`especialista_uso_herramientas`), aunque el principal declare 0. Si
+    declara menos acciones de las que muestra el registro, sale
+    `acciones_no_coinciden`.
+  - **Aditivo:** sin transcript, todo sigue como antes. Con él, la salida
+    añade `herramientas_en_transcript` y `herramientas_verificadas` es `true`
+    aunque el host no informe acciones.
+  - **Límites:** el formato del registro no lo documenta Claude Code; es una
+    comprobación contra errores u omisiones al copiar, no contra un
+    principal que señale otro fichero.
+
+## Novedades en v3.22.9
+
+- **Comprobación de que el subagente recibió los extractos exactos.** En una
+  prueba real, el principal copió a mano los extractos en el prompt del
+  evaluador nativo y alteró 4 de 41: una errata, una palabra cambiada, una
+  línea duplicada y una frase añadida. Ninguna comprobación lo detectó. La
+  huella solo mira lo que el principal dice haber enviado, y el `eco` solo
+  compara el principio y el final del extracto.
+  - **Qué cambia:** ahora `modelos.py validar` acepta
+    `transcript_especialista`, la ruta del registro que Claude Code guarda de
+    la llamada al subagente. `validar` lo lee y compara cada extracto, entero,
+    con el que el subagente recibió de verdad, sin tener en cuenta los
+    espacios.
+  - **Resultado:** cualquier cambio, en cualquier punto del extracto (también
+    un añadido al principio o al final), deja ese correo en
+    `entrega_distinta`, y su evaluación delegada no cuenta.
+  - **Cada extracto, con estructura y bajo su ID:** dentro de
+    `<email-body-data id="8">…</email-body-data>` o en el JSON del lote. En
+    texto libre no cuenta. Así, si dos extractos se intercambian entre
+    correos, tampoco pasan la comprobación.
+  - **Límites:** el formato del registro no está documentado por Claude Code,
+    y fuera de Claude Code no existe. Si no hay registro, la salida lo indica
+    con `entrega_verificada: false`.
+
+## Novedades en v3.22.8
+
+- **Purga del log por fecha con `compactar --dias 30`.** El plugin pide
+  purgar del `session_log.jsonl` las entradas de más de 30 días, pero
+  `compactar` solo sabía recortar por número de líneas. En una prueba real, el
+  modelo reescribió el log con un script propio, que es justo lo que el plugin
+  prohíbe.
+  - **Cómo funciona ahora:** `compactar --dias N` conserva solo las líneas de
+    los últimos N días. Usa el mismo método que el recorte por líneas: copia
+    temporal y sustitución atómica, con el fichero bloqueado y permisos 600.
+  - **Qué no borra:** las líneas sin fecha legible o con fecha futura se
+    conservan. Solo se purga lo que se sabe antiguo.
+  - **Qué hace el modelo:** el SKILL.md le manda usar este comando, primero
+    con `--dry-run`, y pedirte confirmación antes de purgar.
+
+## Novedades en v3.22.7
+
+- **El freno de herramientas del evaluador nativo ya no se salta omitiendo un
+  campo.** `modelos.py validar` exige `acciones_especialista`, que es el número
+  de acciones que el host dice que hizo el subagente. En una prueba real, Claude
+  Code 2.1.310 contó como 1 acción la propia entrega de la respuesta
+  (`SubagentHandback`). El principal omitió el campo para que la respuesta
+  contara, y como el campo era opcional, la validación lo aceptó.
+  - **Entrega del subagente:** se puede declarar con
+    `herramientas_especialista: ["SubagentHandback"]`. Solo esa entrega se
+    descuenta. Cualquier otra herramienta sigue invalidando la respuesta.
+  - **Hosts que no informan de las acciones:** se declaran con `"no_informado"`.
+    La salida lo indica con `herramientas_verificadas: false`.
+
+## Novedades en v3.22.6
+
+- **Jev y Decisions aceptan probabilidades redondeadas a dos decimales.** En una
+  prueba real, 20 de las 48 respuestas de Jev se rechazaban porque sus
+  probabilidades sumaban 0,99 en vez de 1. La desviación era siempre de 0,01,
+  justo lo que da redondear a dos decimales.
+  - **Tolerancia:** ahora se admite una desviación de hasta 0,005 por opción.
+    Las desviaciones mayores se siguen rechazando como `probabilidades_invalidas`.
+  - **Marca:** los criterios aceptados por redondeo aparecen en
+    `probabilidades_redondeadas`.
+  - **Confianza:** nunca sube. Si la suma pasa de 1, la confianza calculada se
+    normaliza a la baja.
+  - **Modo `hibrido`:** cualquier redondeo obliga a revisar el correo con el
+    principal.
+
+## Novedades en v3.22.5
+
+- **Diagnóstico por criterio al comparar Jev o Decisions.** Basta un criterio
+  incierto o con confianza baja para descartar el correo entero, y cada correo
+  tiene entre 13 y 30 criterios. En una prueba real, 0 de 48 correos dieron
+  propuesta con cada proveedor, así que no se sabía si el modelo coincidía con
+  el principal en casi todo o en casi nada. Ahora `comparar` añade:
+  - `por_criterio` en cada correo con respuesta válida, aunque se descarte:
+    cuántos criterios coinciden, cuáles difieren y cuáles salen inciertos;
+  - `comparacion_por_criterio` con el resumen del lote y la tasa de
+    coincidencia.
+
+  Los rechazos de formato llevan además `motivo_detalle`, que indica el
+  criterio y la causa. Las causas son opciones distintas, probabilidad fuera
+  de rango o suma desviada, con la desviación.
+
+  Es solo informativo: no crea propuestas, no cambia `usar_principal` y no
+  aparece en modo `hibrido`.
+
+## Novedades en v3.22.4
+
+- **Jev y Decisions pueden comparar hasta 50 correos por invocación.** El tope
+  de `max_llamadas` sube de 20 a 50, el mismo tamaño máximo de lote que ya
+  aceptaban `jev.py` y `decisions.py`. En una prueba real, con el valor por
+  defecto (5) solo se comparaban 5 de 51 correos. El defecto sigue siendo 5:
+  para comparar más, sube `max_llamadas` en tu `config-jev.yaml` o
+  `config-decisions.yaml`. Cada correo es una llamada facturada aparte.
+
+## Novedades en v3.22.3
+
+- **El extracto truncado ya no cambia al volver a sanearlo.** Si el corte a
+  1500 caracteres (S5) caía justo tras un espacio, la marca « [truncado]» dejaba
+  un doble espacio; `comparar` (Jev y Decisions) re-sanea el extracto antes de
+  enviarlo, colapsaba ese espacio y daba el correo por modificado
+  (`extracto_no_sanitizado`). En una prueba real afectó a 3 de 43 correos.
+  Ahora el texto se recorta sin espacios finales antes de la marca. Solo cambia
+  el extracto de los correos cuyo corte caía en un espacio.
+
+## Novedades en v3.22.2
+
+- **Un `no_aplica` en un criterio core ya no tumba la comparación entera.** Con
+  el contrato P2, el principal puede declarar «no evaluable» un criterio core
+  (notificaciones, resúmenes). `comparar` de Jev y de Decisions rechazaba por
+  eso el lote completo, y en una prueba real el modelo cambió la muestra y dejó
+  fuera justo los casos dudosos. Ahora se excluye solo ese correo, con motivo
+  `principal_no_comparable`, sin salir a la red. Un `no_aplica` sin motivo
+  sigue rechazando el lote.
+
+## Novedades en v3.22.1
+
+- **Guía para guardar la clave de OpenAI en el Mac.** Nuevo
+  [`docs/clave-openai-macos.md`](docs/clave-openai-macos.md): cuatro pasos para
+  guardar `OPENAI_API_KEY` en el Llavero de macOS y que Terminal la cargue sola,
+  sin dejarla escrita en ningún archivo, comprobar que está cargada sin mostrarla,
+  borrarla y poner un límite de gasto. Enlazada desde `references/decisions.md` y
+  los README. Solo documentación: el código no cambia.
+
+## Novedades en v3.22.0
+
+- **OpenAI Decisions como segundo clasificador externo opcional.** Nueva
+  capa `config-decisions.yaml` (plantilla junto a `config-jev.yaml`) y script
+  `decisions.py` con los mismos subcomandos, modos y frenos que Jev: opt-in
+  doble desactivado por defecto, `comparar` con simulación forzada, `hibrido`
+  solo explícito, `usar_principal: true` y `permitir_movimientos: false`
+  siempre, clave solo en `OPENAI_API_KEY`, sin reintentos ni redirecciones, y
+  S0 y caps que nunca salen a la red. Usa `gpt-6-luna`, una petición por
+  correo y una pregunta `choice` por criterio. Cualquier `refusal` devuelve
+  el correo entero al principal. El coste (0,10 USD por millón de tokens de
+  entrada, tarifa del 2026-10-25) se estima con la caché desactivada y sin
+  incluir recargos regionales. Guía en
+  `references/decisions.md`; no se combina con Jev ni con la delegación nativa
+  en la misma sesión.
+- **Núcleo común `clasificadores.py`.** Lo neutro de `jev.py` (preguntas,
+  validación de respuestas, transporte y flujo con todos sus frenos) vive
+  ahora en un solo módulo, y Jev y Decisions son adaptadores finos. Jev se
+  comporta igual que antes: sus tests no cambian y su salida es idéntica en
+  252 escenarios. Un test de equivalencia comprueba que la misma respuesta en
+  formato Jev y en formato Decisions da el mismo scoring.
+
+## Novedades en v3.21.40
+
+- **No vale puntuar solo con los 13 criterios core si el config pide los
+  30.** En una prueba real, el modelo evaluó solo los core («así que no
+  delegué»), y el script no lo notaba: un criterio que falta simplemente no
+  suma. Ahora `scoring` compara los criterios evaluados con los activos del
+  config (solo los core si la capa veloz lo pide) y devuelve
+  `criterios_sin_evaluar`; el lote avisa con `alerta_cobertura`; `registrar`
+  no acepta ese movimiento como triaje (el mismo freno que la plantilla); y
+  el informe lo muestra arriba, mirando la última pasada del desglose. No
+  cambia score ni tier. Con todos los criterios evaluados, nada cambia.
+
+## Novedades en v3.21.39
+
+- **El eco deja de rechazar casi todo.** En dos pruebas reales, la
+  comprobación del eco de v3.21.36 descartó 16 de 17 respuestas de Haiku
+  en una y 7 de 10 en otra. Dos causas: el texto saneado conservaba el
+  hueco de imagen de Mail («￼»), espacios de ancho cero y espacios duros,
+  que ningún modelo copia igual; y la comparación era palabra a palabra,
+  puntuación incluida. Ahora `sanitizar` quita esos caracteres del texto
+  que ve el modelo (después de S0, que sigue mirando el original) y el eco
+  compara solo letras y números: basta con que coincidan, en orden, 4 de
+  las 6 palabras de cada extremo. Sigue detectando texto ajeno añadido,
+  texto cortado y el extracto de otro correo.
+
+## Novedades en v3.21.38
+
+- **Quién se libra de la penalización por envío masivo lo decides tú.** En
+  dos pruebas reales, el modelo dejó sin `sender_bulk_penalizacion` las
+  notificaciones de Codex sobre tus PR («es una decisión mía; el script no
+  lo exige»). Ahora hay una lista en el config,
+  `filtros.remitentes_sin_penalizacion_masiva` (dirección o dominio, como
+  los prioritarios), y el script quita la penalización a esos remitentes
+  por el `remitente` del payload; el SKILL pide al modelo no eximir a nadie
+  por su cuenta. Para las revisiones de Codex, añade
+  `"notifications@github.com"`. Con la lista vacía, nada cambia.
+
+## Novedades en v3.21.37
+
+- **Una alerta de plantilla que se apaga al repuntuar queda a la vista.** En
+  una prueba real, seis promociones salieron con veredictos idénticos y el
+  modelo escribió: «los reexaminé uno a uno y la alerta desapareció tras
+  eso». Puede ser una revisión honesta o un retoque para callar la alarma.
+  Ahora el informe lee el desglose acumulado de la sesión y, si un correo
+  estuvo en una plantilla y en la última pasada ya no, lo avisa arriba con
+  los números y devuelve `plantilla_retocada` (con qué veredictos
+  cambiaron). No juzga el retoque: lo muestra. Necesita
+  `telemetria.guardar_desglose: true`; sin desglose, nada cambia.
+
+## Novedades en v3.21.36
+
+- **El especialista confirma qué texto recibió.** En una prueba real, el
+  modelo principal copió a mano los extractos para Haiku: en un correo se
+  coló texto de otro, uno llegó cortado y en otro faltó una línea. La
+  huella de v3.21.30 no lo vio, porque compara el lote que el principal
+  *dice* haber enviado. Ahora `sanitizar` devuelve `ancla_extracto` (las
+  seis primeras y las seis últimas palabras) y el especialista devuelve un
+  `eco` de lo que recibió; si no coinciden, `validar` marca `eco_distinto`
+  y ese correo no cuenta en la comparación. No detecta un hueco en medio
+  del texto, pero sí los tres fallos de la prueba en sus extremos. Sin
+  `ancla_extracto` en la sesión, todo funciona como antes.
+
+## Novedades en v3.21.35
+
+- **El fichero de la capa de modelos manda sobre el plan.** En una prueba
+  real, `config-modelos.yaml` traía `max_llamadas: 30` (el rango es 1-10),
+  así que la capa era inválida y no debía delegarse. El modelo delegó igual,
+  con un tope de 10 elegido por él, y para comparar se construyó «un plan en
+  memoria con lote de 50». Ahora `planificar` (antes de gastar llamadas),
+  `validar` y `comparar` leen el fichero: si es inválido devuelven
+  `capa_modelos_invalida` (con el motivo), y si está activo rechazan un plan
+  con otro modo, otro modelo (si el fichero lo fija) o más lote o llamadas
+  (`plan_no_coincide_con_capa`). `validar-config` dice además qué hacer con
+  una capa inválida: no delegar y cómo corregirla según el motivo. Sin fichero, la
+  activación solo para la sesión sigue valiendo.
+
+## Novedades en v3.21.34
+
+- **La delegación de modelos deja de ser «un extra».** En una prueba real,
+  con `config-modelos.yaml` en `comparar`, el modelo cerró el triaje
+  diciendo «si la quieres, la hago aparte». Ahora el SKILL dice que delegar
+  es un paso del triaje, no algo que ofrecer al final, y el informe lo
+  comprueba: si la sesión está en `comparar` o `hibrido` (por el fichero o
+  pedido solo para ella) y no declara que delegó, lo avisa arriba con el
+  motivo. No obliga al modelo, pero la omisión ya no pasa desapercibida.
+
+## Novedades en v3.21.33
+
+- **SKILL.md recupera margen.** Estaba a 72 bytes del techo de 60 000 que
+  vigila un test, y ese techo existe por una razón: el fichero entra entero
+  en cada sesión, y en contextos largos las instrucciones del medio son las
+  primeras que se pierden (lo que ha pasado en las pruebas con el informe y
+  la delegación). El detalle del registro de movimientos (PASO 4.I), que
+  solo hace falta al mover en real, pasa tal cual a
+  `references/paso-4i-registro.md`; SKILL.md conserva las reglas y dice
+  cuándo leerlo. Pasa de 59 928 a 56 851 bytes.
+
+## Novedades en v3.21.32
+
+- **El informe de sesión ya no se queda por el camino.** En tres pruebas
+  reales seguidas no se generó. Había dos causas en el texto: el paso del
+  resumen iba antes que el del informe, así que el modelo daba la sesión
+  por cerrada al presentar el resumen; y el formato del resumen en
+  simulación ni siquiera tenía la línea `📄 Informe:`. Ahora el resumen
+  manda escribir antes el informe y los formatos de simulación y de rutina
+  citan su ruta.
+
+## Novedades en v3.21.31
+
+- **La comparación de modelos funciona con el ensayo P3 activo.** En una
+  prueba real, Haiku evaluó bien los criterios, pero el script que valida
+  su respuesta los comparaba con los del config sin la capa del ensayo
+  (que cambia tres criterios), así que la rechazaba siempre por cobertura
+  incompleta. Ahora `modelos.py validar` y `jev.py` aceptan
+  `--config-ensayo` y fusionan las capas en el mismo orden que el scoring.
+
+## Novedades en v3.21.30
+
+- **El modelo delegado ve el mismo texto que el principal.** En una prueba
+  real de comparación, el modelo principal pasó a Haiku los extractos
+  «algo más cortos que los que usé yo», y la comparación salió sesgada sin
+  que nada lo marcara. Ahora `sanitizar` devuelve una huella de cada
+  extracto y `validar` la comprueba sobre el lote que se envió: si el
+  extracto no es el mismo, ese correo no cuenta para la comparación. Es
+  una huella, no una prueba, pero el recorte deja de ser invisible.
+
+## Novedades en v3.21.29
+
+- **Si configuras la comparación de modelos, ya no hace falta pedirla.**
+  En dos pruebas reales, con `config-modelos.yaml` en `comparar`, el
+  modelo no delegó hasta que se lo pediste. Una vez llegó a decir que no
+  había comprobado que el evaluador no tuviera herramientas, cuando la
+  excepción que lo resuelve (v3.21.25) estaba tres puntos más abajo de la
+  regla que le mandaba rendirse. Ahora `validar-config` le dice qué agente
+  usar y que delegue sin pedir permiso, y la excepción está en el primer
+  punto. Si alguna capacidad falla, debe decirte cuál.
+
+## Novedades en v3.21.28
+
+- **Sin leer los cuerpos no hay triaje.** En dos pruebas reales (60 y 96
+  correos) el modelo clasificó la carpeta solo por remitente y asunto y
+  presentó tiers «provisionales» antes de leer nada. Se apoyaba en una
+  sugerencia pensada para carpetas de más de 200 correos. Ahora el pase
+  rápido solo se permite con más de 200 y si tú lo aceptas; con menos,
+  nunca, y un pase sin cuerpos no da tiers. Es una instrucción al modelo,
+  no un freno mecánico: el informe de sesión sigue marcando las unidades
+  sin scoring determinista.
+
+## Novedades en v3.21.27
+
+- **El suelo de tus remitentes prioritarios ya no depende de la memoria
+  del modelo.** En una prueba real, tres correos de un remitente
+  prioritario salieron en ARCHIVE porque el modelo no avisó al script de
+  que lo eran, y después los subió «a mano». Ahora, si el modelo pasa la
+  dirección del remitente, el script comprueba él mismo la lista (por
+  dirección o dominio, nunca por el nombre visible) y aplica el suelo.
+  Si el modelo dice otra cosa, manda el script y lo avisa; y el lote
+  cuenta cuántos correos llegaron sin remitente para comprobar.
+
+## Novedades en v3.21.26
+
+- **Las dudas del modelo delegado ya no anulan la comparación.** En la
+  primera prueba real con delegación funcionando, Haiku anotó alguna duda
+  en los 5 correos y el script los descartó sin puntuar: no quedó nada que
+  comparar. Ahora se puntúan igual y la propuesta llega al comparador con
+  sus dudas a la vista, pero sigue sin autorizar nada (manda el modelo
+  principal). Además, el evaluador ya no cuenta como duda que el extracto
+  venga recortado, porque siempre lo está.
+
+## Novedades en v3.21.25
+
+- **El modo comparar ya puede delegar en Claude Code.** Claude Code
+  muestra el agente evaluador como «(Tools: All tools)», y el orquestador,
+  fiel a su regla, se negaba a delegar. Una prueba real del 2026-10-20
+  confirmó que con `tools: []` arranca sin herramientas: la etiqueta
+  engaña. Ahora el protocolo lo admite para ese agente y lo vigila: tras
+  cada llamada pasa a `validar` cuántas acciones contó Claude Code; con una
+  sola, la respuesta no cuenta y no se vuelve a delegar en la sesión.
+
+## Novedades en v3.21.24
+
+- **El informe avisa cuando el triaje no pasó por el script.** En una
+  prueba real, el modelo clasificó 18 correos «por criterio propio» y solo
+  lo mencionó de pasada. Ahora el informe de sesión pone arriba
+  «⚠️ Sin scoring determinista: N de M unidades», con los números de cada
+  correo: esos tiers son una propuesta del modelo y no pasaron los frenos
+  del script. Cuenta como puntuado por el script solo lo que trae score
+  numérico y lo declara.
+
+## Novedades en v3.21.23
+
+- **La carpeta de temporales ya no se llena.** En una prueba real,
+  `~/.email-triage/tmp/` tenía 998 ficheros (7,1 MB) de sesiones
+  anteriores. Ahora, al cerrar cada sesión, el nuevo `limpiar-tmp` borra lo
+  que tenga más de 12 horas. No toca lo de la sesión en curso ni nada fuera
+  de `tmp/`, y con `--dry-run` solo cuenta lo que borraría.
+
+## Novedades en v3.21.22
+
+- **Tus remitentes prioritarios pueden dejar de archivarse.** En una prueba
+  real, 12 correos de remitentes prioritarios acabaron en ARCHIVE: el +3 no
+  compensaba las penalizaciones por envío masivo. Con la opción nueva
+  `filtros.suelo_prioritarios: READING_LATER` (o `REVIEW`), un prioritario
+  no baja de ese nivel. Viene desactivada; el script lo marca en
+  `suelo_aplicado` y la protección ante inyecciones sigue mandando.
+
+## Novedades en v3.21.21
+
+- **Aviso si un registro va a la carpeta equivocada.** En una prueba real,
+  el modelo apuntó los movimientos en un fichero fuera de `~/.email-triage/`
+  y luego los copió a mano al registro bueno. Ahora `registrar` sigue
+  escribiendo, pero avisa (`aviso_ruta`) cuando la ruta queda fuera de la
+  carpeta de estado: esas líneas no las leería ni la verificación ni el
+  deshacer. El skill pide decirlo y volver a registrar donde toca, nunca
+  copiar a mano.
+
+## Novedades en v3.21.20
+
+- **Tu `config-modelos.yaml` ya no se pasa por alto.** En una prueba real,
+  con el fichero en su sitio y en modo `comparar`, el modelo no lo tuvo en
+  cuenta hasta que se lo pediste. Ahora lo lee `validar-config`, que se
+  ejecuta siempre al empezar: su salida dice si la capa está ausente,
+  desactivada, activa (con tus valores exactos de llamadas y lote) o no es
+  válida, y en ese caso por qué. Una capa no válida sigue sin delegar.
+- `validar-config` añade el campo `capa_modelos`; el resto no cambia.
+
+## Novedades en v3.21.19
+
+- **Los vectores de criterios ya no los redacta el modelo.** En una prueba
+  real, el modelo escribió en `vectors.jsonl` un valor por eje en lugar de
+  uno por criterio, y luego borró esas líneas a mano. Ahora el nuevo
+  `vectores` los saca del desglose del scoring: una línea por correo, con
+  qué criterios se evaluaron y su veredicto. Se salta, diciendo por qué, los
+  correos sin puntuación determinista, con veredictos de plantilla o sin
+  todos los criterios principales, y no duplica líneas si se repite.
+  `registrar` rechaza escribir ese fichero a mano.
+- Cada línea añade `veredictos` y `origen`; `criterios` sigue siendo 1/0.
+
+## Novedades en v3.21.18
+
+- **Deshacer ya no se apunta a mano.** En una prueba real, el modelo anotó
+  un correo como «deshecho» en la sesión equivocada. Ahora, al terminar de
+  deshacer, el nuevo `cerrar-deshacer` registra el resultado. Antes comprueba
+  en el registro que cada correo es de esa sesión y que se podía deshacer;
+  si uno no cuadra, no escribe nada. `registrar` rechaza esos eventos
+  escritos a mano.
+- Los registros de deshacer anteriores se siguen leyendo igual.
+
+## Novedades en v3.21.17
+
+- **El modo de comparar modelos ya no se salta su propio freno.** En una
+  prueba real, `planificar` dijo «no delegues»: no estaba confirmado que el
+  agente evaluador funcionara sin herramientas. Aun así, el modelo delegó, y
+  las herramientas del plugin aceptaron la respuesta. Ahora `validar` y
+  `comparar` exigen el plan que autorizó la delegación y, sin él, rechazan
+  la respuesta (`delegacion_no_autorizada`).
+- Solo afecta a los modos opcionales `comparar` e `hibrido`
+  (`config-modelos.yaml`). El triaje normal no cambia.
+
+## Novedades en v3.21.16
+
+- **«Hace 2 horas» lo calcula el script.** Al deshacer, el listado de
+  sesiones indica cuánto hace de cada una. Antes el modelo lo deducía del
+  identificador de sesión, que va en hora local sin zona. Ahora
+  `estado-log` lo calcula con el sello `ts_registro` de la v3.21.15 y lo
+  entrega como un dato (cantidad y unidad: minutos, horas o días) que el
+  modelo redacta en tu idioma.
+- Las sesiones anteriores al sello no tienen ese dato. En ellas el skill da
+  la fecha de la sesión y no se inventa cuánto hace.
+
+## Novedades en v3.21.15
+
+- **El registro guarda su propia hora, fiable.** Cada línea que escribe
+  `registrar` lleva ahora `ts_registro`: la hora real en que se escribió,
+  en UTC, puesta por el script y no por el modelo. El `ts` que ya había lo
+  escribe el modelo y no indica zona horaria, por eso en la v3.21.14 no
+  sirvió para separar con precisión las sesiones anteriores al cierre.
+- Es solo un añadido: no cambia ningún campo existente ni el
+  comportamiento del triaje. Sirve para auditar cuándo pasó cada cosa y
+  para cualquier corte por fecha que haga falta en el futuro.
+
+## Novedades en v3.21.14
+
+- **Deshacer no ofrece sesiones que nunca se cerraron.** Si una sesión
+  registró movimientos pero no tiene cierre (`cerrar-lote`), no consta que
+  esos correos se movieran de verdad. `estado-log` ya no los marca como
+  deshacibles: los cuenta en `sin_confirmar`, los lista aparte y el skill
+  te lo dice en vez de ofrecerte revertirlos.
+- Si de verdad quieres deshacer una de esas sesiones, se puede pidiéndolo
+  expresamente (`--incluir-sin-cerrar`), avisando de que puede fallar.
+- **Las sesiones anteriores al cierre se reconocen por fecha y hora.** El
+  cierre llegó con la v3.21.4, fusionada el 18 de octubre a las 08:33 (hora
+  de Madrid), pero el corte miraba solo la fecha: las sesiones de esa
+  mañana salían como «sin cerrar» cuando no podían haberse cerrado. Ahora
+  son `legado` y se deshacen como antes, también en `verificar-sesion`.
+  Es el caso de las tres sesiones (343, 286 y 102 movimientos) que
+  señalaron las pruebas reales 13 y 14.
+
+## Novedades en v3.21.13
+
+- **Deshacer ya no depende de que el modelo lea el log a mano.** El nuevo
+  subcomando `estado-log` lista las últimas sesiones con algo por deshacer
+  y, para una sesión concreta, el estado de cada correo (movido, sin
+  cierre, fallido, deshecho o con un deshacer fallido) y si se puede
+  revertir. La regla de qué se revierte la aplica el script, no la memoria
+  del modelo.
+- Solo lee: no escribe ni mueve nada. El PASO 6 lo usa para elegir sesión y
+  para saber qué correos devolver a su carpeta.
+
+## Novedades en v3.21.12
+
+- **Para mover correos de verdad, la puntuación la calcula el script.** Por
+  defecto, el skill puntúa con el propio juicio del modelo (`scoring.modo:
+  mental`). En ese modo no actúa ninguna de las protecciones de las últimas
+  versiones: ni el aviso de veredictos idénticos, ni la comprobación de
+  remitentes y palabras clave, ni el contrato P2.
+- Ahora el modo mental sirve para clasificar y proponer. Lo que se vaya a
+  mover se vuelve a puntuar con el script antes, igual que ya pasaba en modo
+  rutina, y si el script falla no se mueve nada. Lo garantiza `registrar`, que
+  rechaza un movimiento de triaje cuya puntuación no venga del script.
+- Los movimientos por regla manual («mueve todo lo de este remitente») no
+  cambian.
+- La propuesta que confirmas ya es la del script, así que no puede cambiar
+  después de que digas que sí.
+- Consecuencia: **para mover hace falta PyYAML** (ver «Requisitos»). Sin él,
+  el skill clasifica y propone, pero no mueve.
+
+## Novedades en v3.21.11
+
+- **Los cuerpos de los correos ya no se quedan en disco.** Para leer un
+  correo, el skill guarda su texto en bruto en `~/.email-triage/tmp/` y luego
+  lo limpia. Borrar ese fichero dependía de que el modelo se acordara al final
+  de la sesión, y en dos pruebas reales no se acordó.
+- Ahora `sanitizar --borrar-origen` borra el texto en bruto y sus metadatos
+  justo después de limpiarlos, y el skill lo usa siempre.
+- Solo borra dentro de `~/.email-triage/tmp/`, nunca en otra carpeta. Si los
+  metadatos están rotos, no borra nada para que se pueda reintentar.
+
+## Novedades en v3.21.10
+
+- **`validar-config` avisa cuando tu config se ha quedado atrás.** Las
+  actualizaciones del plugin cambian la plantilla, pero nunca tu config
+  personal, así que con el tiempo se separan sin que lo notes. Ahora, al
+  arrancar, el skill compara las dos y te dice:
+  - de qué versión es tu config y de cuál la plantilla;
+  - qué criterios son core en la plantilla y no en tu config (o al revés);
+  - qué criterios u opciones nuevas no tienes, y que por eso toman su valor
+    por defecto.
+- Avisa también de dos fallos que se vieron en pruebas reales:
+  - `guardar_desglose` puesto fuera del bloque `telemetria:`, o con un valor
+    que no es `true` ni `false`. Así no se guarda nada, y por eso no aparecía
+    la carpeta `desgloses/`.
+  - Remitentes prioritarios escritos como nombre («Žižek») en vez de dirección
+    o dominio. Así no coinciden nunca.
+- Solo informa: no cambia tu config.
+
+## Novedades en v3.21.9
+
+- **Más sitio en las instrucciones del skill, sin cambiar ninguna regla.** El
+  SKILL.md estaba a 126 bytes de su límite de tamaño. Dos bloques que no se
+  necesitan en cada sesión pasan a `references/`, y en el SKILL queda la
+  condición que dice cuándo leerlos:
+  - la detección del modo rutina, que solo aplica a tareas programadas;
+  - el relato del incidente que motivó la verificación del PASO 5.V. Las
+    reglas duras siguen en el SKILL.
+- Queda fijado (CLAUDE.md y AGENTS.md) qué va al catálogo de idiomas: solo los
+  textos que se muestran tal cual. Las instrucciones al modelo no.
+
+## Novedades en v3.21.8
+
+- **Los remitentes prioritarios y las palabras clave ya no se comprueban a
+  ojo.** El modelo decidía si una dirección o una palabra coincidían, y en
+  pruebas reales falló así: `sociologiainquieta+sociologia-y-cine@…` no
+  contaba como `sociologiainquieta@…`, y «RECURSOS» activaba la palabra
+  «curso». Ahora lo calcula el subcomando `coincidencias`, y el modelo solo
+  suma el resultado.
+- **Remitentes:** por dirección, ignorando lo que va tras el `+`, o por dominio
+  (`@dominio.com`, incluidos subdominios). Nunca por el nombre que se ve,
+  porque cualquiera puede ponerse el nombre de otro. Si tu lista tiene un nombre
+  en vez de una dirección, se avisa en `entradas_no_validas`.
+- **Palabras clave:** palabra o frase completa, sin importar mayúsculas ni
+  tildes. «psicologia» casa con «Psicología»; «curso» no casa con «recursos».
+- Avisa también de las entradas prioritarias que no coincidieron con ningún
+  correo del lote: suele ser una dirección mal copiada.
+
+## Novedades en v3.21.7
+
+- **Freno a mover correos que no se evaluaron uno a uno.** En una prueba real
+  se movieron 49 correos a archivo con veredictos asignados por remitente, sin
+  leer cada correo. El registro y el cierre del lote estaban bien, porque miden
+  cómo se movió, no qué se decidió.
+- Ahora `scoring` marca `plantilla` cuando 5 o más correos del lote traen
+  exactamente los mismos veredictos, y añade un aviso `alerta_plantilla`. Esos
+  correos no se pueden registrar como triaje. Hay que evaluarlos por separado
+  o, si la persona lo decide, moverlos como regla manual, que queda anotada
+  como tal.
+- Es una señal, no una prueba: diez promociones idénticas pueden coincidir de
+  verdad. Por eso no bloquea el movimiento; impide que cuente como triaje.
+- Cuando `registrar` rechaza un movimiento por estas reglas, la respuesta lo
+  dice (`bloquea_movimiento`) y ese correo no se mueve. Antes, ante cualquier
+  fallo de `registrar`, la instrucción era avisar y seguir. El aviso cubre
+  también los lotes puntuados por un modelo delegado (modo híbrido).
+
+## Novedades en v3.21.6
+
+- **La lectura de Mail ya no se queda a medias en Claude Code.** La guía de
+  ejecución enseñaba a esperar a Mail con `sleep 40; head …`, y Claude Code
+  bloquea ese patrón. En una prueba real la lectura de cuerpos se cortó por
+  eso. Ahora se espera con un bucle que termina en cuanto aparece la señal de
+  fin, sin pasar de unos 45 segundos por llamada. Si el host avisa cuando acaba
+  un proceso en segundo plano, se usa ese aviso.
+- Un test impide volver a documentar un `sleep` suelto.
+
+## Novedades en v3.21.5
+
+- **El desglose de una sesión ya no pierde la primera pasada.** Con
+  `telemetria.guardar_desglose: true`, cada vez que se puntúa se añade una
+  línea al fichero de la sesión (`~/.email-triage/desgloses/<sesión>.jsonl`)
+  en vez de sobrescribirlo. Antes, si el modelo veía el resultado y retocaba
+  veredictos antes de repuntuar, la primera versión desaparecía sin dejar
+  rastro.
+- `diagnostico-ejes` lee el formato nuevo y el antiguo. Cuenta cada correo una
+  sola vez, con su última pasada, y añade `repuntuados`: qué correos se
+  puntuaron más de una vez, qué veredictos cambiaron y si cambió el tier.
+- Para quien no active la opción no cambia nada. En la línea de comandos es
+  `scoring --desglose RUTA --desglose-append`; sin el flag, `--desglose` sigue
+  sobrescribiendo como antes.
+
+## Novedades en v3.21.4
+
+- **Cada lote movido se cierra.** Hasta ahora el registro de una sesión solo
+  decía «movimiento lanzado», y nunca se sabía si había terminado bien, si se
+  cortó a mitad o si ni siquiera llegó a ejecutarse. Ahora, al acabar de mover,
+  `cerrar-lote` lee la salida del script de mover y anota cuántos correos se
+  movieron y cuáles fallaron.
+- `verificar-sesion` comprueba ese cierre: sin él (`sin_cerrar`) o si sus
+  cuentas no cuadran (`descuadre`), el triaje no se da por válido. Las
+  sesiones anteriores a este cambio aparecen como `legado` y no se invalidan.
+- Deshacer ya no intenta revertir los correos que el cierre marca como
+  fallidos.
+
+## Novedades en v3.21.3
+
+- **Ids internos de Mail rechazados.** En una prueba real, el lote para mover
+  llevaba el número interno que Mail asigna a cada mensaje en vez de su
+  Message-ID. Ahora `montar-mover` y `montar-leer-cuerpos` rechazan cualquier
+  valor formado solo por dígitos, con un error que dice qué releer, y no generan
+  el script.
+- Un valor sin `@` sigue pasando, pero aparece en `sospechosos` para que lo
+  veas en el resumen.
+
+## Novedades en v3.21.2
+
+- **Mover por remitente ya no pasa por triaje.** En dos pruebas reales se
+  movieron cientos de correos solo por su remitente, y quedaron registrados y
+  verificados como si se hubieran puntuado. Ahora `registrar` rechaza un
+  movimiento sin `score`, salvo que declare `"origen": "regla_manual"` con su
+  regla. Mover por remitente sigue siendo posible cuando lo pides, pero queda
+  etiquetado como tal.
+- `verificar-sesion` informa de cuántos movimientos vienen de triaje y cuántos
+  de una regla manual.
+- Un tier deducido solo de remitente y asunto se presenta como «estimado».
+
+## Novedades en v3.21.1
+
+- **Los veredictos ya no se ajustan para cuadrar el reparto.** En una prueba
+  real, el modelo retocó sus juicios porque casi todo caía en REVIEW. El
+  `SKILL.md` lo prohíbe ahora en dos sitios: al invocar el scoring y en
+  «Errores comunes». Un reparto anómalo se informa como hallazgo.
+- Corregida una contradicción de v3.21.0: las reglas de simulación nombran ya
+  la excepción del desglose de `guardar_desglose`.
+
+## Novedades en v3.21.0
+
+- **Diagnóstico de saturación de ejes** (ROADMAP P1, Fase 1). Nuevo
+  subcomando `diagnostico-ejes --desglose RUTA…`. Solo lee: informa, por eje,
+  de cuántos correos se recortan y cuántos puntos se pierden, de cuántos tiers
+  cambiarían sin recorte y de cuánto del score viene de reglas duras y puntos
+  extra. No cambia ningún score.
+- **Nueva opción `telemetria.guardar_desglose`** (`false` por defecto). Con
+  `true`, cada sesión guarda su desglose en `~/.email-triage/desgloses/`,
+  también en simulación, para poder diagnosticarlo después. No contiene texto
+  de correos.
+
+## Novedades en v3.20.0
+
+- **Ensayo P3 de criterios, desactivado por defecto** (`scoring.ensayo_p3:
+  false`). Con `true` y modo `determinista`, el skill fusiona la capa
+  `config-ensayo-p3.yaml` (`scoring --config-ensayo`): desactiva los criterios
+  5, 19 y 26 y añade `razonamiento_dirigido` (fusión de 5 y 26, que ahora
+  cuenta una sola vez), `alternativas_reales` (sentido definitivo de 19:
+  aportar alternativa +3 / binario honesto 0 / falso dilema −2) y
+  `responsabilidad_personal` (¿me toca actuar o solo estoy en copia?).
+  Siguen 30 criterios activos y 13 core; el `config.yaml` principal no cambia.
+- Es un ensayo: falta validarlo con los correos ficticios de la auditoría
+  (PR siguiente) y con correos reales antes de proponerlo por defecto.
+- La línea base i18n ya acepta versiones 3.2x (#65).
+
+## Novedades en v3.19.1
+
+- **Contrato P2 en el skill, opt-in.** Con `scoring.contrato_p2: true` y modo
+  `determinista`, el modelo lee `references/contrato-p2.md`: marca los
+  criterios que no puede evaluar (`no_aplica` / `no_observable`, con motivo),
+  declara su confianza y sus causas, y sustituye la línea 💬 de cada correo por
+  «🎯 Confianza», «📄 El correo dice», «🤔 Asumo», «⚖️ Concluyo» y
+  «⏸️ No evaluados». Las razones ▲/▼ no cambian.
+- Cinco frases nuevas en el catálogo i18n; `en` y `fr` son borrador de IA.
+- Sin el flag, nada cambia.
+
+## Novedades en v3.19.0
+
+- **Contrato de salida P2 en el motor, desactivado por defecto**
+  (`scoring.contrato_p2: false`). Con `true`, el scoring determinista acepta
+  `no_aplica` / `no_observable` (no puntúan y quedan en `no_evaluados`),
+  informa de la `cobertura` de los 13 criterios core (incluidos los que faltan
+  sin explicación) y separa la `confianza` del score (`alta`/`media`/`baja`,
+  con causas de una lista cerrada y topes mecánicos). No cambia score ni tier.
+- Con el flag apagado la salida es idéntica a la de v3.18.2 (test de regresión
+  y prueba diferencial). La presentación en el `SKILL.md` llega en el PR
+  siguiente.
+
+## Novedades en v3.18.2
+
+- Sin cambio de comportamiento: los modos `rutina` y `simulacion` (PASO 4.G)
+  pasan a `references/modo-rutina.md` y `references/modo-simulacion.md`.
+  `SKILL.md` conserva un stub con la condición de entrada y las garantías que
+  rigen siempre (rutina fail-closed y sin preguntas; simulación sin mover ni
+  escribir log ni telemetría). `SKILL.md` baja de 59 998 a 56 840 bytes.
+
+## Novedades en v3.18.1
+
+- Solo documentación, sin cambio de score: catálogo, `config.yaml` y
+  `SKILL.md` se alinean con lo que ejecuta el motor tras la
+  [auditoría de criterios](docs/auditoria-criterios.md) (F.1–F.8).
+- Core unificado en 13; un único eje por criterio; sin el −1 inexistente
+  por `[HTML detectado]`; `weight` solo orienta al modo mental (los puntos
+  salen de las respuestas); preguntas 7, 9, 10, 19, 21 y 28 del catálogo
+  iguales a las del YAML. Sentido definitivo de 19 pendiente (ROADMAP, P3).
+
+## Novedades en v3.18.0
+
+- Jev añade modo `hibrido` opt-in para aportar veredictos al triaje real, sin
+  duplicar la evaluación completa del principal en casos aceptados.
+- Validación y revisión principal obligatorias; errores, incertidumbre,
+  contexto insuficiente, archivo, respuesta y fronteras vuelven al principal.
+- Movimientos bajo las autorizaciones, registros, verificación y deshacer
+  existentes. Jev no accede al buzón ni concede permisos de movimiento.
+- Sigue desactivado por defecto, con comparación como modo inicial.
+  [Activación del híbrido](plugins/email-triage/skills/email-triage/references/jev.md).
+
+## Novedades en v3.17.1
+
+- Jev usa `jev-latest` por defecto; admite `jev-preview` o una versión fija.
+  El informe registra el modelo solicitado y la versión efectiva por correo.
+- Las versiones nuevas conservan la validación y el regreso al principal.
+  Sin tarifa verificada se informa consumo y coste desconocido, sin extrapolar.
+- Las configuraciones existentes se conservan: cambia `modelo` a `jev-latest`
+  para adoptar el alias. Sigue desactivado por defecto y solo en comparación.
+
+## Novedades en v3.17.0
+
+- Jev como proveedor externo opcional, desactivado por defecto y limitado a
+  comparación sin movimientos. Conserva scoring, reglas y modelo principal.
+- Versión estable fijada por defecto; veredictos y probabilidades disponibles
+  para revisar incertidumbre y cobertura sin confundir acuerdo con precisión.
+- Validación estricta, abstención y retorno al principal; límites de llamadas,
+  timeout y consumo observado, sin reintentos ni redirecciones.
+- Requiere consentimiento de envío a TypeSafe y `TYPESAFE_API_KEY` propia.
+  [Guía de API, costes, privacidad y prueba ficticia](plugins/email-triage/skills/email-triage/references/jev.md).
+- Pruebas con transporte simulado; pendiente comprobación real con credenciales.
+
+## Novedades en v3.16.0
+
+**Alternancia nativa opcional, desactivada por defecto.** El modelo principal
+puede delegar la evaluación de criterios a otro modelo del **mismo proveedor y
+conexión**, usando las herramientas del cliente. Sigue el enfoque de
+[alternancia-modelos](https://github.com/novanoticia/alternancia-modelos), sin
+necesitar ese plugin instalado ni claves API nuevas.
+
+### Añadido
+
+- Capa personal `config-modelos.yaml`: `actual`, `comparar` o `hibrido`.
+  Los usuarios con configuraciones anteriores conservan el flujo actual.
+- `comparar` ejecuta una simulación sin movimientos, con evaluación independiente
+  y scoring determinista para ambos modelos. No aprende de sus desacuerdos.
+- `hibrido` acepta veredictos validados y revisados; el principal reevalúa dudas,
+  propuestas de archivo/respuesta y puntuaciones junto a un umbral.
+- `scripts/modelos.py`: comprueba proveedor/capacidades/presupuesto, valida
+  cobertura y opciones de criterios y compara propuestas, sin red ni escrituras.
+- Agente opcional de Claude `evaluador-criterios`, sin herramientas y con modelo
+  heredado por defecto; el orquestador elige un modelo disponible por invocación.
+
+### Cambiado
+
+- El skill incorpora dos puntos de entrada condicionales. Pesos, reglas,
+  sanitización y pipeline de movimientos conservan su implementación existente.
+- Privacidad documentada para el proveedor del cliente (Claude o un host OpenAI)
+  y su contexto nativo de subagente. No cambia ajustes de privacidad ni añade
+  servicios externos; véase [PRIVACY.md](PRIVACY.md).
+
+### Limitaciones
+
+- La selección de modelo depende de capacidades verificadas de la sesión. Si
+  faltan selección, aislamiento, restricción de herramientas o confirmación de
+  la misma conexión, se utiliza el principal. No equivale a cambiar el selector
+  de modelo de la interfaz.
+- Sin prueba real en Claude Code, Cowork o ChatGPT/Codex: pruebas locales con
+  datos sintéticos. No se acredita ahorro ni calidad equivalente. Comparar
+  implica trabajo adicional y puede consumir más.
+- Jev y otros proveedores son solo posibilidades futuras, **no implementadas**.
+  No se fijan generaciones de Haiku ni identificadores Luna no verificados.
+
+## Novedades en v3.15.0
+
+> Elaborado con asistencia de IA; requiere revisión humana.
+
+**Seguridad (importante): ningún dato de un correo pasa ya por la shell.** Hasta v3.14.2
+los ejemplos del skill enseñaban `--asunto "…"` y `echo '{…}'` con asuntos, remitentes y
+message-ids; un `$(…)` o una comilla en el asunto de un correo podía ejecutar comandos en
+tu Mac antes de llegar a la detección de inyección. **Actualiza y reinstala.**
+
+**Interfaz de revisión.** Lo que en una sesión real con 39 correos hubo que improvisar
+(19 preguntas una a una, unas 350 líneas de salida, numeración inventada) pasa a ser
+contrato del skill.
+
+### Añadido
+
+- **Informe de sesión** (`triage_helpers.py informe`): cada sesión escribe
+  `~/.email-triage/informes/<session_id>.md` con una tabla por tier y enlaces
+  `message://` que abren el correo en Mail.app. El chat queda para decidir.
+- **Numeración `#N`** estable en toda la sesión y respuestas cortas: `mueve todo`,
+  `solo REVIEW`, `#N se queda`, `#N → REVIEW`, `detalle #N`.
+- **Hitos de progreso** durante las lecturas de Mail («⏳ Leyendo…», «⏳ Cuerpos: N/M»).
+- `sanitizar --metadatos RUTA`: asunto y remitente en un JSON por fichero.
+- 12 frases nuevas en los catálogos `es`/`en`/`fr` y 30 tests (informe, contrato de la
+  interfaz y datos por fichero).
+
+### Cambiado
+
+- **Datos por fichero:** los 12 ejemplos `echo '{…}' | …` del skill pasan a
+  `… < ~/.email-triage/tmp/<subcomando>.json`, y un test impide que vuelvan `echo`,
+  `--asunto "…"` o heredocs en los bloques bash de la documentación.
+- **Modo por defecto `por_tier`**: una pregunta por cada tier que se mueve, con las
+  opciones «Sí, los N / Sí, excepto… / No». `READING_LATER` no se pregunta. Los lotes de
+  8 unidades o menos (`umbral_uno_a_uno`) siguen confirmándose uno a uno.
+- **Respuesta segura:** solo un sí explícito mueve correo. Una respuesta vacía, sin
+  opción elegida o ambigua no mueve nada y se repregunta una sola vez.
+- **Formato compacto** por defecto (una línea por correo, agrupado por tier); el formato
+  largo queda para `REPLY_NEEDED` y para `detalle #N`.
+- El resumen deja de decir «v3.0» y añade la ruta del informe y cómo deshacer.
+- El detalle de la interfaz (4.K), del informe (5.R) y del modo veloz pasa a
+  `references/` con un stub en `SKILL.md`, que baja a unos 58 KB (techo 60 KB).
+- La línea base i18n se mueve al commit de v3.15.0: el original en español cambia a
+  propósito. Se retira la excepción del bloque S0 francés, que ya forma parte de la base.
+
+### Limitaciones
+
+- **Tu config personal no cambia sola:** si `~/.email-triage/config.yaml` dice
+  `modo: "confirmacion"`, sigue preguntando uno a uno. Para la interfaz nueva, cámbialo
+  a `modo: "por_tier"` y añade `umbral_uno_a_uno: 8`.
+- Los enlaces `message://` están verificados en Mail.app (macOS); en Gmail el informe
+  sale sin enlaces que abran el correo.
+- Las frases nuevas en `en` y `fr` son borrador de IA sin revisar.
+- Sin prueba en plataforma real de la interfaz nueva: solo pruebas automáticas.
+
+## Novedades en v3.14.2
+
+> Elaborado con asistencia de IA; requiere revisión humana.
+
+Fixes de la auditoría 2026-10-08 sobre v3.14.0 y v3.14.1. Sin cambios en el scoring ni
+en S0–S5.
+
+### Añadido
+
+- Test `test_el_mensaje_no_puede_escapar_a_la_shell`: un mensaje con una línea
+  `MENSAJE`, `touch …` o `$(…)` no ejecuta nada al resolver el idioma.
+- Test que exige la cabecera de documento histórico en los planes ya ejecutados.
+
+### Cambiado
+
+- **Seguridad:** el mensaje del usuario ya no pasa por la shell al resolver el idioma.
+  Antes iba por un heredoc `<<'MENSAJE'`: una línea igual al delimitador (por ejemplo, en
+  un correo hostil pegado en `/triage`) cerraba el heredoc y el resto se ejecutaba como
+  comando. Ahora se escribe a `~/.email-triage/tmp/idioma_msg.txt` con la herramienta de
+  escritura del agente y entra por stdin.
+- **Atajo sin script:** sin marca `idioma=`/`lang=` y con `usuario.idioma` vacío o `es`,
+  no se ejecuta `idioma.py`. El caso habitual en español ya no cuesta ninguna llamada.
+- La línea base i18n normaliza cualquier parche de versión (`3.14.N`): antes cada bump la
+  rompía. El bloque S0 francés, única excepción funcional, queda congelado con una huella.
+- El plan `docs/superpowers/plans/2026-10-07-multiidioma.md` se marca como histórico:
+  sus órdenes de agente (sub-skills, permisos de push, firma de commits) no rigen ya.
+- `AGENTS.md` y `CLAUDE.md`: el comando de tests documentado no encontraba ningún test
+  («NO TESTS RAN»); ahora es `python3 -m unittest discover -s tests -t .`, el del CI.
+- El changelog de v3.14.1 sigue el formato del resto.
+
+### Limitaciones
+
+- La detección S0 sigue siendo heurística, incompleta y evadible.
+- Sin prueba en plataforma real del flujo `idioma=en`/`fr` con el fichero intermedio:
+  solo pruebas automáticas.
+- Quien tenga v3.14.0 o v3.14.1 instalada debe reinstalar el plugin para recibir el
+  arreglo de seguridad.
+
+## Novedades en v3.14.1
+
+> Elaborado con asistencia de IA; requiere revisión humana.
+
+### Añadido
+
+- **Detección S0 en francés**, además de español e inglés: órdenes de ignorar
+  instrucciones, suplantar roles IA y manipular la clasificación o el score del correo.
+  Cubre cuerpo, asunto y remitente, con y sin acentos, y las vistas de detección
+  existentes (HTML, normalización Unicode, invisibles y confusables).
+- Pruebas de regresión para ataques franceses y correo legítimo (`TestS0Frances`).
+
+### Cambiado
+
+- Se aplica siempre, con independencia de `idioma=`. La inyección detectada descarta
+  el cuerpo, resta 3 puntos y capa el tier a `REVIEW` para revisión humana.
+- Se retira el fallo esperado que documentaba la ausencia de cobertura en francés.
+
+### Limitaciones
+
+- Sigue siendo una detección heurística, incompleta y evadible.
+- Hereda los falsos positivos de diseño de ES/EN: «Oubliez mon message précédent» o una
+  firma «Assistant : …» se marcan igual que «olvida mi mensaje anterior» en español.
+
+## Novedades en v3.14.0
+
+> Elaborado con asistencia de IA; requiere revisión humana.
+
+**Soporte multiidioma: español (por defecto), inglés y francés.** Se pide con
+`idioma=en` o `idioma=fr` (ver [Language / Langue](README.md#language--langue)); sin marca todo
+sigue exactamente igual que en v3.13.5.
+
+### Añadido
+
+- Idioma de salida `en` y `fr`: lo que el skill muestra (resumen de sesión, tablas,
+  preguntas de confirmación, errores) y la respuesta del agente salen en ese idioma. Son
+  borradores escritos por una IA.
+- `scripts/idioma.py`: resuelve el código de idioma con una regla única (marca explícita
+  `idioma=`/`lang=` > `usuario.idioma` > `es`), normaliza `EN`, `en-US` o `fr_FR.UTF-8`, y
+  ante un código vacío, mal formado o sin catálogo avisa y continúa en español. Recibe el
+  mensaje en bruto (`--texto`, por un heredoc) para que los apóstrofos del francés no
+  rompan el comando, y un JSON inválido ya no degrada a español en silencio.
+- Catálogos `i18n/es.yaml`, `en.yaml` y `fr.yaml` con 122 frases (113 del original y 9
+  nuevas: avisos, respuestas aceptadas y frases con las que se activan dry-run, modo
+  veloz, deshacer y ejecutar), `glosario.yaml` e `i18n/README.md`. Añadir un
+  idioma es soltar un fichero: se descubre solo y un validador dice qué falta.
+  `es.yaml` no se escribe a mano: lo genera un extractor que lee los literales reales.
+- Bloque delimitado de 72 líneas en `SKILL.md` y de 4 líneas en `commands/triage.md`, con
+  el alcance y la precedencia de la regla nombrados uno a uno.
+- Herramientas de desarrollo en `scripts/` (no viajan en el paquete): `i18n_extraer.py`,
+  `i18n_validar.py`, `i18n_baseline.py` e `i18n_mutar.py`, y el job `i18n` en el CI.
+- Pruebas: línea base del idioma por defecto (hash por línea del original), tabla de casos
+  del resolver, validador con catálogos rotos a propósito, 11 escenarios de simulación
+  preregistrados con su evaluador y 59 mutantes de sabotaje (registro en
+  `tests/escenarios.md`).
+
+### Cambiado
+
+- `usuario.idioma` de `config.yaml` ahora se lee; antes se ignoraba. Quien lo hubiera
+  cambiado a `en` o `fr` verá ese idioma.
+- Líneas del original modificadas: ninguna, salvo las de versión que mecaniza
+  `bump-version.sh` (metadata y H1 de `SKILL.md`, cabecera de `config.yaml`, docstring de
+  `triage_helpers.py`). Todo lo demás son adiciones. `triage_helpers.py` no se toca.
+
+### Limitaciones
+
+- Las traducciones `en` y `fr` las ha escrito una IA: **ninguna traducción está
+  revisada** por una persona. Las frases de confirmar mover, archivar o deshacer
+  (`riesgo: alto` en el catálogo) necesitan revisión humana. El francés es el idioma que
+  la IA redactora juzga con menos seguridad.
+- El **texto libre** que redacta el modelo (resúmenes, razones, notas) sale en el idioma
+  elegido y no está revisado.
+- La detección de inyección S0 cubre **solo español e inglés** y **no cambia con
+  `idioma=`**: depende del idioma del correo recibido, no del de la interfaz.
+- Los mensajes de error de los scripts siguen en español.
+- Sin prueba en plataforma real (Claude Code / Cowork): hasta ahora solo pruebas
+  automáticas y simulaciones con modelos, que no sustituyen a una ejecución real.
+- Hay ficheros nuevos en la carpeta de la skill: quien tenga una versión anterior debe
+  reinstalar el plugin completo.
+
+## Novedades en v3.13.5
+
+**Nuevo icono.** `icon.png` se sustituye por un diseño plano: un sobre que se
+bifurca hacia cuatro puntos con los colores de los tiers (rojo, amarillo, azul
+y gris). Es de 512×512 con fondo transparente y se lee bien incluso a 32 px.
+El icono ha sido creado con ChatGPT (OpenAI).
+
+## Novedades en v3.13.4
+
+**Política de privacidad publicada.** Nuevo `PRIVACY.md` con qué datos lee el
+plugin, adónde van (proveedor de correo, Claude) y qué guarda en local
+(`~/.email-triage/`). Los dos manifiestos de Claude declaran
+`privacyPolicyUrl` y los dos README enlazan a ella con un enlace «Privacy».
+
+## Novedades en v3.13.3
+
+**Manifiesto raíz conforme al validador del directorio de Claude.** En
+`.claude-plugin/plugin.json`, `author` pasa de cadena a objeto
+(`name` + `url`), que era un error bloqueante. Además, el manifiesto declara
+`displayName` e `icon`, que apunta al icono del plugin.
+
+## Novedades en v3.13.2
+
+**Icono listo para cualquier fondo.** `icon.png` pasa a 512×512 con canal alfa:
+las esquinas de la baldosa son transparentes y el borde está suavizado, así
+que ya no aparece un recuadro blanco cuando el directorio lo muestra sobre un
+fondo oscuro. Los tres manifiestos y el marketplace comparten además una única
+descripción en inglés, y el marketplace declara su propia `description`.
+
+## Novedades en v3.13.1
+
+**El paquete queda preparado para la validación del directorio de Claude.** La
+carpeta publicable `plugins/email-triage/` incorpora el icono del proyecto y un
+README propio que explica qué hace el plugin, qué datos de correo utiliza,
+dónde guarda su telemetría local opcional y cuándo los datos pueden pasar por
+un conector externo elegido por el usuario. El manifiesto de Claude declara
+`displayName` e `icon`; no se añade una política de privacidad remota porque el
+plugin no empaqueta ningún servidor ni envía datos a infraestructura del autor.
+Tampoco hay lanzadores `npx` o `uvx` que fijar: `.mcp.json` permanece vacío y
+los scripts locales usan Python directamente.
+
+## Novedades en v3.13.0
+
+**Exportar la skill al estándar abierto Agent Skills estaba bloqueado por su propia documentación.** La revisión de seguridad del conversor paraba el empaquetado con dos hallazgos de severidad alta, y los dos eran el mismo fenómeno: la defensa anti-inyección explicándose a sí misma. En `SKILL.md` había un display-name de ejemplo con la formulación literal de una inyección, y en `triage_helpers.py` el PoC completo de descarga-y-ejecución remota que motiva el escape de message-ids. Estaban entrecomillados y declarados como ejemplos, pero un detector léxico no puede ver eso: lee la frase, no el párrafo. Es un coste que paga cualquier proyecto que documente bien su modelo de amenazas — cuanto mejor describes el ataque, más te pareces a él.
+
+Los dos se reformulan conservando el sentido docente. **El payload literal sigue existiendo donde sirve de algo**: en `TestEscaparApplescript.MID_ATAQUE`, donde se EJECUTA contra el escape en vez de quedarse como texto.
+
+- **Los tests salen del paquete.** Los cuatro `test_*.py` pasan de `skills/email-triage/scripts/` a `tests/`. Eran 217 KB de los 384 KB de la skill y viajaban dentro de cada `.zip` exportado sin aportar nada al agente de destino, además de arrastrar sus fixtures de ataque al ámbito empaquetado. El gate de unicidad del árbol se invierte —`test_triage_helpers.py` ahora DEBE estar fuera— y se le añade la invariante que protege el cambio: ni un `test_*.py` dentro de la skill.
+- **`EMAIL_TRIAGE_HOME`, y la tilde deja de ser un acto de fe.** `~/.email-triage` daba por hecho que `~` apunta al home del usuario. No siempre: hay entornos de agente donde `$HOME` vale `/`, y entonces el skill escribía en la raíz. Ahora `base_estado()` resuelve la base una sola vez —`$EMAIL_TRIAGE_HOME`, si no `~` cuando es un directorio real distinto de `/`, si no un temporal— y `base_estado_es_efimera()` permite avisar cuando el estado no persiste. Esto último importa más de lo que parece: el fallo silencioso de escritura es justo lo que lleva a reconstruir de memoria un registro que nunca se escribió, y un historial inventado con aspecto de real es peor que no tener historial.
+- **La `description` del frontmatter se reescribe a mano**: 962 → 454 bytes, con los disparadores de activación delante. Cabe entera en el presupuesto más estrecho (490 B, el de los destinos que instalan por carpeta), así que el conversor ya no recorta ni reordena nada — y el `.zip` y la carpeta salen idénticos, sin la trampa habitual de que descomprimir el zip no sirva para instalar por directorio. El precio: menos frases de activación (se conservan las cinco más usadas más las de dry-run).
+- **`references/paso-1c-hilos.md`** usaba `${CLAUDE_PLUGIN_ROOT}`, que sólo existe dentro de un plugin de Claude Code y que el conversor no reescribe fuera del `SKILL.md`. Pasa a `<ruta-del-skill>`, la convención que ya usaba el resto del árbol.
+
+Medido con el conversor: código de salida 3 → 2 (se escriben artefactos), Claude Code de «compatible con adaptación» a **compatible** sin ninguna adaptación, y la dimensión de comportamiento de la revisión de seguridad de alto a bajo. Los otros cuatro destinos siguen «no compatible» por razones que ningún empaquetado arregla: dependen de AppleScript, de poder ejecutar Python o de no cortar cada llamada a los 90 segundos.
+
+## Novedades en v3.12.0
+
+**Una auditoría externa del repo encontró un verificador que verificaba lo que no era.** `verificar-sesion`, el subcomando que v3.11 introdujo para detectar que un cliente se salte el pipeline, leía las **primeras** 50.000 líneas de `session_log.jsonl`. El log es append-only: la sesión que acaba de ejecutarse está al **final**. En cuanto el fichero superara el tope, el veredicto habría sido `sin_registro` —"el correo se movió fuera del pipeline"— en cada sesión, siendo falso. Un verificador que miente es peor que no tenerlo.
+
+Los cinco arreglos, con su test de regresión cada uno (todos verificados fallando contra el código anterior, para que ninguno sea un gate vacío):
+
+- **`verificar-sesion` lee la cola, no la cabeza** (`deque` en streaming, mismo patrón que ya usaba `_contar_y_ultimas`). El aviso de truncado ahora dice cuántas líneas se leyeron **de cuántas**.
+- **`MailAppAdapter.construir_script_leer_cuerpos` tenía un default imposible**: `prefijo="/tmp/tbody_"`, que el núcleo rechaza siempre (`[A-Za-z0-9_]{1,32}`). El método no podía tener éxito con sus propios valores por defecto, y nadie lo notó porque nada lo ejecuta. Además su docstring seguía documentando `/tmp`, la ruta que v3.x endureció a `~/.email-triage/tmp` en `700`.
+- **El `700` se reafirma en directorios preexistentes**: el `mode=` de `os.makedirs` solo aplica a lo que la llamada crea. Un `~/.email-triage` heredado de una restauración o de un umask laxo conservaba sus permisos originales, con metadatos de correo dentro.
+- **La capa de adaptadores queda declarada EXPERIMENTAL** en `ARCHITECTURE.md`, `README.md` y el docstring de los cuatro módulos, con su condición de salida escrita: se promueve cuando exista un segundo backend real que lo justifique, no antes. `contracts.py`, `adapter_*.py` y `core.py` no están en la ruta de ejecución —nada fuera de los tests los importa— y mantener dos arquitecturas descritas como si ambas fueran la vigente es lo que hizo invisible el bug del adaptador. Nueva regla de desempate: ante discrepancia entre la documentación y `triage_helpers.py`, manda `triage_helpers.py`.
+
+**Divulgación progresiva del SKILL.md, segunda pasada: 71 → 53 KB (−26%), 1.460 → 1.043 líneas.** En v3.6 ya bajó de 1.760 a 1.318; para v3.11 había vuelto a 1.460. La conclusión no es el número, es que esto no es un refactor que se hace una vez, es mantenimiento recurrente. Se extraen a `references/` los bloques **condicionales**, cada uno con un stub que declara su condición de entrada: PASO 1.C + 4.J (hilos, solo si `agrupar_hilos`), PASO 2 (calibración), los resúmenes de modo simulación y modo rutina, PASO 5.B (telemetría, solo si está configurada) y el inventario de personalización. Lo no negociable se queda en línea.
+
+Eso crea una dependencia nueva —si una referencia no llega al disco, el paso degrada en silencio— y dos mecanismos la cubren:
+
+- **`install-plugin.sh` deriva la lista de ficheros a verificar** de las rutas `references/…` que el propio `SKILL.md` cita, en vez de una lista escrita a mano que ya se había quedado corta (verificaba 4 de 12 referencias reales). No vuelve a desactualizarse.
+- **Dos gates nuevos en `test_contrato_skill.py`**: toda referencia citada por la doctrina debe existir en disco, y el `SKILL.md` no puede superar 60 KB (con suelo de 30 KB para que un fichero truncado no pase el techo alegremente). El mensaje de fallo no regaña: dice cuántos bytes sobran y propone el patrón de extracción. Lo que ese techo prohíbe no es crecer, es crecer **sin decidir**.
+
+## Novedades en v3.11.0
+
+**Un cliente puede acertar el resultado saltándose el pipeline, y hasta ahora no había forma de detectarlo.** Observado el 2026-08-07 con este skill cargado en un cliente de terceros capaz de ejecutar `osascript`: se le pidió el triaje de la bandeja de iCloud, clasificó dos correos y **los movió de verdad** —verificado en el buzón, no en su respuesta—. Pero `session_log.jsonl` no recibió ni una línea, ni `scores.jsonl`. El resultado era correcto y el pipeline no se había ejecutado: improvisó su propio AppleScript y no llamó a `registrar`.
+
+Eso tiene dos costes que no se ven mirando la bandeja:
+
+- **Sin `sanitizar` no hubo S0.** No intervino la defensa contra inyección de prompts ni el escapado del message-id. Con dos newsletters da igual; con un correo hostil, no.
+- **Sin `registrar` no hay nada que calibrar.** El PASO 0.B aprende de `correcciones.jsonl` y el PASO 2 de `session_log.jsonl`. Una sesión sin registro es invisible para ambos, así que la clasificación se pierde en lugar de mejorar el sistema.
+
+La respuesta no es desconfiar del modelo, es convertir «hubo triaje» en una propiedad comprobable:
+
+- **Nuevo subcomando `verificar-sesion`.** Cuenta los registros de movimiento que una sesión dejó de verdad en `session_log.jsonl` y los compara con los que declara. Devuelve `valido`, `incompleto` o `sin_registro`. Un log ausente no es un error del comando: es el hallazgo, y se reporta como tal. Total como el resto de puntos de entrada —cualquier entrada devuelve un dict serializable— y ya incluido en el fuzz del CI, que pasa de 4 a 5 entradas.
+- **Nuevo PASO 5.V en el `SKILL.md`**, obligatorio antes del resumen. El veredicto del script manda sobre la impresión del modelo de haber terminado. Con `incompleto` o `sin_registro`, el triaje **no es válido** y hay que decirlo en el resumen en vez de informar de éxito.
+- **Cuatro reglas duras explícitas**: los cuerpos se leen solo por el PASO 1.B, los movimientos se construyen solo con `montar-mover` (que es lo que escapa el message-id), todo movimiento se registra antes de informarlo, y nunca se dice «N/N movidos» sin la salida del comando que los movió.
+- **Nueve tests nuevos** que fijan el comportamiento, incluido el caso que lo motivó: log ausente → `sin_registro`, y un registro sin `to_folder` no prueba que se moviera nada.
+
+También se corrige la declaración de compatibilidad, que era **falsa**: decía que ChatGPT cargaría el skill pero «no podrá ejecutarlo». La prueba lo desmiente. El README y el campo `compatibility` pasan a describir **qué capacidad hace falta** —alcanzar el buzón y poder ejecutar los scripts— en lugar de enumerar qué productos no pueden, porque esas listas caducan solas.
+
+## Novedades en v3.10.0
+El plugin pasa a conformar con **[Agent Plugins 1.0.0](https://agent-plugins.org/specification)**,
+el formato portátil de empaquetado publicado el 6 de agosto de 2026 por la
+Agentic AI Foundation (OpenAI, Amazon, Microsoft, Cursor y Vercel, con Google
+como *core maintainer*), que estandariza cómo se distribuyen skills y servidores
+MCP entre clientes que compiten entre sí. Cambio **puramente estructural**: no
+toca el motor de scoring, ni S0–S5, ni un solo veredicto. Los 287 tests siguen
+verdes.
+
+Dos de los tres arreglos eran fallos reales que no se veían porque Claude Code
+es permisivo donde la spec es estricta:
+
+- **El `SKILL.md` no validaba.** El frontmatter de Agent Skills es un conjunto
+  **cerrado** (`name`, `description`, `license`, `compatibility`, `metadata`,
+  `allowed-tools`) y el nuestro tenía dos infracciones: una clave `version` al
+  nivel superior, y una `description` de **1475 caracteres** contra un máximo de
+  1024. Cualquiera de las dos, por separado, obliga a un cliente conformante a
+  **saltarse el skill** (§7.1) — es decir, el plugin se instalaba y quedaba
+  vacío en cualquier cliente que no fuera Claude. Ahora la versión vive en
+  `metadata.version` y la `description` mide 886 caracteres, sin perder ninguna
+  frase de activación.
+- **Los requisitos de entorno tienen por fin su sitio.** macOS, Mail.app vía
+  AppleScript o el MCP de Gmail, y Python 3.9+ estaban solo en prosa dentro de
+  la `description`. Pasan al campo `compatibility`, que es el que la spec
+  reserva para eso (≤ 500 caracteres). Un cliente en Linux ahora puede saber
+  que no va a poder ejecutarlo *antes* de intentarlo.
+- **Manifiesto portable en la raíz del plugin**: `plugins/email-triage/plugin.json`,
+  con el `$schema` canónico. El §5.1 lo exige ahí, y sin él un cliente
+  conformante rechaza el plugin sin llegar a mirar los componentes.
+  `.claude-plugin/plugin.json` **se queda**: es el único que Claude Code lee hoy.
+  Los dos conviven y el CI los mantiene sincronizados.
+- **Gate #7 de CI**: valida el esquema cerrado del manifiesto, el `$schema`
+  exacto, el `name` contra las reglas del §5.5, el frontmatter del `SKILL.md`
+  con sus presupuestos de 1024/500, el `mcp.json` si algún día existe, y que
+  ningún symlink escape de la raíz del plugin (§4.1). Verificado contra seis
+  mutaciones deliberadas: las seis rompen el gate.
+- **La versión pasa a vivir en 9 sitios** (antes 8) y `bump-version.sh` los
+  actualiza de una pasada. La del `SKILL.md` está ahora indentada bajo
+  `metadata:`, así que el `sed` se acota al bloque de frontmatter para no pisar
+  otro `version:` del cuerpo.
+
+Qué **no** cambia, para dejarlo claro: `/triage` sigue siendo de Claude Code
+(Agent Plugins v1 solo define skills y MCP como componentes portables; los
+clientes deben ignorar el resto), y el aparato de distribución
+(`marketplace.json`, `install-plugin.sh`) sigue igual porque la spec deja
+instalación y permisos a cada cliente. Y una advertencia honesta: la
+documentación de Claude Code no menciona todavía Agent Plugins, así que hoy esto
+**no** añade compatibilidad efectiva con otros clientes — posiciona el plugin
+para cuando la haya, y arregla por el camino dos defectos que ya existían.
+
+## Novedades en v3.9.0
+Capa de arquitectura nueva (aditiva, sin tocar el motor): se establece la
+**frontera núcleo ↔ adaptador de correo**, preparando el plugin para servir a
+más de un backend (Mail.app hoy; Gmail/otros en el futuro) desde un mismo
+núcleo de scoring. No cambia ni un veredicto: los tests previos siguen verdes.
+> ⚠️ **Estado: EXPERIMENTAL.** Esta capa (`contracts.py`, `adapter_*.py`,
+> `core.py`) **no está en la ruta de ejecución**: nada fuera de los tests la
+> importa y el flujo real sigue siendo `SKILL.md` → subcomandos de
+> `triage_helpers.py`. Describe la arquitectura *objetivo*. Se promoverá a
+> estable cuando exista un segundo backend real que lo justifique (Fase B /
+> Gmail). Ver `ARCHITECTURE.md` → "Estado: EXPERIMENTAL".
+
+- **`contracts.py`**: define `NormalizedEmail` (objeto de intercambio crudo,
+  pre-sanitización) y el puerto `AdaptadorCorreo` (4 verbos: `leer_bandeja`,
+  `leer_cuerpos`, `estado_hilo`, `mover`). Platform-agnostic: no importa
+  osascript ni ninguna API. Contrato endurecido tras una revisión adversarial
+  (polaridad de `respuesta_pendiente`, tiers soportados por adaptador, frontera
+  `id`/`handle` mensaje-vs-hilo, invariantes de fecha/cuerpo).
+- **`adapter_mailapp.py`**: `MailAppAdapter` que ENVUELVE los subcomandos
+  `montar-*` existentes + osascript (no reescribe nada); separa construcción de
+  script (testeable en cualquier sitio) de ejecución (solo macOS). Declara que
+  Mail.app no enruta `reading_later` y lo rechaza en `mover` en vez de dejarlo
+  en no-op silencioso.
+- **`adapter_gmail.py`**: stub que cumple la interfaz (levanta
+  `NotImplementedError`), prueba de que el puerto es dual-implementable.
+- **`core.py`** (Fase A.2, split seguro): fachada que reexporta las funciones
+  agnósticas del motor bajo nombres limpios (`from core import scoring,
+  sanitizar, ...`) sin mover las ~2.700 líneas de `triage_helpers.py`. El split
+  físico completo queda deliberadamente diferido por riesgo/valor.
+- **Tests**: la batería sube con 19 tests nuevos de contrato + fachada.
+- **Docs**: `ARCHITECTURE.md` (la frontera + mapa subcomando→capa) y
+  `MIGRACION-FASE-A.md` (integración, Fase A.2 y Fase B/Gmail).
+
+## Novedades en v3.8.19
+
+Cuatro huecos de mecanización detectados al probar el plugin de extremo a extremo (modo veloz, 50 correos). Todos **aditivos**: nuevos subcomandos de `triage_helpers.py` que sacan al modelo del bucle de ensamblar AppleScript a mano o de aplicar reglas a ojo. No tocan el scoring ni los gates de doctrina.
+
+- **`montar-leer-cuerpos` (paridad con `montar-mover`)**: el SCRIPT 1B (leer cuerpos por `message id`) se montaba a mano pegando las listas de mids — el último borde que dependía de que el modelo recordara escapar. Ahora se emite ya escapado (cuenta, origen y message-ids), con detección de mids sospechosos. Mecanismo, no confianza.
+- **`agrupar-hilos` (PASO 1.C determinista)**: la agrupación de hilos era prosa aplicada a ojo. Ahora normaliza los prefijos de asunto (`Re:`/`Fwd:`/`RV:`…) y agrupa por clave de hilo + participante compartido (remitente exacto o dominio) con union-find. Reproducible y auditable, espejo de `calibrar`.
+- **`gate-cuerpo` (dos pasadas del PASO 4.D)**: mecaniza la decisión de si leer el cuerpo y con qué umbral a partir del score parcial de metadatos (skip si el remitente está en ignorar; leer sin umbral si score ≥ 1; leer con umbral = `tiers.review` si score < 1).
+- **`montar-leer-metadatos` con ventana temporal (PASO 3)**: el SCRIPT 1A leía "los primeros N" sin mirar la fecha, así que en una bandeja grande podía dejar fuera correos dentro de la ventana de urgentes. Ahora acepta `ventana_horas` y emite el predicado `whose date received > cutoff`. Sin ventana, se comporta como el SCRIPT 1A clásico.
+- **21 tests nuevos** (268 en total). SKILL.md cablea los cuatro subcomandos en PASO 1, 1.C, 3 y 4.D.
+
+## Novedades en v3.8.18
+
+Mejoras de robustez de lectura y de calibración del scoring, tras probar el plugin de extremo a extremo en una sesión real (modo veloz, 50 correos):
+
+- **Lectura de Mail en dos pasadas, robusta a timeouts (#26)**: `references/mail-consolidado-v2.applescript` separa metadatos (SCRIPT 1A, sin `content of m`, retorna en segundos) de los cuerpos (SCRIPT 1B, localizados por `message id` e indexados por posición de lista, no de carpeta) → inmune a que entre correo nuevo entre pasadas y reanudable en sublotes de `resiliencia.sublote_con_cuerpo` (15). Nueva doctrina `references/paso-1-doctrina-ejecucion.md`: patrón background+poll, matar procesos osascript zombis antes de relanzar, y aviso de que el primer veloz sin caché de calibración es más lento. El SCRIPT 1 v1 devolvía los metadatos solo al final (un timeout se comía toda la salida) e ignoraba el sublote del config.
+- **`sender_bulk` graduado por frecuencia (#27)**: nuevo campo opcional de payload `remitente_conteo_historial` (entero). Cada conservación en el historial acerca la penalización de remitente masivo (-4) hacia cero sin pasar del tope `sender_bulk_atenuado_a` (-1): conteo 1→-3, 2→-2, ≥3→-1. Sustituye el salto binario -4/-1 del flag `remitente_en_historial`. Retrocompatible: solo el flag → atenuación plena como antes; un conteo no entero se ignora con motivo; el tope ≤0 impide convertir la penalización en bonus. El SKILL.md (4.A.2) instruye pasar el `conteo` de `calibrar → top_remitentes[]` para que el motor gradúe de extremo a extremo.
+- **`coste_cognitivo` deja de ser un eje muerto en veloz (#27)**: `distancia_inferencial` pasa a `core: true`; el core sube de 12 a 13 criterios, actualizado de forma idéntica en las tres fuentes que verifica el contrato (`config.yaml`, `criterios-catalogo.md`, `config-veloz.yaml`) y en la prosa/gate de cardinalidad. En modo veloz el eje de coste ya no queda siempre a 0.
+- **Memo de diseño del scoring** (`docs/MEJORAS-scoring-veloz.md`): documenta por qué en veloz el remitente pesa más que la epistémica, y deja abiertas las opciones para reequilibrarlo.
+- **5 tests nuevos** (247 en total) fijan la atenuación graduada.
+
+## Novedades en v3.8.17
+
+Fixes de la re-auditoría 2026-07-19 sobre v3.8.16 (QW1-4 r2, CM1-2 r2, NO r2):
+
+- **`validar-config` completa la vigilancia de `tiers` (QW1/QW2)**: valida el ORDEN de los umbrales con los valores efectivos (`{reply_needed: 4, review: 10}` dejaba REVIEW inalcanzable y el lote entero se reclasificaba en silencio) y reporta claves desconocidas (`reply_neded` caía al default sin señal).
+- **Archivo nativo blindado (CM1)**: si el buzón "Archive" no existe en la cuenta, el script ya no puede abortar — la resolución va en su propio `try` y todos los mids salen en `fallidos_archive` con el token `archivo_nativo_fallido:1`. Modo con carpeta explícita byte-idéntico.
+- **La plantilla manual del SCRIPT 3 se regenera desde el generador real (CM2)**: sección marcada PARIDAD-GATE emitida por `montar-mover` (con `fallidos_*` y blindaje incluidos) y test de paridad que falla si plantilla y generador vuelven a divergir. La tabla de tiers documenta el matiz reply-se-queda.
+- **Constantes doctrinales con fuente parseable (NO)**: `puntuacion.extraccion_cruda_max` (4000) y `puntuacion.perfiles` (800/1500/2500) entran en la plantilla de config como claves opcionales; el gate doctrinal ancla a ellas todas las citas (docs, AppleScript y comentarios del propio config), y las menciones inline "criterio N" se validan contra el catálogo.
+- **Bordes menores**: la vigencia del TTL de calibración se decide con el mismo valor redondeado que muestra el motivo (adiós "edad 7.0 días > TTL 7 días"), y `n_reply_needed` solo cuenta lo que de verdad se mueve (`n_reply_omitidos` para lo que se queda).
+- **25 tests nuevos** (242 en total).
+
+## Novedades en v3.8.16
+
+Implementación de los fixes de la auditoría 2026-07-19 (QW1-4, CM1, CM2, NO1):
+
+- **El contrato de mover cubre por fin los 3 tiers y el archivo nativo (CM1)**: `montar-mover` acepta `destino_archive` vacío (genera archivo nativo al buzón Archive de la cuenta, escapado) y listas opcionales `mids_reply_needed`/`destino_reply_needed` — si el destino está vacío o es el propio origen, esos correos se quedan donde están y ni entran al script. Retrocompatibilidad byte-idéntica con el payload de 2 destinos. El ejemplo inseguro de mover por índice desaparece de la referencia.
+- **La calibración deja de ser aritmética mental (CM2)**: nuevo subcomando `calibrar` (top remitentes/dominios/keywords con conteos y porcentajes deterministas), caché con snapshot atómico en `~/.email-triage/calibracion.json` y vigencia por TTL decidida por el script (`--leer`, default 7 días). El modo veloz por fin tiene el mecanismo de cacheo que prometía.
+- **`scoring --desglose RUTA` (CM2)**: el desglose completo va a fichero; el stdout con `--brief` sigue byte-idéntico al de v3.8.15.
+- **Gate doctrinal doc↔doc (NO1)**: 20 tests verifican que cada documento cita correctamente las constantes compartidas (límites de volumen leídos del YAML real, protocolo de inyección con cap a REVIEW en ambos docs, numeración de criterios contra el catálogo, contador de SCRIPTs contra la plantilla, bloque Uso contra el argparse). La clase de deriva "referencia congelada tras un fix" deja de depender de acordarse de sincronizar.
+- **Fallback manual sincronizado (QW1)**: el protocolo de inyección de `sanitizacion-manual.md` adopta el v3.5 (cap a REVIEW + metadatos comprometidos fuera de la evaluación).
+- **Pasada doctrinal (QW2)**: `manejo-errores.md` reconoce `max_lineas_cuerpo` como límite vivo; el presupuesto del fallback S5 se parametriza; la invariante de escritura dice la verdad (append de datos / purga / snapshots); `session_log.jsonl` recupera su nombre real en el docstring.
+- **`validar-config` valida `tiers` (QW3)**: umbrales no numéricos se avisan antes de que el scoring reviente con TypeError opaco en todo el lote; editar `tiers.archive` avisa de su semántica partida (rutina sí, tier determinista no).
+- **Clamps completos (QW4)**: `MAX_ENTRADA_SANITIZAR` cubre también asunto y remitente (antes un metadato de 5 MB costaba ~2 s de CPU sin tope) y `MAX_INGESTA_BYTES` (10 MB) acota las 7 lecturas de fichero/stdin de `main()`.
+- **63 tests nuevos** (208 en total, más el fuzz de CI ampliado a `calibrar`) fijan todo lo anterior.
+
+## Novedades en v3.8.15
+
+Implementación de los fixes de la auditoría 2026-07-17 (segunda pasada: los seis
+IDs), aplicados sobre `825759b` con la suite verde tras cada commit. Sin cambios
+en el comportamiento normal del scoring.
+
+- **Consulta a Enviados escapada por mecanismo (QW1 → F1)**: PASO 1.C interpolaba a mano `account "<correo.cuenta>"` y `whose subject contains "<clave_hilo>"` en un literal AppleScript; `clave_hilo` deriva del asunto (superficie del remitente) y una comilla —común en correo legítimo— rompía el literal. Nuevo subcomando `montar-consulta-enviados` (espejo de `montar-mover`) que emite la consulta con cuenta/clave_hilo/fecha_corte ya escapados
+- **`validar-config` valida los parámetros de tuning (QW2 → F2)**: no miraba `scoring.ejes` no-mapa (el scoring reventaba con error opaco pese a `ok`) ni `sender_bulk_atenuado_a` positivo (que convertía la penalización de remitente masivo en BONUS). Ahora `cmd_scoring` degrada con gracia, el tope de atenuación se acota a `min(atenuado_a, 0)` y `validar-config` avisa de ambos
+- **`config.yaml` sincronizado con el mecanismo real (QW3 → F5)**: se retiran los números obsoletos 500/2000 (ya negados por `manejo-errores.md`) y se aclara que `max_lineas_cuerpo` solo lo aplica el modelo; el único recorte mecánico es `max_caracteres_cuerpo`
+- **Merge real del modo veloz (CM2 → F7)**: nuevo `scoring --config-veloz <ruta>` que fusiona la capa por deep-merge; los overrides de `scoring` llegan al script sin ensamblar un config a mano
+- **Contrato de boosts explícito + fuente única del core-12 (CM1 → F6, F8)**: la tabla 4.A se separa en 4.A.1 (6 hard rules deterministas = claves de `config.hard_rules`) y 4.A.2 (boosts de calibración → `extra_points`); dos gates nuevos fijan que la tabla == `config.hard_rules` y que el core-12 coincide en sus 3 fuentes
+- **Gate de la clase de F1 (recomendación no obvia)**: nuevo test que prohíbe interpolar placeholders `<…>` crudos en cualquier literal AppleScript de la doctrina, cerrando la clase entera (no solo la instancia de PASO 1.C)
+- **Tests**: +21 (la batería sube de 124 a 145); 1 *expected failure* (límite S0 multilingüe conocido)
+
+## Novedades en v3.8.14
+
+Fixes de la auditoría 2026-07-17 (tres Quick Wins, un gate nuevo y una
+recomendación estructural), aplicados sobre `52d1c03` con la suite verde tras
+cada cambio. Sin cambios en el comportamiento normal del scoring.
+
+- **Criterios de mid sospechoso unificados (QW1 → F4)**: `cmd_escapar_applescript` duplicaba inline la lógica de `_mid_sospechoso` (patrón RFC + longitud >998); un ajuste en una copia no llegaba a la otra. Ahora ambos caminos delegan en el mismo helper. Sin cambio de comportamiento observable
+- **SCRIPT 3 reporta QUÉ mids fallaron (QW2 → F5)**: los fallos individuales del mover solo se veían como diferencia de contadores ("movidos_review: 8/10") sin saber cuáles ni por qué. El script generado por `montar-mover` acumula ahora `failRev`/`failArc` y los devuelve en el `return` (`fallidos_review:[…] fallidos_archive:[…]`), así el resumen de sesión puede listar los message-ids concretos que no se movieron
+- **`compactar` cuenta y conserva líneas en streaming (QW3 → F3)**: hacía `readlines()` del fichero completo (dos veces: pre-lock y bajo lock) — memoria no acotada justo en el subcomando pensado para ficheros ya crecidos. Ahora `_contar_y_ultimas` itera en streaming con un `deque(maxlen=N)`, el mismo patrón que ya usaba `cmd_ajustes`. Mismo resultado, RAM acotada
+- **Gate de deriva doc↔código (recomendación no obvia)**: el código ya no confía en el modelo, pero el SKILL.md sí confiaba en que sus invocaciones a `triage_helpers.py` (subcomando + flags) siguieran existiendo tal cual. Nuevo `test_contrato_skill.py` (4 tests): extrae todas las invocaciones de SKILL.md/references/triage.md (con soporte de continuaciones `\`) y las valida contra la superficie real de `argparse` (`_construir_parser()`, ahora expuesto). Coherencia doc↔código como mecanismo, no como disciplina
+- **Divulgación progresiva del SKILL.md (CM1 → F1)**: 1.760 → 1.318 líneas (−25%). PASO 1 (conexión a proveedores/AppleScript), PASO 6 (deshacer) y MANEJO DE ERRORES se extraen a `references/`, con stubs que enrutan a cada fichero cuando la fase lo requiere y conservan las reglas no negociables (nunca interpolar metadatos a mano; degradar con explicación, nunca abortar en silencio). Menos tokens por activación y menos riesgo de pérdida de instrucciones en contexto largo
+- **Tests**: 5 nuevos (1 de QW2, 4 del gate doc↔código) — el runner reporta 124 en total, con 1 *expected failure* (límite S0 conocido)
+
+## Novedades en v3.8.13
+
+Tercera tanda de la auditoría 2026-07-12 (dos Quick Wins + una recomendación
+estructural), con cada hallazgo reproducido en runtime antes de corregirse. Sin
+cambios en el comportamiento normal del scoring.
+
+- **`sanitizar` acota la entrada cruda antes del barrido S0 (QW1 → F1)**: `cmd_sanitizar` construye 4 vistas del cuerpo (cruda, decodificada, NFKC, desconfundida) y corre los patrones S0 sobre cada una. El tope de extracción (4000, iCloud) vivía en el AppleScript y el modelo lo respetaba en Gmail — confianza en el llamante. Ahora un backstop del propio mecanismo (`MAX_ENTRADA_SANITIZAR`, 100k) recorta el crudo **antes** del barrido, así que un cuerpo hostil de tamaño arbitrario no puede forzar un barrido no acotado. Generoso para no tocar ningún correo legítimo (el modelo solo ve, como mucho, `max_chars` tras S1–S5); expone `entrada_recortada` en la salida
+- **Unificada la extracción de línea/columna de errores YAML (QW2 → F2)**: `cmd_validar_config` y `_cargar_config` duplicaban el bloque `str(e).splitlines()[0]` + `problem_mark`. Se extrae a `_payload_error_yaml(e)`; cada llamante conserva su contrato exacto (`ok` en uno, `remedio` + `ConfigError` en el otro). Las cadenas de `OSError`/`UnicodeDecodeError` se dejan por-llamante a propósito. Sin cambio de comportamiento observable
+- **`compactar` se degrada a no-op sin flock utilizable (CM1 → F3)**: en el camino sin flock (`fcntl` ausente, o `flock` que lanza `OSError` en un FS que no lo soporta) `compactar` hacía `break` y procedía al `os.replace` **sin lock**, reabriendo la carrera con `registrar` que CM1/F5 cierran — un append concurrente podía perderse. Ahora, sin bloqueo real, devuelve un no-op seguro (`cambio: false`, con nota) en vez de reescribir. En macOS local (APFS/HFS+) flock funciona y no se alcanza; protege setups exóticos (p. ej. `$HOME` en NFS)
+- **Tests**: 7 nuevos (3 de QW1, 2 de QW2, 2 de CM1); el runner reporta 119 en total, con 1 *expected failure* (límite S0 conocido)
+
+## Novedades en v3.8.12
+
+Segunda tanda de la auditoría 2026-07-10 (recomendaciones estructurales).
+- **`registrar` cierra la carrera flock/rename con `compactar` (CM1)**: un append que abría el fd antes del `os.replace` de `compactar` escribía en el inodo ya desenlazado y se perdía. Ahora recomprueba el inodo bajo el lock y reintenta sobre el fichero vigente
+- **Rutina exige scoring determinista y degrada fail-closed (CM2)**: el modo desatendido fuerza `scoring.modo: determinista`; si el script falla, no mueve nada y lista todo como dudoso, en vez de caer a scoring mental sin supervisión
+- **Gate de fuzzing (recomendación no obvia)**: un mutador de semilla rotativa exige que `scoring`/`montar-mover`/`sanitizar` nunca lancen y siempre devuelvan un dict serializable, para cualquier entrada — las guardas de forma pasan de reactivas a propiedad universal
+- **Tests**: 6 nuevos (3 de la carrera de inodos, 3 de fuzz) — suite total 105
+
+## Novedades en v3.8.11
+
+Release de *hardening* a partir de una auditoría externa (2026-07-10) sobre `d258ffc`, con cada hallazgo **reproducido en runtime** antes de corregirse. Cuatro fixes y **10 tests nuevos** (la batería sube de 89 a 99). Sin cambios en el comportamiento normal del scoring.
+
+- **Paridad de blindaje en el stdin de `scoring` (QW1)**: un payload con JSON malformado (o bytes no-UTF8) reventaba con traceback crudo, mientras `registrar`/`escapar-applescript`/`montar-mover` ya devolvían `{"ok": false, ...}`. Ahora responde el mismo contrato. Además, un `hard_rules` que no es lista (número, booleano, string) se ignora con motivo en `ignorados` en vez de reventar el bucle con `TypeError`
+- **Un item roto ya no tumba el lote (QW1)**: el docstring de `cmd_scoring_dispatch` prometía que "un item malo NO tumba el resto del lote", pero solo cubría los casos enumerados; un crash dentro de `cmd_scoring` mataba el lote entero con él. Nueva red universal por item (y contrato de error en la ruta single): la promesa se cumple también para los fallos aún no enumerados
+- **Config no-UTF8 con error legible (QW2)**: un `config.yaml` guardado en Latin-1 (una `ñ` o una `é` bastan) tumbaba `validar-config` y la ruta de `scoring` con `UnicodeDecodeError` crudo — justo la herramienta que promete errores legibles. Ahora ambas rutas devuelven `{"ok": false, "error", "remedio"}`, el mismo contrato que un YAML roto
+- **`applescript_quote` neutraliza U+2028/U+2029/NEL (QW3)**: los separadores de línea Unicode sobrevivían al escape (el filtro `c >= " "` no caza code points altos) y podían partir la línea del literal AppleScript en un message-id hostil. Peor caso plausible: script que no compila (fail-closed) — aun así se neutralizan, como `\r` y `\n`
+- **Docs sin recuento fosilizado (QW4)**: `AGENTS.md` y `CLAUDE.md` decían "70 tests" con la suite ya en 89; se retira el número hardcodeado (lo imprime el propio runner) para que no vuelva a derivar
+- **Tests**: 10 casos nuevos (stdin malformado y no-UTF8 por subprocess, `hard_rules` no-lista, item que revienta en lote y en single, config Latin-1 en ambas rutas, separadores Unicode en el quote y end-to-end en `montar-mover`) — suite total 99 tests
+
+## Novedades en v3.8.10
+
+- **Corrección de un race TOCTOU en `compactar` (auditoría)**: `compactar` leía `correcciones.jsonl` **antes** de adquirir el `flock`, y solo bloqueaba después para reescribir. Entre esa lectura y el `os.replace`, un `registrar` concurrente (p. ej. una tarea programada mientras corre una sesión manual) podía añadir una corrección que quedaba **fuera** del conjunto reescrito y se perdía en silencio. Ahora `compactar` **relee bajo el lock** y recomputa las líneas a conservar, de modo que ningún append concurrente se pisa. El comentario del código ya prometía "bajo un flock para no pisar un `registrar` concurrente"; ahora el orden de ejecución lo cumple
+- **Tests**: nuevo caso de regresión `test_append_concurrente_bajo_lock_no_se_pierde` que inyecta un append en el momento exacto de adquirir el lock y verifica que sobrevive (falla con el código antiguo, pasa con el arreglo) — suite total 89 tests
+
+## Novedades en v3.8.9
+
+- **Rotación de `correcciones.jsonl` (issue #1)**: nuevo subcomando `compactar` que recorta el historial a sus últimas N líneas (5000 por defecto, el mismo cap que ya usaba la lectura) de forma **atómica** (fichero temporal + `os.replace` bajo `flock`). El fichero era append-only sin purga; la lectura ya estaba acotada, ahora el disco también. Es no-op por debajo del tope y trae `--dry-run`
+- **Mecanización del SCRIPT 3 de mover (issue #2)**: nuevo subcomando `montar-mover` que recibe cuenta, carpetas y las dos listas de message-ids y emite el **SCRIPT 3 completo con todo ya escapado** por `applescript_quote`. El modelo deja de ensamblar el literal `set toReview to {…}` a mano — que era el último borde donde los nombres de cuenta/carpeta podían quedarse sin escapar. Mecanismo, no confianza en el modelo
+- **Tests**: 12 casos nuevos (recorte/no-op/dry-run de `compactar`; message-id hostil, salto de línea, carpeta con comilla, listas vacías y validación de `montar-mover`) — suite total 88 tests
+
+## Novedades en v3.8.8
+
+- **Paridad de blindaje en la ruta de `scoring`**: si el usuario invocaba `scoring` con un `config.yaml` sintácticamente roto sin correr antes `validar-config`, `_cargar_config` reventaba con un traceback crudo (el resto del pipeline ya degradaba con guardas de forma). Ahora captura el YAML roto / fichero ilegible y devuelve el mismo contrato `{"ok": false, "error", "linea", "columna"}` que el resto de subcomandos, por stdout
+- **Escapado de nombres de cuenta/carpeta en AppleScript (defensa en profundidad)**: el helper `escapar-applescript` ya existía para los message-ids, pero el SKILL solo lo aplicaba a esos. Ahora documenta escapar también `NOMBRE_CUENTA`/`CARPETA_*` y los placeholders `<<CUENTA>>`/`<<ORIGEN>>`/`<<DESTINO_*>>`: salen del propio `config.yaml` (no es inyección remota), pero una comilla en un nombre de carpeta rompía igual el literal y abortaba el mover
+- **Dependencia declarada**: nuevo `requirements.txt` con `PyYAML` (lo usan `scoring` y `validar-config`); el resto del plugin sigue siendo stdlib-only
+- **Tests**: 4 casos nuevos para la ruta de `scoring` blindada (YAML roto, config ilegible, config válido, YAML vacío) — suite total 76 tests
+
+## Novedades en v3.8.7
+
+- **`.mcp.json` conforme al esquema de plugin**: el fichero declaraba el proveedor de correo con una estructura propia (`email`/`options`) que Claude Code no interpreta —el esquema esperado es `{"mcpServers": {...}}`—, así que no registraba nada. Ahora declara explícitamente que el plugin no empaqueta ningún servidor MCP (`{"mcpServers": {}}`): iCloud usa AppleScript y el conector de Gmail lo añade el usuario desde Claude/Cowork (documentado en README y SKILL). Evita además forzar una conexión a Gmail a quien solo usa iCloud
+- **`scoring.ejes` mal formado ya no revienta el scoring**: un eje del `config.yaml` con forma inesperada (`valor_decisional: 5` en vez de `[0, 10]`) hacía saltar `lo, hi = rangos[nombre]` con `ValueError`/`TypeError`. Ahora el eje se deja sin clampar y se reporta en `ignorados`, y `validar-config` lo avisa antes de operar. Era la última entrada del pipeline sin guarda de forma
+- **Tests**: nuevos casos que fijan ambos comportamientos (eje malformado en `scoring` y en `validar-config`)
+- **Limpieza**: `.gitignore` tenía el bloque `email-triage-fix/` / `*.patch` / `APLICAR.md` / `ISSUE-*.md` duplicado; se deja una sola vez
+
+## Novedades en v3.8.6
+
+- **Verificación de integridad de la instalación (#12)**: `install-plugin.sh` comprueba al final los 9 ficheros del skill y avisa —sin abortar— si el árbol quedó incompleto (típicamente `references/mail-consolidado.applescript`, la vía canónica del PASO 1). Antes, una instalación parcial degradaba en silencio al fallback manual S0–S5; ahora lo dice. Una instalación sana no añade ruido.
+
+## Novedades en v3.8.5
+
+Verificación de una auditoría externa (Mistral) contra el código real: de sus 13 hallazgos+riesgos, solo 4 resultaron ciertos y accionables; el resto ya estaba cubierto (homóglifos en asunto/remitente, tests de `escapar-applescript`, aviso de eje inválido, limpieza de `tmp/`…) o partía de premisas incorrectas. Se aplican los confirmados:
+
+- **`ajustes` y `validar-config` sobreviven a un fichero ilegible**: un `PermissionError` (o E/S rota) en `correcciones.jsonl` / `config.yaml` tumbaba el subcomando con un traceback crudo. Ahora `ajustes` degrada a "sin ajustes aprendidos" reportando `error_lectura`, y `validar-config` devuelve `ok: false` con motivo legible. La lectura del JSONL pasa además a `errors="replace"`: una línea con bytes ilegibles ya no aborta la pasada entera
+- **Guardas de forma en `scoring`**: un payload que no es objeto JSON, un item de lote no-objeto, un `verdicts` no-objeto, un veredicto no escalar (lista/dict), un `extra_points` no numérico o un YAML vacío (`safe_load` → `None`) reventaban con `AttributeError`/`TypeError`. Ahora devuelven error legible o entran en `ignorados`, y un item malo **no tumba el resto del lote**
+- **`validar-config` detecta claves booleanas** (`si:`/`no:` sin comillas, la trampa YAML 1.1 del gotcha del CLAUDE.md): paridad runtime con el gate #2 del CI, que solo vigila la plantilla del repo — no el `config.yaml` real del usuario
+- **`escapar-applescript` marca longitudes >998** (límite de línea de cabecera RFC 5322) como `sospechosos`, con campo `motivo` explícito. Nota: el "límite de 255 caracteres de AppleScript" que alegaba la auditoría no existe en AppleScript moderno (era el `Str255` clásico); el escape ya neutralizaba estos valores, esto añade la señal
+- **16 tests nuevos** (70 en total) fijan todo lo anterior, incluido el caso prometido en v3.8.2 y nunca testado: stdin con bytes no-UTF8 por subprocess
+- **La cabecera versionada de `triage_helpers.py` entra en la disciplina de versión**: derivaba en silencio (decía v3.8.2 en un plugin v3.8.4) porque ni `bump-version.sh` ni el CI la vigilaban. Ahora es el 8º sitio del bump y el gate #3 del CI la valida
+
+## Novedades en v3.8.4
+Release de *hardening* a partir de una auditoría de las **superficies de metadatos**: el saneo S0 protegía cuerpo y asunto, pero dos metadatos igualmente controlados por quien envía el correo se le escapaban. **8 tests nuevos** (la batería sube de 46 a 54). Sin cambios en el comportamiento normal del scoring.
+- **`escapar-applescript` — el `message-id` deja de ser un vector de inyección**: el `message id` es una cabecera del correo (controlada por el remitente) y NO pasaba por S0. Interpolado crudo en el literal del script de mover (`set toReview to {"<mid>", ...}`), un message-id con una comilla cerraba la cadena y AppleScript ejecutaba lo que siguiera (`& (do shell script "...")`). Nuevo subcomando de `triage_helpers.py` que valida y escapa cualquier valor y devuelve la lista AppleScript ya montada; PASO 1 del `SKILL.md` y el SCRIPT 3 lo promueven a vía obligatoria
+- **El nombre del remitente también pasa por S0 (`sanitizar --remitente`)**: el display-name de la cabecera `From` es texto libre del atacante y llegaba al contexto como metadato "de confianza". Ahora se escanea con S0, capa el tier a `REVIEW` igual que el asunto y expone `remitente_evaluable` (vacío si contenía inyección)
+- **Defensa en profundidad, no confianza en el modelo**: ambos huecos se cierran con un mecanismo (escape/saneo), no con una instrucción que el modelo deba recordar. La `CLAUDE.md` añade la invariante correspondiente
+- **Tests**: la batería sube a **54** (escapado del payload de breakout, remitente inyectado que capa el tier, y las guardas de entrada)
+
+## Novedades en v3.8.3
+Cierra los tres issues abiertos del repo (#4, #5, #6) y añade guía de co-creación para agentes.
+- **Un solo comando para el bump de versión (#5)**: `scripts/bump-version.sh X.Y.Z` actualiza los **7 sitios** de versión de una pasada (5 semver + cabecera de `config.yaml` + H1 del `SKILL.md`) y valida con el mismo criterio del CI. De paso arregla un *drift* real: el H1 del `SKILL.md` seguía en `v3.4` en un plugin v3.8. El gate de CI ahora **también** vigila el H1, así que no puede volver a derivar
+- **Instalación en Cowork desacoplada del rpm (#4)**: `install-plugin.sh` ya no parchea por defecto la copia efímera del plugin en la sesión de Cowork; la vía canónica es el **marketplace**. El parcheo del rpm queda como flag opt-in `--cowork` (o `PATCH_COWORK_RPM=1`) en `fix-cowork-version.sh`. La sincronización de la caché de Claude Code sigue por defecto
+- **CI: guardia contra duplicación de scripts (#6)**: un paso nuevo falla el build si `triage_helpers.py` / `test_triage_helpers.py` aparece en más de una ruta, o si reaparece el árbol paralelo `plugins/email-triage/scripts/` (que Cowork empaquetaría en vez del canónico)
+- **`CLAUDE.md`**: guía de co-creación en la raíz (objetivo, arquitectura mecánico-vs-juicio, cómo correr los tests, invariantes de seguridad, disciplina de versión y mapa de ficheros) para que un agente entienda el repo sin adivinar
+
+## Novedades en v3.8.2
+Release de *hardening* a partir de una segunda auditoría externa, esta vez **verificada contra el código real** (no solo el README) caso por caso. Cuatro correcciones y **9 tests nuevos** (la batería sube de 37 a 46). Sin cambios en el comportamiento normal del scoring.
+- **Append concurrente-seguro (`registrar`)**: nuevo subcomando de `triage_helpers.py` que añade líneas a `correcciones.jsonl` / `session_log.jsonl` con **lock de fichero** (`fcntl.flock`) y newline garantizado. Cierra el riesgo de que dos sesiones simultáneas —p. ej. una tarea programada y una manual— entrelacen líneas y corrompan el JSONL. El PASO 4.I del `SKILL.md` lo promueve a vía canónica; `write_file` queda como *fallback*
+- **S0 cubre homóglifos de otros alfabetos**: nueva *vista desconfundida* que mapea confusables cirílicos/griegos a latín antes de aplicar los patrones. Ahora se detecta `ignоre` con la `o` cirílica (U+043E) o la `ο` griega (U+03BF), hasta ahora un límite conocido. Es solo-para-detección: correo multilingüe legítimo (ruso, griego) **no** genera falsos positivos, porque solo salta si el texto desconfundido imita una instrucción
+- **`validar-config` detecta el fallo silencioso de estructura**: avisa de criterios activos **sin `eje`** (o con un `eje` inexistente en `scoring.ejes`), que en el modo determinista pierden sus puntos sin avisar. Es el modo de fallo real cuando un config antiguo sobrevive a un cambio de estructura (p. ej. el mapeo criterio→eje de v3.6)
+- **Robustez de entrada**: la lectura de `stdin` en `sanitizar` tolera bytes no-UTF8 (un cuerpo en ISO-8859-1 ya no rompe el pipe); test explícito de cuerpo vacío; el directorio de telemetría se crea con `mkdir -m 700` (cierra la ventana entre `mkdir` y `chmod`)
+
+## Novedades en v3.8.1
+Release de mantenimiento y *hardening*, surgido de una auditoría externa del repo (verificada caso por caso, sin cambios en el comportamiento normal del scoring). Cuatro correcciones y un test nuevo.
+- **Vía de lectura segura como opción principal (iCloud)**: PASO 1 del `SKILL.md` promueve el script consolidado (`references/mail-consolidado.applescript`) a vía canónica y nombrada — metadatos por stdout, cuerpos crudos a `~/.email-triage/tmp/tbody_N.txt` en `700`, sanitizados **antes** de llegar al modelo. El listado inline que volcaba los cuerpos crudos al contexto queda como *fallback* con aviso explícito. Cierra la incoherencia entre el flujo documentado y la promesa de «el modelo solo ve texto ya filtrado», y añade una regla no negociable en PASO 1 y PASO 1.B que prohíbe exponer un cuerpo crudo sin sanitizar
+- **Permisos del directorio de telemetría**: `install-plugin.sh` fija `~/.email-triage/` a `700` siempre (también sobre directorios preexistentes de versiones anteriores). Guarda asuntos y remitentes en JSONL con retención indefinida; en una Mac multiusuario no deben quedar world-readable. Complementa el `700` que ya tenía el subdirectorio `tmp/`
+- **`fix-cowork-version.sh` a prueba de destino equivocado**: guarda estructural antes del `cp -r` (confirma que el destino hallado por `find` es de verdad la raíz de este plugin) y copia *best-effort* que nunca aborta la instalación. El parcheo del rpm de Cowork queda documentado como apaño de conveniencia frente a la vía marketplace
+- **Cap de lectura en `cmd_ajustes` (PASO 0.B)**: `correcciones.jsonl` es append-only y crece sin límite; ahora se leen solo las últimas 5.000 líneas vía `deque(maxlen)` (memoria acotada sea cual sea el tamaño; *escape hatch* con `max_lineas<=0`). Se preserva la semántica de `correcciones_totales`
+- **Tests**: la batería sube a **37** (nuevo test del cap de lectura: tope respetado y lectura completa con el tope desactivado)
+
+## Novedades en v3.8
+
+Nuevo **modo veloz** (opt-in): un perfil de bajo consumo de tokens y menor
+latencia, pensado para el barrido diario rápido frente a la revisión semanal
+a fondo. Es un **pre-filtro de ruido**, no el evaluador a fondo de 30 criterios.
+
+- **Modo veloz (`config-veloz.yaml`)**: capa de overrides que se superpone al `config.yaml` normal solo durante la sesión, sin tocar perfil, cuenta ni carpetas. Se activa diciendo "triaje veloz" en el chat (o con `scoring.perfil: veloz`). Recorta a los 12 criterios *core*, fuerza scoring **determinista** en lote (`--brief`), salta la calibración y la verificación contra Enviados, acorta el cuerpo leído (800 car.) y reduce la explicación a 1+1 razones sin rationale
+- **Ahorro estimado**: ~45–60 % de tokens por sesión (~50 correos) frente al perfil por defecto, a cambio de menos matiz. Compatible con `simulacion` y `rutina`
+- **Documentación**: nueva sección *Modo veloz* en Configuración y plantilla `config-veloz.yaml` en `skills/email-triage/`
+
+## Novedades en v3.7.2
+Release de mantenimiento: dos guardas de validación de entrada (sin cambios en el comportamiento normal del scoring), surgidas de una revisión externa verificada caso por caso.
+- **`max_chars` no positivo ya no destroza el cuerpo**: en `cmd_sanitizar`, un `max_caracteres_cuerpo` / `--max-chars` con valor `0` vaciaba el cuerpo (`texto[:0]`) y un negativo lo cortaba por el final (`texto[:-n]`). Ahora un valor no entero o ≤0 cae al presupuesto por defecto documentado (1500)
+- **Una hard rule mal configurada ya no tumba el scoring**: en `_aplica_hard_rules`, un valor no numérico en `hard_rules` (p. ej. `pregunta_directa_boost: "alto"`) lanzaba `TypeError`. Ahora se registra en `ignorados` con su motivo y el scoring continúa
+- **Type hints** en las funciones públicas (`cmd_ajustes`, `cmd_sanitizar`, `cmd_scoring`, `cmd_scoring_dispatch`, `cmd_validar_config`)
+- **Tests**: la batería sube a **34** (2 nuevos que fijan ambas guardas)
+
+## Novedades en v3.7.1
+Release de mantenimiento sobre la 3.7.0: un bug real con causa rastreable más limpieza de fontanería y de release. No cambia el comportamiento del scoring.
+- **Fix del fallback de config (regresión del `git mv` `bbc1019`)**: en modo determinista, si no existía el `config.yaml` del usuario, `_cargar_config` construía una ruta con un nivel `skills/email-triage` de más y reventaba con `FileNotFoundError` en vez de caer a la plantilla del plugin —justo la red de seguridad que aquel commit pretendía garantizar—. Ahora resuelve `../config.yaml` y, si tampoco existe, devuelve un error legible en lugar de un traceback
+- **Coherencia de versiones blindada en CI**: el frontmatter de `SKILL.md` (3.6.0) y la cabecera de `config.yaml` (v3.4) se habían quedado rezagados respecto a `plugin.json`/`marketplace.json`. Sincronizados a 3.7.1, y un nuevo paso de CI falla el build si los 5 sitios de versión completa divergen o si la cabecera de config no cuadra en major.minor
+- **Instalador duplicado eliminado**: había dos `install-plugin.sh` (raíz y `scripts/`) ya divergidos; el canónico es `scripts/` (el que descarga el README), así que se borra la copia muerta de la raíz
+- **AppleScript más higiénico**: la escritura de `/tmp/tbody_N.txt` va envuelta en `try` (cierra el handle ante un fallo de E/S) y se limpian los cuerpos crudos de ejecuciones previas, más una plantilla de limpieza documentada (SCRIPT 4) para no dejar contenido de correo en `/tmp`
+- **Tests**: la batería sube a **32** (2 nuevos que fijan el fallback de `_cargar_config`, sin cobertura hasta ahora)
+
+## Novedades en v3.7
+Parche de 5 correcciones sobre el scoring determinista de v3.6, surgido de una sesión real de triaje que destapó los fallos en vivo.
+- **REPLY_NEEDED exige señal de acción, no score alto**: el fallo más visible era que un correo de mucho valor informativo (una newsletter de tips) llegaba a `REPLY_NEEDED` solo por sumar `score ≥ 10`. "Muy valioso para leer" ≠ "exige tu respuesta". Ahora REPLY_NEEDED solo se alcanza con `forzar_reply_needed` (pregunta directa, deadline ≤72h, hilo bloqueado); el score/urgencia por sí solos topan en REVIEW. Matiz que descubrió el test: `presion_accion` **no** sirve de gate, porque `impacto_causal_real` se le suma y un correo puede tener impacto sin pedir respuesta. Configurable en `scoring.cap_reply_needed_sin_accion`
+- **`sender_bulk` atenuado para remitentes que conservas**: la penalización de "remitente masivo" (−4) aplastaba newsletters intelectuales que el usuario guarda a mano (el premio por dominio frecuente era solo +1). Con `remitente_en_historial: true` la penalización pasa a `scoring.sender_bulk_atenuado_a` (−1 por defecto)
+- **Scoring en lote + `--brief`**: `scoring` acepta `{"emails":[...]}` (1 parse de YAML para todo el lote) y el flag `--brief` devuelve solo `{id, score, tier, ejes, cap_aplicado?}`. Volcar los ~18 criterios por correo era el mayor gasto de tokens; el desglose completo se guarda en telemetría, no en contexto
+- **Nuevo subcomando `validar-config`**: parsea el `config.yaml` y devuelve `ok` o `error`+`linea`/`columna`. Motivo: un config con una clave mal indentada tumbaba el modo determinista con un traceback en vez del fallback "mental". Se ejecuta al inicio de PASO 0
+- **Mail más robusto**: plantillas consolidadas (`references/mail-consolidado.applescript`) que leen metadatos+cuerpos en una sola pasada (menos round-trips a osascript, ~60 s cada uno), mueven por `whose message id is` (evita el `-1728` al iterar durante la sincronización) y **verifican por conteo** en vez de fiarse del valor de retorno de AppleScript; crear buzones se separa de mover
+- **Tests**: la batería sube a **30** (cap de REPLY_NEEDED, REPLY_NEEDED solo con señal de acción, atenuación de `sender_bulk`, lote/brief). El contrato del test de tier se actualizó al nuevo comportamiento
+
+## Novedades en v3.6
+- **Scoring determinista opt-in**: el modo de agregación del score es ahora configurable (`scoring.modo`). Por defecto sigue en **mental** (el modelo agrega los ejes con su juicio, comportamiento idéntico al anterior). Activando **determinista** —en el config o diciéndolo en el chat— el modelo solo evalúa cada criterio y `triage_helpers.py scoring` hace la aritmética: suma por eje, **clampa** cada eje a su rango, añade hard rules y el cap por inyección, y devuelve `score`+`tier` reproducibles. Pensado para auditar una sesión o comparar cambios de pesos
+- **Campo `eje` en los 30 criterios**: cada criterio declara a qué eje (`valor_decisional`, `calidad_epistemica`, `riesgo_manipulacion`, `coste_cognitivo`, `presion_accion`) contribuye, y el bloque `scoring.ejes` fija sus rangos. Es la fuente única del mapeo criterio→eje que usa el modo determinista; editarlo no toca código
+- **Instalador endurecido**: rescata el `config.yaml` editado de instalaciones v3.3 **antes** del `git reset --hard` que lo destruía; lectura de versión vía `sys.argv` (sin interpolar rutas en Python); y los mensajes dicen «fetch + reset --hard», que es lo que el script hace de verdad
+- **Tests**: la batería sube a 27 (7 nuevos para el scoring determinista: suma por eje, clamp, hard rules, veredictos inválidos, cap por inyección)
+
+## Novedades en v3.5
+- **El asunto también se sanitiza**: el detector de prompt injection (S0) se aplica ahora al asunto además del cuerpo. Tiene sentido porque el asunto alimenta hard rules de peso (+4 pregunta directa, +4 deadline, +3 mención), así que es una vía de ataque tan real como el cuerpo. Si el asunto contiene patrones de manipulación, se descarta y se evalúa solo por remitente y fecha
+- **Cap de tier ante inyección**: un correo con inyección detectada (en cuerpo o asunto) **no puede recibir `REPLY_NEEDED` automáticamente** — su tier máximo es `REVIEW`. Un atacante controla los metadatos que suman puntos, así que un humano debe ver el correo antes de que el sistema lo declare urgente. Siempre puedes subirlo a mano, y esa corrección alimenta el feedback loop
+- **Hilos «esperando respuesta» verificados de verdad**: antes el +5 de «el usuario es el blocker» se aplicaba casi siempre, porque la señal era invisible (tus propios envíos viven en Enviados, no en la bandeja triada). Ahora la señal tiene tres estados —`true`/`false`/`desconocido`— confirmados contra la carpeta de Enviados en iCloud, o leídos del hilo nativo en Gmail. El **+5 solo se aplica con `false` confirmado; +2 si es incierto; 0 si ya respondiste**
+- **Gmail usa el hilo nativo (`threadId`)**: en lugar de la heurística de asunto+participante, se agrupa por el hilo real de Gmail (más fiable, e incluye tus respuestas). La heurística queda solo para iCloud/Mail.app
+- **Log de sesión append-only**: el registro para el undo ya no edita líneas escritas (era frágil y podía corromper justo el archivo que permite revertir). Fallos y reversiones se anotan como eventos nuevos; el undo solo lee. La purga de entradas antiguas (>30 días) se hace al cerrar la sesión, nunca durante un undo
+- **Truncado del cuerpo unificado**: dos únicos números en orden claro — extracción cruda generosa (4000 caracteres) y luego presupuesto final `puntuacion.max_caracteres_cuerpo` aplicado **sobre el texto ya limpio**. Antes se truncaba en corto *antes* de limpiar, lo que destrozaba los correos HTML. La plantilla sube su valor por defecto a 1500
+- **Correcciones de dry-run ponderadas**: los overrides hechos durante una simulación se registran con `simulacion: true` y pesan la mitad en el aprendizaje, para no contaminar el perfil de producción con pruebas de umbrales
+- **Integración continua**: los cambios en Python se validan con una batería de tests (`skills/email-triage/scripts/test_triage_helpers.py`) que corre en GitHub Actions en cada push
+
+## Novedades en v3.4
+- **Config personal persistente**: vive en `~/.email-triage/config.yaml`, fuera del repo — sobrevive a las actualizaciones (`git reset --hard`) y no puede filtrarse a git. El `config.yaml` del repo pasa a ser solo plantilla
+- **Lógica determinista en `skills/email-triage/scripts/triage_helpers.py`**: el decay y la agregación de correcciones (PASO 0.B) y la sanitización del cuerpo (S0–S5) se ejecutan ahora en Python, no como aritmética mental del modelo. La defensa anti-injection pasa de instrucción a mecanismo: el modelo solo ve texto ya filtrado. El procedimiento manual del SKILL.md queda como fallback
+- **`/triage` dentro del plugin**: el comando se carga desde `plugins/email-triage/commands/`
+- **Versiones unificadas**: plugin.json como fuente de verdad, con aviso de deriva en `fix-cowork-version.sh`
+
+## Novedades en v3.3
+- **Modo rutina (scheduled task)**: nuevo bloque `interaccion.rutina` en `config.yaml` que sobrescribe `interaccion.modo` cuando el skill se invoca desde una rutina programada (etiqueta `<scheduled-task>` en el contexto)
+- **Silencioso con umbral**: en rutina, mueve solo lo claramente actionable (score ≥ `umbral_mover`) y lista como **candidatos dudosos** lo que está entre `umbral_dudoso_min` y `umbral_dudoso_max` para revisión humana posterior
+- **Notificación macOS al terminar**: lanza `display notification` vía osascript con resumen breve ("N movidos, M dudosos en T min"), sonido configurable
+- **Timestamps automáticos**: marca hora de inicio en la primera línea y hora de fin antes del resumen, con duración total
+- **Cero preguntas en rutina**: el modo está diseñado para ejecuciones desautendidas; cualquier ambigüedad se resuelve autónomamente y se nota brevemente en el resumen
+- **Compatible con `simulacion`**: si la rutina se ejecuta en dry-run, notifica los movimientos hipotéticos sin tocar nada
+
+## Novedades en v3.2
+- **Modo dry-run (simulación)**: previsualiza el triaje sin mover nada — propaga como flag por PASO 0/4.G/5, con resumen agregado al final
+- **Sanitización de entrada**: PASO 1.B normaliza HTML/base64/caracteres de control y detecta payloads de prompt injection antes de scoring
+- **Defensa prompt injection (3 capas)**: delimitadores `<email-body-data>`, detector S0 sobre el cuerpo sanitizado, framing como *datos no instrucciones* (ampliado en v3.4.1 con doble vista crudo/decodificado, en v3.5 al asunto y con normalización Unicode —NFKC + strip de caracteres invisibles— contra evasión por ancho cero/fullwidth). Es una defensa **heurística**: reduce el riesgo, no lo elimina. Un payload novedoso o con homóglifos de otro alfabeto puede evadir S0; por eso el correo con inyección se capa a `REVIEW` y lo revisa un humano
+- **Detección de hilos**: PASO 1.C normaliza `Re:`/`Fwd:` y cruza participantes; PASO 4.J aplica peso al hilo completo en lugar de scoring mensaje a mensaje
+- **Undo / rollback**: PASO 4.I escribe log de sesión y PASO 6 permite deshacer el último batch movido
+- **Feedback loop**: PASO 0.B lee reglas aprendidas del historial; PASO 4.A las aplica con decaimiento temporal
+- **Telemetría persistente real**: PASO 5.B escribe JSONL en `~/.email-triage/` (antes la telemetría nunca tocaba disco)
+- **Instalador reescrito**: instala en `~/.claude/plugins/marketplaces/`, lee versión dinámicamente, chequea dependencias, crea directorio de sesión
+
+## Novedades en v3.1
+- Indicadores de color por tier
+- Patrón seguro de movimiento en lote
+- Soporte UTF-8 en nombres de carpeta
+- Validación de contenido HTML
+- Carpeta destino para reply_needed
+
+## Novedades en v3.0
+- 30 criterios epistémicos
+- Scoring multi-eje
+- 4 tiers de routing
+- Explicación obligatoria
+- Hard rules expandidas
+- Telemetría
+
+---
+> _Nota: parte de la documentación y del código de este repositorio se ha
+> elaborado con asistencia de IA (Claude) y requiere revisión humana antes de
+> darse por definitiva._
