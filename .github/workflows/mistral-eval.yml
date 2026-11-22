@@ -40,10 +40,10 @@ jobs:
   mistral-eval:
     permissions:
       contents: read
-    uses: novanoticia/mistral-review/.github/workflows/eval.yml@v1.5
+    uses: novanoticia/mistral-review/.github/workflows/eval.yml@v1.6
     with:
       # Debe coincidir con la etiqueta de `uses:` (versión fija de mistral-review).
-      ref: v1.5
+      ref: v1.6
       repeticiones: ${{ inputs.repeticiones }}
       solo: ${{ inputs.solo }}
       modelo: ${{ inputs.modelo }}
