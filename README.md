@@ -1,4 +1,4 @@
-# Email Triage Plugin v3.28.5
+# Email Triage Plugin v3.28.6
 
 [![Versión en main](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnovanoticia%2Femail-triage-plugin%2Fmain%2Fplugins%2Femail-triage%2Fplugin.json&query=%24.version&prefix=v&label=Versi%C3%B3n%20en%20main&color=blue)](https://github.com/novanoticia/email-triage-plugin/blob/main/plugins/email-triage/plugin.json)
 [![Última versión publicada](https://img.shields.io/github/v/release/novanoticia/email-triage-plugin?display_name=tag&label=%C3%9Altima%20versi%C3%B3n%20publicada&color=green)](https://github.com/novanoticia/email-triage-plugin/releases/latest)
@@ -604,6 +604,14 @@ Apache 2.0 — ver [LICENSE](https://github.com/novanoticia/email-triage-plugin/
 ## Historial de cambios
 
 Una entrada por versión, de la más reciente a la más antigua. Para usar el plugin no hace falta leerlo; sí conviene mirar la entrada de la versión que instales, por si pide [actualizar tu config](#actualizar-cuando-cambia-la-estructura-del-config).
+
+## Novedades en v3.28.6
+
+Solo documentación; el comportamiento del plugin no cambia.
+
+- **README reorganizado para usarlo**: arriba van qué hace (tabla de destinos), un inicio rápido en 7 pasos y una tabla de uso diario; después requisitos, instalación, configuración y problemas frecuentes; el historial de cambios pasa al final, sin tocar.
+- **Correcciones**: la lista de modos de interacción no incluía el modo por defecto, `por_tier`; el modo veloz decía «12 core» y son 13.
+- **README del plugin**: añade «Primeros pasos» y describe PyYAML como necesario para mover correos (desde v3.21.12), no como opcional.
 
 ## Novedades en v3.28.5
 
