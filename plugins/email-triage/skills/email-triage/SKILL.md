@@ -14,7 +14,7 @@ compatibility: >
   PyYAML es necesario para mover correo.
 license: Apache-2.0
 metadata:
-  version: "3.28.11"
+  version: "3.28.12"
   author: novanoticia
 ---
 
@@ -464,6 +464,12 @@ revisa la evidencia antes de reintegrar. Hard rules, señales de respuesta y cap
 permanecen bajo control del principal. Con Jev activo, aplica `references/jev.md`:
 `evaluar` en híbrido, `comparar` en simulación; con Decisions activo, lo mismo
 con `references/decisions.md`. Sin delegación, sigue este paso.
+**Lotes de la delegación (v3.28.12).** El primer lote se lanza siempre y sin
+preguntar, aunque copiar sus extractos sea largo: ese coste no es motivo para
+dejar la delegación pendiente. Si harán falta más de dos lotes, tras el primero
+di cuántos quedan, cuánto ocupa cada mensaje y cuántas filas del primero fueron
+comparables, y espera a que la persona confirme. Nunca superes el
+`max_llamadas` de la capa.
 **Veredictos de esta sesión (v3.28.2).** Cada veredicto sale de leer en esta
 sesión el texto saneado de ese correo: nunca de otra sesión, de otro correo ni
 de un script tuyo que los asigne por categoría o remitente. En real y en rutina,
