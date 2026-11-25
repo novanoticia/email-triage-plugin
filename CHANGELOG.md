@@ -4,6 +4,21 @@ Novedades de [Email Triage Plugin](README.md), una entrada por versión, de la m
 Para usar el plugin no hace falta leerlo entero; sí conviene mirar la entrada de la versión que instales,
 por si pide [actualizar tu config](README.md#actualizar-cuando-cambia-la-estructura-del-config).
 
+## Novedades en v3.28.13
+
+- **Lectura alternativa (opt-in).** Nuevo ajuste `scoring.lectura_alternativa`,
+  apagado por defecto. Con `true`, cada correo `REPLY_NEEDED` o `REVIEW` lleva
+  en el informe otra interpretación plausible que cambiaría su tier (tras «↔»
+  en la columna de razones), o una marca de que no la hay. Si falta en algún
+  correo de tier alto, el informe lo avisa arriba y devuelve
+  `lectura_alternativa_ausente`. No cambia score ni tier y no frena ningún
+  movimiento. Es el «análisis de alternativas» de P2 (ICD 203) del
+  `ROADMAP.md`; queda pendiente de validar con correos reales.
+- Si no tocas tu config, todo sigue igual. Para probarlo, añade
+  `lectura_alternativa: true` dentro de `scoring:` en
+  `~/.email-triage/config.yaml`; `validar-config` avisa si el valor no es
+  `true` o `false`.
+
 ## Novedades en v3.28.12
 
 - **Delegación nativa: el primer lote va siempre.** Con `capa_modelos`

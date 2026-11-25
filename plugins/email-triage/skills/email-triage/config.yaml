@@ -275,6 +275,13 @@ scoring:
   # (`alta`/`media`/`baja`, con topes mecánicos). No cambia score ni tier.
   # Solo un true literal lo activa. Con false, la salida es la de siempre.
 
+  lectura_alternativa: false
+  # Lectura alternativa (v3.28.13, opt-in; P2 de ICD 203, análisis de
+  # alternativas). Con true, cada correo REPLY_NEEDED o REVIEW lleva en el
+  # informe otra interpretación plausible que cambiaría su tier, o una
+  # marca de que no la hay; informe avisa de los que falten. No cambia
+  # score ni tier. Solo un true literal lo activa.
+
   ensayo_p3: false
   # Ensayo P3 (v3.20, opt-in). Con true, el skill fusiona la capa
   # config-ensayo-p3.yaml (scoring --config-ensayo): desactiva los criterios

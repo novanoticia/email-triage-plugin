@@ -48,3 +48,12 @@ Formato del JSON: `{"session_id", "modo": "real"|"simulacion"|"rutina", "unidade
 - El script valida, escapa cada celda y escribe `~/.email-triage/informes/<session_id>.md`
   (700/600). Si devuelve `efimero: true`, dilo; si falla, anótalo en el resumen y no
   abortes la sesión. Los informes no se purgan solos, como la telemetría.
+
+<!-- i18n:inicio -->
+- `lectura_alternativa` (v3.28.13, por unidad): una frase con otra
+  interpretación plausible que cambiaría el tier, o `false` si no la hay. Se
+  pinta en la columna de razones tras «↔». Con `scoring.lectura_alternativa:
+  true` en el config, el informe avisa arriba de los `REPLY_NEEDED` y `REVIEW`
+  sin el campo y devuelve `lectura_alternativa_ausente` (sus `n`); si no está
+  vacía, **dilo en el resumen con el número**. Sin el ajuste, la clave no sale.
+<!-- i18n:fin -->
