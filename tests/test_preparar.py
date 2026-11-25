@@ -186,6 +186,43 @@ class TestQueNoSeDelega(Base):
         self.assertEqual(m.ejecutar("preparar", p)["motivo"], "fecha_invalida")
 
 
+class TestFechaDeMail(Base):
+    """v3.28.15. Prueba real 2026-11-25: `preparar` rechazaba con
+    `fecha_invalida` la fecha que devuelve `leer_mailapp` (texto de Mail.app
+    en español: 41 caracteres y tildes), y el principal la convirtió a mano."""
+
+    def con_fecha(self, fecha):
+        p = self.entrada()
+        p["unidades"][0]["fecha"] = fecha
+        return m.ejecutar("preparar", p)
+
+    def test_fechas_de_mail_en_varios_idiomas_valen(self):
+        for fecha in ("martes, 24 de noviembre de 2026, 19:14:10",
+                      "miércoles, 25 de noviembre de 2026, 19:14:10",
+                      "sábado, 28 de noviembre de 2026, 9:05:00",
+                      "mercredi 25 novembre 2026 à 09:40:12",
+                      "Wednesday, November 25, 2026 at 9:40:12 PM",
+                      "2026-11-24"):
+            r = self.con_fecha(fecha)
+            self.assertTrue(r["ok"], (fecha, r))
+            self.assertIn("Fecha: %s\n" % fecha, r["mensaje"])
+
+    def test_espacios_raros_y_nfd_se_normalizan(self):
+        # macOS 14+ separa la hora de «PM» con U+202F; NFD trae la tilde aparte.
+        r = self.con_fecha("Wednesday, November 25, 2026 at 9:40:12 PM")
+        self.assertTrue(r["ok"], r)
+        self.assertIn("Fecha: Wednesday, November 25, 2026 at 9:40:12 PM\n", r["mensaje"])
+        r = self.con_fecha("miércoles, 25 de noviembre de 2026, 19:14:10")
+        self.assertTrue(r["ok"], r)
+        self.assertIn("Fecha: miércoles, 25 de noviembre de 2026, 19:14:10\n", r["mensaje"])
+
+    def test_sigue_rechazando_estructura_y_longitud(self):
+        for fecha in ('25 nov"', "25 <email-body-data>", "25 nov\n2026",
+                      "25_nov", "{25}", "25 nov‮", "x" * 65, 20261125):
+            self.assertEqual(self.con_fecha(fecha).get("motivo"), "fecha_invalida", fecha)
+        self.assertTrue(self.con_fecha("x" * 64)["ok"])
+
+
 class TestDePuntaAPunta(Base):
     def transcript(self, mensaje, respuesta):
         ruta = os.path.join(self.base, "agent.jsonl")

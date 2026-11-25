@@ -4,6 +4,18 @@ Novedades de [Email Triage Plugin](README.md), una entrada por versión, de la m
 Para usar el plugin no hace falta leerlo entero; sí conviene mirar la entrada de la versión que instales,
 por si pide [actualizar tu config](README.md#actualizar-cuando-cambia-la-estructura-del-config).
 
+## Novedades en v3.28.15
+
+- **La delegación acepta la fecha que da Mail.app.** `modelos.py preparar`
+  rechazaba con `fecha_invalida` la fecha que devuelve el lector de Mail.app
+  («martes, 24 de noviembre de 2026, 19:14:10»): solo admitía 40 caracteres
+  sin tildes, así que «miércoles» o «sábado» no pasaban nunca. En la prueba
+  real del 25-11-2026 el principal tuvo que convertir las fechas a mano.
+  Ahora admite letras con tilde y hasta 64 caracteres, y convierte en espacio
+  normal los espacios especiales (el que pone macOS antes de «PM»). Sigue
+  rechazando comillas, `<`, `>`, saltos de línea y otros signos. No cambia
+  nada más del mensaje ni de la validación.
+
 ## Novedades en v3.28.14
 
 - **`diagnostico-plantillas` nombra los criterios inmóviles.** Cada sesión trae
