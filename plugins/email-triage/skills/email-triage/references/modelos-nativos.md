@@ -276,9 +276,11 @@ Escribe `tmp/modelos-validar.json` con `esperados` del principal y `respuesta`
   resumen (la salida trae `entrega_verificada: false`). Desde v3.22.10 el
   transcript también dice qué herramientas usó el especialista (sus bloques
   `tool_use`), y eso **manda sobre lo que declares**: cualquiera que no sea
-  una única `SubagentHandback` es `especialista_uso_herramientas`, y declarar
-  en `acciones_especialista` menos de las que hay es `acciones_no_coinciden`
-  (la respuesta no cuenta). Con transcript, `herramientas_verificadas` es
+  una única `SubagentHandback` es `especialista_uso_herramientas`. En
+  `acciones_especialista` copia el `tool_uses` del host **tal cual**, aunque
+  el transcript traiga la entrega: unos hosts la cuentan (Claude Code 2.1.310)
+  y otros no (2.1.326), y desde v3.28.10 valen las dos formas; no ajustes la
+  cifra para que cuadre. Con transcript, `herramientas_verificadas` es
   `true` aunque el host no informe acciones, y la salida trae
   `herramientas_en_transcript`. El formato del
   transcript no está documentado por el host: es una comprobación de copia, no

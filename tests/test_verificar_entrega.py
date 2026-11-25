@@ -270,10 +270,23 @@ class TestVerificarEntrega(unittest.TestCase):
         self.assertEqual(r["herramientas_en_transcript"], ["SubagentHandback"])
         self.assertTrue(r["herramientas_verificadas"])
 
-    def test_declarar_menos_acciones_que_el_transcript_no_cuenta(self):
+    def test_host_que_no_cuenta_la_entrega_tambien_vale(self):
+        # v3.28.10 (prueba real 2026-11-23): Claude Code 2.1.326 informa
+        # tool_uses 0 aunque el transcript traiga la SubagentHandback. Copiar
+        # ese 0 tal cual ya no es `acciones_no_coinciden`.
         r = self.validar(self.con_herramientas("SubagentHandback"))  # declaradas: 0
-        self.assertEqual(r["motivo"], "acciones_no_coinciden")
-        self.assertTrue(r["usar_principal"])
+        self.assertTrue(r["ok"], r)
+        self.assertEqual(r["herramientas_en_transcript"], ["SubagentHandback"])
+        self.assertTrue(r["herramientas_verificadas"])
+
+    def test_declarar_cero_no_tapa_otra_herramienta(self):
+        # El freno sigue en el transcript: con 0 declaradas, cualquier otra
+        # herramienta (sola o junto a la entrega) no cuenta.
+        for nombres in (["Read"], ["SubagentHandback", "Bash"]):
+            with self.subTest(nombres=nombres):
+                r = self.validar(self.con_herramientas(*nombres))  # declaradas: 0
+                self.assertEqual(r["motivo"], "especialista_uso_herramientas")
+                self.assertTrue(r["usar_principal"])
 
     def test_mismo_id_repetido_cuenta_una_vez(self):
         self.p.update(acciones_especialista=1, herramientas_especialista=["SubagentHandback"])

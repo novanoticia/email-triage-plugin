@@ -314,7 +314,7 @@ def validar(p):
         recibido, usadas, _ = leido
         # Lo que dice el transcript manda sobre lo que copia el principal:
         # el freno de herramientas ya no depende de `acciones_especialista`.
-        motivo = _herramientas_transcript(usadas, p["acciones_especialista"])
+        motivo = _herramientas_transcript(usadas)
         if motivo:
             return _error(motivo)
         verificadas = True
@@ -643,19 +643,23 @@ def _herramientas_especialista(p):
     return True, None
 
 
-def _herramientas_transcript(usadas, acciones):
+def _herramientas_transcript(usadas):
     """Motivo de error | None según las herramientas del transcript.
 
     Como en `_herramientas_especialista`, solo una `SubagentHandback` se
-    descuenta. Si el principal declaró menos acciones de las que el
-    transcript muestra, copió mal o las ocultó: `acciones_no_coinciden`.
-    "no_informado" no se contrasta (el host no dio el dato); el transcript
-    lo suple."""
+    descuenta: cualquier otra herramienta, o dos entregas, es
+    `especialista_uso_herramientas`.
+
+    v3.28.10 (prueba real 2026-11-23): Claude Code 2.1.310 contaba la entrega
+    en `tool_uses`; 2.1.326 informa 0 con la entrega en el transcript. Hasta
+    v3.28.9, declarar 0 con esa entrega era `acciones_no_coinciden`, así que
+    se rechazaba al principal que copiaba bien el dato del host y pasaba el
+    que ajustaba la cifra al transcript. Ahora valen las dos formas de contar
+    del host (0 o 1 con la entrega). `acciones_no_coinciden` queda retirado:
+    con el transcript, que manda, ya no protegía nada."""
     otras = [n for n in usadas if n != ENTREGA_ESPECIALISTA]
     if otras or len(usadas) > 1:
         return "especialista_uso_herramientas"
-    if type(acciones) is int and acciones < len(usadas):
-        return "acciones_no_coinciden"
     return None
 
 
