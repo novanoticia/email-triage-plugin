@@ -13,7 +13,7 @@ on run argumentos
 	tell application "Mail"
 		set cuentaElegida to missing value
 		repeat with unaCuenta in (every account)
-			if my exacto((name of unaCuenta) as text, nombreCuenta) then
+			if my mismoNombre((name of unaCuenta) as text, nombreCuenta) then
 				if cuentaElegida is not missing value then return my codificar({"cuenta_ambigua"})
 				set cuentaElegida to contents of unaCuenta
 			end if
@@ -23,7 +23,7 @@ on run argumentos
 		if idCuentaEsperado is not "" and not my exacto(idCuenta, idCuentaEsperado) then return my codificar({"cuenta_cambiada"})
 		set buzonElegido to missing value
 		repeat with unBuzon in (every mailbox of cuentaElegida)
-			if my exacto((name of unBuzon) as text, nombreBuzon) then
+			if my mismoNombre((name of unBuzon) as text, nombreBuzon) then
 				if buzonElegido is not missing value then return my codificar({"buzon_ambiguo"})
 				set buzonElegido to contents of unBuzon
 			end if
@@ -114,6 +114,19 @@ on exacto(izquierda, derecha)
 	set texto to current application's NSString's stringWithString:izquierda
 	return (texto's isEqualToString:derecha) as boolean
 end exacto
+
+-- v3.28.9 (prueba real 2026-11-23): Mail guardaba «Leer Después» con la
+-- tilde descompuesta (NFD) y el config la trae compuesta (NFC); `exacto` las
+-- veía distintas y el lector devolvía sin_buzon. Los nombres de cuenta y de
+-- buzón se comparan en NFC por los dos lados: equivalencia canónica, el mismo
+-- texto. No ignora mayúsculas, espacios ni nada más; dos buzones que solo
+-- difieran en la forma de la tilde dan buzon_ambiguo. Los identificadores
+-- (cuenta, message-id) siguen con `exacto`.
+on mismoNombre(izquierda, derecha)
+	set nfcIzquierda to (current application's NSString's stringWithString:izquierda)'s precomposedStringWithCanonicalMapping()
+	set nfcDerecha to (current application's NSString's stringWithString:derecha)'s precomposedStringWithCanonicalMapping()
+	return (nfcIzquierda's isEqualToString:nfcDerecha) as boolean
+end mismoNombre
 
 on codificar(valor)
 	set datos to current application's NSJSONSerialization's dataWithJSONObject:valor options:0 |error|:(missing value)
