@@ -53,7 +53,7 @@ correo, se documenta por qué y se deja fuera.
 | Describir calidad y credibilidad de las fuentes | La explicación distingue qué afirma el remitente, qué respalda con evidencia y si esa evidencia es de primera mano o reproducida | pendiente |
 | Expresar y explicar la incertidumbre | Cada evaluación lleva un **nivel de confianza** y la causa principal de la duda (cuerpo recortado, remitente desconocido, afirmación no verificable) | implementado, opt-in (v3.19.0 motor, v3.19.1 skill); pendiente de validar con correos reales |
 | Distinguir información de supuestos y juicios | En las razones, separar «el correo dice», «asumo» y «concluyo» | implementado, opt-in (v3.19.1); pendiente de validar con correos reales |
-| Análisis de alternativas | Para tiers altos, una línea de «lectura alternativa» cuando exista otra interpretación plausible | pendiente |
+| Análisis de alternativas | Para tiers altos, una línea de «lectura alternativa» cuando exista otra interpretación plausible | implementado, opt-in (`scoring.lectura_alternativa`, v3.28.13); pendiente de validar con correos reales |
 | Relevancia para el destinatario e implicaciones | Ya cubierto en gran parte por el eje `valor_decisional`; revisar que la explicación lo haga explícito | revisar |
 | Argumentación clara y lógica | Las razones positivas/negativas no deben contradecirse entre sí ni con el tier | pendiente |
 | Explicar cambios o consistencia de juicios | Si un remitente o hilo cambia de tier respecto a sesiones anteriores, decirlo y por qué (usa `correcciones.jsonl` / calibración) | pendiente |

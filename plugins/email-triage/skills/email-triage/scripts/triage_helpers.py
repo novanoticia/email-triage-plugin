@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.28.12).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.28.13).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -2747,6 +2747,9 @@ def cmd_validar_config(ruta: str, plantilla: Optional[str] = None) -> dict:
     p2_invalido = _p2_raw is not None and not isinstance(_p2_raw, bool)
     _ens_raw = _scfg_raw.get("ensayo_p3")
     ensayo_invalido = _ens_raw is not None and not isinstance(_ens_raw, bool)
+    # v3.28.13: lectura alternativa (P2), mismas reglas que contrato_p2.
+    _alt_raw = _scfg_raw.get("lectura_alternativa")
+    alternativa_invalida = _alt_raw is not None and not isinstance(_alt_raw, bool)
     # v3.22.14: evaluación por bloques, mismas reglas que _config_bloques.
     _blq_raw = _scfg_raw.get("bloques")
     bloques_invalido = _blq_raw is not None and not isinstance(_blq_raw, bool)
@@ -2874,6 +2877,10 @@ def cmd_validar_config(ruta: str, plantilla: Optional[str] = None) -> dict:
         avisos.append(
             "scoring.ensayo_p3=%r debe ser true o false: con otro valor el "
             "ensayo P3 queda APAGADO" % (_ens_raw,))
+    if alternativa_invalida:
+        avisos.append(
+            "scoring.lectura_alternativa=%r debe ser true o false: con otro "
+            "valor la lectura alternativa queda APAGADA" % (_alt_raw,))
     if bloques_invalido:
         avisos.append(
             "scoring.bloques=%r debe ser true o false: con otro valor la "
@@ -6214,6 +6221,26 @@ def _cobertura_desglose(ruta, clave="criterios_sin_evaluar"):
             if r.get(clave)] + sin_id
 
 
+# v3.28.13 (P2 de ICD 203, análisis de alternativas): tiers que llevan una
+# «lectura alternativa» cuando `scoring.lectura_alternativa: true`.
+_TIERS_LECTURA_ALTERNATIVA = ("REPLY_NEEDED", "REVIEW")
+
+
+def _lectura_alternativa_activa(base):
+    """v3.28.13: True solo si <base>/config.yaml trae
+    `scoring.lectura_alternativa: true` literal (como `contrato_p2`). Solo
+    lee. TOTAL: sin config, sin PyYAML o con un YAML roto, False; el aviso
+    que activa es informativo, nunca un freno."""
+    try:
+        import yaml
+        with open(os.path.join(base, "config.yaml"), encoding="utf-8") as fh:
+            cfg = yaml.safe_load(fh.read(MAX_INGESTA_BYTES))
+        scfg = cfg.get("scoring") if isinstance(cfg, dict) else None
+        return isinstance(scfg, dict) and scfg.get("lectura_alternativa") is True
+    except Exception:
+        return False
+
+
 def cmd_informe(datos: dict) -> dict:
     """Escribe <base_estado>/informes/<session_id>.md y devuelve su ruta.
 
@@ -6245,6 +6272,9 @@ def cmd_informe(datos: dict) -> dict:
     por_tier = {t: [] for t, _ in _INFORME_TIERS}
     vistos, sin_enlace, sin_determinista = set(), [], []
     modo_sesion = datos.get("modo_scoring")
+    # v3.28.13: el config manda; la sesión no puede apagar el aviso.
+    alternativa_activa = _lectura_alternativa_activa(base_estado())
+    sin_alternativa = []
     for u in unidades:
         if not isinstance(u, dict):
             return {"ok": False, "error": "cada unidad debe ser un objeto"}
@@ -6271,6 +6301,21 @@ def cmd_informe(datos: dict) -> dict:
         razones = " · ".join(x for x in (
             "▲ " + _celda_md(u["razon_pos"]) if u.get("razon_pos") else "",
             "▼ " + _celda_md(u["razon_neg"]) if u.get("razon_neg") else "") if x)
+        # v3.28.13: `lectura_alternativa` es una frase (otra interpretación
+        # plausible que cambiaría el tier) o `false` (no hay ninguna). Se
+        # pinta con o sin el ajuste; con él, su ausencia en un tier alto se
+        # avisa. Mismo escapado que las razones: texto inerte.
+        alt = u.get("lectura_alternativa")
+        if isinstance(alt, str) and alt.strip():
+            alt_txt = "↔ " + _celda_md(alt)
+        elif alt is False:
+            alt_txt = "↔ sin lectura alternativa plausible"
+        else:
+            alt_txt = ""
+            if tier in _TIERS_LECTURA_ALTERNATIVA:
+                sin_alternativa.append(n)
+        if alt_txt:
+            razones = " · ".join(x for x in (razones, alt_txt) if x)
         destino = _celda_md(u.get("destino"), 60)
         accion_txt = accion + (" → " + destino if destino else "")
         score = u.get("score")
@@ -6378,6 +6423,15 @@ def cmd_informe(datos: dict) -> dict:
                    % (len(sin_determinista), len(unidades),
                       ", ".join("#%d" % n for n in sorted(sin_determinista)[:20])
                       + (" …" if len(sin_determinista) > 20 else "")), ""]
+    if alternativa_activa and sin_alternativa:
+        lineas += ["> ⚠️ **Sin lectura alternativa en %d correos de tier "
+                   "alto** (%s): con `scoring.lectura_alternativa` activo, "
+                   "cada REPLY_NEEDED y REVIEW lleva otra interpretación "
+                   "plausible que cambiaría su tier, o `false` si no la hay. "
+                   "Es solo un aviso."
+                   % (len(sin_alternativa), ", ".join(
+                       "#%d" % n for n in sorted(sin_alternativa)[:20])
+                      + (" …" if len(sin_alternativa) > 20 else "")), ""]
     for tier, icono in _INFORME_TIERS:
         filas = sorted(por_tier[tier])
         if not filas:
@@ -6413,6 +6467,8 @@ def cmd_informe(datos: dict) -> dict:
             **({} if not recortados
                else {"lectura_recortada": len(recortados)}),
             **({} if not huellas else {"huellas_plantilla": huellas}),
+            **({} if not alternativa_activa
+               else {"lectura_alternativa_ausente": sorted(sin_alternativa)}),
             **({} if previo is None else {"sobrescrito": {
                 "mtime_anterior": previo,
                 "aviso": "ya existía un informe de esta sesión y se ha "
