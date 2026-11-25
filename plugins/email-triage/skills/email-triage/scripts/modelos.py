@@ -193,6 +193,12 @@ def _validar_fila(fila, criterios):
     if set(fila) - {"eco"} != campos:
         return "campos_incorrectos"
     vs, na, ev = (fila[k] for k in ("verdicts", "no_aplica", "evidencias"))
+    # v3.28.11 (prueba real 2026-11-23: Haiku devolvió `"no_aplica": []` en
+    # las 7 filas de un lote y salieron todas `veredictos_invalidos`). Una
+    # lista VACÍA no deja dudas: ningún criterio excluido, igual que {}. Una
+    # lista con elementos sigue siendo inválida (no trae la razón de cada uno).
+    if type(na) is list and not na:
+        na = {}
     if not all(isinstance(v, dict) for v in (vs, na, ev)):
         return "veredictos_invalidos"
     if set(vs) & set(na) or set(vs) | set(na) != set(criterios):

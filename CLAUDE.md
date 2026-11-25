@@ -395,7 +395,11 @@ del especialista) y manda sobre `acciones_especialista`: otra que no sea una
 Desde v3.28.10 `acciones_no_coinciden` queda retirado: Claude Code 2.1.326
 informa `tool_uses: 0` con la entrega en el transcript, y el freno rechazaba
 al principal que copiaba bien el dato (prueba real 2026-11-23). Valen 0 o 1
-acción cuando la única es la entrega; el resto del freno no cambia. Es la única lectura de fichero de `modelos.py` junto con la de `preparar` (v3.28.4); sigue sin escribir.
+acción cuando la única es la entrega; el resto del freno no cambia.
+Desde v3.28.11 `_validar_fila` acepta `"no_aplica": []` como `{}` (prueba
+real: Haiku lo devolvió en un lote entero y las 7 filas salieron
+`veredictos_invalidos`). Solo la lista vacía; con elementos, o en
+`verdicts`/`evidencias`, sigue siendo inválida. Es la única lectura de fichero de `modelos.py` junto con la de `preparar` (v3.28.4); sigue sin escribir.
 Desde v3.22.24 ese transcript también da la respuesta: la última
 `{"evaluaciones": …}` que escribió el especialista (texto `assistant` o
 entrada de su `SubagentHandback`). Sin `respuesta`, `validar` la toma de ahí;
