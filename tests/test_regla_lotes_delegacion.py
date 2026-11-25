@@ -52,6 +52,8 @@ class TestReglaLotesDelegacion(unittest.TestCase):
         _, regla = _regla()
         for trozo in ("El primer lote se lanza siempre y sin preguntar",
                       "ese coste no es motivo para dejar la delegación pendiente",
+                      "Cuenta los lotes con el `tamano_lote` del plan",
+                      "redondeando hacia arriba",
                       "Si harán falta más de dos lotes, tras el primero",
                       "cuántas filas del primero fueron comparables",
                       "espera a que la persona confirme",

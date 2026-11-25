@@ -466,9 +466,11 @@ permanecen bajo control del principal. Con Jev activo, aplica `references/jev.md
 con `references/decisions.md`. Sin delegación, sigue este paso.
 **Lotes de la delegación (v3.28.12).** El primer lote se lanza siempre y sin
 preguntar, aunque copiar sus extractos sea largo: ese coste no es motivo para
-dejar la delegación pendiente. Si harán falta más de dos lotes, tras el primero
-di cuántos quedan, cuánto ocupa cada mensaje y cuántas filas del primero fueron
-comparables, y espera a que la persona confirme. Nunca superes el
+dejar la delegación pendiente. Cuenta los lotes con el `tamano_lote` del plan
+(correos a delegar entre ese tamaño, redondeando hacia arriba). Si harán falta
+más de dos lotes, tras el primero di cuántos quedan, cuánto ocupa cada mensaje y
+cuántas filas del primero fueron comparables, y espera a que la persona
+confirme. Nunca superes el
 `max_llamadas` de la capa.
 **Veredictos de esta sesión (v3.28.2).** Cada veredicto sale de leer en esta
 sesión el texto saneado de ese correo: nunca de otra sesión, de otro correo ni
