@@ -4,6 +4,17 @@ Novedades de [Email Triage Plugin](README.md), una entrada por versión, de la m
 Para usar el plugin no hace falta leerlo entero; sí conviene mirar la entrada de la versión que instales,
 por si pide [actualizar tu config](README.md#actualizar-cuando-cambia-la-estructura-del-config).
 
+## Novedades en v3.28.10
+
+- **Delegación nativa: el recuento de acciones del host.** Claude Code
+  2.1.326 informa `tool_uses: 0` aunque el transcript del especialista
+  traiga la entrega `SubagentHandback`; la 2.1.310 la contaba. Hasta ahora,
+  copiar ese 0 tal cual daba `acciones_no_coinciden` y el lote no contaba,
+  mientras que ajustar la cifra al transcript sí pasaba (prueba real del
+  23-11-2026). Ahora valen las dos formas de contar y `acciones_no_coinciden`
+  queda retirado. El freno de herramientas no cambia: cualquier herramienta
+  que no sea esa única entrega sigue dejando la respuesta fuera.
+
 ## Novedades en v3.28.9
 
 - **Mail.app: buzones con tilde.** El lector encuentra un buzón como
