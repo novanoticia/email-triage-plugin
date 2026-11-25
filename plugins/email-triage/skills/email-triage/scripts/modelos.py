@@ -15,6 +15,7 @@ import math
 import os
 import re
 import sys
+import unicodedata
 
 import triage_helpers as th
 
@@ -827,8 +828,18 @@ def preparar(p):
             return _error("id_duplicado")
         vistos.add(u["id"])
         fecha = u.get("fecha", "")
-        if not isinstance(fecha, str) or len(fecha) > 40 or not re.fullmatch(
-                r"[0-9A-Za-z :.,/+-]*", fecha):
+        if not isinstance(fecha, str):
+            return _error("fecha_invalida")
+        # v3.28.15: la fecha llega tal como la da Mail.app vía `leer_mailapp`
+        # («martes, 24 de noviembre de 2026, 19:14:10»: 41 caracteres; con
+        # «miércoles» o «sábado», tildes). Antes solo valían ASCII y 40
+        # caracteres, y el principal tuvo que convertirlas a mano (prueba real
+        # 2026-11-25). Se admiten letras Unicode; los espacios raros (el
+        # U+202F de «9:40 PM») pasan a espacio normal. Sigue sin admitir
+        # comillas, <, >, saltos de línea ni otros signos.
+        fecha = "".join(" " if unicodedata.category(c) == "Zs" else c
+                        for c in unicodedata.normalize("NFC", fecha))
+        if len(fecha) > 64 or not re.fullmatch(r"(?:[^\W_]|[ :.,/+-])*", fecha):
             return _error("fecha_invalida")
         doc, motivo = _leer_saneado(u.get("saneado"))
         if motivo:

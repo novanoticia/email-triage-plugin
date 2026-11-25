@@ -400,6 +400,10 @@ Desde v3.28.11 `_validar_fila` acepta `"no_aplica": []` como `{}` (prueba
 real: Haiku lo devolvió en un lote entero y las 7 filas salieron
 `veredictos_invalidos`). Solo la lista vacía; con elementos, o en
 `verdicts`/`evidencias`, sigue siendo inválida. Es la única lectura de fichero de `modelos.py` junto con la de `preparar` (v3.28.4); sigue sin escribir.
+Desde v3.28.15 `preparar` acepta en `fecha` letras Unicode (NFC) y hasta 64
+caracteres, con los espacios Zs pasados a espacio normal: la fecha en español
+de `leer_mailapp` salía `fecha_invalida` (prueba real 2026-11-25). Comillas,
+`<`, `>`, saltos de línea y demás signos siguen fuera.
 Desde v3.22.24 ese transcript también da la respuesta: la última
 `{"evaluaciones": …}` que escribió el especialista (texto `assistant` o
 entrada de su `SubagentHandback`). Sin `respuesta`, `validar` la toma de ahí;
