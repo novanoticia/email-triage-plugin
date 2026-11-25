@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.28.13).
+"""triage_helpers.py — Lógica determinista del plugin email-triage (v3.28.14).
 
 Extrae a código las partes del SKILL.md que no deben depender de la
 aritmética mental del modelo:
@@ -2183,7 +2183,11 @@ def cmd_diagnostico_plantillas(docs) -> dict:
         if m is not None:
             sesion.update(correos=m["correos"], tiers=m["tiers"],
                           criterios=m["criterios"], inmoviles=len(m["inmoviles"]),
-                          cercanos=len(m["cercanos"]))
+                          cercanos=len(m["cercanos"]),
+                          # v3.28.14 (prueba real 2026-11-25: con 33 sesiones
+                          # solo se veía cuántos, no si siempre son los
+                          # mismos). Nombres del config, nunca del correo.
+                          criterios_inmoviles=sorted(str(c) for c in m["inmoviles"]))
         sesion["saltaria"] = sorted(k for k in (huellas or {})
                                     if k in ("criterios_inmoviles",
                                              "plantilla_cercana"))
@@ -2191,7 +2195,17 @@ def cmd_diagnostico_plantillas(docs) -> dict:
             sesion["omitidas"] = ev["omitidas"]
         sesiones.append(sesion)
     medidas = [x for x in sesiones if "error" not in x and "correos" in x]
+    # v3.28.14: en cuántas sesiones medidas quedó inmóvil cada criterio, de
+    # más a menos; separa «el criterio no discrimina en este buzón» (en casi
+    # todas) de «esa sesión puso valores por defecto» (solo en algunas).
+    veces = {}
+    for x in medidas:
+        for c in x.get("criterios_inmoviles", []):
+            veces[c] = veces.get(c, 0) + 1
+    inmoviles_por_criterio = dict(sorted(veces.items(),
+                                         key=lambda kv: (-kv[1], kv[0])))
     return {"ok": True, "sesiones": sesiones,
+            "inmoviles_por_criterio": inmoviles_por_criterio,
             "resumen": {"sesiones": len(medidas),
                         "con_inmoviles": sum(1 for x in medidas if
                                              "criterios_inmoviles" in x["saltaria"]),
