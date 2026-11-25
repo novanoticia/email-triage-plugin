@@ -4,6 +4,18 @@ Novedades de [Email Triage Plugin](README.md), una entrada por versión, de la m
 Para usar el plugin no hace falta leerlo entero; sí conviene mirar la entrada de la versión que instales,
 por si pide [actualizar tu config](README.md#actualizar-cuando-cambia-la-estructura-del-config).
 
+## Novedades en v3.28.12
+
+- **Delegación nativa: el primer lote va siempre.** Con `capa_modelos`
+  activa, el primer lote se lanza sin preguntar aunque copiar sus extractos
+  sea largo. Si hacen falta más de dos lotes, después del primero el modelo
+  dice cuántos quedan, cuánto ocupa cada mensaje y cuántas filas del primero
+  fueron comparables, y espera a que confirmes. En la prueba real del
+  23-11-2026 no lanzó ninguno y ofreció la comparación al final, por el coste
+  de copiar 8 lotes. Es una regla del `SKILL.md` (PASO 4.B), no un freno del
+  script; un test vigila que siga ahí y que `modelos-nativos.md` no la
+  contradiga.
+
 ## Novedades en v3.28.11
 
 - **Delegación nativa: `no_aplica` vacío como lista.** Si el especialista

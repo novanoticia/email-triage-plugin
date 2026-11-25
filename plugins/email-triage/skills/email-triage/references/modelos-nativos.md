@@ -24,6 +24,10 @@ sin anular restricciones superiores de la sesión.
 **Con `capa_modelos.estado: activa` no pidas permiso para delegar** (v3.21.29;
 prueba real: la persona tuvo que pedirlo dos veces). Es lo que su config ya
 decide: compruébalo y delega, o di en una línea qué capacidad falló.
+Desde v3.28.12 el primer lote va siempre, aunque copiar sus extractos sea largo
+(prueba real 2026-11-23: «cada lote exige copiar a mano unos 16.000
+caracteres» y no se lanzó ninguno); con más de dos lotes, la pausa tras el
+primero la fija «Lotes de la delegación» en el PASO 4.B del `SKILL.md`.
 
 1. Inspecciona las herramientas reales de la sesión, no la marca de la app.
    Comprueba delegación con selección de modelo, contexto aislado, posibilidad
