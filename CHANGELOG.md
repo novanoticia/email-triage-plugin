@@ -4,6 +4,17 @@ Novedades de [Email Triage Plugin](README.md), una entrada por versión, de la m
 Para usar el plugin no hace falta leerlo entero; sí conviene mirar la entrada de la versión que instales,
 por si pide [actualizar tu config](README.md#actualizar-cuando-cambia-la-estructura-del-config).
 
+## Novedades en v3.28.14
+
+- **`diagnostico-plantillas` nombra los criterios inmóviles.** Cada sesión trae
+  `criterios_inmoviles` (qué criterios tuvieron el mismo valor en casi todos
+  sus correos) y el resultado añade `inmoviles_por_criterio`: en cuántas
+  sesiones quedó inmóvil cada uno, de más a menos. Así se distingue un
+  criterio que no discrimina en tu buzón (inmóvil casi siempre) de una sesión
+  que puso valores por defecto (inmóviles solo en algunas). Antes solo se veía
+  cuántos (prueba real del 25-11-2026, 33 sesiones). Solo nombres del config,
+  nunca texto del correo; el comando sigue sin escribir nada.
+
 ## Novedades en v3.28.13
 
 - **Lectura alternativa (opt-in).** Nuevo ajuste `scoring.lectura_alternativa`,

@@ -346,6 +346,34 @@ class TestInformeYCalibracion(unittest.TestCase):
         self.assertEqual(out["resumen"], {"sesiones": 3, "con_inmoviles": 1,
                                           "con_cercanos": 1, "con_omitidas": 0})
 
+    def test_diagnostico_nombra_los_inmoviles(self):
+        # v3.28.14 (prueba real 2026-11-25, 33 sesiones): la salida decía
+        # cuántos criterios no se movían, no cuáles.
+        self.registrar("s-plantilla", puntuar(plantilla_con_retoques()))
+        self.registrar("s-promos", puntuar(promociones_honestas()))
+        docs = []
+        for f in sorted(os.listdir(self.desgloses)):
+            ruta = os.path.join(self.desgloses, f)
+            with open(ruta, encoding="utf-8") as fh:
+                docs.append((ruta, th._parsear_desglose(fh.read())))
+        out = th.cmd_diagnostico_plantillas(docs)
+        veces = {}
+        for s in out["sesiones"]:
+            nombres = s["criterios_inmoviles"]
+            self.assertEqual(len(nombres), s["inmoviles"])
+            self.assertEqual(nombres, sorted(nombres))
+            self.assertTrue(set(nombres) <= set(CRITERIOS))  # solo del config
+            for c in nombres:
+                veces[c] = veces.get(c, 0) + 1
+        por_criterio = out["inmoviles_por_criterio"]
+        self.assertEqual(por_criterio, veces)
+        cuentas = list(por_criterio.values())
+        self.assertEqual(cuentas, sorted(cuentas, reverse=True))  # de más a menos
+
+    def test_diagnostico_sin_sesiones_medibles(self):
+        out = th.cmd_diagnostico_plantillas([("roto.jsonl", {"pasadas": "x"})])
+        self.assertEqual(out["inmoviles_por_criterio"], {})
+
     def diagnosticar(self, ruta):
         with open(ruta, encoding="utf-8") as fh:
             doc = th._parsear_desglose(fh.read())
