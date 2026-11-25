@@ -137,6 +137,35 @@ class TestValidar(unittest.TestCase):
         self.fila["no_aplica"][k] = ""
         self.assertTrue(self.resultado()["usar_principal"])
 
+    def test_no_aplica_lista_vacia_equivale_a_objeto_vacio(self):
+        # v3.28.11 (prueba real 2026-11-23: Haiku devolvió `"no_aplica": []`
+        # en las 7 filas de un lote y salieron todas `veredictos_invalidos`).
+        self.assertEqual(self.fila["no_aplica"], {})
+        con_objeto = self.resultado()
+        self.fila["no_aplica"] = []
+        con_lista = self.resultado()
+        self.assertIn("resultado", con_lista)
+        self.assertEqual(con_lista, con_objeto)
+
+    def test_no_aplica_lista_con_elementos_u_otros_vacios_siguen_invalidos(self):
+        k = next(k for k, (_, core) in m._criterios(self.p["config"]).items() if not core)
+        del self.fila["verdicts"][k]
+        del self.fila["evidencias"][k]
+        for valor in ([k], [{k: "No aplica."}], "", None):
+            with self.subTest(no_aplica=valor):
+                self.fila["no_aplica"] = valor
+                r = self.resultado()
+                self.assertEqual(r["motivo"], "veredictos_invalidos")
+                self.assertNotIn("resultado", r)
+        # Solo `no_aplica` admite la lista vacía: `verdicts` o `evidencias`
+        # vacíos como lista siguen siendo inválidos.
+        for campo in ("verdicts", "evidencias"):
+            with self.subTest(campo=campo):
+                self.p = lote()
+                fila = self.p["respuesta"]["evaluaciones"][0]
+                fila[campo] = []
+                self.assertEqual(self.resultado()["motivo"], "veredictos_invalidos")
+
     def test_opcion_booleano_o_no_admitida_y_dudas(self):
         k = next(iter(self.fila["verdicts"]))
         for v in (True, None, [], {}, "inexistente"):

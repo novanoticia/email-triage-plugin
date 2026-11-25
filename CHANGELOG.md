@@ -4,6 +4,16 @@ Novedades de [Email Triage Plugin](README.md), una entrada por versión, de la m
 Para usar el plugin no hace falta leerlo entero; sí conviene mirar la entrada de la versión que instales,
 por si pide [actualizar tu config](README.md#actualizar-cuando-cambia-la-estructura-del-config).
 
+## Novedades en v3.28.11
+
+- **Delegación nativa: `no_aplica` vacío como lista.** Si el especialista
+  devuelve `"no_aplica": []` en lugar de `{}`, la fila se valida igual: una
+  lista vacía significa que no excluyó ningún criterio. Antes la fila salía
+  `veredictos_invalidos`, y en la prueba real del 23-11-2026 se perdió así un
+  lote entero de Haiku (7 de 7). Una lista con elementos sigue siendo
+  inválida, porque no trae la razón de cada exclusión. Las capas externas no
+  cambian: su esquema ya construye siempre un objeto.
+
 ## Novedades en v3.28.10
 
 - **Delegación nativa: el recuento de acciones del host.** Claude Code
