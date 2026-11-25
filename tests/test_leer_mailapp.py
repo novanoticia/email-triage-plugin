@@ -148,5 +148,48 @@ class CapturaMailApp(unittest.TestCase):
                          {"ok": False, "error": "tiempo_agotado"})
 
 
+class NombresConTilde(unittest.TestCase):
+    """v3.28.9 (prueba real 2026-11-23): Mail guardaba «Leer Después» en NFD
+    y el config lo trae en NFC; con `isEqualToString:` a secas el lector daba
+    `sin_buzon`. El AppleScript no corre fuera de macOS, así que se fija su
+    texto: nombres de cuenta y buzón en NFC por los dos lados, identificadores
+    sin normalizar."""
+
+    def setUp(self):
+        self.script = lector._SCRIPT.read_text(encoding="utf-8")
+
+    def handler(self, nombre):
+        inicio = self.script.index("on %s(" % nombre)
+        return self.script[inicio:self.script.index("end %s" % nombre, inicio)]
+
+    def test_premisa_nfc_y_nfd_son_el_mismo_texto_y_cadenas_distintas(self):
+        import unicodedata
+        nfc = unicodedata.normalize("NFC", "Leer Después")
+        nfd = unicodedata.normalize("NFD", "Leer Después")
+        self.assertNotEqual(nfc, nfd)
+        self.assertEqual(unicodedata.normalize("NFC", nfd), nfc)
+
+    def test_cuenta_y_buzon_se_comparan_en_forma_canonica(self):
+        self.assertIn("my mismoNombre((name of unaCuenta) as text, nombreCuenta)",
+                      self.script)
+        self.assertIn("my mismoNombre((name of unBuzon) as text, nombreBuzon)",
+                      self.script)
+        self.assertNotIn("my exacto((name of", self.script)
+
+    def test_mismo_nombre_solo_normaliza_nfc_en_los_dos_lados(self):
+        cuerpo = self.handler("mismoNombre")
+        self.assertEqual(cuerpo.count("precomposedStringWithCanonicalMapping()"), 2)
+        self.assertIn("isEqualToString:", cuerpo)
+        # Nada de comparaciones laxas: ni mayúsculas, ni NFKC, ni diacríticos.
+        for laxo in ("caseInsensitive", "compare:", "Compatibility",
+                     "DiacriticInsensitive", "localized"):
+            self.assertNotIn(laxo, cuerpo)
+
+    def test_identificadores_siguen_siendo_exactos(self):
+        self.assertIn("my exacto(idCuenta, idCuentaEsperado)", self.script)
+        self.assertIn("my exacto(inicioMid, finMid)", self.script)
+        self.assertNotIn("precomposed", self.handler("exacto"))
+
+
 if __name__ == "__main__":
     unittest.main()

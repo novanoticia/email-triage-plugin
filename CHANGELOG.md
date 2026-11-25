@@ -4,6 +4,18 @@ Novedades de [Email Triage Plugin](README.md), una entrada por versión, de la m
 Para usar el plugin no hace falta leerlo entero; sí conviene mirar la entrada de la versión que instales,
 por si pide [actualizar tu config](README.md#actualizar-cuando-cambia-la-estructura-del-config).
 
+## Novedades en v3.28.9
+
+- **Mail.app: buzones con tilde.** El lector encuentra un buzón como
+  «Leer Después» aunque Mail guarde la tilde descompuesta y el config la
+  traiga compuesta. Antes devolvía `sin_buzon` (prueba real del 23-11-2026).
+  Los nombres de cuenta y de buzón se comparan como el mismo texto Unicode,
+  sin ignorar mayúsculas ni otros caracteres; los identificadores siguen
+  comparándose tal cual. No hace falta tocar el config.
+- **Pendiente de comprobar en un Mac:** la ruta de mover sigue nombrando el
+  buzón tal como viene del config. Aún no se sabe si Mail lo resuelve con la
+  tilde descompuesta.
+
 ## Novedades en v3.28.8
 
 - **Mail.app.** La captura sanea el correo antes de entregarlo al agente.
