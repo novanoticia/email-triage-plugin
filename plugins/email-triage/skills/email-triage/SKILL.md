@@ -14,7 +14,7 @@ compatibility: >
   PyYAML es necesario para mover correo.
 license: Apache-2.0
 metadata:
-  version: "3.28.16"
+  version: "3.28.17"
   author: novanoticia
 ---
 
@@ -264,6 +264,15 @@ capturar correo sin que el texto crudo llegue al agente. En Mail.app usa
 `scripts/leer_mailapp.py` tanto para metadatos como para cuerpos. En Gmail u
 otro proveedor, exige un conector que ejecute S0–S5 antes de mostrar la respuesta.
 Detén la captura si no hay una vía compatible.
+
+**Si el lector devuelve `tiempo_agotado` (v3.28.17).** No relances la lectura
+enseguida: cortar el proceso no cancela la petición y Mail sigue atendiéndola.
+Deja pasar al menos 2 minutos y repite la misma solicitud una sola vez. Si el
+host no puede esperar ese tiempo, díselo a la persona y repite cuando lo
+confirme. Si vuelve a agotarse, detén la captura y explica que Mail está
+ocupado. Prueba real 2026-11-25: tras agotarse una lectura de 100 correos, la
+de 50 lanzada al momento tardó 161 s; sin solaparse, 100 correos tardan unos
+9 s, con picos de hasta 81 s.
 
 Usa mecanismos de escapado para construir AppleScript de movimiento o de
 consulta. Introduce datos de correo como JSON por fichero.

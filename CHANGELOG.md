@@ -4,6 +4,18 @@ Novedades de [Email Triage Plugin](README.md), una entrada por versión, de la m
 Para usar el plugin no hace falta leerlo entero; sí conviene mirar la entrada de la versión que instales,
 por si pide [actualizar tu config](README.md#actualizar-cuando-cambia-la-estructura-del-config).
 
+## Novedades en v3.28.17
+
+- **Qué hacer si la lectura de Mail.app agota el tiempo.** El `SKILL.md`
+  pide ahora, tras un `tiempo_agotado` del lector, esperar al menos 2 minutos
+  antes de repetir la misma lectura, repetirla una sola vez y, si vuelve a
+  agotarse, detener la captura y explicar que Mail está ocupado. Cortar el
+  proceso no cancela la petición: Mail sigue atendiéndola. En la prueba real
+  del 25-11-2026, tras agotarse una lectura de 100 correos, la de 50 lanzada
+  al momento tardó 161 s. Medido el 26-11 sin solapamiento, 100 correos tardan
+  unos 9 s, con picos de hasta 81 s: el lector no es lento y su tiempo
+  límite (180 s) no cambia. No cambia ningún script.
+
 ## Novedades en v3.28.16
 
 - **La pausa de la delegación termina en una pregunta.** Cuando hacen falta
