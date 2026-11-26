@@ -18,7 +18,8 @@ a la asociación.
 
 ## Reintentos
 
-Una llamada fallida se repite desde el JSON de solicitud. Se pueden volver
+Una llamada fallida se repite desde el JSON de solicitud. Tras
+`tiempo_agotado`, aplica antes la espera del PASO 1 del `SKILL.md`. Se pueden volver
 a pedir solo los pares sin respuesta saneada de identidad verificada.
 Nunca uses `tbody_*.txt`, prefijos de lote, índices de buzón, tamaños de
 archivo ni la salida cruda de AppleScript como prueba de lectura. El lector
