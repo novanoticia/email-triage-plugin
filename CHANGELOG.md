@@ -4,6 +4,22 @@ Novedades de [Email Triage Plugin](README.md), una entrada por versión, de la m
 Para usar el plugin no hace falta leerlo entero; sí conviene mirar la entrada de la versión que instales,
 por si pide [actualizar tu config](README.md#actualizar-cuando-cambia-la-estructura-del-config).
 
+## Novedades en v3.28.16
+
+- **La pausa de la delegación termina en una pregunta.** Cuando hacen falta
+  más de dos lotes, tras el primero el modelo dice cuántos quedan y no lanza
+  más hasta que confirmes; ahora el `SKILL.md` dice qué hacer mientras tanto:
+  terminar el triaje con sus propios veredictos y, al presentar el resultado,
+  preguntarte si lanza los lotes que faltan. Antes decía solo «espera», y en
+  la prueba real del 25-11-2026 el modelo anunció que esperaba y siguió hasta
+  el final sin preguntar.
+- **Boost por palabras frecuentes del historial, en la tabla.** La tabla de
+  boosts del 4.A.2 recoge ahora el +1 a los correos cuyo asunto contiene una
+  de las 15 palabras más frecuentes de la calibración, como ya decía el
+  PASO 2. En la misma prueba el modelo no lo aplicó porque la tabla no lo
+  nombraba. Puede subir un punto el score de algunos correos; no cambia
+  ningún umbral.
+
 ## Novedades en v3.28.15
 
 - **La delegación acepta la fecha que da Mail.app.** `modelos.py preparar`

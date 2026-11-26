@@ -14,7 +14,7 @@ compatibility: >
   PyYAML es necesario para mover correo.
 license: Apache-2.0
 metadata:
-  version: "3.28.15"
+  version: "3.28.16"
   author: novanoticia
 ---
 
@@ -438,6 +438,7 @@ deja bajar de ese tier (`suelo_aplicado`). Nunca apliques el suelo a mano.
 | **Remitente prioritario** | +3 | Está en `remitentes_prioritarios` |
 | **Remitente en historial** (5+ veces) | +2 | Detectado en calibración |
 | **Dominio en historial** | +1 | Dominio frecuente en calibración |
+| **Keyword del historial** | +1 | El asunto contiene una de las `top_keywords` (top 15) de la calibración; +1 por correo aunque haya varias |
 | **Keyword boost (alta)** | +3 | Palabra con peso `alto` |
 | **Keyword boost (media)** | +2 | Palabra con peso `medio` |
 | **Keyword boost (baja)** | +1 | Palabra con peso `bajo` o sin peso |
@@ -469,8 +470,10 @@ preguntar, aunque copiar sus extractos sea largo: ese coste no es motivo para
 dejar la delegación pendiente. Cuenta los lotes con el `tamano_lote` del plan
 (correos a delegar entre ese tamaño, redondeando hacia arriba). Si harán falta
 más de dos lotes, tras el primero di cuántos quedan, cuánto ocupa cada mensaje y
-cuántas filas del primero fueron comparables, y espera a que la persona
-confirme. Nunca superes el
+cuántas filas del primero fueron comparables, y no lances más hasta que la
+persona confirme. Mientras, termina el triaje con tus veredictos y, al
+presentar el resultado, pregúntale si lanzas los lotes que faltan (v3.28.16;
+prueba real: dijo que esperaba y siguió sin preguntar). Nunca superes el
 `max_llamadas` de la capa.
 **Veredictos de esta sesión (v3.28.2).** Cada veredicto sale de leer en esta
 sesión el texto saneado de ese correo: nunca de otra sesión, de otro correo ni
