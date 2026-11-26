@@ -56,7 +56,11 @@ class TestReglaLotesDelegacion(unittest.TestCase):
                       "redondeando hacia arriba",
                       "Si harán falta más de dos lotes, tras el primero",
                       "cuántas filas del primero fueron comparables",
-                      "espera a que la persona confirme",
+                      "no lances más hasta que la persona confirme",
+                      # v3.28.16: dentro de un mismo turno «esperar» se leía
+                      # como seguir sin preguntar; la pregunta va al final.
+                      "termina el triaje con tus veredictos",
+                      "al presentar el resultado, pregúntale si lanzas los lotes que faltan",
                       "Nunca superes el `max_llamadas` de la capa"):
             self.assertIn(trozo, regla)
 
